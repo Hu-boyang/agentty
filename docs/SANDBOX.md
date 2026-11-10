@@ -5,13 +5,15 @@ hooks, ACP terminals — runs inside an OS-enforced sandbox. This is the referen
 for what that boundary is, how to configure it, and what it deliberately does
 not cover.
 
-Two companion documents, plus the user guide
-([Sandboxing](website/sandboxing.md): pick a posture, what commands can reach):
+Use this reference alongside the current implementation and runnable audit:
 
-- [`docs/design/sandbox-boundary.md`](design/sandbox-boundary.md) — the design
-  record: why each decision was made, which bugs forced it, and what was tried
-  and rejected. Read it before changing anything here.
-- `tests/sandbox_audit.cpp` — a runnable report of what your host actually
+- [Sandbox configuration](../include/agentty/domain/sandbox_config.hpp),
+  [execution boundary](../src/tool/util/sandbox.cpp) and
+  [claybin adapter](../src/tool/util/sandbox_claybin.cpp) — the source for
+  posture, policy construction and backend enforcement.
+- [Sandbox pane](../src/runtime/panel/sandbox.cpp) — how controls expose
+  host capabilities and configuration.
+- [`tests/sandbox_audit.cpp`](../tests/sandbox_audit.cpp) — a runnable report of what your host actually
   enforces. Build and run it; it prints the table in [Capabilities](#capabilities)
   for your machine rather than for ours.
 
@@ -503,10 +505,11 @@ the report refuses to round up:
   ceiling drops with it. A same-path-only policy reports `strong`.
 
 `host.kernel_isolation` is `none` on **every** process backend, by definition —
-the sandboxed command shares your kernel. Only a microVM changes that, and
-[§13 of the design doc](design/sandbox-boundary.md) explains at length why
-claybin should not grow one. The report says `kvm available` or `no kvm` so the
-gap is attributed honestly rather than hidden.
+the sandboxed command shares your kernel. A microVM would require a separate
+execution backend. The current [claybin adapter](../src/tool/util/sandbox_claybin.cpp)
+and [runnable audit](../tests/sandbox_audit.cpp) describe the implemented
+boundary. The report says `kvm available` or `no kvm` so the gap is
+attributed honestly rather than hidden.
 
 ### The honesty rule
 
@@ -741,8 +744,10 @@ agentty: sandbox: active (claybin)
 
 ## For contributors
 
-Read [`docs/design/sandbox-boundary.md`](design/sandbox-boundary.md) first. The
-rules that matter most:
+Read the [configuration types](../include/agentty/domain/sandbox_config.hpp),
+[execution boundary](../src/tool/util/sandbox.cpp) and
+[claybin adapter](../src/tool/util/sandbox_claybin.cpp) first. The rules that
+matter most:
 
 - **Never call `set_config` outside startup.** If you need to, the design is
   wrong — change the design, not the call site.

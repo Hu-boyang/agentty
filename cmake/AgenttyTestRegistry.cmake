@@ -331,7 +331,7 @@ function(agentty_finalize_tests)
     # enumerate cases, so a startup crash broke the whole build — "links fine,
     # dies at discovery"). Turning IPO off for the test binary removes the LTO
     # trigger, keeps LTO where it matters (the shipped `agentty`), and builds
-    # the test faster. See cmake/BEST_PRACTICES.md.
+    # the test faster.
     set_target_properties(agentty_tests PROPERTIES INTERPROCEDURAL_OPTIMIZATION OFF)
     include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake)
     doctest_discover_tests(agentty_tests)

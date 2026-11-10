@@ -49,26 +49,14 @@
 
     {
       "name": "pch",
-      "displayName": "Release + shared PCH (opt-in; measured net-negative on 8-core Apple clang — for CI/low-core experiments)",
+      "displayName": "Release + shared PCH (opt-in; measured net-negative on 8-core Apple clang — for local experiments)",
       "inherits": "release",
       "cacheVariables": { "AGENTTY_PCH": "ON" }
     },
 
     {
-      "name": "ci",
-      "displayName": "CI gate — mirrors the Linux job (Release, no mimalloc, tests on)",
-      "inherits": "base",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "AGENTTY_AUTO_PULL_MAYA": "OFF",
-        "AGENTTY_USE_MIMALLOC": "OFF",
-        "AGENTTY_BUILD_TESTS": "ON"
-      }
-    },
-
-    {
       "name": "sanitizer",
-      "displayName": "ASan+UBSan gate — instruments agentty's own-logic set (mirrors CI)",
+      "displayName": "ASan+UBSan — instruments agentty's own-logic set",
       "inherits": "base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
@@ -96,12 +84,6 @@
     { "name": "standalone", "configurePreset": "standalone" },
 
     {
-      "name": "ci",
-      "displayName": "CI build — agentty + the gating test set (skips perf probes/benches)",
-      "configurePreset": "ci",
-      "targets": ["all", "tests_gating"]
-    },
-    {
       "name": "sanitizer",
       "configurePreset": "sanitizer",
       "targets": ["sanitizer_tests"]
@@ -119,14 +101,6 @@
       "configurePreset": "dev",
       "output": { "outputOnFailure": true },
       "execution": { "noTestsAction": "error", "jobs": 4 }
-    },
-    {
-      "name": "ci",
-      "displayName": "CI test run — skips perf-labelled cases (matches tests_gating)",
-      "configurePreset": "ci",
-      "output": { "outputOnFailure": true },
-      "filter": { "exclude": { "label": "perf" } },
-      "execution": { "noTestsAction": "error" }
     },
     {
       "name": "sanitizer",

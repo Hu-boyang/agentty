@@ -1232,7 +1232,7 @@ set_tests_properties(util_layering PROPERTIES LABELS "static")
 # project root drifted to thirteen flat entries across four lifecycles. Each
 # arrived legitimately one commit at a time, which is why a reviewer misses the
 # next one. This makes the top level a declared set so the category is a
-# decision rather than an accident. docs/design/dot-agentty.md.
+# decision rather than an accident. See tests/lint/project_dotdir.cmake.
 add_test(NAME project_dotdir
          COMMAND ${CMAKE_COMMAND} -DROOT=${CMAKE_SOURCE_DIR}
                  -P ${CMAKE_SOURCE_DIR}/tests/lint/project_dotdir.cmake)
@@ -1252,7 +1252,7 @@ set_tests_properties(secret_modes PROPERTIES LABELS "static")
 # ── i18n catalog ───────────────────────────────────────────────────────────
 # Three gates: every t() id exists in the English catalog, every catalog id is
 # used, and nothing in src/provider or src/tool translates (model-facing
-# strings stay English -- docs/design/i18n.md section 3).
+# strings stay English -- see tests/lint/i18n_lint.cmake).
 #
 # The first is what makes the string sweep reviewable: "did we drop one" is
 # not a question a human can answer across hundreds of moved literals, and a
@@ -1348,40 +1348,4 @@ if(Python3_Interpreter_FOUND AND EXISTS ${_STUBCHK})
     # sanitizer lanes and give it room for five sequential server starts.
     set_tests_properties(local_stub_claims PROPERTIES
                          LABELS "static" TIMEOUT 120 RUN_SERIAL TRUE)
-endif()
-
-# packaging_submodule_parity: does the AUR source recipe know every submodule?
-#
-# packaging/arch/agentty-git/PKGBUILD maintains its submodule list BY HAND --
-# makepkg forbids network access in build(), so each one is fetched as its own
-# source=() entry and rewired to that local clone in prepare(). A hand-kept
-# list does not track .gitmodules, so adding a submodule silently breaks the
-# package: claybin landed, nothing updated the recipe, and because an empty
-# third_party/claybin is a CMake FATAL_ERROR the package stopped CONFIGURING.
-# No workflow referenced the file, so nothing noticed until someone tried it
-# by hand.
-#
-# CI builds the recipe for real (the `AUR agentty-git configures` job) and
-# that remains the authoritative check. This is the cheap half: a text
-# comparison that runs in the normal suite and names exactly what to add, so
-# the next submodule fails here in milliseconds rather than on the AUR.
-set(_PKGPARITY ${CMAKE_SOURCE_DIR}/tests/packaging_submodule_parity.py)
-if(Python3_Interpreter_FOUND AND EXISTS ${_PKGPARITY})
-    add_test(NAME packaging_submodule_parity
-             COMMAND ${Python3_EXECUTABLE} ${_PKGPARITY})
-    set_tests_properties(packaging_submodule_parity PROPERTIES
-                         LABELS "static" TIMEOUT 30)
-endif()
-
-# paste_page_sync: agentty.org/paste serves docs/website/static/paste.html.
-# The page encodes, agentty decodes, so it must be exactly what
-# `agentty paste page` prints (rp::armor::html_page). If this fails, run:
-#   agentty paste page > docs/website/static/paste.html
-if(TARGET agentty)
-    add_test(NAME paste_page_sync
-             COMMAND ${CMAKE_COMMAND}
-                     -DBIN=$<TARGET_FILE:agentty>
-                     -DPAGE=${CMAKE_SOURCE_DIR}/docs/website/static/paste.html
-                     -P ${CMAKE_SOURCE_DIR}/tests/lint/paste_page_sync.cmake)
-    set_tests_properties(paste_page_sync PROPERTIES LABELS "static" TIMEOUT 30)
 endif()

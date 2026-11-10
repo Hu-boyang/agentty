@@ -96,7 +96,7 @@ permission` (one permission decider), `update` (one reducer with one
 include/agentty/domain/      ← pure value types only. No I/O. No UI. No threads.
 include/agentty/{io,provider,tool}/ ← satisfies a concept; injected via deps.
 src/runtime/              ← Elm loop. update is pure. Cmd carries the IO.
-third_party/maya/         ← presentation. Consumes a Model, emits Msg.
+third_party/maya/         ← presentation and runtime API; runtime delegates to jaal.
 ```
 
 A function in `domain/` that opens a file is a violation. A reducer that
@@ -165,17 +165,28 @@ that gate the validity of other fields.
 - Catch all exceptions at the boundary; convert to typed.
 - Raw JSON / strings stay inside; typed values come out.
 
-### Tools (`include/agentty/tool/`, `src/tool/tools/*`)
-- Each tool: typed `Args` struct + `parse_args(json) → expected<Args, ToolError>`
-  + `run(Args) → ExecResult`. Glued together by `util::adapt<Args>`.
-- Declares its `effects` — never its own permission lambda.
-- Schema is hand-authored JSON today; future work is to derive it from
-  `Args` via reflection.
+### Tools (`include/agentty/tool/`, `src/tool/`, `third_party/mcp-cpp/src/tools/`)
+- The [registry](../src/tool/registry.cpp) obtains the tool catalog from
+  mcp-cpp's toolset through the
+  [bridge](../src/tool/mcp_tools_bridge.cpp), which translates schemas,
+  effects, results and file changes into agentty types.
+- General tool implementations live in
+  [mcp-cpp](../third_party/mcp-cpp/src/tools/); agentty owns the
+  [host adapters](../src/tool/mcp_tools_backends.cpp), state, execution,
+  permissions and sandbox boundary.
+- Each tool declares its `effects` — never its own permission lambda.
+- Schemas remain JSON at the dispatch boundary.
 
 ### Runtime (`src/runtime/`)
-- `update(Model, Msg) → (Model, Cmd<Msg>)` — pure function. Single
-  `std::visit`. One arm per `Msg` variant. Heavy reducers split into
-  `update/{stream,modal,tool}.cpp` but still composed via the same visitor.
+- The live runtime calls `AgenttyApp::update(Model&, DomainMsg, now)` in
+  [program.hpp](../include/agentty/runtime/app/program.hpp). It records the
+  supplied time, calls the free per-domain overload and publishes derived
+  state. The handlers in [update/](../src/runtime/app/update/) mutate the
+  model and return `Cmd`; I/O belongs to the returned effects.
+- `update(Model, Msg) → (Model, Cmd)` in
+  [update.cpp](../src/runtime/app/update.cpp) is the whole-message test
+  entry. Its visitor calls the same domain handlers with a deterministic
+  fold time and performs the same publication step.
 - `view(Model) → Element` — pure function. No state mutation.
 - `subscribe(Model) → Sub<Msg>` — pure function. Returns the subscriptions
   active in this state.
@@ -191,25 +202,29 @@ that gate the validity of other fields.
 
 ## Reading guide for new contributors
 
-The fastest path to reading the codebase, top to bottom:
+Follow the [source reading entry](../README.md) from startup to rendering:
 
-1. `include/agentty/domain/` — the value types. Start here. `conversation.hpp`
-   for the chat model, `session.hpp` for streaming state, `profile.hpp` for
-   permission tier.
-2. `include/agentty/runtime/msg.hpp` — every event the runtime can react to,
-   as a closed variant. This is the menu.
-3. `src/runtime/app/update.cpp` — the reducer. Top-level `std::visit` with
-   one arm per Msg. Heavy paths jump to `update/{stream,modal,tool}.cpp`.
-4. `src/runtime/app/cmd_factory.cpp` — how side effects are constructed.
-   `launch_stream`, `run_tool`, `kick_pending_tools`.
-5. `src/runtime/view/view.cpp` — top-level view composition. Then
-   `thread.cpp`, `composer.cpp`, `statusbar.cpp` for the panels.
-6. `include/agentty/tool/{effects,policy}.hpp` — the capability + policy
-   layer. Read this before reading any individual tool.
-7. `src/tool/tools/*` — tools, all built from the same template.
+1. [`src/runtime/main.cpp`](../src/runtime/main.cpp), then
+   [`program.hpp`](../include/agentty/runtime/app/program.hpp) — startup,
+   dependencies and runtime hooks.
+2. [`model.hpp`](../include/agentty/runtime/model.hpp),
+   [`domain/`](../include/agentty/domain/) and
+   [`msg.hpp`](../include/agentty/runtime/msg.hpp) — state and events.
+3. [`update.hpp`](../include/agentty/runtime/app/update.hpp) and
+   [`update/`](../src/runtime/app/update/) — the live per-domain handlers;
+   [`update.cpp`](../src/runtime/app/update.cpp) provides the whole-message
+   test entry.
+4. [`cmd_factory.cpp`](../src/runtime/app/cmd_factory.cpp) and
+   [`provider/dispatch.cpp`](../src/provider/dispatch.cpp) — side effects
+   and model request routing. Then read the
+   [tool contracts](../include/agentty/tool/),
+   [host bridge](../src/tool/mcp_tools_bridge.cpp) and
+   [mcp-cpp tool implementations](../third_party/mcp-cpp/src/tools/).
+5. [`view.cpp`](../src/runtime/view/view.cpp), then
+   [view components and panels](../src/runtime/view/) — presentation.
 
-If anything you read above doesn't match this document, the document wins
-— file an issue.
+If the document disagrees with the current implementation, the code and
+tests are the source of truth; update the document accordingly.
 
 ---
 

@@ -32,21 +32,23 @@ runs anything of its own. See [LAYERING.md](LAYERING.md), and for the
 protocol libraries (mcp-cpp, acp-cpp, rag-cpp) the binding rules in
 [PROTOCOL_LIBRARIES.md](PROTOCOL_LIBRARIES.md).
 
-The four maya `Program` hooks are bound in
+The maya `Program` hooks are bound in
 `include/agentty/runtime/app/program.hpp`:
 
 | Hook           | Meaning                                         |
 |----------------|-------------------------------------------------|
 | `init`         | Load settings + recent threads via Store seam.  |
-| `update`       | The reducer — `src/runtime/app/update.cpp`.     |
+| `update`       | Per-domain overloads forwarding to `src/runtime/app/update/`. |
 | `view`         | `Model -> Element`.                             |
 | `subscribe`    | Timers and the live stream subscription.        |
 | `visual_hash`  | Render-skip gate; identical hash → skip frame.  |
 | `needs_warmup` | One-shot fast scrollback rehydration on resume. |
 
-`main.cpp` is wiring only: parse argv, resolve credentials, construct the
-concrete `AnthropicProvider` + `FsStore`, install them behind the `Deps` seam,
-then hand `AgenttyApp` to `maya::run`.
+[`src/runtime/main.cpp`](../src/runtime/main.cpp) parses argv, loads configuration
+and credentials, constructs the providers and `FsStore`, installs stream routing
+and storage behind the `Deps` seam, then hands `AgenttyApp` and its `Host` to
+`maya::run`. Provider routing is resolved per request through
+[`provider/dispatch.cpp`](../src/provider/dispatch.cpp).
 
 ---
 
@@ -63,7 +65,9 @@ types and inline logic; `src/` carries the heavier implementations.
   - `model.hpp` — the composed `Model` plus UI-only sub-states (composer,
     the panel slot, modals) that belong to no domain.
   - `panel/` — the panel subsystem: the exclusive slot, priority routing,
-    per-panel state, forms. See [`PANELS.md`](PANELS.md).
+    per-panel state, forms. See the
+    [panel headers](../include/agentty/runtime/panel/) and
+    [panel views](../src/runtime/view/panels/).
   - `msg.hpp` — the `Msg` sum, split into domain sub-variants (see §4).
   - `app/update/<domain>.cpp` — per-domain reducers.
   - `view/` — the `Model -> Element` pipeline, one file per widget family;
@@ -73,14 +77,19 @@ types and inline logic; `src/` carries the heavier implementations.
   `openai/transport.cpp` (any OpenAI-compatible endpoint — openai, groq,
   openrouter, together, cerebras, ollama, or a raw host). `selection.cpp`
   resolves which one a `--provider` flag / persisted setting picks.
-- **`tool/`** — the `Tool` concept, the registry, the permission policy, and
-  one file per tool under `tool/tools/`. `memory_store.cpp` backs
-  `remember`/`forget`.
+- **`tool/`** — the tool contracts, registry, dispatch boundary, permission
+  policy and host adapters. [`mcp_tools_bridge.cpp`](../src/tool/mcp_tools_bridge.cpp)
+  wraps mcp-cpp's toolset as agentty `ToolDef`s;
+  [`mcp_tools_backends.cpp`](../src/tool/mcp_tools_backends.cpp) supplies
+  host-coupled services. General tool implementations live in
+  [`third_party/mcp-cpp/src/tools/`](../third_party/mcp-cpp/src/tools/).
+  `memory_store.cpp` backs `remember`/`forget`.
 - **`scope/`** — the config-resolution algebra (`Locus × Dialect` precedence,
   provenance-carrying `Source`, `resolve_first`/`resolve_union` folds,
   content-bound `Trust`). One pure primitive that memory, skills, agents, and
   slash-command discovery all fold through instead of hand-rolling roots. See
-  [`design/scope-model.md`](design/scope-model.md).
+  the [scope headers](../include/agentty/scope/) and
+  [implementation](../src/scope/).
 - **`io/`** — `http`, `inflate` (gzip/deflate response decoding — self-contained,
   no zlib dependency), `tls` (certificate pinning), `auth` (OAuth + PKCE),
   `persistence` (atomic writes), `clipboard`.
@@ -101,8 +110,8 @@ change. Instead, `include/agentty/runtime/app/deps.hpp` defines a small
   `load_settings`, `save_settings`, `new_thread_id`, `title_from`.
 - **Auth context** — the typed `AuthHeader` for the session.
 
-`main.cpp` calls `app::install(provider, store, auth_header)` once at startup;
-the reducer reaches the seams through `app::deps()`. `update_auth(...)`
+`src/runtime/main.cpp` assembles the stream routing functions and store once
+at startup; the reducer reaches those seams through `app::deps()`. `update_auth(...)`
 live-swaps credentials after an in-app login without restarting the process —
 in-flight streams cached the header at request-build time, so they are
 unaffected.
@@ -122,14 +131,17 @@ script in tests.
 
 How the many concrete transports behind this seam stay coherent — routing
 as a registry-row field with `static_assert` proofs, model quirks as
-catalog facts, shared wire scaffolding — is its own document:
-[PROVIDER_HETEROGENEITY.md](PROVIDER_HETEROGENEITY.md).
+catalog facts, shared wire scaffolding — is visible in the
+[provider registry](../include/agentty/provider/registry.hpp),
+[dispatch implementation](../src/provider/dispatch.cpp) and
+[shared wire helpers](../include/agentty/provider/msg_shared.hpp).
 
 The layering question underneath that — why a model is keyed
 `(provider, model)` while a subscription fact is keyed
 `(provider, account, model)`, and how to tell which layer a new fact
-belongs to — is
-[IDENTITY_CAPABILITY_ENTITLEMENT.md](IDENTITY_CAPABILITY_ENTITLEMENT.md).
+belongs to — is represented by the
+[model catalog](../include/agentty/domain/catalog.hpp) and
+[entitlement types](../include/agentty/domain/entitlement.hpp).
 
 The four transports (Anthropic, OpenAI-compat, Ollama-native, ChatGPT/Codex
 Responses) each own their provider-specific streaming/salvage logic, but every
@@ -155,23 +167,30 @@ A naive design inlines every leaf event in one giant variant. That pins
 `sizeof(Msg)` to the heaviest leaf, instantiates an N-wide `std::visit`
 dispatch table, and forces the whole reducer TU to rebuild on any leaf change.
 
-agentty instead groups leaves into ~15 **domain sub-variants** in `msg.hpp`
-(`ComposerMsg`, `StreamMsg`, `ToolMsg`, `ModelPickerMsg`, `ThreadListMsg`,
-`CommandPaletteMsg`, `MentionPaletteMsg`, `SymbolPaletteMsg`, `TodoMsg`,
-`LoginMsg`, `DiffReviewMsg`, `CheckpointMsg`, `MetaMsg`). The top-level reducer in
-`update.cpp` is then a small `std::visit` that forwards each domain to its own
-TU:
+agentty instead groups leaves into **domain sub-variants** in
+[`msg.hpp`](../include/agentty/runtime/msg.hpp), including `ComposerMsg`,
+`StreamMsg`, `ToolMsg`, `ModelsMsg`, `ProvidersMsg`, `ThreadListMsg`,
+`PaletteMsg` and `MetaMsg`. The runtime walks the message tree and calls
+`AgenttyApp`'s per-domain overloads from
+[`program.hpp`](../include/agentty/runtime/app/program.hpp):
 
 ```cpp
-auto step = std::visit(overload{
-    [&](msg::ComposerMsg cm) { return detail::composer_update(std::move(m), std::move(cm)); },
-    [&](msg::StreamMsg   sm) { return detail::stream_update  (std::move(m), std::move(sm)); },
-    [&](msg::ToolMsg     tm) { return detail::tool_update    (std::move(m), std::move(tm)); },
-    // … nine more domain arms …
-}, msg);
+static Cmd update(Model& m, msg::ComposerMsg d, Clock::time_point now) {
+    m.now = now;
+    auto cmd = app::update(m, std::move(d));
+    return app::publish_derived(m, std::move(cmd));
+}
 ```
 
-Each `update/<domain>.cpp` recompiles only when its own leaves change.
+This sketch omits timing instrumentation. The free per-domain overloads
+declared in [`update.hpp`](../include/agentty/runtime/app/update.hpp) and
+defined in [`update.cpp`](../src/runtime/app/update.cpp) forward to
+`update/<domain>.cpp`. The whole-`Msg`, pair-returning `update(Model, Msg)`
+in [`update.cpp`](../src/runtime/app/update.cpp) is the test entry; it visits
+the same domain reducers and runs the same `publish_derived` step.
+Tests can supply a fold time explicitly; otherwise they use a fixed test epoch.
+
+Each domain implementation lives in its own translation unit.
 Call sites still build a `Msg` directly via `std::variant`'s converting
 constructor — only the owning domain accepts a given leaf, so the wrap is
 unambiguous.
@@ -486,11 +505,12 @@ input, or timer tick. Two host-side optimizations keep it cheap under load:
 
 ## 12. One-paragraph mental model
 
-`main.cpp` resolves credentials and installs a Provider + Store behind the
-`Deps` seam, then hands control to maya, which runs the program on jaal. maya calls `view(model)` to paint and
-`update(model, msg)` for every event. User input and SSE chunks become `Msg`s;
-the reducer dispatches each to a per-domain handler that returns the next
-`Model` plus a `Cmd` describing any side effects. Tools run behind a JSON
+`src/runtime/main.cpp` resolves credentials and installs provider routing and
+storage behind the `Deps` seam, then hands control to maya, which runs the
+program on jaal. maya calls `view(model)` to paint and the per-domain
+`AgenttyApp::update(Model&, DomainMsg, now)` overload for each event.
+User input and stream chunks become `Msg`s; domain handlers update the model
+and return a `Cmd` describing any side effects. Tools run behind a JSON
 dispatch edge with a `constexpr` permission gate and OS-level sandboxing, and
 their results loop back in as more `Msg`s. Nothing in the loop mutates global
 state; the only escape hatches are the explicit `Cmd`s the runtime executes on

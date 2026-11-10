@@ -119,8 +119,11 @@ All are static ctest entries (label `static`), no build needed:
 
 None. The libraries take what they need with each call: rag-cpp gets a
 Splitter, HostIo and converter runner from `agentty/rag/rag_host.hpp`,
-mcp-cpp's tools get a splitter, exec, HTTP and state through HostServices,
-and the JSON-RPC connections run on rpc::Peer.
+mcp-cpp's [tool implementations](../third_party/mcp-cpp/src/tools/) get a
+splitter, exec, HTTP and state through HostServices, supplied by agentty's
+[tool bridge](../src/tool/mcp_tools_bridge.cpp) and
+[backends](../src/tool/mcp_tools_backends.cpp). The JSON-RPC connections run
+on [rpc::Peer](../src/rpc/peer.cpp).
 
 ## Exit
 

@@ -1,13 +1,12 @@
-// cmake/agentty_pch.hpp — precompiled-header prefix for the shared object
-// libraries. These are the headers included by 30-60% of agentty's TUs
-// (measured), heavily weighted toward the expensive-to-parse STL templates
-// (<algorithm>, <chrono>, <filesystem>, <regex>-adjacent). Precompiling them
-// once and reusing the IR across every TU is the highest-leverage compile-time
-// win for this header/template-heavy tree.
+// src/agentty_pch.hpp — optional precompiled-header prefix for the shared
+// object libraries (AGENTTY_PCH=ON). Keep this implementation-only header
+// alongside the sources; CMake compiles it once and reuses it across the
+// object libraries. PCH is disabled by default because its benefit depends
+// on the compiler, machine and workload.
 //
 // RULES:
-//   * ONLY stable, ubiquitous, header-only STL (+ the always-present maya
-//     core). Nothing project-specific that changes often — a PCH edit
+//   * ONLY stable, ubiquitous STL headers. Nothing project-specific
+//     that changes often — a PCH edit
 //     invalidates every dependent TU, so churny headers here would DESTROY
 //     the incremental-build win.
 //   * No <mimalloc.h>, no <mcp/*>, no <rag/*>, no <nlohmann/*> — those are

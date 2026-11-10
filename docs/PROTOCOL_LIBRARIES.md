@@ -351,7 +351,7 @@ library's concern.
 
 | need | agentty module | built on |
 |---|---|---|
-| spawn an MCP/ACP peer, own its stdio | `src/mcp/connection.cpp`, `src/acp/connection.cpp` | `maya::platform::process`, poll reactor |
+| spawn an MCP/ACP peer, own its stdio | [MCP connection](../src/mcp/connection.cpp), [ACP backend](../src/provider/external_acp_backend.cpp), [shared peer](../src/rpc/peer.cpp) | `maya::platform::process`, poll reactor |
 | read frames, feed the engine | same | one reader task per peer (`maya::pool` isolated job) posting lines to the owner |
 | own the engine, serialise calls | same | `maya::guarded<Engine>` or a single-owner worker |
 | request continuations, timeouts | same | `maya::delay_for` to `next_deadline()`, then `expire(now)` |
@@ -360,6 +360,14 @@ library's concern.
 | builtin tools that run commands | `src/tool/util/exec.cpp` (`HostServices::exec`) | `maya::platform::process` |
 | rag index build / batch embed | `src/rag/adapter.cpp` | `Splitter` on `maya::scope`; index swap via `maya::published` |
 | caches/registries the libraries used to keep | the owning agentty module | `maya::guarded` / `maya::published` |
+
+The tool implementation and host integration have separate homes:
+[mcp-cpp's toolset](../third_party/mcp-cpp/src/tools/) implements the general
+tools, while agentty's [registry](../src/tool/registry.cpp),
+[bridge](../src/tool/mcp_tools_bridge.cpp) and
+[backends](../src/tool/mcp_tools_backends.cpp) adapt them to application
+state, execution, HTTP and retrieval services. There is no agentty
+`src/tool/tools/` implementation tree.
 
 There is no runtime to install: `protocol_runtime.cpp` is gone.
 

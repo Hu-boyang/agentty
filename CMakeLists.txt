@@ -193,11 +193,11 @@ endif()
 # showed no win (1.70 s → 1.77 s). Kept as an opt-in: CI runners with fewer
 # cores / cold I/O, or a different toolchain, may still benefit — flip on with
 # -DAGENTTY_PCH=ON and re-measure. The REUSE_FROM wiring in agentty_objlib is
-# correct either way. See cmake/BEST_PRACTICES.md §2 (Gap D).
+# correct either way.
 option(AGENTTY_PCH "Share a precompiled STL/maya-core header prefix across the object libraries. Measured net-negative on 8-core Apple clang (see comment); opt-in for other toolchains/CI." OFF)
 
 # Unity (jumbo) build. This tree is INSTANTIATION-bound (std::variant/std::visit
-# over maya's wide Element tree — see cmake/BEST_PRACTICES.md §8): the same
+# over maya's wide Element tree): the same
 # template machinery is re-instantiated in every TU. Unity batches TUs so those
 # instantiations are shared within a batch — MEASURED 3.2x cold on the largest
 # objlib (runtime_obj 50.5s→15.6s). DEFAULT OFF because it PENALISES incremental
@@ -319,18 +319,17 @@ function(agentty_objlib name)
             UNITY_BUILD ON
             UNITY_BUILD_BATCH_SIZE ${AGENTTY_UNITY_BATCH})
     endif()
-    # Precompiled header (opt-out via -DAGENTTY_PCH=OFF). The prefix
-    # (cmake/agentty_pch.hpp) is the ~26 ubiquitous, stable STL/maya-core
-    # headers included by 30-60% of TUs. Compiled ONCE on the first objlib and
-    # REUSE_FROM'd by the rest, so the whole shared object set shares one PCH.
-    # Biggest compile-time lever for this header/template-heavy tree.
+    # Optional precompiled header (-DAGENTTY_PCH=ON). The stable STL prefix
+    # in src/agentty_pch.hpp is compiled once on the first objlib and
+    # REUSE_FROM'd by the rest. Keep it opt-in: the benefit depends on the
+    # compiler, machine and workload.
     if(AGENTTY_PCH)
         if(NOT DEFINED AGENTTY_PCH_ANCHOR)
             # First objlib owns the actual PCH compilation; set a global anchor.
             set(AGENTTY_PCH_ANCHOR ${name} PARENT_SCOPE)
             set(AGENTTY_PCH_ANCHOR ${name})   # local, for the reuse branch below
             target_precompile_headers(${name} PRIVATE
-                ${CMAKE_SOURCE_DIR}/cmake/agentty_pch.hpp)
+                ${CMAKE_SOURCE_DIR}/src/agentty_pch.hpp)
         else()
             target_precompile_headers(${name} REUSE_FROM ${AGENTTY_PCH_ANCHOR})
         endif()
@@ -831,7 +830,7 @@ if(AGENTTY_BUILD_TESTS)
     # ── The test suite lives in cmake/AgenttyTests.cmake ────────────────────
     # One agentty_test() declaration per test; the tests / tests_gating /
     # sanitizer_tests aggregates are DERIVED from the registry (no hand-listed
-    # parallel lists). See cmake/AgenttyTestRegistry.cmake + cmake/DESIGN.md.
+    # parallel lists). See cmake/AgenttyTestRegistry.cmake.
     include(AgenttyTests)
 
     # The test suite is written against POSIX setenv/unsetenv (it sandboxes
