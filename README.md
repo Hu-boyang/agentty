@@ -47,32 +47,32 @@ agentty 是一个 C++ 终端编程助手。它把会话状态、模型流式响�
 
 ## 本机编译与测试
 
-当前工作区使用 `~/.local/agentty-deps/usr` 下的 Clang 22 和开发库，配合 Ninja 构建 C++26。外部终端通过已有的 `.vscode/agentty-env.sh` 注入环境；VS Code 的任务和集成终端已使用同一套配置。这里的命令沿用现有 `build/`，无需清空缓存或升级依赖：
+当前工作区使用 `~/.local/agentty-deps/usr` 下的 Clang 22 和开发库，配合 Ninja 构建 C++26。外部终端通过 `scripts/agentty-env.sh` 加载环境。VS Code 的运行任务和快捷键见[本机开发环境](docs/DEVELOPMENT.md)。这里的命令沿用现有 `build/`：
 
 ```bash
 # 在现有构建目录重新配置 Debug。
-bash .vscode/agentty-env.sh cmake --preset debug
+bash scripts/agentty-env.sh cmake --preset debug
 
 # 构建主程序和已有的工具链验证目标。
-bash .vscode/agentty-env.sh cmake --build build \
+bash scripts/agentty-env.sh cmake --build build \
   --target agentty snapshot_mutex_fallback_test --parallel 4
 
 # 运行静态约束和工具链验证测试。
-bash .vscode/agentty-env.sh ctest --test-dir build \
+bash scripts/agentty-env.sh ctest --test-dir build \
   -L static --output-on-failure --parallel 2
-bash .vscode/agentty-env.sh ctest --test-dir build \
+bash scripts/agentty-env.sh ctest --test-dir build \
   -R '^snapshot_mutex_fallback_test$' --output-on-failure
 
 # 检查主程序版本。
-bash .vscode/agentty-env.sh ./build/agentty --version
+bash scripts/agentty-env.sh ./build/agentty --version
 ```
 
 `snapshot_mutex_fallback_test` 验证共享快照的互斥量回退路径，用于本机工具链检查；完整功能测试需要先构建对应目标。要运行更多测试：
 
 ```bash
 # tests 聚合目标构建项目测试，可能耗时较长。
-bash .vscode/agentty-env.sh cmake --build build --target tests --parallel 4
-bash .vscode/agentty-env.sh ctest --test-dir build \
+bash scripts/agentty-env.sh cmake --build build --target tests --parallel 4
+bash scripts/agentty-env.sh ctest --test-dir build \
   --output-on-failure --parallel 2
 ```
 
@@ -84,6 +84,7 @@ clangd 从 `build/compile_commands.json` 读取编译选项，使用现有头文
 
 ## 核心文档与许可证
 
+- [`DEVELOPMENT.md`](docs/DEVELOPMENT.md) 介绍本机开发环境、VS Code 配置和构建运行命令。
 - [`ARCHITECTURE.md`](docs/ARCHITECTURE.md)：程序组成、状态、副作用、工具和会话生命周期。
 - [`DESIGN.md`](docs/DESIGN.md)：类型、错误、状态机、权限等设计约束及阅读线索。
 - [`LAYERING.md`](docs/LAYERING.md)：agentty、maya、jaal 的依赖与并发边界。

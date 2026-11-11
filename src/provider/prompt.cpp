@@ -6,7 +6,7 @@
 
 #include "agentty/provider/prompt.hpp"
 
-#include "agentty/provider/msg_shared.hpp"   // wire::home_dir / read_capped_file
+#include "agentty/provider/msg_shared.hpp"   // wire::read_capped_file / resolve_user_claude_md
 #include "agentty/tool/memory_store.hpp"
 #include "agentty/tool/registry.hpp"
 #include "agentty/tool/skills.hpp"
@@ -98,11 +98,6 @@ namespace {
         return c;
     }, std::move(key), Entry{now_mtime, body});
     return body;
-}
-
-// Resolve the user's home directory portably — shared wire::home_dir.
-[[nodiscard]] std::filesystem::path home_dir() noexcept {
-    return wire::home_dir();
 }
 
 // CLAUDE.md memory hierarchy, same paths as Claude Code (see

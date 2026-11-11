@@ -357,6 +357,9 @@ Cmd plugin_edit_result(Model& m, PluginEdited e) {
             return set_status_toast(m, "could not write mcp.json");
         case K::SetToolEnabled:
             return set_status_toast(m, "could not toggle '" + e.tool + "'");
+        case K::SetToolPinned:
+            return set_status_toast(m, (e.flag ? "could not pin '" : "could not unpin '")
+                                       + e.tool + "'");
         case K::Approve:
             return set_status_toast(m, "approve failed");
         case K::Remove:

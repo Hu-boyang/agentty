@@ -421,6 +421,7 @@ namespace agentty::tools::util::sandbox::netproxy {
 
 namespace {
 
+#if defined(__APPLE__)
 // darwin has neither accept4 nor SOCK_CLOEXEC, and its sockets raise SIGPIPE
 // on a write to a closed peer instead of honouring MSG_NOSIGNAL. agentty
 // ignores SIGPIPE process-wide, but a library must not lean on that, so each
@@ -428,14 +429,12 @@ namespace {
 // creation; the fork-without-exec window that leaves is closed by claybin's
 // close_inherited_fds in every guest anyway.
 void sock_prep(int fd) {
-#if defined(__APPLE__)
     ::fcntl(fd, F_SETFD, FD_CLOEXEC);
     int one = 1;
     ::setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof one);
-#else
-    (void)fd;
-#endif
 }
+#endif
+
 int sock_stream(int family) {
 #if defined(__APPLE__)
     const int s = ::socket(family, SOCK_STREAM, 0);

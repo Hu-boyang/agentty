@@ -1,0 +1,63 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "CMake: 配置开发环境",
+			"type": "cmake",
+			"command": "configure",
+			"preset": "debug",
+			"options": { "cwd": "${workspaceFolder}" },
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "CMake: 构建 agentty",
+			"type": "cmake",
+			"command": "build",
+			"preset": "debug",
+			"targets": ["agentty"],
+			"options": { "cwd": "${workspaceFolder}" },
+			"dependsOn": "CMake: 配置开发环境",
+			"problemMatcher": [],
+			"group": { "kind": "build", "isDefault": true }
+		},
+		{
+			"label": "运行 agentty",
+			"type": "process",
+			"command": "bash",
+			"args": [
+				"${workspaceFolder}/scripts/agentty-env.sh",
+				"${workspaceFolder}/build/agentty"
+			],
+			"options": { "cwd": "${workspaceFolder}" },
+			"dependsOn": "CMake: 构建 agentty",
+			"presentation": { "focus": true },
+			"problemMatcher": []
+		},
+		{
+			"label": "CMake: 验证 C++26 工具链",
+			"type": "cmake",
+			"command": "build",
+			"preset": "debug",
+			"targets": ["snapshot_mutex_fallback_test"],
+			"options": { "cwd": "${workspaceFolder}" },
+			"dependsOn": "CMake: 配置开发环境",
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "CMake: 运行 C++26 验证测试",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"${workspaceFolder}/scripts/agentty-env.sh",
+				"ctest", "--test-dir", "${workspaceFolder}/build",
+				"--output-on-failure", "-R", "^snapshot_mutex_fallback_test$"
+			],
+			"options": { "cwd": "${workspaceFolder}" },
+			"dependsOn": "CMake: 验证 C++26 工具链",
+			"problemMatcher": [],
+			"group": "test"
+		}
+	]
+}

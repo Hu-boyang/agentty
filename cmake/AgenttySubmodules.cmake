@@ -180,10 +180,15 @@ if(AGENTTY_BUILD_TESTS)
     set(DOCTEST_WITH_TESTS OFF CACHE INTERNAL "")
     set(DOCTEST_NO_INSTALL ON CACHE INTERNAL "")
     # doctest 2.4.11 declares cmake_minimum_required(VERSION 3.0), which CMake
-    # 4.x rejects. Allow the old floor just for this dependency.
-    set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE INTERNAL "")
-    FetchContent_MakeAvailable(doctest)
-    unset(CMAKE_POLICY_VERSION_MINIMUM CACHE)
+    # 4.x rejects. Use the 3.10 policy baseline just for this dependency to
+    # avoid legacy-compatibility deprecation warnings on current CMake.
+    block(SCOPE_FOR VARIABLES)
+        if(NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM
+           OR CMAKE_POLICY_VERSION_MINIMUM VERSION_LESS "3.10")
+            set(CMAKE_POLICY_VERSION_MINIMUM 3.10)
+        endif()
+        FetchContent_MakeAvailable(doctest)
+    endblock()
 endif()
 
 # Mark third-party headers SYSTEM so their warnings don't pollute our build.

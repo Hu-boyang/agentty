@@ -1,0 +1,74 @@
+{
+    "cmake.useCMakePresets": "always",
+    "cmake.configureOnOpen": true,
+    "cmake.parallelJobs": 4,
+    "cmake.ctest.parallelJobs": 2,
+    "cmake.environment": {
+        "PATH": "${userHome}/.local/agentty-deps/usr/bin:$penv{PATH}",
+        "LD_LIBRARY_PATH": "${userHome}/.local/agentty-deps/usr/lib/x86_64-linux-gnu:${userHome}/.local/agentty-deps/usr/lib/llvm-22/lib",
+        "PKG_CONFIG_PATH": "${userHome}/.local/agentty-deps/usr/lib/x86_64-linux-gnu/pkgconfig",
+        "PKG_CONFIG_SYSROOT_DIR": "${userHome}/.local/agentty-deps",
+        "CMAKE_PREFIX_PATH": "${userHome}/.local/agentty-deps/usr",
+        "CC": "${userHome}/.local/agentty-deps/usr/bin/clang-22",
+        "CXX": "${userHome}/.local/agentty-deps/usr/bin/clang++-22",
+        "CMAKE_TOOLCHAIN_FILE": "${workspaceFolder}/cmake/agentty-toolchain.cmake"
+    },
+    "terminal.integrated.env.linux": {
+        "PATH": "${env:HOME}/.local/agentty-deps/usr/bin:${env:PATH}",
+        "LD_LIBRARY_PATH": "${env:HOME}/.local/agentty-deps/usr/lib/x86_64-linux-gnu:${env:HOME}/.local/agentty-deps/usr/lib/llvm-22/lib",
+        "PKG_CONFIG_PATH": "${env:HOME}/.local/agentty-deps/usr/lib/x86_64-linux-gnu/pkgconfig",
+        "PKG_CONFIG_SYSROOT_DIR": "${env:HOME}/.local/agentty-deps",
+        "CMAKE_PREFIX_PATH": "${env:HOME}/.local/agentty-deps/usr",
+        "CC": "${env:HOME}/.local/agentty-deps/usr/bin/clang-22",
+        "CXX": "${env:HOME}/.local/agentty-deps/usr/bin/clang++-22",
+        "CMAKE_TOOLCHAIN_FILE": "${workspaceFolder}/cmake/agentty-toolchain.cmake"
+    },
+    "cmake.options.statusBarVisibility": "visible",
+    "cmake.options.advanced": {
+        "configurePreset": { "statusBarVisibility": "compact" },
+        "buildPreset": { "statusBarVisibility": "hidden" },
+        "testPreset": { "statusBarVisibility": "hidden" },
+        "packagePreset": { "statusBarVisibility": "hidden" },
+        "workflowPreset": { "statusBarVisibility": "hidden" },
+        "kit": { "statusBarVisibility": "hidden" },
+        "variant": { "statusBarVisibility": "hidden" },
+        "folder": { "statusBarVisibility": "hidden" },
+        "buildTarget": { "statusBarVisibility": "hidden" },
+        "build": { "statusBarVisibility": "icon" },
+        "launchTarget": { "statusBarVisibility": "hidden" },
+        "debug": { "statusBarVisibility": "hidden" },
+        "launch": { "statusBarVisibility": "icon" },
+        "ctest": { "statusBarVisibility": "icon" },
+        "cpack": { "statusBarVisibility": "hidden" },
+        "workflow": { "statusBarVisibility": "hidden" }
+    },
+    "C_Cpp.intelliSenseEngine": "disabled",
+    "clangd.arguments": [
+        "--compile-commands-dir=${workspaceFolder}/build",
+        "--background-index",
+        "-j=2"
+    ],
+    "files.associations": {
+        "*.sh": "shellscript",
+        "*.bash": "shellscript",
+        ".bashrc": "shellscript",
+        ".bash_profile": "shellscript"
+    },
+    "bashIde.shellcheckPath": "/home/hby/.local/agentty-deps/usr/bin/shellcheck",
+    "bashIde.shfmt.path": "/home/hby/.local/agentty-deps/usr/bin/shfmt",
+    "bashIde.backgroundAnalysisIgnore": [
+        "**/node_modules/**",
+        "**/.git/**",
+        "**/build/**",
+        "**/build-*/**",
+        "**/third_party/**"
+    ],
+    "[shellscript]": {
+        "editor.defaultFormatter": "mads-hartmann.bash-ide-vscode"
+    },
+    "search.exclude": {
+        "**/build": true,
+        "**/build-*": true,
+        "**/.cache": true
+    }
+}
