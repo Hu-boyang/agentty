@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# pgo-train.sh — drive an instrumented agentty through the hot paths so the
-# PGO counters cover what users actually exercise: boot, welcome animation,
-# typing, picker navigation, thread resume, Ctrl+L redraw, quit.
+# pgo-train.sh-通过热路径驱动仪表化的agentty，
+# 以便PGO计数器覆盖用户实际锻炼的内容：启动、欢迎动画、打字、
+# 选择面板导航、线程恢复、Ctrl+L 重绘、退出。
 #
-# Usage:
+# 用途:
 #   cmake -B build-pgogen -GNinja -DCMAKE_BUILD_TYPE=Release -DAGENTTY_PGO=generate
 #   cmake --build build-pgogen -j$(nproc) --target agentty
 #   scripts/pgo-train.sh build-pgogen/agentty
-#   # GCC: counters land in pgo-data/ automatically.
-#   # Clang: llvm-profdata merge -output=pgo-data/agentty.profdata pgo-data/*.profraw
+#   GCC：计数器自动保存到 pgo-data/。
+#   # Clang: llvm-profdata 合并 -output=pgo-data/agentty.profdata pgo-data/*.profraw
 #   cmake -B build-pgouse -GNinja -DCMAKE_BUILD_TYPE=Release -DAGENTTY_PGO=use
 #   cmake --build build-pgouse -j$(nproc) --target agentty
 #
-# The workload is deliberately network-free (no credentials needed): it
-# trains the input pipeline, reducer, view build, markdown/layout, renderer,
-# serializer, and persistence paths — the CPU-bound 95% of a session.
+# 工作负载故意为网络-free（不需要凭据）：它训练输入管道、
+# 状态更新函数、视图构建、markdown/layout、渲染器、
+# 序列化器和持久化路径——会话的95%的CPU-bound。
 set -euo pipefail
 
 BIN="${1:?usage: pgo-train.sh <path-to-instrumented-agentty>}"

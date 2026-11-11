@@ -1,14 +1,14 @@
 #!/bin/sh
-# Golden snapshots of how agentty looks: every tool card plus the screen
-# chrome, rendered by tool_gallery with colour (SGR) included, since colour
-# is most of what these surfaces are. A change that alters how something
-# looks shows up as a diff here.
+# 黄金 快照 如何解释 agentty 外观:每张工具卡
+# 加上屏幕的铬,由 tool_gallery 带有颜色( E)
+# SGR 包含),因为颜色是这些表面的大部分。
+# 改变事物看起来如何显示为 diff。
 #
-#   tests/ui_snapshots.sh build/tool_gallery            # check
-#   tests/ui_snapshots.sh build/tool_gallery --update   # accept new output
+#   tests/ui_snapshots.sh build/tool_gallery 检查
+#   tests/ui_snapshots.sh build/tool_gallery --update # 接受新输出
 #
-# Fixed width, theme and terminal reply so the output is the same on every
-# machine.
+# 固定宽度,主题和终端回應,因此每个机器的输出都是
+# 一样的.
 set -eu
 gallery=${1:?usage: ui_snapshots.sh <tool_gallery> [--update]}
 mode=${2:-check}
@@ -18,7 +18,7 @@ mkdir -p "$dir"
 export COLS=92 THEME=Srcery FREEZE_CLOCK=1 TOOL_CORPUS="$here/fixtures/tool_corpus.json"
 unset TERM_FG TERM_BG TERM_PALETTE
 
-# name | args
+# 名称 | 参数
 cases='
 cards-typical|--kind typical
 cards-large|--kind large

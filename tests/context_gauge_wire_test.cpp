@@ -1,13 +1,13 @@
-// context_gauge_wire_test — the context gauge reads the real prompt size on
-// every wire, cached or not (#96).
+// context_gauge_wire_test - 上下文显示器读取真实的 提示词
+// 大小在每张 传输 ,缓存与否(#96).
 //
-// OpenAI-style usage counts cached tokens INSIDE the prompt
-// (prompt_tokens / input_tokens include cached_tokens). Anthropic counts them
-// beside it. agentty used to read both the same way, so on any OpenAI-shaped
-// server with a warm cache the gauge showed prompt + cached: a 33k context
-// read as 65k (Strata, llama.cpp, vLLM, ChatGPT/Codex). Here the real SSE each
-// server sends goes through the real transport and the real reducer, and the
-// gauge has to land on the real prompt size.
+// OpenAI-style 用法计算缓存的符号 内部 编号 提示词 (
+// prompt_tokens / input_tokens 包括 cached_tokens).
+// Anthropic 数着他们旁边的 agentty 都读过一样的,所以,任何 OpenAI
+// -shaped 带有温暖的服务器 缓存 显示的测量仪 提示词 + 缓存: 一个33k
+// 上下文读作65k(Strata, llama.cpp ,vLLM,,(英语: ChatGPT/Codex 来,
+// 这里是真实的 SSE 每个服务器发送的都是真实的 传输层 和真实的 状态更新函数
+// 测量仪必须降落在真实的 提示词 大小。
 
 #include <string>
 #include <vector>
@@ -49,8 +49,8 @@ void install_stub_deps() {
     });
 }
 
-// Feed every message a transport produced into the reducer and return the
-// gauge reading.
+// 给每封信都喂一个 传输层 生产到的 状态更新函数 并返回
+// 测量仪读数。
 int gauge_after(const std::vector<Msg>& msgs) {
     Model m;
     Message user;
@@ -68,12 +68,12 @@ int gauge_after(const std::vector<Msg>& msgs) {
     return m.s.tokens_in;
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("gauge: OpenAI chat usage with a warm cache is the prompt, not prompt + cache") {
     install_stub_deps();
-    // Strata's last chat frame (serve/server.py openai chunks): prompt 33000,
-    // 32000 of it already in its conversation cache.
+    // 斯特拉塔最后的谈话 帧 (serve/server.py 块形 Openai :
+    // 提示词 33,000,32,000 已经在其谈话中 缓存.
     const std::string sse =
         "data: {\"choices\":[{\"delta\":{\"content\":\"ok\"}}]}\n\n"
         "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}],"
@@ -85,7 +85,7 @@ TEST_CASE("gauge: OpenAI chat usage with a warm cache is the prompt, not prompt 
 
 TEST_CASE("gauge: Responses (ChatGPT/Codex) usage with a warm cache is the prompt") {
     install_stub_deps();
-    // Strata's serve/responses.py response.completed usage.
+    // 斯特拉塔的 , , 和他一起来 serve/responses.py response.completed 使用量。
     const std::vector<std::string> sse = {
         R"({"type":"response.output_text.delta","delta":"ok"})",
         R"({"type":"response.completed","response":{"status":"completed",)"
@@ -97,8 +97,8 @@ TEST_CASE("gauge: Responses (ChatGPT/Codex) usage with a warm cache is the promp
 
 TEST_CASE("gauge: Anthropic usage keeps adding the cache, which it reports beside input") {
     install_stub_deps();
-    // Strata's Anthropic shape: message_start has the whole prompt, the final
-    // message_delta splits it into input + cache_read.
+    // 斯特拉塔的 , , 和他一起来 Anthropic 形状 : message_start 拥有整个 提示词 ,
+    // 最终 message_delta 将其分割为输入 + cache_read.
     const std::vector<std::pair<std::string, std::string>> sse = {
         {"message_start", R"({"type":"message_start","message":{"id":"m","type":"message",)"
                           R"("role":"assistant","content":[],"usage":{"input_tokens":33000,"output_tokens":0}}})"},
@@ -129,7 +129,7 @@ Model model_with_gauge(int used) {
     return m;
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("gauge: opening a thread shows that thread's last prompt, not the old one") {
     install_stub_deps();
@@ -137,14 +137,14 @@ TEST_CASE("gauge: opening a thread shows that thread's last prompt, not the old 
     t.id = ThreadId{"other"};
     Message u; u.role = Role::User; u.text = "hi";
     t.messages.push_back(u);
-    t.messages.push_back(measured_turn(1000, 11000));   // 12k prompt
+    t.messages.push_back(measured_turn(1000, 11000));   // 12k 提示词 号
     t.messages.push_back(u);
     Message tail; tail.role = Role::Assistant; tail.text = "unmeasured";
-    t.messages.push_back(tail);                        // newest turn has no usage
+    t.messages.push_back(tail);                        // 最新转弯没有用
 
     auto start = model_with_gauge(60000);
     start.s.thread_loading = true;
-    start.s.loading_thread = t.id;   // as ThreadListSelect does
+    start.s.loading_thread = t.id;   // 与ThreadListSelect一样
     auto [m, _] = app::update(std::move(start), Msg{ThreadLoaded{std::move(t)}});
     CHECK(m.s.tokens_in == 12000);
 }
@@ -204,7 +204,7 @@ TEST_CASE("vision 400: an image from a read tool result is stripped and the turn
     tc.status = std::move(done);
     a.tool_calls.push_back(std::move(tc));
     start.d.current.messages.push_back(std::move(a));
-    Message next; next.role = Role::Assistant;   // the failing continuation
+    Message next; next.role = Role::Assistant;   // 失败的续作
     start.d.current.messages.push_back(next);
     start.s.phase = phase::Streaming{phase::Active{}};
 
@@ -218,12 +218,12 @@ TEST_CASE("vision 400: an image from a read tool result is stripped and the turn
         for (const auto& t : msg.tool_calls)
             any_image = any_image || !t.done_images().empty();
     CHECK(!any_image);
-    CHECK(!m.s.is_idle());      // retry scheduled, not a dead turn
+    CHECK(!m.s.is_idle());      // 重试 预定,不是死转
     CHECK(!cmd.is_none());
 }
 
-// #117: the 400 that dead-ended a session after a model switch now learns
-// what the model needs and re-runs the same turn; the next body carries it.
+// #117:400人死了,他们死了 -ended 模型切换后的一个会话
+// 现在学习模型需要什么 -runs 同一转弯; 下一个转弯 正文 带着它
 TEST_CASE("reasoning_content 400: learned per model, persisted, turn retried") {
     install_stub_deps();
     set_reasoning_echoes({});
@@ -231,11 +231,11 @@ TEST_CASE("reasoning_content 400: learned per model, persisted, turn retried") {
     start.d.selection.kind = provider::Kind::OpenAI;
     start.d.selection.openai_endpoint =
         provider::openai::Endpoint::from_spec("https://gw.example.org/v1");
-    start.d.model_id = ModelId{"some/strict-thinker"};   // not seeded
+    start.d.model_id = ModelId{"some/strict-thinker"};   // 未播种
     Message u; u.role = Role::User; u.text = "go on";
     Message prior; prior.role = Role::Assistant; prior.text = "from the last model";
     start.d.current.messages = {u, prior, u};
-    Message next; next.role = Role::Assistant;   // the failing continuation
+    Message next; next.role = Role::Assistant;   // 失败的续作
     start.d.current.messages.push_back(next);
     start.s.phase = phase::Streaming{phase::Active{}};
 
@@ -249,15 +249,15 @@ TEST_CASE("reasoning_content 400: learned per model, persisted, turn retried") {
     err.http_status = 400;
     auto [m, cmd] = app::update(std::move(start), Msg{msg::StreamMsg{err}});
 
-    CHECK(reasoning_echo_for(host, "some/strict-thinker") == 2);       // learned: every turn
-    CHECK(m.d.persisted.reasoning_echo.size() == 1);                   // and persisted
-    CHECK(reasoning_echo_for(host, "some/other-model") == 0);          // for that model only
-    CHECK(!m.s.is_idle());      // retry scheduled, not a dead turn
+    CHECK(reasoning_echo_for(host, "some/strict-thinker") == 2);       // 学习:每一转
+    CHECK(m.d.persisted.reasoning_echo.size() == 1);                   // 并坚持
+    CHECK(reasoning_echo_for(host, "some/other-model") == 0);          // 只为那个模型
+    CHECK(!m.s.is_idle());      // 重试 预定,不是死转
     CHECK(!cmd.is_none());
 
-    // The same 400 again (a gateway that wants something else) is not learned
-    // twice: the scope is already All, so it falls through to the normal error
-    // path instead of retrying forever.
+    // 同样的400个(一个想要别的东西的网关)没有被
+    // 两次学习: 范围已经是全部,所以它会永远地通过到
+    // 正常的错误路径而不是重试.
     auto [m2, cmd2] = app::update(std::move(m), Msg{msg::StreamMsg{err}});
     CHECK(reasoning_echo_for(host, "some/strict-thinker") == 2);
     CHECK(m2.d.persisted.reasoning_echo.size() == 1);
@@ -277,7 +277,7 @@ TEST_CASE("gauge: a reading from before the latest compaction is not reused") {
     t.messages.push_back(measured_turn(50000, 0));
     t.messages.push_back(u);
     Thread::CompactionRecord rec;
-    rec.up_to_index = 2;   // the measured turn is now summarised away
+    rec.up_to_index = 2;   // 测量的转弯现在被总结掉
     t.compactions.push_back(rec);
     CHECK(last_reported_prompt(t) == 0);
 
@@ -287,8 +287,8 @@ TEST_CASE("gauge: a reading from before the latest compaction is not reused") {
 
 TEST_CASE("gauge: per-turn usage takes a frame's input and cache parts together") {
     install_stub_deps();
-    // Anthropic-style: message_start says cache_read 30k, the final frame
-    // says the whole prompt was read fresh. The turn must not keep the 30k.
+    // Anthropic-style: message_start 说
+    // cache_read 30k,决赛 帧 说整个 提示词 转弯时不能保留30k。
     Model m;
     Message user; user.role = Role::User; user.text = "hi";
     m.d.current.messages.push_back(user);
@@ -311,7 +311,7 @@ TEST_CASE("gauge: a finished compaction drops the gauge to the compacted size") 
     install_stub_deps();
     Model m;
     m.s.context_max = 65536;
-    // A long thread whose last turn reported a 60k prompt.
+    // 长 线程 上回报告60千 提示词.
     const std::string big(40000, 'x');
     for (int i = 0; i < 6; ++i) {
         Message u; u.role = Role::User; u.text = big;
@@ -335,7 +335,7 @@ TEST_CASE("gauge: a finished compaction drops the gauge to the compacted size") 
 
 TEST_CASE("compaction: auto_compact off keeps a full thread from compacting") {
     install_stub_deps();
-    // Over the threshold, so a finished turn would compact on its own.
+    // 超过门槛,所以一个完成的转弯会自己收紧.
     auto full_thread = [] {
         Model m;
         m.s.context_max = 65536;
@@ -348,7 +348,7 @@ TEST_CASE("compaction: auto_compact off keeps a full thread from compacting") {
         m.s.tokens_in = 60000;
         return m;
     };
-    // Finish a turn and report whether it asked to compact.
+    // 完成一个回合,并报告是否要求压缩。
     auto turn_compacts = [](Model m) {
         m.d.current.messages.back().role = Role::Assistant;
         m.s.phase = phase::Idle{};
@@ -381,23 +381,23 @@ TEST_CASE("window: the ollama row clamps to num_ctx only on a real Ollama (#73)"
     install_stub_deps();
     namespace oai = provider::openai;
     Model m;
-    // A port nobody else uses, so this test owns its cache entry.
+    // 别人都不用的港口 所以这个测试是自己的 缓存 输入。
     m.d.selection = provider::parse_selection("ollama");
     m.d.selection.openai_endpoint.port = 18999;
     m.d.model_id = ModelId{"qwen2.5-coder-7b"};
     ModelInfo mi;
     mi.id = m.d.model_id;
-    mi.context_window = 131072;     // what the server reported
+    mi.context_window = 131072;     // 服务器报告的内容
     m.d.available_models.push_back(mi);
 
-    // Not asked yet: treated as Ollama, which serves at most its num_ctx.
+    // 尚未询问:作为 Ollama ,最多只能起到 num_ctx.
     CHECK(app::detail::resolved_context_max(m, "ollama") < 131072);
 
-    // Asked, and it is a real Ollama daemon: still clamped.
+    // 问了,它是一个真正的Ollama守护进程:仍然被夹住。
     oai::set_speaks_native_for_test(m.d.selection.openai_endpoint, true);
     CHECK(app::detail::resolved_context_max(m, "ollama") < 131072);
 
-    // Asked, and it is llama.cpp on that port: the window it serves.
+    // 问了,这是 llama.cpp 端口上是它服务的窗口
     oai::set_speaks_native_for_test(m.d.selection.openai_endpoint, false);
     CHECK(app::detail::resolved_context_max(m, "ollama") == 131072);
 }

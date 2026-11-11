@@ -1,22 +1,22 @@
 #pragma once
-// agentty::domain::refined — refinement types: a `Refined<T, Predicate>`
-// is a value of type `T` carrying a *type-level* proof that some
-// predicate holds. Once you have one, downstream code can read the
-// inner value without re-checking — the only way to construct one is
-// through `try_make`, which validates and returns an `expected`.
+// agentty::domain::refined-细化类型：
+// `Refined<T, Predicate>`是类型`T`的值，
+// 其携带某些谓词成立的*type-level*证明。一旦你有了一个，
+// 下游代码就可以读取内部值，而无需re-checking——构造它的唯一
+// 方法是通过`try_make`，它验证并返回`expected`。
 //
-// This is the C++ analogue of Rust's "make invalid states
-// unrepresentable" via newtypes plus smart constructors. Every place
-// that *would* accept `std::string` and re-validate "is this empty?"
-// at the top instead accepts `NonEmpty<std::string>` — the validation
-// has already happened at construction time, the type system proves it.
+// 这是通过新类型加上智能构造函数的 Rust
+// "make invalid states unrepresentable" 的
+// C++ 类似物。顶部的每个“将”接受 `std::string` 和 re
+// -validate "is this empty?" 的地方都接受
+// `NonEmpty<std::string>` ——验证已经在构造时发生，类型系统证明了这一点。
 //
-// `Predicate` is a stateless functor with `static constexpr bool
-// check(const T&)` (so the validation can be `consteval` for literal
-// inputs). Failing a check returns a typed reason — caller decides what
-// to do with it. The same predicate type is the *identity* of the
-// refinement: `NonEmpty<string>` and `NotBlank<string>` are different
-// types even though both wrap a `string`.
+// `Predicate`是具有
+// `static constexpr bool check(const T&)`的
+// 无状态函子（因此对于文字输入，验证可以是`consteval`）。检查失败会返回
+// 带类型的 原因 - 调用者决定如何处理它。相同的谓词类型是细化的“身份”：
+// `NonEmpty<string>` 和 `NotBlank<string>`
+// 是不同的类型，即使两者都包装 `string`。
 
 #include <concepts>
 #include <expected>
@@ -29,22 +29,22 @@
 
 namespace agentty::domain {
 
-// ── Predicate concept ────────────────────────────────────────────────────
+// ── 优先概念 ────────────────────────────────────────────────────
 template <class P, class T>
 concept RefinementPredicate = requires(const T& v) {
     { P::check(v) } -> std::convertible_to<bool>;
     { P::what()  } -> std::convertible_to<std::string_view>;
 };
 
-// ── Refined<T, Predicate> ────────────────────────────────────────────────
-// Hold-by-value newtype. `value()` returns the inner T. The only
-// constructors are: defaulted (when T is default-constructible AND
-// the default value satisfies P), and the static `try_make` factory.
+// ── 已精炼 <T, Predicate> ────────────────────────────────────────────────
+// 持有-by-value新类型。 `value()` 返回内部 T。
+// 唯一的构造函数是：defaulted（当 T 为 default
+// -constructible 和 时，默认值满足 P）和静态 `try_make` 工厂。
 //
-// A `consteval` overload of `try_make` exists for literal inputs;
-// it makes "non-empty literal string" a compile-time check. Pass an
-// `std::string_view` literal and you'll either compile or fail-with-
-// `static_assert`-ish error during constant evaluation.
+// 对于文字输入，存在 `try_make` 的 `consteval` 重载；
+// 它使 "non-empty literal string" 成为 编译-time 检查。
+// 传递 `std::string_view` 文字，在持续评估期间，您将出现 编译
+// 或失败-with- `static_assert`-ish 错误。
 template <class T, class Predicate>
     requires RefinementPredicate<Predicate, T>
 class Refined {
@@ -60,25 +60,25 @@ public:
     [[nodiscard]] constexpr const T& value() const noexcept { return value_; }
     [[nodiscard]] constexpr operator const T&() const noexcept { return value_; }
 
-    // Transparent conversion to std::string_view when T is string-like.
-    // C++ permits at most one user-defined conversion in an implicit
-    // chain, so the `operator const T&` above doesn't compose into a
-    // string_view at call sites that take it directly (regex ctor,
-    // string_view-typed parameters). Providing this overload bypasses
-    // the chain limit — calls like `is_literal_pattern(refined_string)`
-    // work without an explicit `.value()`. Constrained on `T` being
-    // convertible to `string_view` so this is a no-op for integral or
-    // container-typed refineds.
+    // 当T是字符串-like时透明转换到std::string_view。
+    // C++最多允许隐式链中的一个user-defined转换，
+    // 因此上面的`operator const T&`不会在直接采用它的调用
+    // 站点处组成string_view(正则表达式构造函数，
+    // string_view-typed参数)。提供此重载可以绕过链限制 - 调
+    // 用 与 `is_literal_pattern(refined_string)`
+    // 一样可以在没有显式 `.value()` 的情况下工作。
+    // 受限于 `T` 可转换为 `string_view`，因此这是用于整体或容器
+    // -typed 精炼的 no-op。
     [[nodiscard]] constexpr operator std::string_view() const noexcept
         requires std::convertible_to<const T&, std::string_view> {
         return std::string_view{value_};
     }
 
-    // Validating factory. Returns the typed reason on failure so callers
-    // can build their own typed error (e.g. ToolError::invalid_args(...)).
+    // 验证工厂。返回失败时的 带类型的 原因，以便调用者可以构建自己的 带类型的
+    // 错误 (e.g.ToolError::invalid_args(...))。
     struct Error {
         std::string_view what;        // = Predicate::what()
-        std::string      detail;      // optional context (caller-supplied)
+        std::string      detail;      // 可选上下文（caller-supplied)
     };
 
     [[nodiscard]] static constexpr std::expected<Refined, Error>
@@ -88,11 +88,11 @@ public:
         return std::unexpected(Error{Predicate::what(), std::string{detail_context}});
     }
 
-    // consteval factory: same as try_make but only callable in a constant-
-    // evaluated context. Use to build refined literals; failures become
-    // hard compile errors via the `Predicate::check` constraint failing.
+    // consteval 工厂：与 try_make 相同，
+    // 但只能在常量评估上下文中调用。用于构建精炼的文字；
+    // 通过 `Predicate::check` 约束失败，故障会变成硬 编译 错误。
     [[nodiscard]] static consteval Refined make_unchecked(T v) {
-        // Caller is asserting the predicate holds; failure is UB.
+        // 调用者断言谓词成立；失败是UB。
         return Refined{std::move(v)};
     }
 
@@ -101,10 +101,10 @@ public:
         return a.value_ == b.value_;
     }
 
-    // Stream insertion — defers to T's operator<< when present. Lets
-    // refined values flow through `std::ostream` / `std::ostringstream`
-    // without a `.value()` call, since the implicit conversion to
-    // `const T&` doesn't kick in for templated operator<< lookup.
+    // 数据流插入——当存在时遵循T的运算符<<。让精确值流经
+    // `std::ostream` / `std::ostringstream`，
+    // 而不需要 `.value()` 调用，
+    // 因为到 `const T&` 的隐式转换不会启动模板化运算符 << 查找。
     template <class CharT, class Traits>
         requires requires(std::basic_ostream<CharT, Traits>& os, const T& v) {
             { os << v } -> std::same_as<std::basic_ostream<CharT, Traits>&>;
@@ -115,9 +115,9 @@ public:
     }
 };
 
-// ── Predicates ───────────────────────────────────────────────────────────
+// ── 预测数 ───────────────────────────────────────────────────────────
 
-// `NonEmpty` for any container type that has `.empty()`.
+// `NonEmpty`用于具有`.empty()`的任何容器类型。
 struct NonEmptyPred {
     template <class T>
         requires requires(const T& t) { { t.empty() } -> std::convertible_to<bool>; }
@@ -131,9 +131,9 @@ struct NonEmptyPred {
 
 template <class T> using NonEmpty = Refined<T, NonEmptyPred>;
 
-// `Bounded<T, Lo, Hi>` — integral T constrained to [Lo, Hi]. Lo/Hi are
-// non-type template parameters baked into the type identity, so
-// `Bounded<int, 0, 100>` and `Bounded<int, 0, 1000>` are different types.
+// `Bounded<T, Lo, Hi>`——积分T约束为[Lo，Hi]。 Lo/Hi
+// 是嵌入到类型标识中的非 -type 模板参数，
+// 因此 `Bounded<int, 0, 100>` 和 `Bounded<int, 0, 1000>` 是不同的类型。
 template <std::integral T, T Lo, T Hi>
 struct InRangePred {
     static_assert(Lo <= Hi, "bounded range must satisfy Lo <= Hi");
@@ -148,7 +148,7 @@ struct InRangePred {
 template <std::integral T, T Lo, T Hi>
 using Bounded = Refined<T, InRangePred<T, Lo, Hi>>;
 
-// `Positive<T>` — strictly > 0. Common enough to deserve its own alias.
+// `Positive<T>` —严格> 0。足够常见，值得拥有自己的别名。
 template <std::integral T>
 struct PositivePred {
     [[nodiscard]] static constexpr bool check(T v) noexcept { return v > 0; }
@@ -158,9 +158,9 @@ struct PositivePred {
 };
 template <std::integral T> using Positive = Refined<T, PositivePred<T>>;
 
-// `NonNegative<T>` — ≥ 0. The other half of the integral sign space; useful
-// for offsets that legitimately allow 0 ("skip nothing") where `Positive`
-// would be too strict.
+// `NonNegative<T>`—≥0.积分符号空间的另一半；对于合法允许
+// 0 ("skip nothing") 的偏移量很有用，
+// 其中 `Positive` 过于严格。
 template <std::integral T>
 struct NonNegativePred {
     [[nodiscard]] static constexpr bool check(T v) noexcept { return v >= 0; }
@@ -170,11 +170,11 @@ struct NonNegativePred {
 };
 template <std::integral T> using NonNegative = Refined<T, NonNegativePred<T>>;
 
-// `NonBlank` — non-empty AND contains at least one non-whitespace byte.
-// Stricter than `NonEmpty`: a string that's all spaces is rejected. Use
-// for user/model-supplied tokens (search patterns, glob expressions,
-// commit messages) where "   " is a UI-survivable-but-semantically-empty
-// input that would do something useless if accepted.
+// `NonBlank`-non-empty AND包含至少一个non-whitespace 字节。
+// 比`NonEmpty`严格：拒绝全是空格的字符串。
+// 用于 user/model-supplied 标记（搜索模式、glob 表达式、
+// 提交消息），其中 "   " 是 UI-survivable-but-semantically-empty 输入，
+// 如果接受，它会做一些无用的事情。
 struct NonBlankPred {
     template <class T>
         requires requires(const T& t) {
@@ -194,10 +194,10 @@ struct NonBlankPred {
 };
 template <class T> using NonBlank = Refined<T, NonBlankPred>;
 
-// `MaxLen<N>` — size() ≤ N. The other side of NonEmpty: keeps a wire-or-
-// model-supplied blob from blowing past a sane ceiling. The bound N is a
-// non-type template parameter so `MaxLen<std::string, 1024>` and
-// `MaxLen<std::string, 65536>` are different types.
+// `MaxLen<N>`-size()≤N。NonEmpty的另一侧：防止传输
+// -or-模型-supplied斑点被吹过理智的天花板。绑定的 N 是非 -type 模板参数，
+// 因此 `MaxLen<std::string, 1024>` 和
+// `MaxLen<std::string, 65536>` 是不同的类型。
 template <std::size_t N>
 struct MaxLenPred {
     template <class T>
@@ -212,7 +212,7 @@ struct MaxLenPred {
 template <class T, std::size_t N>
 using MaxLen = Refined<T, MaxLenPred<N>>;
 
-// ── Compile-time tests of the refinement machinery ───────────────────────
+// ── 编译-time 改进机制试验 ───────────────────────
 namespace tests {
 static_assert(NonEmpty<std::string>::try_make(std::string{"x"}).has_value());
 static_assert(!NonEmpty<std::string>::try_make(std::string{}).has_value());
@@ -234,12 +234,12 @@ static_assert(!MaxLen<std::string, 4>::try_make(std::string{"abcde"}).has_value(
 
 } // namespace agentty::domain
 
-// std::formatter passthrough — a Refined<T,P> formats exactly like T, so
-// existing `std::format("{}", a.offset)` calls keep working when `offset`
-// is upgraded from `int` to `Positive<int>`. Without this, format's
-// reference-taking make_format_args() doesn't see the implicit
-// `operator const T&` and the call fails to compile. Lives at namespace
-// std (the standard mandates that for user-type formatter specialisations).
+// std::formatter直通-Refined<T,P>格式与T完全相同，
+// 因此当`offset`从`int`升级到`Positive<int>`时，
+// 现有的`std::format("{}", a.offset)` 调用继续工作。
+// 如果没有这个，格式的引用-taking make_format_args
+// ()不会看到隐式的`operator const T&`，并且调用无法看到编译。
+// 位于命名空间 std（该标准要求针对 user-type 格式化程序专门化）。
 template <class T, class P, class CharT>
 struct std::formatter<agentty::domain::Refined<T, P>, CharT>
     : std::formatter<T, CharT>

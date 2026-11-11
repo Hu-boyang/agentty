@@ -1,15 +1,15 @@
-// key_routing_test: a keypress is routed by the CURRENT model.
+// key_routing_test : 键盘按键的路由 当前 模型 模型 模式
 //
-// Most tests dispatch Msg values straight into update(), which skips the
-// half of the input path that decides WHICH handler a key reaches. These
-// drive it: route a key through AgenttyApp::on (what jaal calls, with the
-// live model), apply the result, route the next key.
+// 多数测试 分派 Msg 数值直入 update() ,
+// 它跳过决定输入路径的一半 对应的 处理函数 键到达。这些驱动它:
+// 路径一个键通过 AgenttyApp::on (怎样?
+// ) jaal 调用 ,与活模式一起,应用结果,路径下键.
 //
-// Routing used to be a router closed over a snapshot built by subscribe(),
-// and a message that changed which surface owned the keyboard left the
-// next key routed against the old one ("the input doesn't register until
-// you hit it again"). jaal D43 removed routers, so this can't go stale any
-// more; these tests keep it that way.
+// routing曾经是一个关闭在subscribe()所建的快照上的路由器,
+// 一个改变哪个表面拥有键盘的电文留下了下一个键盘路由器与旧的(
+// 按键直到再按一次才生效。
+// jaal D43移除了路由器 ,因此这不能再去过期;
+// 这些测试使它保持了这个方式.
 #include "agtest.hpp"
 
 #include <optional>
@@ -29,14 +29,14 @@ namespace pn = agentty::ui::panel;
 
 namespace {
 
-// Route one key the way the kernel does: the program's on() for KeyEvent,
-// called with the model as it is now.
+// 内核的一键: 程序为KeyEvent的on(),
+// 以现在的模式调用。
 std::optional<Msg> route(const Model& m, const maya::KeyEvent& ev) {
     return app::AgenttyApp::on(m, ev);
 }
 
-// Press a key: route it against the current model, then apply whatever it
-// produced.
+// 按键:与当前模型对接,然后应用其生产的任何
+// 产品。
 [[nodiscard]] bool press(Model& m, const maya::KeyEvent& ev) {
     auto msg = route(m, ev);
     if (!msg) return false;
@@ -44,9 +44,9 @@ std::optional<Msg> route(const Model& m, const maya::KeyEvent& ev) {
     return true;
 }
 
-// Escape routes through a handler that reaches app::deps() (it persists the
-// restored theme), so the stub has to be installed even though this test
-// only cares about routing.
+// 通过 a 的逃逸路线 处理函数 达到 app::deps
+// () (它坚持恢复的主题),所以必须安装支线,
+// 即使这个测试只关心路由.
 void install_stub_deps() {
     app::install_deps(app::Deps{
         .stream        = [](const maya::unlocked&, provider::Request, provider::EventSink) {},
@@ -69,19 +69,19 @@ maya::KeyEvent special(maya::SpecialKey k) {
     return ev;
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("routing: the first arrow after Enter reaches the theme browser") {
     Model m;
     m = app::update(std::move(m), Msg{OpenAppearance{}}).first;
 
-    // Walk to the Theme row the way a user does, so the form's focus is
-    // real rather than assumed.
+    // 步行到主题行中,与用户的方式一样,所以表单的焦点
+    // 是真实而非假设的.
     const auto* pane = m.ui.panel.get<pn::Appearance>();
     REQUIRE(pane != nullptr);
 
-    // Open the browser with Enter. This is the panel-CHANGING key: after it
-    // the Appearance pane owns the keyboard in a different mode.
+    // 打开浏览器 Enter。这是面板 -CHANGING
+    // 键: 之后的外观 面板 拥有不同模式的键盘。
     m = app::update(std::move(m), Msg{AppearancePickTheme{}}).first;
     const auto* opened = m.ui.panel.get<pn::Appearance>();
     REQUIRE(opened != nullptr);
@@ -90,10 +90,10 @@ TEST_CASE("routing: the first arrow after Enter reaches the theme browser") {
     const int idx_before    = opened->pane.picker.picker.index();
     const int cursor_before = opened->pane.form.cursor;
 
-    // THE ASSERTION: one ↓, routed through a sub built from the model as it
-    // is NOW. It must move the browser's highlight. If subscribe() were
-    // routing against the pre-Enter snapshot this would move the form
-    // cursor underneath instead, and the user would see nothing happen.
+    // 该 ASSERTION : 1 QQ,通过从模型中构建的子
+    // 程序进行路由 当前。它必须移动浏览器的亮度。
+    // 如果 subscribe() 和预赛的路线 -Enter
+    // 快照 它将将窗体光标移动到下面,用户将看到没有发生任何情况。
     CHECK(press(m, special(maya::SpecialKey::Down)),
           "the arrow produced no message at all");
 
@@ -114,8 +114,8 @@ TEST_CASE("routing: Escape leaves the browser and the next key hits the form") {
     REQUIRE(m.ui.panel.get<pn::Appearance>() != nullptr);
     CHECK(m.ui.panel.get<pn::Appearance>()->pane.picking);
 
-    // Esc closes the browser — the same transition in reverse. The next key
-    // must reach the FORM, not a browser that is no longer up.
+    // Esc 关闭浏览器—— 反向的相同过渡。 下一个密钥必须
+    // 到达 FORM ,而不是一个不再上线的浏览器。
     CHECK(press(m, special(maya::SpecialKey::Escape)),
           "Escape produced no message");
     const auto* closed = m.ui.panel.get<pn::Appearance>();
@@ -136,9 +136,9 @@ TEST_CASE("routing: Escape leaves the browser and the next key hits the form") {
           "the arrow still reached the closed browser");
 }
 
-// ^A/^X once shipped with their arming gate captured by the router and
-// missing from SubsKey, so they were dead for a frame after edits landed and
-// stale-live after the queue cleared. Routing reads the live model now.
+// ^A/^X 曾经用他们的武器门运送 被路由器俘虏
+// 并失踪 SubsKey 他们死了,因为...
+// 帧 编辑后 过期-live 排队完毕后, 正在读取现场模式。
 TEST_CASE("routing: the changes-strip chords follow the live model") {
     install_stub_deps();
     Model m;
@@ -154,7 +154,7 @@ TEST_CASE("routing: the changes-strip chords follow the live model") {
         return dr && std::holds_alternative<RejectAllChanges>(*dr);
     };
 
-    CHECK_FALSE(is_reject(route(m, ctrl_x)));   // nothing queued: not armed
+    CHECK_FALSE(is_reject(route(m, ctrl_x)));   // 无队列:未装入武器
 
     FileChange fc;
     fc.path = "src/main.cpp";
@@ -167,9 +167,9 @@ TEST_CASE("routing: the changes-strip chords follow the live model") {
                   "hiding the strip disarms ^X on the very next key");
 }
 
-// ^/ is the byte 0x1F, the same as ^_. Plain terminals send the raw byte;
-// kitty sends ctrl+'/'; tmux with extended keys turns the byte into ctrl+'_'
-// once the app asks for modifyOtherKeys. All three must open the picker.
+// ^/ 是那个 字节 0x1F,与QQ相同. plain(英语:Plain). 终端 发送原始
+// 字节 ; 小猫发送 ctrl+ '/' ; 带有扩展键的 tmux 转动 字节 转换成 ctrl
+// + '_' 一旦应用程序要求 modifyOtherKeys。所有三个必须打开 选择面板.
 TEST_CASE("routing: every way ^/ arrives opens the model picker") {
     install_stub_deps();
     auto key = [](char32_t c, bool ctrl) {
@@ -183,8 +183,8 @@ TEST_CASE("routing: every way ^/ arrives opens the model picker") {
         REQUIRE(press(m, ev));
         CHECK(m.ui.panel.get<pn::Models>() != nullptr);
 
-        // In the open picker the same key is handled (scopes to a provider),
-        // not typed into the filter.
+        // 在露天的天空里,我看见了 选择面板 处理相同的密钥(对提供方的镜),
+        // 而不是 带类型的 进入过滤器。
         CHECK(route(m, ev).has_value());
         CHECK(press(m, ev));
         CHECK(m.ui.panel.get<pn::Models>() != nullptr);

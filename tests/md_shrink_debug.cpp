@@ -1,5 +1,5 @@
-// md_shrink_debug — replay one shape byte-by-byte, dumping rendered rows at
-// the shrink frame and the frame before it.
+// md_shrink_debug ——重放一个形状. 字节-by-byte 倾斜的排成
+// 一排 向心理医生倾斜 帧 编辑 帧 之前,它已经。
 #include <cstdio>
 #include <cstring>
 #include <string>

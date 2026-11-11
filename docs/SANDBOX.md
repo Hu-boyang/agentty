@@ -1,436 +1,281 @@
-# Sandboxing
+<a id="sandboxing"></a>
 
-Every shell command agentty runs — the `bash` tool, `diagnostics`, git, lifecycle
-hooks, ACP terminals — runs inside an OS-enforced sandbox. This is the reference
-for what that boundary is, how to configure it, and what it deliberately does
-not cover.
+# 沙箱隔离
 
-Use this reference alongside the current implementation and runnable audit:
+agentty 执行的 Shell 命令都在操作系统强制实施的沙箱内运行，包括 bash 工具、diagnostics、Git、生命周期钩子和 ACP 终端。本文说明沙箱的边界、配置方式，以及明确不在其覆盖范围内的内容。
 
-- [Sandbox configuration](../include/agentty/domain/sandbox_config.hpp),
-  [execution boundary](../src/tool/util/sandbox.cpp) and
-  [claybin adapter](../src/tool/util/sandbox_claybin.cpp) — the source for
-  posture, policy construction and backend enforcement.
-- [Sandbox pane](../src/runtime/panel/sandbox.cpp) — how controls expose
-  host capabilities and configuration.
-- [`tests/sandbox_audit.cpp`](../tests/sandbox_audit.cpp) — a runnable report of what your host actually
-  enforces. Build and run it; it prints the table in [Capabilities](#capabilities)
-  for your machine rather than for ours.
+阅读本文时，请同时参考当前实现和可运行的审计程序。
+
+- [沙箱配置](../include/agentty/domain/sandbox_config.hpp)、
+  [执行边界](../src/tool/util/sandbox.cpp)与 [claybin 适配器](../src/tool/util/sandbox_claybin.cpp)说明安全预设、策略构造和后端执行方式。
+- [沙箱设置面板](../src/runtime/panel/sandbox.cpp)展示如何通过控件反映
+  宿主能力与配置。
+- [`tests/sandbox_audit.cpp`](../tests/sandbox_audit.cpp) 是可运行的能力报告，
+  构建并运行后，会输出当前机器实际执行的[能力表](#capabilities)。
 
 ---
 
-## The one property
+<a id="the-one-property"></a>
 
-**An approved command must not be able to read a credential it was never
-granted, and must not be able to write outside the workspace.**
+## 核心安全属性
 
-Everything below serves that. The failure mode this subsystem is built around is
-not "the user set a switch wrong" — it is **a boundary that reports itself as
-active while enforcing nothing**. agentty shipped exactly that once (issue #21:
-`sandbox: active` while every command died on a `uid_map` denial), which is why
-so much of the design is about *measuring* rather than *claiming*.
+**已批准的命令也不能读取从未获准访问的凭据，不能写入工作区之外的位置。**
+
+下文所有设计都服务于这一属性。此子系统重点防范的是边界报告已经启用、实际却没有执行限制的情况。agentty 曾出现过这类问题（issue #21 中显示 sandbox: active，但所有命令都因 uid_map 拒绝而失败），因此设计强调实际测量和验证。
 
 ---
 
-## Quick start
+<a id="quick-start"></a>
 
-| you want | do this |
+## 快速开始
+
+| 目标 | 操作 |
 |---|---|
-| see what is enforcing right now | the startup banner, or the Sandbox settings pane |
-| tighten everything at once | Sandbox pane → **Posture** → `hardened` |
-| stop anything phoning home | Posture → `airgapped` |
-| let commands reach only some sites | Network → **Allowed hosts** → `github.com`, `*.npmjs.org`, … |
-| a build that breaks under the filter | Posture → `permissive` (keeps the mount walls) |
-| turn it off entirely | `--sandbox off` |
-| require it, fail if unavailable | `--sandbox on` |
+| 查看当前实际执行的限制 | 查看启动提示或沙箱设置面板 |
+| 同时收紧所有限制 | 沙箱面板 → Posture → `hardened` |
+| 禁止命令访问网络 | Posture → `airgapped` |
+| 只允许命令访问部分网站 | Network → Allowed hosts → `github.com`、`*.npmjs.org` 等 |
+| 构建被过滤规则阻止 | Posture → `permissive`，仍保留挂载隔离 |
+| 完全关闭沙箱 | `--sandbox off` |
+| 强制要求沙箱，不可用时失败 | `--sandbox on` |
 
-Settings persist as you edit and apply **on the next launch** — see
-[Why the policy is sealed](#why-the-policy-is-sealed).
+编辑设置后会保存，并在下次启动生效，详见[策略为何在启动后固定](#why-the-policy-is-sealed)。
 
 ---
 
-## Backends
+<a id="backends"></a>
 
-| backend | platform | selected |
+## 后端实现
+
+| 后端 | 平台 | 选择方式 |
 |---|---|---|
-| `claybin` | Linux | only engine |
-| `claybin` | macOS | **default** |
-| `sandbox-exec` | macOS | fallback |
-| `claybin` | Windows | **default** |
-| — | Windows fallback | **none, by design** |
+| `claybin` | Linux | 唯一引擎 |
+| `claybin` | macOS | 默认 |
+| `sandbox-exec` | macOS | 回退 |
+| `claybin` | Windows | 默认 |
+| — | Windows 回退后端 | 按设计不提供 |
 
-On Windows there is no fallback engine and no bwrap: the probe either proves
-it can build a wall (AppContainer or a job object) and claybin runs, or
-`sandbox: active` becomes `sandbox: unavailable, running unsandboxed` and
-commands run unconfined —
-reported at startup, never silently. Windows Sandbox (the Hyper-V VM product)
-was deliberately not chosen: it is a whole-OS VM with seconds of boot time, no
-pipe-stdout model and no per-command exit codes, which breaks the
-spawn/adopt/stream/kill contract every tool call relies on. AppContainer is
-the process-level translation of the same policy; the kernel-isolation gap it
-carries is reported per capability rather than hidden (see
-[claybin on Windows](#claybin-on-windows)).
+Windows 不提供回退引擎或 bwrap。探测能通过 AppContainer 或作业对象建立隔离时，使用 claybin。否则启动提示会从 sandbox: active 变成 sandbox: unavailable, running unsandboxed，并明确说明命令将不受沙箱限制。未采用基于 Hyper-V 的 Windows Sandbox 产品，因为它需要数秒启动整个操作系统虚拟机，缺少管道标准输出模型和逐命令退出码，无法满足工具调用的启动、接管、流式读取和终止约定。AppContainer 在进程级实现相同策略，并按能力报告内核隔离的差距，见 [Windows 上的 claybin](#claybin-on-windows)。
 
-### Why claybin is the only Linux engine
+<a id="why-claybin-is-the-only-linux-engine"></a>
 
-bwrap was removed. agentty's bwrap path emitted no seccomp, no cgroup limits
-and no landlock, so it only ever gave the mount walls. The case for keeping it
-as a fallback was hosts where claybin can't run, but claybin needs only
-landlock **or** seccomp, and seccomp (Linux 3.5) predates the unprivileged
-user namespaces bwrap needs (3.8). Every host that could run bwrap can run
-claybin.
+### Linux 只使用 claybin 引擎的原因
 
-If claybin can't start on a host, the pane says so and commands run
-unconfined; `--sandbox on` refuses to start instead.
+bwrap 已被移除。原 bwrap 路径只提供挂载隔离，没有 seccomp、cgroup 资源限制或 Landlock。claybin 只要求 Landlock 或 seccomp 之一，而 seccomp 从 Linux 3.5 起可用，早于 bwrap 要求的 3.8 版非特权用户命名空间。因此能运行 bwrap 的宿主也能运行 claybin，无需保留该回退。
 
-`--sandbox-backend bwrap` still parses and runs claybin, so old scripts keep
-working. The pane has no Backend row.
+宿主无法启动 claybin 时，面板会明确说明并允许无沙箱运行。指定 --sandbox on 时则拒绝启动。
 
-### claybin on macOS
+为兼容旧脚本，--sandbox-backend bwrap 仍可解析，但实际使用 claybin。面板不再提供 Backend 行。
 
-Same engine, same policy, a different set of walls underneath. claybin's
-front end is one description of the boundary compiled per platform, so the
-read set, the masks and every extra grant in the pane mean the same thing on
-a mac as on Linux — they are the *same code path*, not a parallel one.
+<a id="claybin-on-macos"></a>
 
-What differs is what the OS will enforce:
+### macOS 上的 claybin
 
-| capability | claybin on Linux | claybin on macOS | `sandbox-exec` |
+macOS 使用相同引擎和策略，在底层采用不同的隔离机制。claybin 将统一的边界描述按平台编译，因此读取集合、屏蔽规则和额外授权，与 Linux 使用相同代码路径并具有相同含义。
+
+差异在于操作系统实际能够执行的限制。
+
+| 能力 | Linux 上的 claybin | macOS 上的 claybin | sandbox-exec |
 |---|---|---|---|
-| filesystem read/write | strong (landlock + mount ns) | **strong**† (seatbelt) | strong, fixed profile |
-| filesystem exec | strong (landlock) | **strong**† (seatbelt) | strong, fixed profile |
-| network isolation | strong (netns + proxy) | **strong** (one loopback port, the proxy) | none |
-| syscall filter | strong (seccomp) | **none** | none |
-| memory / cpu caps | strong (cgroup2) | partial (rlimits) | none |
-| pid caps | strong (cgroup2) | **advisory** (RLIMIT_NPROC is per-UID) | none |
-| ptrace + kill brokering | yes (seccomp-notify) | **none** | none |
-| per-path grants from the pane | yes | **yes** | no |
-| guarantee report | yes | **yes** | no |
+| 文件系统读写 | 强隔离（Landlock 与挂载命名空间） | 强隔离†（seatbelt） | 强隔离，固定配置 |
+| 文件系统执行 | 强隔离（Landlock） | 强隔离†（seatbelt） | 强隔离，固定配置 |
+| 网络隔离 | 强隔离（网络命名空间与代理） | 强隔离，仅开放代理的一个回环端口 | 无 |
+| 系统调用过滤 | 强隔离（seccomp） | 无 | 无 |
+| 内存与 CPU 限额 | 强限制（cgroup2） | 部分限制（rlimits） | 无 |
+| 进程数上限 | 强限制（cgroup2） | 提示性限制，RLIMIT_NPROC 按 UID 计数 | 无 |
+| ptrace 与 kill 代理 | 支持，使用 seccomp-notify | 无 | 无 |
+| 面板中的逐路径授权 | 支持 | 支持 | 不支持 |
+| 保证报告 | 提供 | 提供 | 不提供 |
 
-† `strong` for a same-path policy. agentty's own posture adds a `proc_fs`, a
-`dev_fs`, a `tmpfs` and a mask — none of which have an access-control reading
-that is *exactly* the tree reading — so its plan's fidelity is `approximate`
-and the filesystem rows report `partial`. See
-[Capabilities](#capabilities) for the measured output.
+† 对具有相同路径语义的策略可以报告 strong。agentty 的安全预设还包含 proc_fs、dev_fs、tmpfs 和屏蔽操作，这些操作的访问控制语义无法完全等同于目录树语义，因此计划保真度为 approximate，文件系统行报告 partial。实际测量输出见[能力表](#capabilities)。
 
-The two macOS engines use the *same kernel mechanism* — claybin calls
-`sandbox_init(3)` with a compiled profile, `sandbox-exec` is Apple's CLI
-wrapper around it — so this is not a choice about strength. It is a choice
-about what survives the trip. The `sandbox-exec` path concatenates one fixed
-profile string, so the pane's settings have nowhere to go; the claybin path
-compiles the policy you actually configured, and reports per capability which
-walls the kernel agreed to build.
+两个 macOS 引擎都使用同一个内核机制。claybin 以编译后的配置调用 sandbox_init(3)，sandbox-exec 是 Apple 提供的命令行包装。区别在于配置如何传递。sandbox-exec 路径只拼接固定配置字符串，无法反映面板设置。claybin 编译实际配置，并逐项报告内核接受的限制。
 
-What the macOS profile closes that a naive seatbelt profile leaves open —
-each one measured, and each one pinned by claybin's
-`macos_escape_corpus_test`, which plants a canary outside the grant and
-tries 21 routes out:
+普通 seatbelt 配置容易遗漏以下入口。每项行为都经过测量，并由 claybin 的 macos_escape_corpus_test 固定验证。测试在授权范围外放置探测文件，尝试 21 条越界路径。
 
-- **Network goes through the proxy, nowhere else.** macOS has no private
-  network namespace, so the guest is pinned with
-  `(remote ip "localhost:PORT")` to the one loopback port agentty's proxy
-  listens on (kernel-chosen, so nothing else on your machine can own it).
-  Every other port, `::1`, the LAN and the internet are `EPERM`. The proxy
-  address is handed to the command as `http_proxy` / `https_proxy` /
-  `ALL_PROXY` (plus `NODE_USE_ENV_PROXY=1` for node's `fetch`). The guest
-  gets no DNS at all — the proxy resolves — so there is no DNS side channel.
-- **System services by name, not all of them.** A bare
-  `(allow mach-lookup)` lets a command with no home grant and no network
-  read your **clipboard** and list your **keychains**, because those
-  daemons run outside the sandbox. Only directory lookup, logging,
-  preferences and the temp-dir helper are allowed; TLS trust services are
-  added only when the network is on, and never `SecurityServer` (the
-  keychain daemon — TLS does not need it).
-- **No disk-wide `stat`.** A blanket `(allow file-read-metadata)` answers
-  "does `~/.ssh/id_ed25519` exist, how big, when changed" for any path.
-  Metadata is allowed on `/`'s children and on the folders leading down to
-  each grant — exactly what `realpath`, `getcwd` and git's repo discovery
-  walk — and nowhere else.
-- **The Xcode toolchain runs.** `/usr/bin/git`, `cc` and `python3` are
-  xcrun shims that load from the active developer directory and write a
-  cache to `$TMPDIR` (`/var/folders/…`, not `/tmp`). Both are granted, as is
-  `~/.gitconfig` read-only — git treats an unreadable one as fatal.
+- **网络只能经过代理。** macOS 没有私有
+  网络命名空间，因此通过 (remote ip "localhost:PORT") 将来宾限制到 agentty 代理监听的唯一回环端口。端口由内核分配，避免被其他进程占用。其他端口、::1、局域网和互联网访问均返回 EPERM。命令通过 http_proxy / https_proxy / ALL_PROXY 获取代理地址，Node fetch 还设置 NODE_USE_ENV_PROXY=1。来宾不能直接使用 DNS，由代理负责解析，从而消除 DNS 旁路。
+- **按名称允许必要系统服务。** 直接开放
+  (allow mach-lookup) 会让没有主目录和网络授权的命令，通过沙箱外的守护进程读取剪贴板并列出钥匙串。这里只允许目录查询、日志、偏好设置和临时目录辅助服务。仅启用网络时增加 TLS 信任服务，始终不开放钥匙串守护进程 SecurityServer，因为 TLS 不需要它。
+- **不允许全盘 stat。** 无限制的 (allow file-read-metadata) 会泄漏
+  任意路径是否存在、大小和修改时间，例如 ~/.ssh/id_ed25519。元数据访问只允许根目录的直接子项，以及通向各授权路径的父目录，满足 realpath、getcwd 和 Git 仓库发现的需要。
+- **支持 Xcode 工具链。** /usr/bin/git、cc 和 python3 是
+  xcrun 包装入口，需要从当前开发者目录加载文件，并向 $TMPDIR（/var/folders/…，而非 /tmp）写缓存。因此授权这两个位置，还以只读方式授权 ~/.gitconfig，避免 Git 因配置不可读而失败。
 
-What seatbelt cannot do, so it is not claimed: `launchctl print` is
-read-only and travels over the bootstrap port every process is born with,
-so no profile can withhold it (`launchctl submit` **is** refused); and
-setuid binaries such as `/bin/ps` never exec under any seatbelt profile.
+seatbelt 无法限制只读的 launchctl print，因为所有进程都继承可访问的 bootstrap 端口，但会拒绝 launchctl submit。/bin/ps 等 setuid 程序则无法在任何 seatbelt 配置下执行。这些能力不在保证范围内。
 
-Two honest gaps, stated rather than papered over:
+还需要明确以下两个差距。
 
-- **No syscall filter.** macOS has no seccomp equivalent available to an
-  unprivileged process, so `Isolation::hardened_process` is *refused* rather
-  than quietly downgraded, and brokering does not exist here.
-- **rlimits are not cgroups.** An rlimit is per-process and inherited; a
-  cgroup counts a tree. Four children under a 1 GB cap can use 4 GB between
-  them. `RLIMIT_NPROC` is weaker still — it counts processes for the whole
-  UID, so another terminal window moves the limit, which is why it reports
-  `advisory` rather than `partial`.
+- **不提供系统调用过滤。** macOS 没有向非特权进程开放的
+  seccomp 等价机制，因此请求 Isolation::hardened_process 会被拒绝，不会静默降级，也不提供系统调用代理。
+- **rlimits 与 cgroup 的计数范围不同。** rlimit 按进程限制并被继承，
+  cgroup 则统计整个进程树。四个各有 1 GB 限额的子进程合计可使用 4 GB。RLIMIT_NPROC 更弱，它统计整个 UID 的进程，其他终端窗口也会影响配额，因此报告 advisory。
 
-Asking for claybin on a mac where seatbelt is unavailable yields
-`sandbox-exec`, never nothing — the same fallback discipline as Linux, in both
-directions.
+macOS 上请求 claybin，但 seatbelt 不可用时，回退到 sandbox-exec，遵循明确的回退规则。
 
-### claybin on Windows
+<a id="claybin-on-windows"></a>
 
-Same engine, same policy, the third set of walls. `compile()` is pure and
-unit-tested on every host; the apply step (`claybin/windows/spawn.cpp`) uses
-one AppContainer profile per capability set, stamps DACL/integrity ACEs for
-the granted paths (opt-in — without it the report honestly says `partial`),
-wraps resource limits in a job object, and maps the policy's syscall posture
-onto process mitigation policies.
+### Windows 上的 claybin
 
-| capability | claybin on Windows | note |
+Windows 同样使用统一的引擎和策略。纯函数 compile() 在每个平台执行单元测试。实际应用步骤位于 claybin/windows/spawn.cpp，为每组能力创建 AppContainer 配置，并可选地为授权路径添加 DACL 和完整性 ACE。未启用该操作时，报告会明确标为 partial。资源上限通过作业对象实施，系统调用安全预设转换为进程缓解策略。
+
+| 能力 | Windows 上的 claybin | 说明 |
 |---|---|---|
-| filesystem read/write/exec | partial | AppContainer default-deny + per-object ACEs |
-| network isolation | partial (Full/Ports) · **strong** (None) | no net capability = no socket |
-| process isolation | **strong** (AppContainer token) | the wall Linux builds with user+pid ns |
-| syscall filter | partial | mitigation policies, no programmable filter; `hardened_process` is refused |
-| memory / cpu / pids caps | **strong** (job object) | as hard as cgroup v2 |
-| privilege drop | host-dependent | `strong` only where the probe proves the restricted token + AppContainer combination survives; measured per host, never assumed |
-| device isolation | partial | AppContainer object namespace |
-| host kernel isolation | **none** | process backend, by definition |
+| 文件系统读写与执行 | 部分限制 | AppContainer 默认拒绝，并使用逐对象 ACE |
+| 网络隔离 | Full / Ports 为部分限制，None 为强隔离 | 无网络能力就不能创建套接字 |
+| 进程隔离 | 强隔离，使用 AppContainer 令牌 | 对应 Linux 用户与 PID 命名空间提供的边界 |
+| 系统调用过滤 | 部分限制 | 采用缓解策略，无可编程过滤器，拒绝 hardened_process |
+| 内存、CPU、进程数上限 | 强限制，使用作业对象 | 与 cgroup v2 一样强制实施 |
+| 权限降低 | 取决于宿主 | 只有实际探测证明受限令牌与 AppContainer 可组合运行时才报告 strong |
+| 设备隔离 | 部分限制 | 使用 AppContainer 对象命名空间 |
+| 宿主内核隔离 | 无 | 这是进程级后端 |
 
-#### The apply step, in order
+<a id="the-apply-step-in-order"></a>
 
-`sandbox.cpp` builds the same `Posture` it builds on every other platform and
-hands it to `claybin_backend::spawn_shell`, which on this platform is
-`spawn_argv({"cmd.exe", "/d", "/s", "/c", <command>})`. From there:
+#### 按顺序应用限制
 
-1. **`build_policy(posture)`** — the identical sealed policy the Linux and
-   macOS arms compile. The read set, the masks, the network mode and the
-   resource caps are the *same values*, not a Windows restatement.
-2. **`::clay::windows::compile(sealed, probe_host(), opts)`** — one
-   AppContainer profile per capability set (claybin suffixes the profile name
-   with a hash of the capability set, so two different policies never share
-   one), plus the restricted token, the job limits and the mitigation list.
-3. **`opts.allow_host_acl_mutation = true`**, set once, deliberately. ACL
-   stamping mutates the host, so claybin keeps it opt-in at the API level;
-   agentty opts in here because the alternative is an AppContainer that can
-   reach nothing the user asked the command to reach — a sandbox that is
-   useless rather than safe. The guarantee report still grades the filesystem
-   rows `partial`, because per-object ACLs are not a path-prefix model.
-4. **Environment** — `GetEnvironmentStringsW` is read and converted to UTF-8,
-   with any per-call overrides layered on top.
-5. **`spawn()`** returns `Spawned{pid, process, job}`. The two `int` handle
-   fields of `SpawnResult` carry **HANDLEs, not descriptors**: `pidfd` is the
-   child's PROCESS handle (the waitable exit, which jaal's
-   `windows_process::adopt` consumes) and `kill_tree` closes in on the JOB
-   handle. Supervision — poll, drain, idle deadline, grace, reap — stays in
-   `subprocess.cpp`/`exec.cpp`, unchanged and shared with the unsandboxed
-   path.
-6. **No broker.** `supervisor_fd` and `service_broker` keep their sentinel
-   defaults: seccomp user-notify has no Windows equivalent, so `ptrace`/`kill`
-   brokering (§ [Syscall brokering](#syscall-brokering)) does not exist here.
+sandbox.cpp 构造与其他平台相同的 Posture，交给 claybin_backend::spawn_shell。在此平台会调用 spawn_argv({"cmd.exe", "/d", "/s", "/c", <command>})，随后依次执行以下步骤。
 
-#### Read roots and the header floor
+1. **build_policy(posture)** 生成与 Linux 和 macOS
+   使用同一份固定策略。读取集合、屏蔽规则、网络模式和资源限制均为相同的数据值。
+2. **::clay::windows::compile(sealed, probe_host(), opts)** 为每组
+   能力生成独立 AppContainer 配置，并设置受限令牌、作业限制和缓解策略。配置名称包含能力集合哈希，避免不同策略共用一个配置。
+3. **opts.allow_host_acl_mutation = true** 明确启用一次。ACL
+   写入会修改宿主，因此 claybin API 要求主动选择启用。agentty 选择启用，使 AppContainer 能访问用户授权的路径。逐对象 ACL 与路径前缀模型并不等价，因此保证报告仍将文件系统标为 partial。
+4. **环境变量**通过 GetEnvironmentStringsW 读取并转换为 UTF-8，
+   再叠加各次调用的覆盖配置。
+5. **spawn()** 返回 Spawned{pid, process, job}。SpawnResult 的两个 int
+   字段保存 HANDLE。pidfd 是子进程 PROCESS 句柄，由 jaal 的 windows_process::adopt 接管并等待退出。kill_tree 持有 JOB 句柄。轮询、输出排空、空闲截止时间、宽限和回收仍由 subprocess.cpp / exec.cpp 统一处理，与无沙箱路径共用实现。
+6. **没有系统调用代理。** supervisor_fd 和 service_broker 保持
+   默认哨兵值，因为 Windows 没有 seccomp user-notify 等价机制，不提供 ptrace / kill 代理，详见[系统调用代理](#syscall-brokering)。
 
-The Windows read set is the POSIX one translated, and it is resolved from the
-environment rather than hardcoded — Windows is not always on `C:`:
+<a id="read-roots-and-the-header-floor"></a>
 
-| what | from | why |
+#### 读取根目录与头文件最低访问范围
+
+Windows 的读取集合由 POSIX 策略转换而来，并从环境变量解析实际路径，因为系统盘不一定是 C:。
+
+| 内容 | 来源 | 用途 |
 |---|---|---|
-| `%SystemRoot%` | env, fallback `C:\Windows` | loader, DLLs, `System32` |
-| `%ProgramFiles%`, `%ProgramFiles(x86)%` | env | installed tools |
-| `%ProgramData%` | env | the `/etc` half: package metadata, host ssh config |
-| `%USERPROFILE%` tool dirs | env | `.cargo\bin`, `\go\bin`, `\.nvm`, `\.pyenv`, `\.rbenv`, `\.bun\bin`, `\.deno\bin`, `\.dotnet` |
-| `%SystemDrive%\` | env, for `HostReadable` only | the convenient scope, named for what it is |
+| `%SystemRoot%` | 环境变量，回退到 `C:\Windows` | 加载器、DLL、System32 |
+| `%ProgramFiles%`、`%ProgramFiles(x86)%` | 环境变量 | 已安装工具 |
+| `%ProgramData%` | 环境变量 | 对应 /etc，保存软件包元数据和宿主 SSH 配置 |
+| `%USERPROFILE%` 下的工具目录 | 环境变量 | `.cargo\bin`、`\go\bin`、`\.nvm`、`\.pyenv`、`\.rbenv`、`\.bun\bin`、`\.deno\bin`、`\.dotnet` |
+| `%SystemDrive%\` | 环境变量，仅用于 HostReadable | 明确表示方便使用的较宽读取范围 |
 
-A build note that bit the first Windows release: `claybin` sets
-`_WIN32_WINNT=0x0A00` **PUBLIC** on the target, because MinGW defaults to
-pre-Win8 headers and those hide the AppContainer APIs entirely. Without it
-`spawn.cpp` does not compile at all — the failure is a missing declaration,
-not a runtime refusal.
+首次 Windows 发布曾遇到头文件版本问题。claybin 在目标上公开设置 _WIN32_WINNT=0x0A00，因为 MinGW 默认使用 Windows 8 之前的头文件，会完全隐藏 AppContainer API。不设置时 spawn.cpp 缺少声明，无法编译。
 
-#### Two behaviors specific to this platform, measured not assumed
+<a id="two-behaviors-specific-to-this-platform-measured-not-assumed"></a>
 
-- **The privilege-drop probe is process-lifetime cached.** On some Windows
-  builds (insider 26300 measured) the restricted-token + AppContainer
-  combination is process-warmth dependent: early probes fail, later ones
-  pass, and a re-probe per spawn could build a wall that kills every guest
-  (0xC0000142 during ntdll init). The probe therefore runs the child in the
-  exact production spawn shape — SUSPENDED, job-assigned, handle-listed —
-  three times, and the first (coldest) verdict sticks for the process.
-- **Cancel kills the tree first.** An adopted child carries no job handle in
-  jaal, so a graceful stop can only terminate the leader; a grandchild
-  (`ping` inside `cmd`) survives and holds the stdout pipe open, which turned
-  a 2-second Esc into a 20-second drain. The exec loop fires
-  `TerminateJobObject` (via the sandbox's `kill_tree`) before the graceful
-  stop; the grace remains as fallback. The closure behind `kill_tree` *owns*
-  the job handle and `CloseHandle`s it when it drops, at which point
-  `KILL_ON_JOB_CLOSE` takes down anything the command left behind — the same
-  ownership that fixed a job-handle leak per sandboxed command, after which
-  whatever a command left running had survived a normal exit.
+#### 该平台通过实测确认的两项特有行为
 
-`/proc` and `/dev` policy roots map to a virtual object-namespace sentinel:
-there is nothing to stamp an ACL on, so grants on them are skipped and the
-AppContainer's default-deny carries the isolation. Run `sandbox_audit` on a
-Windows host for the live wall list; `tests/sandbox_win_posture_test.cpp`
-pins the exec chain end to end.
+- **降低权限的探测结果在进程生命周期内缓存。** 实测某些 Windows
+  版本（Insider 26300）中，受限令牌与 AppContainer 的组合依赖进程预热状态。早期探测失败，后期可能成功，逐次启动重新探测可能生成导致来宾在 ntdll 初始化时以 0xC0000142 失败的限制。因此使用与生产相同的挂起创建、分配作业、指定句柄列表方式运行子进程三次，并在整个进程中保留最初、最冷状态的结论。
+- **取消时先终止整个进程树。** jaal 接管的子进程不携带作业句柄，
+  优雅停止只能终止主进程。cmd 中的 ping 等孙进程仍可能持有标准输出管道，导致两秒的 Esc 操作变成二十秒等待。执行循环先通过沙箱 kill_tree 调用 TerminateJobObject，再进行优雅停止，宽限阶段作为回退。kill_tree 闭包拥有作业句柄，析构时 CloseHandle 触发 KILL_ON_JOB_CLOSE，终止遗留进程。同一所有权机制也修复了每条沙箱命令泄漏作业句柄、导致正常退出后仍遗留后台进程的问题。
 
-#### The settings pane
+/proc 与 /dev 策略根映射到虚拟对象命名空间哨兵，不存在可写 ACL 的实际对象，因此跳过这些授权，由 AppContainer 默认拒绝提供隔离。Windows 上运行 sandbox_audit 查看实际限制列表，tests/sandbox_win_posture_test.cpp 验证端到端执行链。
 
-`preview_sandbox` compiles the pane's policy with claybin's Windows compiler,
-the same one the spawn path uses and with the same ACL opt-in, so the footer
-and the per-row walls show what commands get: filesystem `partial` via
-appcontainer+DACL, memory and pids `strong` via the job object, syscall filter
-`partial` (mitigation policies, no programmable filter).
+<a id="the-settings-pane"></a>
 
-Two env-gated traces exist for the stop/spawn paths, because those are the
-ones where a bug shows only under load and a rebuild-only diagnosis costs a
-codebase-scale rebuild:
+#### 设置面板
 
-| variable | what it prints | where |
+preview_sandbox 使用与启动路径相同的 claybin Windows 编译器和 ACL 授权开关，预览面板实际会施加的限制。文件系统通过 AppContainer 与 DACL 报告 partial，内存和进程数通过作业对象报告 strong，系统调用过滤使用缓解策略并报告 partial。
+
+停止和启动路径提供两个由环境变量控制的跟踪入口，用于诊断只在负载下出现、否则需要重编译整个代码库的故障。
+
+| 变量 | 输出内容 | 位置 |
 |---|---|---|
-| `AGENTTY_STOP_TRACE=1` | every reactor wait (deadline requested vs actual), every event with its token, the stop/tree-kill/force sequence, and the drain + feeder-join tail of `run_child` | `src/tool/util/exec.cpp` |
-| `CLAYBIN_TRACE=1` | one line per spawn: which API was used, whether the appcontainer and restricted token were applied, capability count, limits, workdir, flags, and whether `CreateProcess` itself succeeded | claybin `src/windows/spawn.cpp` |
+| `AGENTTY_STOP_TRACE=1` | 每次反应器等待的请求截止时间和实际时间、事件及令牌、停止与进程树强制终止顺序，以及 run_child 的排空和输入线程等待过程 | `src/tool/util/exec.cpp` |
+| `CLAYBIN_TRACE=1` | 每次启动使用的 API、AppContainer 和受限令牌是否生效、能力数、资源限制、工作目录、标志，以及 CreateProcess 是否成功 | claybin 的 `src/windows/spawn.cpp` |
 
-Both cost one `GetEnvironmentVariable` per call when unset and are silent
-then; the cancel bug above was root-caused with them and they stay for the
-next one.
+未设置时，两者每次调用只付出一次 GetEnvironmentVariable 的开销并保持静默。上面的取消故障正是通过它们定位，因此保留以便后续诊断。
 
-### Availability is a probe, not a `which`
+<a id="availability-is-a-probe-not-a-which"></a>
 
-On Linux, `available()` forks and attempts the real `uid_map` write. On macOS
-it forks and actually calls `sandbox_init()`. On Windows it creates and
-deletes an AppContainer profile and runs a real child under the compiled
-walls (the verdict is cached for the process lifetime — see
-[claybin on Windows](#claybin-on-windows)). A binary on `$PATH` that cannot
-start a namespace — or a symbol that is present but refused — is not an
-available backend, and treating it as one is precisely how `sandbox: active`
-came to mean nothing.
+### 通过实际探测判断可用性
 
-The macOS probe runs in a **child** for a reason beyond honesty: a seatbelt
-profile is irreversible. A process that enters one cannot leave it, so an
-in-process probe would confine agentty itself.
+Linux 的 available() 创建子进程并实际尝试写入 uid_map。macOS 创建子进程并真正调用 sandbox_init()。Windows 创建再删除 AppContainer 配置，并在实际编译出的限制下运行子进程，结论在进程生命周期内缓存，见 [Windows 上的 claybin](#claybin-on-windows)。仅能在 PATH 找到程序或符号，不代表它能成功启动命名空间或应用隔离。
+
+macOS 必须在子进程探测，因为 seatbelt 配置不可逆，在当前进程内探测会把 agentty 自身永久限制在沙箱中。
 
 ---
 
-## Postures
+<a id="postures"></a>
 
-Twenty-eight individually-correct switches is still the wrong thing to hand
-someone who wants "tighter than this". The **Posture** row is a preset that
-writes every other row:
+## 安全预设
 
-| posture | what it is | what it costs |
+对于只想整体收紧限制的用户，应提供安全预设。Posture 行通过预设修改其他所有设置行，同时保留 28 个具体开关。
+
+| 安全预设 | 含义 | 代价 |
 |---|---|---|
-| `permissive` | mount walls only | no syscall filter, no memory/cpu/time caps |
-| `balanced` | the default, byte for byte | network is filtered, not open: the box has its own namespace and reaches the internet through a proxy agentty serves (no host loopback, no LAN, no cloud metadata, no tailnet) |
-| `hardened` | every wall claybin can build | a build needing an unusual syscall may fail |
-| `airgapped` | hardened + no network at all | `git push`, `npm install`, `curl` all stop working |
-| `custom` | not selectable | what the pane *reports* when the rows match no preset |
+| `permissive` | 只保留挂载隔离 | 无系统调用过滤以及内存、CPU、时间限额 |
+| `balanced` | 与默认策略完全一致 | 通过独立网络命名空间和 agentty 代理访问互联网，禁止宿主回环、局域网、云元数据和 tailnet |
+| `hardened` | 启用 claybin 能提供的全部限制 | 依赖特殊系统调用的构建可能失败 |
+| `airgapped` | hardened 加完全断网 | git push、npm install、curl 均无法使用网络 |
+| `custom` | 不能直接选择 | 各行不匹配任何预设时自动报告 |
 
-**A preset survives a restart.** Picking `airgapped` and relaunching shows
-`airgapped`, not `custom` — which was not always true. Two bugs made it lie,
-both fixed and both pinned by `tests/sandbox_preset_roundtrip_test.cpp`,
-which applies every preset (and every switch between two), writes the real
-settings file, loads it as a launch does, and names any field that did not
-survive:
+**预设会在重启后保持。** 选择 airgapped 再启动仍会显示 airgapped。曾有两个问题导致它变成 custom，现在都由 tests/sandbox_preset_roundtrip_test.cpp 固定验证。测试应用所有预设及其相互切换，写入真实配置文件，再按启动方式加载，并报告丢失的字段。
 
-- the loader's range check read every positive 64-bit value (`memory_mb`,
-  `tmp_mb`) as out of range and reset it — so `hardened` and `airgapped`
-  came back without their memory cap;
-- the pane read **locked** rows back into the config. A locked row shows
-  what the *engine* enforces (Scope IPC is always on under seatbelt), and
-  writing that display into the config turned `permissive` into `custom`
-  the moment it was picked.
+- 加载器的范围检查曾把 memory_mb、
+  tmp_mb 等正的 64 位数值误判越界并重置，使 hardened 和 airgapped 丢失内存上限。
+- 面板曾把锁定行的显示值写回配置。锁定行显示
+  引擎实际强制执行的值，例如 seatbelt 下 Scope IPC 始终开启。回写这些值会让 permissive 选中后立即变成 custom。
 
-If an older build saved `hardened` or `airgapped` for you, pick it once more
-and it will stick.
+旧版本保存过 hardened 或 airgapped 时，重新选择一次即可修正并保留预设。
 
-**`permissive` keeps the fork-bomb cap.** It drops memory, CPU, file-descriptor
-and time limits, because the right ceiling for those is a property of the
-machine and a wrong guess turns a working `cargo build` into an OOM kill that
-looks like agentty's fault. `max_procs` is the exception the field comment
-already argued for: there *is* a number safe everywhere (no build needs 4096
-concurrent processes; `:(){ :|:& };:` wants millions). It used to be zeroed
-along with the rest, and `0` means *unlimited* at the boundary — claybin sets
-no rlimit and no `pids.max` at all — so permissive shipped an unbounded fork
-bomb. That is the exact finding `tests/sandbox_audit.cpp` was written for,
-reintroduced through a preset. Permissive means "the walls are off", not "the
-machine is forfeit".
+**permissive 仍保留防止 fork 炸弹的进程数上限。** 它移除内存、CPU、文件描述符和时间限额，因为合理上限依赖机器，错误估计可能让 cargo build 因内存不足被终止。max_procs 是例外，4096 个并发进程足够正常构建，而 fork 炸弹需要数百万个。过去它也被清零，但边界上的 0 表示无限制，会同时关闭 rlimit 和 pids.max，重新引入 sandbox_audit 要检查的无限 fork 风险。放宽隔离不应让整台机器失去保护。
 
-### What the label asserts — and what it doesn't
+<a id="what-the-label-asserts--and-what-it-doesnt"></a>
 
-`detect_posture` is a fixpoint test, so a field `apply_posture` does not *write*
-is outside the posture's definition by construction. Three such fields are
-genuinely enforced: `write_paths`, `allow_ports` and `allow_hosts`. A config
-can therefore read **Hardened** while carrying extra grants you added.
+### 状态标签所表达的保证范围
 
-That is deliberate — invariant 3 below says a preset never touches your path
-lists, because wiping a project's `read_paths` when you *tried* a preset would
-make presets hostile to explore. So read the label as **"the walls this preset
-sets are in force"**, not "this is all there is". The pane shows all 28 rows for
-exactly this reason (invariant 1): the label summarises, the rows are the truth.
-Pinned by `sandbox_pane_test` so the reading is on the record rather than
-inferred.
+detect_posture 按固定点匹配预设，apply_posture 不写入的字段不属于预设定义。write_paths、allow_ports、allow_hosts 仍被实际执行，因此显示 Hardened 的配置仍可能包含用户添加的额外授权。
 
-`airgapped` is the one worth singling out: it is the only configuration where
-the admission in [Threat model](#threat-model) — *read access plus network is
-read plus exfiltrate* — stops being true.
+预设按约束不修改用户路径列表，避免试用预设时丢失项目的 read_paths。因此标签表示预设负责设置的限制已经生效，完整授权仍应查看全部 28 行。标签概括状态，设置行展示完整事实。sandbox_pane_test 固定验证这一含义。
 
-Three properties make presets safe rather than a second source of truth:
+airgapped 是唯一能让[威胁模型](#threat-model)中读取权限加网络即可外传数据这一前提不再成立的配置。
 
-1. **A preset writes the rows, it does not replace them.** All 28 stay visible
-   and editable. A preset that hid the detail would be another "sandbox:
-   active" — a label standing in for a boundary you can no longer inspect.
-2. **The label is derived, never stored.** `detect_posture()` asks
-   `apply_posture()` what each preset would produce and compares. A stored field
-   would drift the moment you edited one row, and the pane would claim
-   "Hardened" for a config that is not. Deriving it means the label can only be
-   right, or `Custom`.
-3. **A preset never touches the engine or your path lists.** Picking `hardened`
-   on a host where claybin cannot start must not silently switch backends, and
-   wiping your project's `read_paths` because you tried a preset would make
-   presets hostile to explore.
+预设通过以下三个属性避免成为另一份权威状态。
+
+1. **预设写入各行，保留所有 28 行供用户查看
+   和编辑。** 不能用一个标签代替无法继续检查的实际边界。
+2. **标签始终从配置推导。** detect_posture() 询问
+   apply_posture() 各预设会生成什么配置，再进行比较。若单独存储标签，编辑一行后它就会过期。派生标签只能匹配某个预设或显示 Custom。
+3. **预设不修改引擎或用户路径列表。** 在 claybin 无法启动的宿主上选择 hardened，
+   不会静默切换后端，也不会因试用预设而清除项目 read_paths。
 
 ---
 
-## Allowed hosts
+<a id="allowed-hosts"></a>
 
-With Access at `full`, every connection goes through agentty's proxy, which
-already refuses loopback, private ranges, link-local and cloud metadata. The
-**Allowed hosts** row narrows it further, by name:
+## 允许访问的主机
 
-| entry | matches | does not match |
+当 Access 为 `full` 时，所有连接都经过 agentty 的代理。代理已拒绝回环地址、私有网段、链路本地地址和云元数据地址。**Allowed hosts（允许的主机）** 一项可以进一步按主机名限制连接：
+
+| 条目 | 匹配 | 不匹配 |
 |---|---|---|
 | `github.com` | `github.com` | `api.github.com`, `github.com.evil.io` |
-| `*.github.com` | `api.github.com`, `a.b.github.com` | `github.com` itself, `evilgithub.com` |
+| `*.github.com` | `api.github.com`, `a.b.github.com` | `github.com` 本身、`evilgithub.com` |
 
-- **Empty means any public host** — today's behaviour, and the default. The
-  row says so ("any public host · Enter to restrict").
-- **`*.x` is strictly under `x`.** List both `github.com` and
-  `*.github.com` if you mean both; the editor reminds you, and the pane
-  warns when every entry is a wildcard.
-- **IP addresses are never allowlisted.** Once a list is set, `curl
-  https://140.82.x.x` is refused — otherwise every name rule could be
-  bypassed with the address.
-- **Checked on the name the command asked for,** before resolution, and the
-  proxy then resolves that same name itself. A command cannot steer it with
-  DNS, `--resolve` or a forged `Host:` header, and an allowed name that
-  resolves to `10.0.0.1` is still refused by the address filter.
-- **Paste a URL and it is trimmed to its host** (`https://GitHub.com/x` →
-  `github.com`); the editor shows "saved as …" under it. `.npmjs.org` is
-  read as `*.npmjs.org`. A bare `*`, `*.com`, a wildcard that is not the
-  first label, an IP, or anything that is not a host name is rejected with
-  the reason, and dropped on close.
-- **The pane and the proxy share one rule** (`netproxy::normalize_host_entry`),
-  so what the editor accepts is exactly what is enforced. A hand-edited
-  `settings.json` entry the rule rejects is named in a warning, and a list
-  where *every* entry is invalid blocks everything rather than widening to
-  "any host".
-- **Proxy-aware clients only.** curl, git, pip, npm, python's urllib and
-  node's `fetch` all honour the proxy variables agentty sets. A tool that
-  ignores them gets **no network**, never an unfiltered one — the kernel
-  rule underneath only lets it reach the proxy.
+- **清单为空表示允许任意公网主机**，这也是目前的默认行为。
+  界面会明确显示这一点（`any public host · Enter to restrict`，即“任意公网主机 · 按 Enter 限制”）。
+- **`*.x` 只匹配 `x` 的子域名。** 如果要同时允许主域名和子域名，需要同时列出 `github.com` 和
+  `*.github.com`；编辑器会提示这一点。如果所有条目都是通配域名，面板也会发出提醒。
+- **IP 地址不能加入允许清单。** 设置清单后，`curl
+  https://140.82.x.x` 会被拒绝，否则任何主机名规则都能被直接使用 IP 地址绕过。
+- **解析前先检查命令请求的主机名**，随后由代理自行解析
+  同一个名称。命令无法借助 DNS、`--resolve` 或伪造的 `Host:` 请求头改变目标；即使名称在允许清单中，如果解析到 `10.0.0.1`，地址过滤器仍会拒绝连接。
+- **粘贴 URL 时会自动提取主机名**（`https://GitHub.com/x` →
+  `github.com`），编辑器会在下方显示 `saved as …`（保存为……）。`.npmjs.org` 按 `*.npmjs.org` 处理。单独的 `*`、`*.com`、通配符不在首个标签的名称、IP 地址以及其他无效主机名都会被拒绝，并显示原因；关闭编辑器时会丢弃无效条目。
+- **面板和代理使用同一套规则**（`netproxy::normalize_host_entry`），
+  因此编辑器接受的条目就是实际执行的规则。手动编辑 `settings.json` 后，若某个条目无效，警告会指出该条目；如果清单中的条目全部无效，会阻止所有连接，避免意外放宽为“允许任意主机”。
+- **只有支持代理的客户端才能联网。** curl、git、pip、npm、Python 的 urllib 和
+  Node 的 `fetch` 都会遵守 agentty 设置的代理环境变量。忽略这些变量的工具将**无法联网**：底层内核规则只允许它连接代理，无法获得未经过滤的网络访问。
 
-The model is told the list: the system prompt names the allowed hosts and
-the `*.` rule, and a refused command (curl's `CONNECT tunnel failed`,
-python's `Tunnel connection failed`, a `403` from the proxy) gets a
-`[sandbox]` note listing what *is* reachable, so it picks an allowed mirror
-instead of retrying.
+模型也能获知这份清单：系统提示词会列出允许的主机并解释 `*.` 规则。命令被拒绝时，例如 curl 显示 `CONNECT tunnel failed`、Python 显示 `Tunnel connection failed`，或代理返回 `403`，输出会附带 `[sandbox]` 说明，列出可访问的主机，帮助模型改用允许的镜像站。
 
-Saved as `sandbox.allow_hosts` in `settings.json`:
+配置保存在 `settings.json` 的 `sandbox.allow_hosts` 中：
 
 ```json
 "sandbox": { "net_mode": 0, "allow_hosts": ["github.com", "*.github.com", "registry.npmjs.org"] }
@@ -438,10 +283,11 @@ Saved as `sandbox.allow_hosts` in `settings.json`:
 
 ---
 
-## Capabilities
+<a id="capabilities"></a>
 
-What a policy compiles to, per capability. Run `sandbox_audit` for your host.
-On Linux with claybin, every wall exists:
+## 实际能力
+
+下面按能力展示策略编译后的结果。请运行 `sandbox_audit` 查看当前主机的情况。在使用 claybin 的 Linux 上，各项隔离机制均可用：
 
 ```
 === everything the pane can ask for
@@ -459,9 +305,7 @@ On Linux with claybin, every wall exists:
   host.kernel_isolation  NONE    process-backend, kvm available
 ```
 
-The same policy on macOS, where several do not — and the report is the only
-reason you would know which. This is real `sandbox_audit` output on darwin 24,
-with every pane row turned up:
+在 macOS 上，同一策略有多项能力无法实现，报告会说明具体限制。以下是在 darwin 24 上将面板中各项设置调至最高后，实际运行 `sandbox_audit` 得到的输出：
 
 ```
 host: darwin=24 seatbelt=1
@@ -484,257 +328,192 @@ host: darwin=24 seatbelt=1
   host.kernel_isolation  NONE     shared host kernel (use a vm for isolation)
 ```
 
-Three rows in that table are worth reading closely, because each is a place
-the report refuses to round up:
+表中有三项需要仔细理解，因为报告在这些地方明确保留了能力限制：
 
-- **`network.isolation: strong`** — the one macOS row that matches Linux.
-  `(deny network*)` is a single rule the kernel enforces exactly, equivalent
-  to an empty netns in what the guest can reach. Note it is `strong` only
-  here, with the network turned *off*; an endpoint allow-list reads `partial`,
-  because seatbelt matches on the address and the name-to-address step happens
-  in userspace where DNS can answer differently next time.
-- **`resource.pids: advisory`**, not `partial`. That is not hedging:
-  `RLIMIT_NPROC` counts processes for the whole UID, so another terminal
-  window moves the limit. It is a number the guest tends to respect, not a
-  wall, and the vocabulary has a word for that.
-- **`filesystem.*: partial`** — not because seatbelt is weak, but because
-  agentty's posture includes a `proc_fs`, a `dev_fs`, a `tmpfs` and a mask.
-  Those have no access-control interpretation that is *exactly* the tree
-  interpretation (a tmpfs becomes "you may write here", losing "starts empty"
-  and "is size-capped"), so the plan's fidelity is `approximate` and the
-  ceiling drops with it. A same-path-only policy reports `strong`.
+- **`network.isolation: strong`**：这是 macOS 上与 Linux 一致的一项。
+  `(deny network*)` 是内核精确执行的单条规则；就沙箱内进程可访问的网络而言，它等效于空网络命名空间。注意，只有在此处**关闭网络**时才报告 `strong`。端点允许清单只能报告 `partial`，因为 seatbelt 按地址匹配，而域名到地址的解析发生在用户空间，下一次 DNS 可能返回不同结果。
+- **`resource.pids: advisory`**，而不是 `partial`。这一用词有明确原因：
+  `RLIMIT_NPROC` 统计整个 UID 下的进程，其他终端窗口也会影响限额。它是沙箱内进程通常会遵守的数值限制，无法构成独立、严格的隔离边界，因此标为 `advisory`。
+- **`filesystem.*: partial`**：原因并非 seatbelt 不够强，而是
+  agentty 的文件系统布局包含 `proc_fs`、`dev_fs`、`tmpfs` 和路径遮蔽。单靠访问控制无法精确表达这些目录树语义。例如 tmpfs 只能近似为“允许在此写入”，却失去了“初始为空”和“容量受限”的保证。因此方案的还原程度标为 `approximate`，能力等级上限也随之降低。只使用相同路径映射的策略会报告 `strong`。
 
-`host.kernel_isolation` is `none` on **every** process backend, by definition —
-the sandboxed command shares your kernel. A microVM would require a separate
-execution backend. The current [claybin adapter](../src/tool/util/sandbox_claybin.cpp)
-and [runnable audit](../tests/sandbox_audit.cpp) describe the implemented
-boundary. The report says `kvm available` or `no kvm` so the gap is
-attributed honestly rather than hidden.
+按定义，**所有**进程沙箱后端的 `host.kernel_isolation` 都是 `none`，因为沙箱内命令与宿主共享内核。微虚拟机需要单独的执行后端。当前的 [claybin 适配器](../src/tool/util/sandbox_claybin.cpp) 和[可运行的审计程序](../tests/sandbox_audit.cpp) 展示了已实现的边界。报告会注明 `kvm available` 或 `no kvm`，明确说明这一差距。
 
-### The honesty rule
+<a id="the-honesty-rule"></a>
 
-The pane never claims a wall it is not building:
+### 如实报告能力的原则
 
-- the subtitle describes **what is running**, derived from a host probe, never
-  from the row you just moved
-- a row that this backend or kernel cannot enforce is **locked with the reason**,
-  not hidden — hiding it makes the limitation invisible
-- each row carries the mechanism enforcing it (`strong via landlock abi 10`),
-  because a strength without its receipt is an unfalsifiable claim
-- walls for an engine that is not yet running are marked `(on restart)`
+面板只声明实际构建的隔离能力：
+
+- 副标题通过主机探测描述**当前实际运行的状态**，
+  而不是根据刚刚调整的选项推断。
+- 后端或内核无法执行的选项会**锁定并显示原因**，
+  保留可见，方便用户了解限制。
+- 每一项都标注实际执行机制，例如 `strong via landlock abi 10`，
+  让能力等级有可核实的依据。
+- 尚未运行的引擎所提供的隔离能力标记为 `(on restart)`（重启后生效）。
 
 ---
 
-## Secret masking
+<a id="secret-masking"></a>
 
-Credential files are masked — bound over with an empty file — whether or not you
-configure anything. This is not optional, and that is the point: a control you
-can switch off to make your build work is a control that is off.
+## 敏感文件屏蔽
 
-Three sources, in order of how much they are your business:
+无论是否配置，凭据文件都会被遮蔽，即在其上绑定挂载空文件。这是始终启用的保护；若一个控制项能为了让构建通过而随意关闭，它就无法提供可靠保护。
 
-1. **`kAlwaysMasked`** — `$HOME` credential paths. `.ssh`, `.aws`, `.gnupg`,
-   `.kube`, `.docker/config.json`, `.config/gh`, `.config/gcloud`, `.azure`,
-   `.netrc`, `.npmrc`, `.pypirc`, `.cargo/credentials`, `.git-credentials`, and
-   agentty's own credential store. Not configurable.
-2. **`kAlwaysMaskedNames`** — credential *basenames*, found by walking the
-   workspace to `mask_scan_depth`. Not configurable except for the depth.
-3. **`deny_paths`** — whatever you add in the pane's **Masked** row. Applied
-   last, so an explicit deny of yours cannot be undone by one of ours.
+遮蔽规则来自以下三处，按用户可干预程度由低到高排列：
 
-### Why the walk exists
+1. **`kAlwaysMasked`**：`$HOME` 下的凭据路径，包括 `.ssh`、`.aws`、`.gnupg`、
+   `.kube`、`.docker/config.json`、`.config/gh`、`.config/gcloud`、`.azure`、`.netrc`、`.npmrc`、`.pypirc`、`.cargo/credentials`、`.git-credentials` 以及 agentty 自己的凭据存储。不可配置。
+2. **`kAlwaysMaskedNames`**：凭据文件的**基本文件名**，通过遍历工作区
+   至 `mask_scan_depth` 指定的深度查找。除扫描深度外，不可配置。
+3. **`deny_paths`**：在面板的 **Masked（遮蔽）** 一项中添加的路径。
+   这些规则最后应用，确保内置规则不会撤销用户显式设置的拒绝规则。
 
-A basename rule cannot become a mount without knowing where the file is. Masking
-only `<workspace>/.env` missed `services/api/.env`, which is where it actually
-lives in any monorepo.
+<a id="why-the-walk-exists"></a>
 
-The walk is **bounded** (`mask_scan_depth`, default 3) because it runs on every
-spawn — an unbounded scan of a large tree would put a full directory walk in the
-latency path of every shell command. It skips `.git`, `node_modules`, `target`,
-`build`, `.venv`: reliably enormous *and* not where credentials legitimately
-live. Directory symlinks are not followed.
+### 遍历检查的必要性
 
-### Name rules vs suffix rules
+仅有基本文件名还无法生成挂载，必须先找到文件所在位置。只遮蔽 `<workspace>/.env` 会漏掉 `services/api/.env`，而后者在单体仓库中很常见。
 
-Entries are exact basenames (`.env`, `.npmrc`, `id_ed25519`, `credentials.json`)
-except those marked with a leading `*`, which match by suffix (`*.pem`,
-`*.tfvars`).
+遍历有**深度上限**（`mask_scan_depth`，默认为 3），因为每次启动进程都会执行扫描。若无限遍历大型源码树，每条 shell 命令都会承受完整目录扫描的延迟。扫描跳过 `.git`、`node_modules`、`target`、`build` 和 `.venv`：这些目录通常很大，也不应是存放凭据的位置。扫描不会跟随目录符号链接。
 
-The marker is **explicit rather than inferred from shape**. Inferring "starts
-with a dot, no second dot" looks tidy and silently promotes `.env` and `.npmrc`
-to suffixes — so `prod.env` and `scoped.npmrc` start being masked as a side
-effect of adding an unrelated entry. Widening a security rule by accident is as
-bad as narrowing one, and nobody reviewing the list would see it.
+<a id="name-rules-vs-suffix-rules"></a>
+
+### 名称规则与后缀规则
+
+默认按基本文件名精确匹配，例如 `.env`、`.npmrc`、`id_ed25519`、`credentials.json`。只有以 `*` 开头的条目才按后缀匹配，例如 `*.pem`、`*.tfvars`。
+
+匹配方式由**显式标记**决定。如果根据“以点开头且没有第二个点”之类的形状推断规则，就会悄悄把 `.env` 和 `.npmrc` 变成后缀规则，使 `prod.env` 和 `scoped.npmrc` 也被遮蔽。这样添加无关条目就可能改变其他匹配结果。意外扩大安全规则的范围和缩小范围一样有问题，而且审查清单时很难发现。
 
 ---
 
-## Syscall brokering
+<a id="syscall-brokering"></a>
 
-The sandbox does not only *filter* syscalls — for two of them it **decides at
-runtime, with the arguments in hand**. `ptrace` and `kill` are brokered through
-seccomp user-notification: a self-`PTRACE_TRACEME` is allowed, `PTRACE_ATTACH` to
-pid 1 is denied, and the process keeps running either way instead of being killed.
+## 系统调用代理
 
-That turns the sandbox from a filter into a capability system — "may you ptrace
-**this** pid" rather than "may you ptrace".
+沙箱除了**过滤**系统调用，还会对其中两种调用**根据实参在运行时作出决定**。`ptrace` 和 `kill` 通过 seccomp 用户通知进行代理裁决：允许进程对自身执行 `PTRACE_TRACEME`，拒绝对 pid 1 执行 `PTRACE_ATTACH`，两种情况下进程都能继续运行，不会被直接终止。
 
-### Why the broker is small, and must stay small
+这样，沙箱就能提供细粒度的能力控制：判断“能否对**这个** pid 执行 ptrace”，而不只是判断“能否执行 ptrace”。
 
-seccomp user-notification is the sharpest footgun in Linux sandboxing, and the
-kernel documentation says so outright. Two hazards, both structural:
+<a id="why-the-broker-is-small-and-must-stay-small"></a>
 
-1. **TOCTOU on pointer arguments.** A notification carries the syscall's
-   *register* values. A pointer names memory in the guest, and the guest has
-   other threads — it can rewrite that memory between our read and the kernel's
-   act. Reading a path out of the guest and then allowing the call is a
-   vulnerability, not a feature.
-2. **`CONTINUE` is not a decision.** It re-runs the syscall with stale checks
-   after the supervisor answers.
+### 代理需要保持精简的原因
 
-claybin refuses both: the decision is allow/deny only, and the request carries no
-path field. **Policy decides from scalars alone.** Any rule wanting a path belongs
-in landlock, where the kernel resolves it.
+seccomp 用户通知在 Linux 沙箱机制中极易误用，内核文档也明确指出了这一点。这里存在两种结构性风险：
 
-A syscall qualifies for brokering only if all three hold: a scalar argument
-carries the decision, a flat deny is sometimes wrong, and a flat allow is
-sometimes wrong. That is why the list is two entries long.
+1. **指针参数的检查与使用之间存在竞态（TOCTOU）。** 通知携带的是系统调用的
+   **寄存器值**。指针指向沙箱内存，而沙箱内还有其他线程，可能在监督进程读取参数后、内核执行调用前改写内存。因此，从沙箱内读取路径后再放行调用会形成漏洞。
+2. **`CONTINUE` 不能代替安全裁决。** 监督进程回复后，系统调用会重新执行，
+   此前的检查结果却可能已经过时。
+
+claybin 同时避开这两类问题：裁决仅允许放行或拒绝，请求也不携带路径字段。**策略只依据标量值作出决定。** 需要路径的规则应交给 Landlock，由内核解析路径。
+
+只有同时满足以下三个条件的系统调用才适合代理裁决：可以用标量参数作出决定；一律拒绝在某些情况下不正确；一律允许在某些情况下也不正确。因此，目前只有两种调用需要这样处理。
 
 ---
 
-## The trust-handoff gate
+<a id="the-trust-handoff-gate"></a>
 
-The sandbox confines the **process**. It cannot see the escape that matters most
-in practice:
+## 信任交接检查
 
-> the agent writes a perfectly ordinary file, inside the workspace it is allowed
-> to write, which something **outside** the sandbox executes later.
+沙箱约束的是**进程**。它看不到实践中尤其重要的一条逃逸路径：
 
-A `.vscode/tasks.json`, a git hook, a venv interpreter, a `.envrc`. By the time
-VS Code runs that file there is no sandbox in the picture at all. Pillar
-Security's July 2026 series reproduced this across Cursor, Codex, Gemini CLI and
-Antigravity — in almost none of them did the agent break the sandbox.
+> 代理在获准写入的工作区中创建一个普通文件，
+> 而沙箱**外部**的程序稍后执行这个文件。
 
-So the gate sits on the **tool call**, before the bytes land, on all four
-authoring tools: `write`, `edit`, `apply_patch`, `move`. (For `move` the
-*destination* is what matters — the source being inert is exactly the attack.)
+例如 `.vscode/tasks.json`、Git 钩子、虚拟环境解释器或 `.envrc`。当 VS Code 执行该文件时，沙箱已经无法参与约束。Pillar Security 在 2026 年 7 月的一系列研究中，针对 Cursor、Codex、Gemini CLI 和 Antigravity 复现了此类问题；几乎所有案例都无需代理突破进程沙箱。
 
-| policy | behaviour |
+因此，防护设置在**工具调用**上，在写入字节前检查 `write`、`edit`、`apply_patch` 和 `move` 四种文件修改工具。对于 `move`，关键是**目标路径**：把原本无害的文件移动到会被执行的位置，正是攻击手法。
+
+| 策略 | 行为 |
 |---|---|
-| `refuse` (default) | the call fails with a message naming the mechanism and the alternative |
-| `warn` | the write happens and is recorded in the feed |
-| `allow` | no gate |
+| `refuse`（默认） | 调用失败，消息说明触发的机制和替代做法 |
+| `warn` | 允许写入，并在事件流中记录 |
+| `allow` | 不执行拦截 |
 
-`refuse` is the default because this is not a "might be risky" prompt. The cost
-of a false negative is an escape; the cost of a false positive is one declined
-tool call that tells the model exactly what to do instead.
+默认采用 `refuse`，因为这里需要明确的边界控制。漏拦一次可能造成逃逸；误拦一次则只是拒绝一个工具调用，并告诉模型可以如何替代。
 
-The feed records **allowed** handoffs too. A feed that only listed refusals would
-go blank exactly when you have turned the gate off — which is when you most need
-to see what the agent is authoring.
+事件流也记录**获准的**信任交接。如果只记录拒绝事件，用户关闭拦截后，事件流恰好会变为空白，而此时更需要看清代理写入了什么。
 
-`--sandbox off` disables this too. "Off" has to mean off.
+`--sandbox off` 也会关闭这一防护。关闭就意味着完全关闭。
 
 ---
 
-## Telling the model
+<a id="telling-the-model"></a>
 
-A model that does not know it is sandboxed **misdiagnoses every wall it hits**.
-`EPERM` becomes "your corporate proxy is blocking this"; a blocked connect becomes
-"check your firewall". The agent then either sends you chasing a phantom or
-retries a call the kernel will never allow.
+## 向模型说明限制
 
-Two mechanisms, and the second matters more:
+如果模型不知道自己处于沙箱中，就会**误判遇到的隔离限制**：把 `EPERM` 解释成“公司代理阻止了访问”，把连接被拒绝解释成“请检查防火墙”。代理随后可能让用户排查不存在的问题，或反复尝试内核永远不会允许的调用。
 
-1. **The system prompt** gets a stanza in `<environment>`, next to the OS and
-   shell — it is the same class of fact. It states what is *allowed* (not just
-   what is blocked), because a denial list invites probing the edges while
-   "write here" tells the model where to work on the first try.
-2. **The error gets annotated.** The prompt is thousands of tokens away by the
-   time a `Permission denied` arrives; the model is looking at the output. A
-   failed command whose output looks like a wall gets a `[sandbox]` note naming
-   the cause and forbidding the two wrong moves — do not retry unchanged, do not
-   blame the firewall.
+为此提供两种机制，第二种尤为关键：
 
-Only on failure, and only when the output matches. A note on every command is
-noise the model learns to skip, which is how an explanation stops working.
+1. **系统提示词**会在 `<environment>` 中增加一段说明，与操作系统和
+   shell 信息并列，作为同一类环境事实。说明会明确哪些操作**被允许**，而不仅仅列出禁止项；只给拒绝清单容易诱导模型试探边界，明确可写位置则有助于模型第一次就选对工作目录。
+2. **为错误输出附加解释。** 当出现 `Permission denied` 时，系统提示词通常已经相隔数千个 token，
+   模型注意的是眼前的命令输出。如果失败输出符合沙箱限制的特征，会附上 `[sandbox]` 说明，指出原因，并要求避免两种错误做法：原样重试，以及归咎于防火墙。
+
+仅在命令失败且输出匹配时附加说明。若每条命令都带上相同提示，模型会逐渐忽略它，使解释失去作用。
 
 ---
 
-## Why the policy is sealed
+<a id="why-the-policy-is-sealed"></a>
 
-The pane writes to disk for the **next** launch. Restart is the apply step.
-Everything else in agentty applies live; this is the one exception.
+## 策略为何在启动后固定
 
-A boundary that can move mid-session only ever moves usefully in the loosening
-direction — and loosening cannot be undone, because re-tightening does not
-un-read a key that already left. It would also make the sandbox unauditable: two
-commands in one session would get two different walls, with nothing recording
-which got which.
+面板把配置写入磁盘，供**下次**启动使用；重启才是应用配置的步骤。agentty 的其他设置会即时生效，沙箱策略是例外。
 
-The pane says so, and — since the promise is checkable — it *checks* rather than
-asserts. `restart_outcome()` reports when the next launch will **not** deliver
-what the rows describe:
+会话中途可调整的边界，往往只会为了完成操作而逐步放宽。即使随后收紧，也无法撤回已经泄露的密钥。此外，这会让沙箱难以审计：同一会话中的两条命令可能面对不同边界，却没有记录说明各自使用了哪套规则。
 
-| state | footer |
+面板会说明这一点，并用检查验证重启后的结果。`restart_outcome()` 会报告下次启动**无法**实现面板设置的情况：
+
+| 状态 | 页脚提示 |
 |---|---|
-| clean | `applies on restart, verified against this host` |
-| will not compile | `will NOT apply on restart · <reason>` |
-| engine refused | `claybin cannot start on this host · commands will run unconfined` |
-| degraded | `applies on restart, but this host cannot enforce: …` |
+| 无异常 | `applies on restart, verified against this host`（重启后生效，已根据当前主机验证） |
+| 无法编译策略 | `will NOT apply on restart · <reason>`（重启后不会生效，并说明原因） |
+| 引擎拒绝启动 | `claybin cannot start on this host · commands will run unconfined`（claybin 无法在此主机启动，命令将不受沙箱约束） |
+| 能力降级 | `applies on restart, but this host cannot enforce: …`（重启后生效，但当前主机无法执行所列限制） |
 
 ---
 
-## Threat model
+<a id="threat-model"></a>
 
-**Stops:** an approved command reading `~/.ssh/id_rsa`, `~/.aws/credentials` or a
-workspace `.env`; writing outside the workspace; forking a bomb; exhausting host
-memory; ptracing another process; mapping W+X pages; reaching the network when
-you said not to; reaching the HOST's own loopback services, the LAN, cloud
-metadata (169.254.169.254) or a tailnet even when the network is on; the agent
-authoring a file your host later executes.
+## 威胁模型
 
-**Does not stop:**
+**能够阻止：** 已获批准的命令读取 `~/.ssh/id_rsa`、`~/.aws/credentials` 或工作区中的 `.env`；在工作区之外写入；创建 fork 炸弹；耗尽宿主内存；跟踪其他进程；映射同时可写可执行的页面；在禁用网络时访问网络；即使网络开启，访问宿主的回环服务、局域网、云元数据地址（169.254.169.254）或 tailnet；以及代理创建稍后会由宿主执行的文件。
 
-- **Exfiltration to the open internet — unless you list hosts.** With network
-  on and **Allowed hosts** empty, a command that can read can also send, to
-  any public address. The proxy refuses private ranges, so the blast radius
-  never includes your own machines. Set [Allowed hosts](#allowed-hosts) and it
-  can send only to those names (and anything a listed host will relay). This
-  is why the default read set is narrow rather than convenient, and why
-  `airgapped` exists.
-- **A proxy bug.** The private-range refusal is policy code in agentty, not a
-  kernel rule, so its strength is that code being right. What the KERNEL
-  guarantees is the part underneath: without a descriptor from the supervisor
-  the box has no route off its own loopback, so a bug there fails closed
-  (connection refused) rather than open.
-- **Secrets deeper than `mask_scan_depth`,** or inside a skipped directory. The
-  bound is a setting, so the trade is yours.
-- **Credential names we do not know about.** A secret in `config.local.yaml` is
-  invisible to a basename list.
-- **Kernel-level escape.** The command shares your kernel. A kernel LPE defeats
-  every process backend, which is what `host.kernel_isolation: none` means.
-- **agentty's own API traffic.** In-process, never crosses the boundary.
+**无法阻止：**
+
+- **向公网外传数据，除非设置了主机清单。** 开启网络且
+  **Allowed hosts** 为空时，命令只要能读取数据，也就能把数据发送到任意公网地址。代理会拒绝私有网段，因此攻击范围不包括用户自己的内网机器。设置[允许的主机](#allowed-hosts)后，只能向这些名称发送数据，但仍需考虑清单中的主机可能提供转发功能。这也是默认可读范围较小，并提供 `airgapped` 预设的原因。
+- **代理本身的缺陷。** 拒绝私有网段的规则由 agentty 中的策略代码执行，
+  其有效性取决于代码是否正确。**内核**保证的是更底层的边界：没有监督进程传入的文件描述符，沙箱就没有离开自身回环网络的路径。因此，此处发生故障时会默认阻断连接，而不会意外开放网络。
+- **位于 `mask_scan_depth` 之外或被跳过目录中的秘密文件。** 扫描上限
+  可以配置，相关取舍由用户决定。
+- **尚未收录的凭据文件名。** 如果秘密保存在 `config.local.yaml` 中，
+  仅靠现有基本文件名清单无法识别。
+- **内核级逃逸。** 命令与宿主共享内核。内核本地提权漏洞可突破
+  所有进程沙箱后端，这正是 `host.kernel_isolation: none` 所表达的限制。
+- **agentty 自身的 API 流量。** 这些请求在应用进程内发起，不经过进程沙箱边界。
 
 ---
 
-## Verifying
+<a id="verifying"></a>
 
-Three layers, deliberately:
+## 验证方法
 
-| | what it proves | run it |
+验证分为三个层次：
+
+| 验证项 | 能证明什么 | 运行方式 |
 |---|---|---|
-| `sandbox_audit` | what your host enforces, per capability | `cmake --build build --target sandbox_audit && ./build/sandbox_audit` |
-| `sandbox_live_check` | the child actually experiences it — spawns real commands and reads the results | `cmake --build build --target sandbox_live_check && ./build/sandbox_live_check` |
-| `exec_exit_probe` | any command list, through the exact shipped spawn path | `./build/exec_exit_probe /tmp/ws on 0 cmds.txt` · `PROBE_DUMP=1` prints the sandbox argv · `PROBE_ALLOW_HOSTS=a,b` sets the host list |
-| the ctest suite | every table-level and reducer-level property, plus every preset through a real restart | `ctest --test-dir build -R 'sandbox\|netproxy'` |
+| `sandbox_audit` | 按能力检查当前主机实际执行的限制 | `cmake --build build --target sandbox_audit && ./build/sandbox_audit` |
+| `sandbox_live_check` | 启动真实命令并读取结果，验证子进程实际受到的限制 | `cmake --build build --target sandbox_live_check && ./build/sandbox_live_check` |
+| `exec_exit_probe` | 通过实际发布的进程启动路径运行任意命令清单 | `./build/exec_exit_probe /tmp/ws on 0 cmds.txt` · `PROBE_DUMP=1` 输出沙箱参数 · `PROBE_ALLOW_HOSTS=a,b` 设置主机清单 |
+| ctest 测试套件 | 检查配置表和状态更新函数的各项性质，并通过真实重启验证全部预设 | `ctest --test-dir build -R 'sandbox\|netproxy'` |
 
-The middle one exists because the gap between "the plan says X" and "the child
-experiences X" is where real bugs live. A missing `mremap` in the syscall profile
-once made `curl` report "out of memory" on a machine with free RAM — every
-table-level test passed while `realloc()` failed in the guest.
+之所以增加真实子进程检查，是因为“方案声明了某项限制”与“子进程实际受到该限制”之间往往隐藏着缺陷。系统调用规则曾漏掉 `mremap`，导致机器内存充足时 `curl` 仍报“内存不足”：配置表层面的测试全部通过，但沙箱内的 `realloc()` 却失败了。
 
-The startup banner states the backend, and it is a capability probe rather than a
-claim:
+启动横幅会说明后端，信息来自实际能力探测：
 
 ```
 agentty: sandbox: active (claybin)
@@ -742,22 +521,18 @@ agentty: sandbox: active (claybin)
 
 ---
 
-## For contributors
+<a id="for-contributors"></a>
 
-Read the [configuration types](../include/agentty/domain/sandbox_config.hpp),
-[execution boundary](../src/tool/util/sandbox.cpp) and
-[claybin adapter](../src/tool/util/sandbox_claybin.cpp) first. The rules that
-matter most:
+## 贡献者须知
 
-- **Never call `set_config` outside startup.** If you need to, the design is
-  wrong — change the design, not the call site.
-- **Do not declare a control that is not wired end to end.** A row id, a struct
-  or a message for an unbuilt feature reads as shipped to the next person. This
-  has caused three separate bugs here: `kSbMode`, the handoff row that enforced
-  nothing for months, and the two feed types that existed before their producers.
-- **A new pane row needs an entry in the per-backend table and a lock reason.** A
-  row with no honest answer for one backend is not ready.
-- **Anything written in the present tense derives from `HostFacts`, never from
-  `Config`.** The config is what the user *wants*; only `HostFacts` knows what
-  they *have*.
-- **Prove enforcement in the child, not in the table.**
+请先阅读[配置类型](../include/agentty/domain/sandbox_config.hpp)、[执行边界](../src/tool/util/sandbox.cpp)和 [claybin 适配器](../src/tool/util/sandbox_claybin.cpp)。最关键的规则如下：
+
+- **只能在启动阶段调用 `set_config`。** 如果需要在其他地方调用，
+  应修改设计，而不是增加调用点。
+- **功能尚未完整接通时，不要提前声明控制项。** 未实现功能的行标识、结构体
+  或消息会让后续开发者误以为功能已经可用。这曾造成三类缺陷：`kSbMode`、连续数月没有真正执行限制的信任交接选项，以及先于生产方存在的两种事件流类型。
+- **面板每新增一项，都必须在各后端能力表中补上对应条目和锁定原因。**
+  如果无法准确说明某个后端的实际行为，这一项就尚未准备好。
+- **所有描述当前状态的文字都应来自 `HostFacts`，
+  而不是 `Config`。** 配置表达用户**想要的状态**，只有 `HostFacts` 才能说明用户**实际拥有的能力**。
+- **在子进程中验证限制确实生效。**

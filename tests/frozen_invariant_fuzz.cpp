@@ -1,42 +1,42 @@
-// frozen_invariant_fuzz — randomized property test for the frozen-
-// scrollback subsystem (src/runtime/app/update/frozen.cpp).
+// frozen_invariant_fuzz ——对被冻结的财产进行随机测试. 回滚缓冲区 子
+// 系统( 3) src/runtime/app/update/frozen.cpp).
 //
-// The curated midrun_* tests pin specific, known-bad scenarios. This
-// harness attacks the SAME invariants from the other direction: it
-// drives ARBITRARY sequences of conversation growth + frozen-subsystem
-// operations and asserts a fixed set of structural invariants holds
-// after EVERY operation — not just the hand-picked states.
+// 中场比赛的测试针 具体,已知 -bad 假设情况。
+// 相同 不变量 从另一个方向: 它驱动 ARBITRARY
+// 对话增长的序列 + 冻结 -subsystem
+// 业务和索赔的固定结构 不变量 持有日期 每个
+// 操作——不只是手 -picked 州级。
 //
-// The class of bug this exists to catch is exactly where the real
-// scrollback corruption has always lived: a freeze/trim path that
-// leaves the parallel frozen arrays out of lockstep, strands a leading
-// separator, lets frozen_through outrun messages.size(), under/over-
-// commits scrollback rows, or freezes the mutable streaming back
-// message. Each is a one-line invariant here; a random walk that trips
-// it prints the seed + op trace so it's deterministically reproducible.
+// 捕捉的虫类正是真正的 回滚缓冲区 腐败一直存在:
+// freeze/trim 路径,使平行的冻结阵列脱离锁步,
+// 拖动一个主分隔符, 让 frozen_through 运行
+// 未执行 messages.size(),
+// under/over- 承诺 回滚缓冲区 横行,
+// 或冻结 可变 流式传输 背面信息。每个都是一个 -line 不变量
+// 随机走动,它会打印种子 + 操作跟踪,所以它具有决定性的再生产性。
 //
-// Invariants checked after every op (see check_invariants):
-//   I1  lockstep: frozen.size()==frozen_rows.size()==frozen_is_separator.size()
-//   I2  frozen_row_total == sum(frozen_rows), and never < 0 (size_t underflow)
-//   I3  frozen_through <= messages.size()
-//   I4  the frozen prefix never OPENS on a separator (gap) entry
-//   I5  during an ACTIVE stream, frozen_through never reaches the
-//       mutable back message (messages.size()) — the duplicated-card bug
-//   I6  a trim Cmd is either none, or a CommitScrollback whose count is
-//       a conservative UNDER-estimate of the rows dropped (commit <=
-//       dropped, never an OVER-commit; never CommitScrollbackOverflow).
-//       Over-commit makes the next frame grow → maya scrolls the visible
-//       tail into native scrollback = a duplicate band. Under-commit is
-//       reconciled in place by maya's render-time shift recovery
-//       (scrollback_prefix_matches → commit overflow + case-B), so it is
-//       safe — verified against real maya bytes and mirrored by
-//       midrun_wire_test, which renders the trim through maya and accepts
-//       that reconciliation. This is agent_session's discipline (it
-//       commits a deliberate n*ROWS_PER_DROP_LOWER under-estimate).
-//   I7  frozen_rows entries are all >= 0
+// 不变量 检查每一次操作后( 见 check_invariants):
+//   I1 锁步 : frozen.size()==frozen_rows.size()==
+//   frozen_is_separator.size() I2  frozen_row_total ⁇   ⁇
+//   frozen_rows ),并且永远不要 < 0 (
+//   size_t 下流) I3  frozen_through <= messages.size
+//   () I4 冻结的前缀永远不会 OPENS 分隔符(gap)条目 I5 期间 活动 数据流,
+//       frozen_through 永远无法到达 可变 背面信息 ( messages.size ()
+//   —— 重复 -card 错误 I6 修剪( C) Cmd 要么是无,要么是 CommitScrollback
+//       算得上保守派的吗? UNDER-estimate 投放(承诺 QQ 投放,从未投出)
+//       OVER-commit 永远; 永远 CommitScrollbackOverflow).
+//       完毕 -commit 制作下一个 帧 增长 + maya 滚动可见的
+//       末尾 变成本地 回滚缓冲区 = 重复带。 -commit 已调和
+//       maya's 渲染-time 调值回收(
+//       scrollback_prefix_matches + 承付溢额+ 案件
+//       -B 因此它是安全的—— 与真实的 maya 字节 并被反射为
+//       midrun_wire_test ,哪个 渲染 修剪经过 maya 并接受和解。
+//       这是 agent_session 纪律(它蓄意从事
+//       n*ROWS_PER_DROP_LOWER 下级 -estimate).
+//   I7  frozen_rows 条目都是 QQ 0
 //
-// Repro: a failure prints `SEED=<n>` — re-run pins that walk because the
-// PRNG and op selection are pure functions of the seed.
+// 重写: 失败的打印 `SEED=<n>` ——关于 -run 针脚走,
+// 因为 PRNG 和 op 选择是种子的纯函数。
 
 #include <cstdint>
 #include <cstdio>
@@ -68,11 +68,11 @@ using agentty::ToolUse;
 using std::chrono::milliseconds;
 using std::chrono::steady_clock;
 
-namespace {  // fold: TU-local (bundled into agentty_standalone_tests)
+namespace {  // 归并: TU-local (捆绑成 agentty_standalone_tests)
 static int g_failures = 0;
 static int g_checks   = 0;
 
-// ── Deterministic PRNG (splitmix64) ──────────────────────────────────────
+// ── 确定PRNG( splitmix64) ──────────────────────────────────────
 struct Rng {
     std::uint64_t s;
     explicit Rng(std::uint64_t seed) : s(seed) {}
@@ -88,7 +88,7 @@ struct Rng {
     bool chance(int pct) { return below(100) < pct; }
 };
 
-// ── Builders ──────────────────────────────────────────────────────────────
+// ── 构建器 ──────────────────────────────────────────────────────────────
 static std::string code_block(int n) {
     std::string out;
     for (int i = 0; i < n; ++i)
@@ -136,7 +136,7 @@ static ToolUse settled_bash(const std::string& tag, int out_lines) {
     return t;
 }
 
-// ── The op log, printed on failure for a deterministic repro ──────────────
+// ── 操作日志, 打印在失败上, 用于确定重制程序 ──────────────
 static std::vector<std::string> g_oplog;
 static std::uint64_t g_seed = 0;
 
@@ -151,54 +151,54 @@ static void fail(const char* inv, const char* detail) {
 #define INV(cond, name, detail)                          \
     do { ++g_checks; if (!(cond)) fail(name, detail); } while (0)
 
-// ── The invariant battery ────────────────────────────────────────────────
+// ── 电话 不变量 电池 ────────────────────────────────────────────────
 static void check_invariants(const Model& m, bool stream_active,
                              const agentty::Cmd* trim_cmd,
                              std::size_t expected_dropped_rows) {
     const auto& f = m.ui;
 
-    // I1 lockstep is now STRUCTURAL: the ledger owns one internal meta
-    // vector alongside its elements — there are no host-side parallel
-    // vectors left to drift. Check the accessors stay in-range instead.
+    // I1 锁步已经到了 STRUCTURAL : 分类账拥有
+    // 一个内元矢量, 并附带其元素—— 没有主机 -side
+    // 并行向量左移。检查访问者是否在 -range 换成是的
     for (std::size_t k = 0; k < f.frozen.size(); ++k)
         INV(f.frozen.block_rows(k) >= 1 || !f.frozen.recorded_at(k), "I1",
             "ledger block has zero recorded rows");
 
-    // I7 + I2 row accounting: row_total equals the sum of block_rows.
+    // I7 + I2 行会计 : row_total 等于总和 block_rows.
     std::size_t sum = 0;
     for (std::size_t k = 0; k < f.frozen.size(); ++k)
         sum += f.frozen.block_rows(k);
     INV(sum == f.frozen.row_total(), "I2",
         "row_total() != sum(block_rows)");
 
-    // I3 bounds
+    // I3 边框
     INV(f.frozen_through <= m.d.current.messages.size(), "I3",
         "frozen_through outran messages.size()");
 
-    // I4 prefix never opens on a separator (gap) row
+    // I4 前缀从不打开分隔符( gap) 行
     if (!f.frozen.empty())
         INV(!f.frozen.separator_at(0), "I4",
             "frozen prefix opens on a separator/gap entry");
 
-    // I5 never freeze the mutable streaming back
+    // I5 永远不要冻结 可变 流式传输 返回时
     if (stream_active && !m.d.current.messages.empty())
         INV(f.frozen_through < m.d.current.messages.size(), "I5",
             "froze the mutable streaming back message");
 
-    // I6 trim Cmd contract. A front-trim (dropping the OLDEST frozen
-    // entries) is a top-DELETION. maya's render-time shift reconciliation
-    // (scrollback_prefix_matches → commit overflow + case-B soft repaint)
-    // DOES reconcile it — but only safely when the host did not OVER-commit:
-    // committing MORE rows than maya physically scrolled off makes the next
-    // frame's content_rows exceed prev_rows, so maya reads it as growth and
-    // scrolls the still-visible tail into native scrollback = a duplicate
-    // band. Committing FEWER (or none) is reconciled in place. So the
-    // contract is: none() when nothing dropped, OR a CommitScrollback whose
-    // count is a conservative UNDER-estimate (<= rows dropped). Verified
-    // against real maya bytes (over-commit dupes exactly C-actual rows;
-    // under-commit reconciles clean) and mirrored by midrun_wire_test.
-    // CommitScrollbackOverflow is never valid (it advances prev_rows past
-    // whatever maya thinks overflowed, which over-commits).
+    // I6 修剪 Cmd 合同。 -trim (删除 OLDEST 冻结条目)
+    // 是顶端 -DELETION. maya's 渲染-time 转动调节( 微调)
+    // scrollback_prefix_matches + 承付溢额+ 案件
+    // -B 软 重绘) 执行 调和它,但只有在主机没有安全 OVER-commit:
+    // 承诺 MORE 行数 大于 maya 物理卷轴的下一位 帧's
+    // content_rows 超过 prev_rows ,所以,我说 maya
+    // 读起来像成长 并滚动静物 -visible 末尾 变成本地 回滚缓冲区
+    // = 重复带。提交 FEWER 合同是: none() 当一切没有掉落的时候,
+    // OR a CommitScrollback 算得上保守派的吗?
+    // UNDER-estimate (已删除)。 maya 字节 (超过)
+    // -commit 恰好是C型的哑巴 -actual 行;
+    // 下边 -commit 由清净的和镜子映射 midrun_wire_test.
+    // CommitScrollbackOverflow 永远无效( 它 前进 ) prev_rows
+    // 过什么 maya 以为溢出, 结束了 -commits).
     if (trim_cmd) {
         const bool is_none =
             std::holds_alternative<agentty::Cmd::None>(trim_cmd->inner);
@@ -208,22 +208,22 @@ static void check_invariants(const Model& m, bool stream_active,
             "trim returned an unexpected Cmd type — must be none() or a "
             "conservative commit_scrollback(N) (never CommitScrollbackOverflow).");
         if (commit) {
-            // Never OVER-commit: committing more rows than the trim dropped
-            // strands a duplicate of the visible tail. Under-commit is safe
-            // (maya reconciles it), so the bound is <=, not ==.
+            // 永远 OVER-commit : 执行的行数比裁剪的线条多
+            // 重复可见的线条 末尾 下调 -commit 安全( 3)
+            // maya 调和它,所以约束是\\\\ n不是\\\。
             INV(static_cast<std::size_t>(std::max(0, commit->debt.rows()))
                     <= expected_dropped_rows,
                 "I6",
                 "trim's commit_scrollback row count > rows actually "
                 "dropped (OVER-commit strands a duplicate band).");
-            // And it must commit SOMETHING when it dropped rows (a positive
-            // lower bound), so a real top-deletion is never left wholly
-            // uncommitted-via-overflow-misread.
+            // 并且必须承诺 SOMETHING 当它掉下行( 正下方的绑定),
+            // 所以是一个真正的顶端 -deletion 永远不能完全不承诺
+            // -via-overflow-misread.
             INV(commit->debt.rows() >= 1, "I6",
                 "trim dropped rows but committed 0 — expected a positive "
                 "conservative count.");
         } else {
-            // none() ⇒ nothing was dropped.
+            // none() QQ 什么都没有掉。
             INV(expected_dropped_rows == 0, "I6",
                 "trim dropped rows but returned none() — the deletion is "
                 "uncommitted, maya will re-emit the shifted prefix over "
@@ -232,12 +232,12 @@ static void check_invariants(const Model& m, bool stream_active,
     }
 }
 
-// Render the whole conversation to a BOUNDED canvas. This is purely a
-// smoke check that no op produces a model maya cannot lay out (a throw
-// here = a hard regression) — the structural invariants are checked
-// separately and don't need a full-height paint. Cap the canvas height
-// so a transcript with many tall bash/write cards doesn't make each
-// smoke render O(thousands of rows).
+// 渲染 整个谈话到一个 BOUNDED 画布。
+// 这只是检查一下,没有操作产生模型 maya 无法列出
+// (此处抛出=硬回归)——结构 不变量 检查时要单独检查,
+// 不需要完整 -height 画画,画画高度很高,
+// 写个记录,写得很多高 bash/write 牌不使
+// 每烟 渲染 O(千行经).
 static void render_smoke(const Model& m, int width) {
     auto root = maya::AppLayout{{
         .thread        = agentty::ui::thread_config(m),
@@ -252,7 +252,7 @@ static void render_smoke(const Model& m, int width) {
     maya::render_tree(root, canvas, pool, maya::theme::native, true);
 }
 
-// ── One random walk ───────────────────────────────────────────────────────
+// ── 随便走走 ───────────────────────────────────────────────────────
 static void run_walk(std::uint64_t seed, int width) {
     g_seed = seed;
     g_oplog.clear();
@@ -265,12 +265,12 @@ static void run_walk(std::uint64_t seed, int width) {
 
     const int steps = 20 + rng.below(40);
     for (int step = 0; step < steps; ++step) {
-        // A streaming tail is ALWAYS messages.back() in the real app:
-        // nothing is pushed on top of it until it settles. Model that
-        // faithfully — if a stream is active, the only conversation
-        // mutation allowed before a new push is to settle it. (A harness
-        // that pushed past a live tail would manufacture an I5
-        // "violation" that can't occur in production.)
+        // 实际应用中的流式传输 末尾是ALWAYS messages.back():
+        // 事情不会被推到它上面 直到它解决。 Model 忠实
+        // 的 -- -- 如果 数据流 正在激活,在进行新的推动之前,
+        // 唯一允许的谈话突变是解决它。 (一个通过活的推动的
+        // 绳子) 末尾 制造一种 I5 "violation"
+        // 生产中不可能发生这种情况。 )
         if (stream_active && rng.chance(60)) {
             if (!m.d.current.messages.empty()) {
                 auto& back = m.d.current.messages.back();
@@ -284,8 +284,8 @@ static void run_walk(std::uint64_t seed, int width) {
             g_oplog.push_back("settle stream -> idle");
         }
 
-        // ── Mutate the conversation ──
-        // Skip growth while a stream is active (the tail owns the back).
+        // ── 调换对话 ──
+        // 跳过增长时的 a 数据流 活动( 活动) 末尾 拥有后座).
         const int grow = stream_active ? -1 : rng.below(6);
         if (grow < 0) {
             g_oplog.push_back("(stream active — no push this step)");
@@ -318,7 +318,7 @@ static void run_walk(std::uint64_t seed, int width) {
             m.d.current.messages.push_back(std::move(a));
             g_oplog.push_back("push assistant-bash");
         } else {
-            // streaming tail (active)
+            // 流式传输 末尾(活跃)
             Message t; t.role = Role::Assistant;
             t.streaming_text = "continuing to work ...";
             m.d.current.messages.push_back(std::move(t));
@@ -327,7 +327,7 @@ static void run_walk(std::uint64_t seed, int width) {
             g_oplog.push_back("push streaming-tail (active)");
         }
 
-        // ── Pick a frozen-subsystem op ──
+        // ── 选择一个冻结的-subsystem操作 ──
         agentty::Cmd trim_cmd = agentty::Cmd::none();
         const agentty::Cmd* trim_ptr = nullptr;
         std::size_t dropped_rows = 0;
@@ -335,10 +335,10 @@ static void run_walk(std::uint64_t seed, int width) {
         const int op = rng.below(7);
         switch (op) {
         case 0: {
-            // freeze_through up to a random live_start (clamped).
+            // freeze_through 最多为随机 live_start (声响).
             std::size_t n = m.d.current.messages.size();
             std::size_t live_start = n == 0 ? 0 : rng.below(static_cast<int>(n) + 1);
-            // Never freeze into the mutable back during an active stream.
+            // 永远不要冻到 可变 活动时返回 数据流.
             if (stream_active && live_start > n - 1) live_start = n - 1;
             agentty::app::detail::freeze_through(m, live_start);
             g_oplog.push_back("freeze_through(" + std::to_string(live_start) + ")");
@@ -346,20 +346,20 @@ static void run_walk(std::uint64_t seed, int width) {
         }
         case 1:
         case 2:
-            // (retired ops) the mid-stream carves — freeze_settled_subturns
-            // and freeze_streaming_text_prefix — are deleted; production
-            // has exactly one freeze site (settle → freeze_through). Keep
-            // the case numbers so seeds stay comparable across versions.
+            // (退休行动) -stream 木雕 -- -- freeze_settled_subturns
+            // 财务报告和已审计财务报表 freeze_streaming_text_prefix
+            // ——删除;生产有完全一个冻结地点(Settle)。
+            // freeze_through。保持病例数,使种子在各种版本之间保持可比性。
             g_oplog.push_back("(carve op retired — no-op)");
             break;
         case 3:
         case 4: {
-            // Simulate a rendered frame before the trim: the ledger's
-            // provability gate only drops blocks whose height a paint
-            // has recorded, and this harness never runs maya's real
-            // paint pass. Stamp each block's policy height as its
-            // recorded height — exactly what the ledger-tagged paint
-            // does with the laid-out height in production.
+            // 模拟已实现 帧 剪切前:分类账的可复制
+            // 性门只滴出有油漆记录的高度的块,
+            // 而这个绳子从不运行 maya 真正的油漆传票,
+            // 每个街区的策略高度作为记录的高度—
+            // —准确的分类账 -tagged 油漆
+            // 和铺设的 -out 生产高度。
             for (std::size_t k = 0; k < m.ui.frozen.size(); ++k)
                 m.ui.frozen.record_paint(
                     k, static_cast<int>(m.ui.frozen.block_rows(k)));
@@ -372,16 +372,16 @@ static void run_walk(std::uint64_t seed, int width) {
             break;
         }
         case 5:
-            // rehydrate is an idle-only op in production (thread switch /
-            // load) — never fires mid-stream. Skip it while active so we
-            // don't manufacture an impossible "froze the live back" state.
+            // 水合物是闲置的 -only 生产业务 线程 切换/ 加载 )——
+            // 永远不要中途开火. -stream。在活动时跳过它,这样我们就不会
+            // 制造出不可能的 "froze the live back" 州立大学.
             if (stream_active) {
                 g_oplog.push_back("(rehydrate skipped — stream active)");
                 break;
             }
             agentty::app::detail::rehydrate_frozen(m);
-            // rehydrate reasons about the whole transcript; the active
-            // flag must reflect the real phase afterward.
+            // 整个记录稿的再水化原因;
+            // 活性的标志必须反映之后的真实阶段.
             stream_active = std::holds_alternative<agentty::phase::Streaming>(m.s.phase);
             g_oplog.push_back("rehydrate_frozen");
             break;
@@ -392,10 +392,10 @@ static void run_walk(std::uint64_t seed, int width) {
 
         check_invariants(m, stream_active, trim_ptr, dropped_rows);
 
-        // Smoke: maya must lay the resulting model out without throwing.
-        // Sampled (not every step) — the invariant battery above is the
-        // real coverage; the render is just a crash/throw canary, and a
-        // tall transcript paint is the harness's dominant cost.
+        // 烟雾: maya 一定能不扔掉就把模型扔出去
+        // 抽样(不是每个步骤)—— 不变量 电池的上方是真实覆盖;
+        // 渲染 只是一个 crash/throw 手
+        // 提琴和高高的笔录彩绘是绳索的主要成本.
         if (rng.chance(20)) {
             try {
                 render_smoke(m, width);
@@ -406,11 +406,11 @@ static void run_walk(std::uint64_t seed, int width) {
             }
         }
 
-        if (g_failures) return;  // stop on first failure for a clean trace
+        if (g_failures) return;  // 停止第一次失败, 以找到一个干净的追踪
     }
 }
 
-}  // namespace (fold)
+}  // 名称空间( 归并)
 
 int main() {
     std::printf("frozen_invariant_fuzz\n");

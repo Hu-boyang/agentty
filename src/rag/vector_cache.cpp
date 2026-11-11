@@ -1,4 +1,4 @@
-// src/rag/vector_cache.cpp — see agentty/rag/vector_cache.hpp.
+// src/rag/vector_cache.cpp — 参见 agentty/rag/vector_cache.hpp.
 
 #include "agentty/rag/vector_cache.hpp"
 
@@ -12,7 +12,7 @@ std::string VectorCache::key(std::string_view model, std::string_view text) {
     std::string k;
     k.reserve(model.size() + 1 + text.size());
     k.append(model);
-    k.push_back('\0');   // can't appear in a model id, so (a, bc) != (ab, c)
+    k.push_back('\0');   // 不能出现在模型id中，所以(a,bc)!=(ab,c)
     k.append(text);
     return k;
 }
@@ -29,15 +29,15 @@ bool VectorCache::get(std::string_view model, std::string_view text, ::rag::Vect
 void VectorCache::merge(std::vector<std::pair<std::string, ::rag::Vector>> fresh) const {
     if (fresh.empty()) return;
     const std::uint64_t g = gen_.fetch_add(1, std::memory_order_relaxed) + 1;
-    // Copy-on-write: build the next map from the current one and publish it
-    // only if no other prefetch published meanwhile; else start again from
-    // theirs, so neither loses its vectors.
+    // Copy-on-write:从当前地图构建下一个地图，
+    // 并且仅在没有其他预取同时发布的情况下发布它；否则从他们的开始，
+    // 所以两者都不会失去其向量。
     for (;;) {
         const auto cur = map_.current();
         auto next = std::make_shared<Map>(cur ? *cur : Map{});
         for (auto& [k, v] : fresh) (*next)[k] = Entry{v, g};
         if (next->size() > capacity_) {
-            // Drop the oldest generations until under the cap.
+            // 将最老的几代丢弃直至低于上限。
             std::vector<std::pair<std::uint64_t, const std::string*>> by_age;
             by_age.reserve(next->size());
             for (const auto& [k, e] : *next) by_age.emplace_back(e.gen, &k);
@@ -53,7 +53,7 @@ void VectorCache::merge(std::vector<std::pair<std::string, ::rag::Vector>> fresh
 ::rag::Result<void> VectorCache::prefetch(const maya::unlocked& cap, const ::rag::dense::AnyEmbedder& real,
                                           std::span<const std::string> texts, std::size_t batch) const {
     const std::string model{real.identity()};
-    // What isn't cached yet, each text once.
+    // 尚未缓存的内容，每个文本一次。
     std::vector<std::string> todo;
     {
         const auto m = map_.current();
@@ -76,9 +76,9 @@ void VectorCache::merge(std::vector<std::pair<std::string, ::rag::Vector>> fresh
         if (!r) { errs[b] = r.error(); return; }
         out[b] = std::move(*r);
     };
-    // The backend says how many requests it wants in flight (a hosted API 8,
-    // a local Ollama 4, an in-process model 1). No lock is held here, so the
-    // batches can really run side by side.
+    // 后端表示它想要多少个正在运行的请求（托管的API 8、
+    // 本地Ollama 4、in-process模型1）。这里没有保存 锁，
+    // 因此批次可以真正并行运行。
     const std::size_t width = std::clamp<std::size_t>(real.max_concurrency(), 1, nb);
     maya::parallel_for(cap, nb, width, run);
 
@@ -88,8 +88,8 @@ void VectorCache::merge(std::vector<std::pair<std::string, ::rag::Vector>> fresh
         if (!out[b]) continue;
         const std::size_t off = b * bs;
         for (std::size_t j = 0; j < out[b]->size() && off + j < todo.size(); ++j) {
-            // Exactly what the real embedder returned: the cache must be a
-            // drop-in for it, and the corpus does its own normalising after.
+            // 正是真实嵌入器返回的内容：缓存 必须是它的
+            // drop-in，并且语料库之后进行自己的标准化。
             fresh.emplace_back(key(model, todo[off + j]), std::move((*out[b])[j]));
         }
     }
@@ -117,8 +117,8 @@ VectorCache::Stats VectorCache::stats() const noexcept {
         else miss.push_back(i);
     }
     if (miss.empty()) return out;
-    // Not prefetched (new text raced in after staging): ask the real embedder.
-    // Right answer, just slower, and counted so a regression is visible.
+    // 未预取（新文本在分段后进入）：询问真正的嵌入器。
+    // 正确答案，只是速度较慢，并且经过计数，因此可以看到回归。
     if (cache_)
         for (std::size_t n = 0; n < miss.size(); ++n) cache_->note_miss();
     std::vector<std::string> rest;

@@ -1,22 +1,22 @@
 #pragma once
-// agentty::tools::util::sandbox::claybin_backend — the library-based sandbox
-// backend, alongside the bwrap one.
+// agentty::tools::util::sandbox::claybin_backend — 库
+// -based 沙箱 后端，与 bwrap 后端并排。
 //
-// Header kept free of claybin's own headers so the rest of agentty does not
-// need claybin's include path, and so a build with AGENTTY_HAVE_CLAYBIN off
-// compiles this file away entirely.
+// 头文件 保留了 claybin 自己的 头文件，因此 agentty 的其余部分不需要
+// claybin 的包含路径，因此使用 AGENTTY_HAVE_CLAYBIN
+// 关闭 编译 这个文件的构建完全消失。
 //
-// The interface is deliberately narrow: a Posture (what to bind, what to cap)
-// in, a pid out. Everything about SUPERVISING the child -- poll, drain, idle
-// deadline, SIGTERM/SIGKILL, reap -- stays in subprocess.cpp, which already
-// does it correctly for both the sandboxed and unsandboxed paths. A sandbox
-// backend that also owned the supervise loop would be two implementations of
-// the hard part.
+// 接口被故意缩小：输入一个Posture（绑定什么、限制什么），
+// 输出一个pid。关于 SUPERVISING 子进程的所有内容——轮询、
+// 耗尽、空闲截止日期、SIGTERM/SIGKILL、
+// 收割——都保留在 subprocess.cpp 中，它已经对沙盒和
+// 非沙盒路径正确执行了该操作。还拥有监督循环的 沙箱 后端将是困难部分
+// 的两种实现。
 //
-// Platform note: on Windows the two int handle fields of SpawnResult carry
-// HANDLEs, not descriptors -- `pidfd` is the child's PROCESS handle (the
-// waitable exit; jaal's windows_process::adopt consumes it), and `kill_tree`
-// closes in on the JOB handle (KILL_ON_JOB_CLOSE = the tree kill).
+// 平台说明：在 Windows 上，SpawnResult 的两个 int 句柄字段携带句柄，
+// 而不是描述符——`pidfd` 是子进程的 PROCESS 句柄（可等待退出；
+// jaal 的 windows_process::adopt 消耗它），并且 `kill_tree`
+// 靠近 JOB 句柄（KILL_ON_JOB_CLOSE = 源码树）杀）。
 
 #include <cstdint>
 #include <functional>
@@ -28,109 +28,109 @@
 
 namespace agentty::tools::util::sandbox::claybin_backend {
 
-// Whether an env var from agentty's own environment reaches the sandboxed
-// child. Drops desktop/session sockets and provider API keys.
+// 来自agentty自己的环境的环境变量是否到达沙盒子项。
+// 删除 desktop/session 套接字和提供者 API 密钥。
 [[nodiscard]] bool box_env_keeps(std::string_view key) noexcept;
 
-// What to build. Populated from the SHARED read-set constants in sandbox.cpp
-// rather than restated here -- see the note at the top of sandbox_claybin.cpp
-// about a backend that restated them and granted read on `/`.
+// 构建什么。从 sandbox.cpp 中的 SHARED read-set
+// 常量填充，而不是在此处重述 - 请参阅 sandbox_claybin.cpp
+// 顶部有关重述它们并授予在 `/` 上读取权限的后端的注释。
 struct Posture {
     std::vector<std::string> system_read_roots;  // kSystemReadRoots
-    std::vector<std::string> etc_readable;       // kEtcReadable
+    std::vector<std::string> etc_readable;       // kEtc可读
     std::vector<std::string> home_tool_dirs;     // $HOME + kHomeToolSubdirs
-    // Extra read/write grants the user added in the pane, on top of the scope.
+    // 用户在范围顶部的 面板 中添加额外的 read/write 授权。
     std::vector<std::string> read_paths;
     std::vector<std::string> write_paths;
-    // Absolute paths masked after every grant. Credentials, agent state, and
-    // whatever the user added to deny_paths. See kAlwaysMasked.
+    // 在每个授权之后屏蔽绝对路径。 凭据、代理状态以及用户添加到 deny_paths
+    // 的任何内容。请参阅 kAlwaysMasked。
     std::vector<std::string> masked;
-    // Host-trusted paths that EXIST and must be read-only: .vscode/tasks.json,
-    // .git/hooks/*, .git/config, hooks.json. The PREVENTION half of the trust
-    // handoff gate.
+    // Host-trusted EXIST和必须读取-only的路径：.vscode/tasks.json、.git/hooks/*、.git/config、
+    // hooks.json。 PREVENTION 是信任切换
+    // 门的一半。
     //
-    // Not masked and not denied -- bound over themselves read-only, so the
-    // guest reads the real contents and gets EROFS on write. Masking would
-    // break every legitimate reader (git needs its own config); a landlock
-    // deny cannot express "this path only" under a writable workspace at all
-    // (measured: within one ruleset rights INHERIT and a deeper stricter rule
-    // does not subtract -- docs/design/shell-write-gate.md). A read-only bind
-    // is exact, needs no grammar, and no quoting trick evades it because the
-    // wall is the filesystem.
+    // 不被屏蔽并且不被拒绝--将其自身绑定到read-only，
+    // 因此访客读取真实内容并在写入时获得EROFS。屏蔽会破坏每个合法
+    // 的阅读器（git 需要它自己的配置）；内锁拒绝根本无法在可写
+    // 工作区 下表达 "this path only"（测量：在一个规则
+    // 集权利 INHERIT 内，并且更深更严格的规则不会减去 -
+    // docs/design/shell-write-gate.md）。
+    // read-only 绑定是精确的，不需要语法，并且没有引用技巧可以逃避它，
+    // 因为墙就是文件系统。
     //
-    // Needs a mount namespace, so this is ABSENT on a host that denies
-    // unprivileged userns -- which is why the detection half exists and runs
-    // everywhere regardless.
+    // 需要安装命名空间，因此这是拒绝非特权用户的主机上
+    // 的ABSENT——这就是检测一半存在并且无论如何都在
+    // 各处运行的原因。
     std::vector<std::string> handoff_ro;
-    std::string workspace;                       // read-write, bound last
-    std::string cwd;                             // where the shell starts
+    std::string workspace;                       // 读取-write，最后绑定
+    std::string cwd;                             // shell开始的地方
 
-    // ── network ──────────────────────────────────────────────────────────
-    // Mirrors sandbox_cfg::NetMode as an int, so this header stays free of
-    // the domain type and a build without claybin does not need it.
-    //   0 = Full (share the host netns), 1 = None, 2 = Ports
+    // ── 网络 ──────────────────────────────────────────────────────────
+    // 将 sandbox_cfg::NetMode 镜像为 int，
+    // 因此该 头文件 不受域类型的影响，并且没有 claybin 的构建不需要它。
+    //   0=完全（共享主机网络），1=无，2=端口
     int net_mode{0};
     std::vector<std::uint16_t> allow_ports;
-    // Full-mode proxy's host-name allowlist (sandbox_cfg::Config::allow_hosts).
+    // Full-mode代理的主机-name 允许清单 (sandbox_cfg::Config::allow_hosts)。
     std::vector<std::string> allow_hosts;
 
-    // ── syscalls ─────────────────────────────────────────────────────────
-    // sandbox_cfg::SyscallMode as an int: 0 = Off, 1 = Compiler, 2 = Strict.
+    // ── 调音 ─────────────────────────────────────────────────────────
+    // sandbox_cfg::SyscallMode作为整数：0=关闭，1=编译器，2=严格。
     int syscall_mode{1};
     bool wx_protect{true};
 
-    // ── hardening ────────────────────────────────────────────────────────
+    // ── 硬化 ────────────────────────────────────────────────────────
     bool scope_ipc{true};
     bool close_inherited_fds{true};
 
-    // ── resources ────────────────────────────────────────────────
+    // ── 资源 ────────────────────────────────────────────────
     std::uint64_t tmp_bytes{512ull * 1024 * 1024};
-    std::uint64_t memory_bytes{0};   // 0 = no cap
-    std::uint64_t max_processes{0};  // 0 = no cap
-    std::uint32_t cpu_percent{0};    // 0 = no cap, 100 = one core
-    std::uint32_t max_open_files{0}; // 0 = no cap (RLIMIT_NOFILE)
-    std::uint32_t wall_clock_secs{0};// 0 = no cap
-    std::uint32_t cpu_secs{0};       // 0 = no cap (RLIMIT_CPU)
+    std::uint64_t memory_bytes{0};   // 0=无上限
+    std::uint64_t max_processes{0};  // 0=无上限
+    std::uint32_t cpu_percent{0};    // 0=无上限，100=一核
+    std::uint32_t max_open_files{0}; // 0=无上限(RLIMIT_NOFILE)
+    std::uint32_t wall_clock_secs{0};// 0=无上限
+    std::uint32_t cpu_secs{0};       // 0=无上限(RLIMIT_CPU)
 
-    // ── identity ────────────────────────────────────────────────
-    // Not containment -- the guest cannot escalate either way. This is about
-    // what leaks into build output and test fixtures.
+    // ── 身份 ────────────────────────────────────────────────
+    // 不是遏制——客人不能以任何方式升级。
+    // 这是关于泄漏到构建输出和测试装置中的内容。
     bool fake_hostname{false};
 
-    // ── syscall brokering ────────────────────────────────────────
-    // Decide ptrace and kill at runtime from their scalar arguments, instead
-    // of denying them flatly. See sandbox_broker.hpp.
+    // ── 所谓的经纪活动 ────────────────────────────────────────
+    // 根据它们的标量参数在运行时处决定ptrace和kill，而不是断然拒绝它们。
+    // 参见 sandbox_broker.hpp。
     //
-    // A FLAG rather than always-on, because brokering makes the child's
-    // progress depend on the parent answering: the kernel blocks a brokered
-    // syscall until someone responds, so a supervisor that is not being polled
-    // is a hang. spawn_shell only sets it when it can hand the listener to a
-    // runner that will poll it.
+    // FLAG而不是总是-on，因为代理使子进程的
+    // 进度取决于父进程的应答：内核阻塞代理的系统调用直到
+    // 有人响应，因此没有被轮询的监管者是挂起的。
+    // spawn_shell 仅当它可以将侦听器交给将轮询
+    // 它的运行器时才设置它。
     bool broker{false};
 };
 
-// One wall and how strongly it is enforced, straight from claybin's guarantee
-// report. Exposed so `describe_state()` can name what is actually up instead
-// of printing "active".
+// 一堵墙以及其执行力度如何，直接来自 claybin 的保证报告。暴露出来，
+// 这样 `describe_state()` 就可以命名实际发生的事情，
+// 而不是打印 "active"。
 struct Wall {
     std::string name;
     std::string strength;  // "strong" | "partial" | "none"
-    // WHICH mechanism got it there: "landlock abi 10", "cgroup2 memory.max",
-    // "seccomp-bpf", "mount-ns".
+    // WHICH机构到达那里："landlock abi 10"、"cgroup2 memory.max"、
+    // "seccomp-bpf"、"mount-ns"。
     //
-    // Not decoration. "strong" alone is a claim; "strong via landlock abi 10"
-    // is a claim with its receipt attached, and the difference matters because
-    // the SAME capability can be strong by two different routes with different
-    // failure modes -- filesystem.read is mount-ns when namespaces work and
-    // landlock when they do not, and a user debugging a denial needs to know
-    // which. It was missing here while the settings pane already reported it,
-    // so the two surfaces disagreed about how much they knew.
+    // 不是装饰。"strong"单独是一种主张；
+    // "strong via landlock abi 10"是
+    // 附有收据的索赔，差异很重要，因为SAME通过具有不同故障模式的
+    // 两条不同路线可以增强能力——filesystem.read正在安装
+    // -ns命名空间何时工作，何时不工作则锁定，调试拒绝的用户
+    // 需要知道是哪一个。虽然设置窗格已经报告了它，但它在这里丢失了，
+    // 因此两个表面在他们知道多少方面存在分歧。
     std::string mechanism;
 };
 
 struct Report {
     bool ok{false};
-    std::string detail;  // why not, when !ok
+    std::string detail;  // 为什么不，当！ok
     std::vector<Wall> walls;
 };
 
@@ -140,52 +140,52 @@ struct SpawnResult {
     int pidfd{-1};
     std::string start_error;
 
-    // The seccomp listener, when the policy brokers syscalls. -1 otherwise.
+    // 当策略代理系统调用时，seccomp监听器。否则-1。
     //
-    // The CALLER owns it and MUST poll it for as long as the child runs: a
-    // brokered syscall blocks the guest thread in the kernel until someone
-    // answers, so an unpolled listener is a hang rather than a weaker wall.
-    // `service_broker` below is how to answer one.
+    // CALLER拥有它，并且只要子进程运行，
+    // MUST就会轮询它：代理的系统调用会阻塞内核中的来宾线程，
+    // 直到有人应答，因此未轮询的侦听器是挂起而不是较弱的墙。
+    // 下面是`service_broker`如何回答之一。
     int supervisor_fd{-1};
 
-    // Answer ONE pending notification. Returns false when the listener is
-    // finished (guest gone, fd closed), after which the caller stops polling.
+    // 回答 一个 待处理 通知。当侦听器完成时返回
+    // false（来宾消失，fd 关闭），之后调用方停止轮询。
     //
-    // A callback rather than exposing the Listener, so the tool layer never
-    // includes a claybin header: the decision policy, the TOCTOU recheck and
-    // the audit record all live behind this one call.
+    // 回调而不是暴露监听器，因此工具层从不包括
+    // claybin 头文件：决策策略、TOCTOU复查
+    // 和审计记录都存在于这个调用后面。
     std::function<bool()> service_broker;
 
-    // The guest's filtered outbound network, when the posture gave it one.
+    // 访客的过滤出站网络，当姿势给它一个时。
     //
-    // Held by shared_ptr because SpawnResult is copied around and a running
-    // proxy is not copyable. Keeping it here is what ties the proxy's life to
-    // the command's: the last copy of this result going away stops it. The
-    // runner never touches it.
+    // 由 shared_ptr 持有，因为 SpawnResult
+    // 被复制并且正在运行的代理不可复制。将其保留在这里是将代理的生命
+    // 周期与命令的生命周期联系起来的：此结果的最后一个副本消失会阻止它。
+    // 跑步者永远不会碰它。
     std::shared_ptr<netproxy::Proxy> net_proxy;
 
-    // SIGKILL the guest and every descendant, atomically, when the posture got
-    // a cgroup. Empty when it did not (no cgroup2, no delegation, or a kernel
-    // below 5.14 with no cgroup.kill), and the caller then falls back to
-    // signalling the process group.
+    // SIGKILL客人和每一个后代，原子地，当姿势得到了cgroup。
+    // 如果没有（没有 cgroup2、没有委派或低于 5.14 且
+    // 没有 cgroup.kill 的内核），则为空，
+    // 然后调用者会退回到向进程组发出信号。
     //
-    // The group is not enough on its own: claybin puts the guest in a new
-    // session, but nothing stops a descendant calling setsid() again and
-    // stepping out of it. The cgroup has no such exit.
+    // 该组本身是不够的：claybin将访客置于新会话中，
+    // 但是没有什么可以阻止后代再次呼叫setsid()并退出它。
+    // cgroup 没有这样的出口。
     std::function<bool()> kill_tree;
 };
 
-// Can this host actually build the sandbox? Forks and attempts the uid_map
-// write, so it predicts spawn() rather than guessing from sysctls. Probed once.
+// 该主机真的可以构建沙箱吗？分叉并尝试 uid_map 写入，
+// 因此它预测 spawn() 而不是从 sysctls 猜测。探查过一次。
 [[nodiscard]] bool available();
 
-// Landlock ABI of this host, 0 when absent. Same cached probe as available().
+// 该主机的锁ABI，不存在时为0。与 available() 相同的缓存探针。
 [[nodiscard]] std::uint32_t landlock_abi();
 
 }  // namespace agentty::tools::util::sandbox::claybin_backend
 
-// The host's capabilities, probed once per process (probing forks). For the
-// preview and pickers; the spawn path probes live.
+// 主机的能力，每个进程探测一次（探测分叉）。
+// 用于预览和 选择面板；生成路径实时探测。
 #if defined(__APPLE__)
 #include "claybin/macos/backend.hpp"
 namespace agentty::tools::util::sandbox::claybin_backend {
@@ -200,42 +200,42 @@ namespace agentty::tools::util::sandbox::claybin_backend {
 
 namespace agentty::tools::util::sandbox::claybin_backend {
 
-// Compile the posture and report which walls it yields, without running
-// anything.
+// 编译姿势并报告其屈服的墙壁，而不运行任何
+// 东西。
 [[nodiscard]] Report describe(const Posture& p);
 
-// Fork, apply the sandbox, exec `argv`. stdout_fd/stderr_fd are the CALLER's
-// descriptors (typically both ends of one pipe); they survive the sandbox's
-// close sweep and land on 1 and 2 in the guest. Returns as soon as the child
-// is running -- the caller waits.
+// 分叉，应用沙箱，执行`argv`。 stdout_fd/stderr_fd
+// 是 CALLER 的描述符（通常是一个管道的两端）；他们在 沙箱
+// 的近距离扫射中幸存下来并降落在客机的 1 和 2 上。
+// 一旦子进程运行就返回——调用者等待。
 //
-// The argv reaches the child exactly as given, which is the point: a commit
-// message with quotes or a `$` in it must not be re-parsed on the way in.
+// argv 完全按照给定的方式到达子级，这就是要点：其中带有引号
+// 或 `$` 的提交消息在传入时一定不能是 re-parsed。
 [[nodiscard]] SpawnResult spawn_argv(const Posture& p,
                                      const std::vector<std::string>& argv,
                                      int stdout_fd, int stderr_fd,
                                      const std::vector<std::pair<std::string, std::string>>& env = {});
 
-// The same, with a shell in front: `/bin/sh -c shell_cmd`. Pipes, redirects
-// and globs are part of what a shell tool is for. Implemented as a call to
-// spawn_argv, so there is one spawn path rather than two.
+// 同样的，前面有一个壳：`/bin/sh -c shell_cmd`。管道、
+// 重定向和 glob 是 shell 工具的一部分。实现为 调用 到
+// spawn_argv，因此只有一条生成路径而不是两条。
 [[nodiscard]] SpawnResult spawn_shell(const Posture& p, const std::string& shell_cmd,
                                       int stdout_fd, int stderr_fd);
 
 #if defined(__APPLE__)
-// The posture compiled to seatbelt profile text -- exactly what spawn_shell
-// hands sandbox_init(). For spawners that cannot use claybin's fork (jaal on
-// darwin has no pidfd to adopt a foreign child by), so they run the same
-// profile through /usr/bin/sandbox-exec instead. Empty + `error` on failure:
-// callers must fail closed, never fall back to running unconfined.
+// 编译成安全带轮廓文本的姿势——正是spawn_shell手中的sandbox_init()。
+// 对于无法使用 claybin 的 fork 的生成器（达尔文上的 jaal
+// 没有 pidfd 来收养外国孩子），因此它们通过 /
+// usr/bin/sandbox-exec 运行相同的配置文件。失败时为空 + `error`：
+// 调用者必须在失败时关闭，决不能回退到无限制运行。
 [[nodiscard]] std::string compile_profile(const Posture& p, std::string& error);
 
-// The darwin network gateway: agentty's filtering proxy on a kernel-chosen
-// 127.0.0.1 port, started on first use and shared by every guest. 0 if it
-// could not start, in which case Full network compiles to NO network.
+// 达尔文网络网关：agentty在内核-chosen 127.0.0.1
+// 端口上的过滤代理，在第一次使用时启动并由每个访客共享。如果无法启动，
+// 则为 0，在这种情况下，完整网络 编译 到 NO 网络。
 [[nodiscard]] std::uint16_t macos_proxy_port(const std::vector<std::string>& allow_hosts);
-// The http_proxy/https_proxy/ALL_PROXY assignments a guest under `p` needs
-// ("K=V"), empty unless the posture is Full network and the proxy is up.
+// http_proxy/https_proxy/ALL_PROXY在`p`
+// 需求（"K=V")下分配访客，为空，除非状态是完整网络并且代理已启动。
 [[nodiscard]] std::vector<std::string> proxy_env(const Posture& p);
 #endif
 

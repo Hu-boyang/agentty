@@ -7,7 +7,7 @@ maya::ContextGauge::Config context_gauge_config(const Model& m) {
     cfg.used     = m.s.tokens_in;
     cfg.max      = m.s.context_max;
     cfg.cells    = 10;
-    cfg.show_bar = true;     // StatusBar overrides per-frame based on width
+    cfg.show_bar = true;     // StatusBar 以宽度为基础,每-frame 覆盖
     return cfg;
 }
 

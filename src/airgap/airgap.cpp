@@ -1,33 +1,33 @@
-// `agentty airgap` — one-command launcher for running agentty on an air-gapped
-// host through an SSH-tunneled SOCKS5 proxy.  Run from a laptop/box that
-// *has* internet to reach an air-gapped host that doesn't:
+// `agentty airgap` 是一条命令即可启动的工具，通过 SSH 隧道中的
+// SOCKS5 代理，让 agentty 在无法直接联网的主机上运行。
+// 请从能够联网的笔记本或其他机器上执行，连接到无法联网的远程主机：
 //
-//   agentty airgap user@host                 # connect + run remote agentty
-//   agentty airgap --setup user@host         # also: scp ~/.agentty/credentials/credentials.json -> remote
+//   agentty airgap user@host                 # 连接并运行远程 agentty
+//   agentty airgap --setup user@host         # 同时复制 ~/.agentty/credentials/credentials.json 到远程
 //
-// What it does:
-//   - `ssh -R 1080` (port-only form) tells OpenSSH to expose a SOCKS5
-//     proxy on the remote at localhost:1080.  Connections to it are
-//     tunnelled back through the SSH session and dialed by *this*
-//     laptop's OpenSSH.  Net: every TCP destination the remote agentty
-//     wants — api.anthropic.com (chat), platform.claude.com (OAuth
-//     refresh), arbitrary hosts hit by web_fetch / web_search — reaches
-//     the public internet via this laptop, in one tunnel, with no
-//     per-host enumeration.
-//   - Sets AGENTTY_SOCKS_PROXY=localhost:1080 in the remote shell so the
-//     remote agentty routes every dial through that SOCKS proxy instead
-//     of trying to resolve hosts directly (which would fail on an
-//     air-gapped box).
-//   - TLS, cert verification, and the HTTP Host header on the remote
-//     stay pinned to the real upstream — the SOCKS proxy can't MITM
-//     you.
-//   - With --setup: scp the laptop's credentials.json to the remote and
-//     chmod 600 it, so the user doesn't have to ferry it manually.
+// 工作原理：
+//   - `ssh -R 1080` 仅指定端口，让 OpenSSH 在远程的
+//     localhost:1080 上提供 SOCKS5 代理。
+//     连接经由 SSH 隧道回到本机，再由本机的 OpenSSH 建立外部连接。
+//     因此，远程 agentty 需要访问的所有 TCP 目标，
+//     包括聊天接口 api.anthropic.com、OAuth 刷新
+//     接口 platform.claude.com，以及 web_fetch /
+//     web_search 使用的任意主机，都能经由这一条隧道访问公网，
+//     无需逐个配置目标主机。
+//   - 在远程 shell 中设置 AGENTTY_SOCKS_PROXY=localhost:1080，让
+//     远程 agentty 的每次连接都经过 SOCKS 代理，
+//     避免在无法联网的主机上直接解析目标
+//     地址而失败。
+//   - 远程的 TLS、证书校验和 HTTP Host 请求头
+//     仍然对应真实的上游服务，SOCKS 代理无法实施中间人
+//     攻击。
+//   - 使用 --setup 时，通过 scp 将本机的 credentials.json 复制到远程，
+//     并设置 chmod 600，省去手动传输步骤。
 //
-// On POSIX the final step exec()s into ssh — signals (Ctrl-C, SIGWINCH)
-// reach ssh directly.  On Windows the support is stubbed; OpenSSH client
-// is bundled with modern Windows but we leave the orchestration to a
-// future contributor with a Win32 box to test on.
+// 在 POSIX 上，最后一步用 exec() 切换到 ssh，让 Ctrl-C、
+// SIGWINCH 等信号直接到达 ssh。Windows 支持目前只有
+// 占位实现；现代 Windows 自带 OpenSSH 客户端，
+// 相关编排留待具备 Win32 测试环境的贡献者完成。
 
 #include "agentty/airgap/airgap.hpp"
 #include "agentty/auth/auth.hpp"
@@ -51,8 +51,8 @@ namespace agentty::airgap {
 
 namespace {
 
-// Resolve the user's home directory portably: $HOME on POSIX, %USERPROFILE%
-// (or %HOMEDRIVE%%HOMEPATH%) on Windows. Empty when none is set.
+// 以可移植方式解析用户主目录：POSIX 使用 $HOME，Windows 使用 %USERPROFILE%，
+// 或 %HOMEDRIVE%%HOMEPATH%。均未设置时返回空字符串。
 std::string home_dir() {
     if (const char* h = std::getenv("HOME"); h && *h) return h;
 #if defined(_WIN32)
@@ -113,15 +113,15 @@ void print_usage() {
         "  on the remote shows which route a paste takes.\n");
 }
 
-// Synchronously spawn `argv[0]` with the given argv and wait for it.
-// Inherits stdin/stdout/stderr.  Returns the child's exit code, or -1 on
-// spawn failure. PATH-resolved on both platforms. Same process type as every
-// other child, so Windows gets the explicit handle list too.
+// 使用给定 argv 同步启动 `argv[0]`，并等待进程结束。
+// 继承标准输入、标准输出和标准错误，返回子进程退出码；启动失败返回 -1。
+// 两个平台都通过 PATH 查找程序。使用与其他子进程相同的进程类型，
+// 因此 Windows 也会获得显式句柄列表。
 int run_sync(const std::vector<std::string>& argv) {
     if (argv.empty()) return -1;
     namespace pf = maya::platform;
-    // ssh prompts and draws on our terminal, so it keeps our stdio and our
-    // session (a new session would lose the controlling tty).
+    // ssh 会在当前终端中显示提示并交互，因此继承当前
+    // 标准流和会话；创建新会话会失去控制终端。
     pf::process_spec spec;
     spec.argv        = argv;
     spec.stdin_from  = pf::stream_to::inherit;
@@ -135,7 +135,7 @@ int run_sync(const std::vector<std::string>& argv) {
                      p.error().what.data());
         return -1;
     }
-    // A foreground CLI step: block on the exit handle.
+    // 前台 CLI 步骤：阻塞等待退出句柄就绪。
     auto reactor = pf::native_reactor::create();
     if (!reactor) return -1;
     auto reg = reactor->watch(p->exit_handle().get(), pf::interest::read, 1);
@@ -150,9 +150,9 @@ int run_sync(const std::vector<std::string>& argv) {
     return st->how == pf::exit_status::kind::exited ? st->code : 128 + st->code;
 }
 
-// Copy this machine's credentials.json to the remote's default store,
-// ~/.agentty/credentials/. Three steps: mkdir, scp, chmod; abort on the
-// first failure so the user sees which one broke.
+// 将本机的 credentials.json 复制到远程默认存储目录
+// ~/.agentty/credentials/。依次执行 mkdir、scp、
+// chmod；任一步失败立即停止，让用户能看到失败的具体步骤。
 int copy_credentials(const std::string& remote) {
     const fs::path local = agentty::auth::credentials_path();
     std::error_code ec;
@@ -167,7 +167,7 @@ int copy_credentials(const std::string& remote) {
     std::fprintf(stderr, "agentty airgap: copying credentials -> %s …\n",
                  remote.c_str());
 
-    // 1) mkdir + chmod 700 for the remote config dir.  -p is idempotent.
+    // 1) 为远程配置目录执行 mkdir 和 chmod 700；-p 保证重复执行仍然有效。
     if (int rc = run_sync({
             "ssh", remote,
             "mkdir -p ~/.agentty/credentials && chmod 700 ~/.agentty ~/.agentty/credentials",
@@ -177,7 +177,7 @@ int copy_credentials(const std::string& remote) {
         return rc < 0 ? 1 : rc;
     }
 
-    // 2) scp the credentials file.
+    // 2) 使用 scp 复制凭据文件。
     {
         std::string dest = remote + ":.agentty/credentials/credentials.json";
         if (int rc = run_sync({"scp", "-q", local.string(), dest});
@@ -188,8 +188,8 @@ int copy_credentials(const std::string& remote) {
         }
     }
 
-    // 3) chmod 600 — scp doesn't reliably preserve mode across hosts and
-    //    the loader expects 0600 for the OAuth token.
+    // 3) 设置 chmod 600。scp 跨主机复制时不能可靠保留权限，
+    //    而加载器要求 OAuth 令牌文件权限为 0600。
     if (int rc = run_sync({
             "ssh", remote,
             "chmod 600 ~/.agentty/credentials/credentials.json",
@@ -203,8 +203,8 @@ int copy_credentials(const std::string& remote) {
     return 0;
 }
 
-// Single-quote `v` so it survives the remote shell as one literal token.
-// Embedded `'` becomes `'\''` (close-quote, escaped quote, reopen-quote).
+// 给 `v` 加上 shell 单引号，使其在远程 shell 中始终作为一个字面参数传递。
+// 内部的 `'` 转换为 `'\''`：先闭合单引号，再转义引号，最后重新开启单引号。
 std::string sh_squote(std::string_view v) {
     std::string out;
     out.reserve(v.size() + 2);
@@ -217,60 +217,60 @@ std::string sh_squote(std::string_view v) {
     return out;
 }
 
-// Replace this process with `ssh -t -R 1080 user@host <remote-cmd>`.
-// Never returns on success.  argv constructed on the heap because execvp
-// modifies its argv slot.
+// 使用 `ssh -t -R 1080 user@host <remote-cmd>` 替换当前进程。
+// 成功时不会返回。argv 在堆上构造，因为 execvp 会修改
+// 其 argv 槽位。
 //
-// clipboard: when set, also forward a remote unix socket to this machine's
-// richpaste agent; the remote's paste finds it in /tmp.
+// 剪贴板：启用后，还会把远程 Unix 套接字转发到本机的 richpaste 代理；
+// 远程粘贴逻辑会在 /tmp 中找到它。
 [[noreturn]] void exec_ssh(const std::string& remote,
                            const std::string& remote_agentty,
                            const ClipboardForward& clipboard) {
-    // Remote command: point agentty at the tunnelled SOCKS5 proxy, exec it.
-    // `exec` matters — without it the user's $SHELL stays around as a
-    // parent process and signal forwarding gets one extra hop wrong.
+    // 远程命令：让 agentty 使用隧道中的 SOCKS5 代理，再通过 exec 执行。
+    // `exec` 至关重要：否则用户的 $SHELL 会
+    // 继续作为父进程存在，使信号转发多经过一层并产生问题。
     //
-    // MAYA_FORCE_SYNC=1: force maya to emit DEC 2026 (begin-sync-update)
-    // around every inline frame.  We also forward terminal-identifying
-    // env vars below so maya's auto-detect can fire, but plenty of
-    // common terminals (bare xterm, st, urxvt, custom builds) leave no
-    // identifying marker and fall through env-detect even though they
-    // honor 2026 just fine.  Modern terminals silently ignore unknown
-    // private CSIs, so forcing it here is no-op on the unlucky few and
-    // a cure for the visible "new turn appears at the bottom then
-    // realigns" flicker on the rest.
+    // MAYA_FORCE_SYNC=1：强制 maya
+    // 在每个内联帧前后输出 DEC 2026 同步更新序列。
+    // 下方也会转发终端识别环境变量，供 maya 自动探测；
+    // 但裸 xterm、st、urxvt 和自定义终端
+    // 等常见环境可能不留下识别标记，即使支持 2026
+    // 也无法被探测到。现代终端会忽略未知的私有 CSI 序列，
+    // 因此这里强制开启对少数不支持的终端无影响，
+    // 却能消除其他终端中“新轮次先出现在底部、
+    // 随后重新对齐”的闪烁。
     std::string remote_cmd = "AGENTTY_SOCKS_PROXY=localhost:1080 MAYA_FORCE_SYNC=1";
-    // The clipboard forward needs nothing on the remote command line: the
-    // remote's paste finds /tmp/richpaste-<user>-*.sock by itself.
+    // 剪贴板转发无需额外的远程命令行参数：远程粘贴逻辑会自行寻找 /
+    // tmp/richpaste-<user>-*.sock。
 
-    // Forward terminal-identifying env vars from this laptop to the
-    // remote shell so the remote agentty can tell whether the user's
-    // terminal supports DEC 2026 (synchronized output / "begin sync
-    // update").  Without sync, compose_inline_frame's per-cell rewrite
-    // is rendered byte-by-byte and the user sees flicker every time the
-    // composer's row gets repainted.  SSH doesn't propagate these vars
-    // by default — `SendEnv` requires the server's sshd_config to
-    // explicitly `AcceptEnv` each one — so we pass them on the command
-    // line where no sshd config change is needed.  If a var is unset
-    // locally, we skip it; an empty value would set the env var to ""
-    // on the remote, which env-detect treats as "absent" anyway.
+    // 把本机的终端识别环境变量传给远程 shell，
+    // 让远程 agentty 判断用户终端是否
+    // 支持 DEC 2026 同步输出。
+    // 缺少同步时，compose_inline_frame
+    // 的逐单元格更新会按字节显示，输入框每次重绘
+    // 都会闪烁。SSH 默认不传递这些变量：
+    // SendEnv 需要服务器
+    // sshd_config 逐项配置 AcceptEnv。
+    // 因此这里通过命令行传递，无需更改 sshd 配置。
+    // 本机未设置的变量直接跳过；
+    // 传空字符串也只会让远程探测将其视为不存在。
     static constexpr const char* kTerminalMarkers[] = {
-        // Identification by program name / version.
+        // 通过终端程序名称和版本识别。
         "TERM_PROGRAM", "TERM_PROGRAM_VERSION",
-        // Per-terminal unambiguous markers.
+        // 各终端特有的明确标记。
         "KITTY_WINDOW_ID",
         "ALACRITTY_LOG", "ALACRITTY_WINDOW_ID",
         "GHOSTTY_RESOURCES_DIR",
         "WEZTERM_EXECUTABLE",
-        "WT_SESSION",          // Windows Terminal
+        "WT_SESSION",          // Windows Terminal 终端。
         "KONSOLE_VERSION",
-        "VTE_VERSION",          // GNOME Terminal, Tilix, etc.
-        "ITERM_SESSION_ID",     // iTerm.app
-        // TERM is typically already propagated by SSH, but force it in
-        // case the user's sshd_config doesn't pass it through.
+        "VTE_VERSION",          // GNOME Terminal、Tilix 等终端。
+        "ITERM_SESSION_ID",     // iTerm.app 终端。
+        // SSH 通常已转发 TERM，但这里仍显式传递，
+        // 以防用户的 sshd_config 未放行。
         "TERM",
-        // COLORTERM signals truecolor support — useful for agentty's
-        // colour rendering.
+        // COLORTERM 表示真彩色支持，供 agentty
+        // 的颜色渲染使用。
         "COLORTERM",
     };
     for (const char* name : kTerminalMarkers) {
@@ -286,18 +286,18 @@ std::string sh_squote(std::string_view v) {
 
     std::vector<std::string> argv;
     argv.push_back("ssh");
-    argv.push_back("-t");                       // agentty is interactive
-    // -R <port> with no `host:hostport` tail tells OpenSSH to expose a
-    // SOCKS proxy on the remote's <port> and resolve+dial connections
-    // it receives via *this* (laptop) side.  Requires OpenSSH ≥ 7.6 on
-    // both ends — practically every modern install.
+    argv.push_back("-t");                       // agentty 需要交互终端。
+    // `-R <port>` 不带 `host:hostport` 尾部时，
+    // OpenSSH 在远程 <port> 提供 SOCKS 代理，
+    // 收到连接后由本机这一侧解析并建立连接。两端均要求 OpenSSH
+    // ≥ 7.6，现代系统通常已经满足。
     argv.push_back("-R"); argv.push_back("1080");
 
-    // Clipboard: forward a remote unix socket to the local richpaste agent.
-    // StreamLocalBindUnlink lets a reconnect reuse a stale socket path.
+    // 剪贴板：把远程 Unix 套接字转发到本地 richpaste 代理。
+    // StreamLocalBindUnlink 允许重连时复用残留的套接字路径。
     if (!clipboard.remote.empty()) {
-        // %r is an ssh_config token; on the command line we fill it in.
-        // Remote user: the part before @, else our own name.
+        // %r 是 ssh_config 中的替换标记；命令行场景由此处填入。
+        // 远程用户名取 @ 前面的部分；没有指定时使用当前用户名。
         std::string user;
         if (auto at = remote.find('@'); at != std::string::npos) user = remote.substr(0, at);
         else if (const char* u = std::getenv("USER"); u && *u) user = u;
@@ -308,31 +308,31 @@ std::string sh_squote(std::string_view v) {
         argv.push_back(sock + ":" + clipboard.local);
     }
 
-    // Liveness defaults.  All passed *before* AGENTTY_AIRGAP_SSH so a user-
-    // supplied `-o Foo=bar` later silently wins (OpenSSH applies the last
-    // `-o` for any given key).
+    // 连接保活的默认选项都放在 AGENTTY_AIRGAP_SSH 之前，
+    // 让用户后来传入的 `-o Foo=bar` 可以覆盖默认值；
+    // 同一配置项采用最后一个 `-o`。
     //
-    //   ServerAliveInterval=30   Carrier-TCP keepalive on the SSH session —
-    //                            keeps the channel from going stale during
-    //                            quiet stretches between turns.
-    //   ServerAliveCountMax=3    Tolerate 3 missed keepalives before
-    //                            tearing down.
-    //   TCPKeepAlive=yes         Kernel-level TCP keepalive on the carrier.
-    //   ConnectTimeout=10        Bound the initial TCP connect so a flaky
-    //                            network doesn't hang the user for 2 min.
-    //   ExitOnForwardFailure=yes Bail loudly if the -R 1080 reverse listener
-    //                            can't bind on the remote (something else
-    //                            already on 1080), instead of silently
-    //                            exposing no SOCKS proxy and letting agentty
-    //                            fail later with a confusing getaddrinfo.
+    //   ServerAliveInterval=30：对 SSH
+    //                            会话发送连接保活消息，避免轮次之间
+    //                            长时间无流量导致连接失效。
+    //   ServerAliveCountMax=3：连续 3 次保活
+    //                            无响应后断开。
+    //   TCPKeepAlive=yes：为承载连接启用内核级 TCP 保活。
+    //   ConnectTimeout=10：限制初始 TCP 连接时间，
+    //                            避免不稳定网络让用户等待两分钟。
+    //   ExitOnForwardFailure=yes：远程无法绑定 -R
+    //                            1080 反向监听端口时立即明确报错，
+    //                            例如端口已被占用；否则 SOCKS
+    //                            代理并未建立，agentty 却会在稍后给出
+    //                            令人困惑的 getaddrinfo 错误。
     //
-    // Compression intentionally NOT enabled by default.  Inline-mode frames
-    // are small bursty deltas (~200-2 KiB per render); zlib is tuned for
-    // bulk and adds latency to small chunks because the receiver waits for
-    // sync markers — perceived UI lag was the dominant complaint.  Bulk
-    // file payloads (web_fetch, large bash outputs) compress less than the
-    // UI frames lose, on net.  Users on bandwidth-constrained links can
-    // opt in: `AGENTTY_AIRGAP_SSH="-o Compression=yes" agentty airgap …`.
+    // 默认不启用压缩。内联模式帧是短小且突发的增量，
+    // 每次渲染约 200 字节至 2 KiB；zlib 更
+    // 适合大块数据，对小块数据反而可能因等待同步标记增加延迟，
+    // 造成明显界面卡顿。网页抓取和大量 bash 输出获得的
+    // 压缩收益不足以抵消界面延迟。带宽受限时可主动启用：
+    // `AGENTTY_AIRGAP_SSH="-o Compression=yes" agentty airgap …`。
+    //
     auto add_o = [&](const char* spec) {
         argv.push_back("-o"); argv.push_back(spec);
     };
@@ -342,9 +342,9 @@ std::string sh_squote(std::string_view v) {
     add_o("ConnectTimeout=10");
     add_o("ExitOnForwardFailure=yes");
 
-    // AGENTTY_AIRGAP_SSH lets the user inject extra flags (`-i`, `-p`, `-J`,
-    // or override any of the defaults above with a later `-o ...`).
-    // We split on whitespace — primitive but enough for the common case.
+    // AGENTTY_AIRGAP_SSH 允许用户传入额外选项，如 `-i`、
+    // `-p`、`-J`，或通过后置 `-o ...` 覆盖上述默认值。
+    // 按空白字符拆分参数；方式简单，但足以满足常见场景。
     if (const char* extra = util::env::get_or_null<util::env::Var::AirgapSsh>()) {
         std::string buf;
         for (const char* p = extra; ; ++p) {
@@ -360,11 +360,11 @@ std::string sh_squote(std::string_view v) {
     argv.push_back(remote);
     argv.push_back(std::move(remote_cmd));
 
-    // Spawn ssh, inherit our stdio (so the remote TUI drives this terminal),
-    // wait, and exit with its code. We used to execvp() to replace this
-    // process, but spawn-and-forward-exit is identical from the user's shell
-    // and works on Windows too (no execvp there). PATH-resolves `ssh` on both
-    // platforms (OpenSSH ships with Windows 10+).
+    // 启动 ssh 并继承标准流，让远程 TUI 驱动当前终端；等待结束后使用
+    // 其退出码退出。此前用 execvp() 替换当前进程，现改为启动子进程
+    // 并转发退出码，从用户 shell 看行为相同，同时支持没有 execvp
+    // 的 Windows。两个平台均通过 PATH 查找 ssh；
+    // Windows 10 及更新版本自带 OpenSSH。
     int rc = run_sync(argv);
     if (rc < 0) {
         std::fprintf(stderr,
@@ -375,29 +375,29 @@ std::string sh_squote(std::string_view v) {
     std::exit(rc);
 }
 
-// Emit a ready-to-paste Zed `agent_servers` config that makes Zed itself
-// own the airgap tunnel: `command` is `ssh`, and its args open the reverse
-// SOCKS tunnel AND exec `agentty acp` on the remote in one invocation. The
-// ACP JSON-RPC rides ssh's stdio, so there's nothing to babysit — no separate
-// `ssh -N`, no remote wrapper script, no env block. Zed spawns it, Zed kills
-// it. This is the whole point of `--acp`: copy-paste and go.
+// 输出可直接粘贴的 Zed `agent_servers` 配置，
+// 由 Zed 管理 airgap 隧道。`command` 为 `ssh`，
+// 参数同时建立反向 SOCKS 隧道并在远程执行 `agentty acp`。
+// ACP JSON-RPC 经由 ssh 标准输入输出传输，
+// 无需单独维护 ssh -N、远程包装脚本或环境块。
+// 进程由 Zed 启动和终止；这正是 --acp 的用途。
 //
-// `acp_extra` is the agentty-acp tail the user passed after `--acp`
-// (e.g. "-m claude-haiku-4-5 --profile ask --workspace /"). It's appended
-// verbatim to the remote `agentty acp` command.
+// `acp_extra` 是用户在 --acp 后提供的 agentty-acp 参数，
+// 例如 "-m claude-haiku-4-5 --profile ask --workspace /"；
+// 它会原样追加到远程 `agentty acp` 命令后。
 void print_acp_config(const std::string& remote,
                       const std::string& remote_agentty,
                       const std::string& acp_extra) {
-    // Remote command: point agentty at the tunnelled SOCKS proxy, then exec
-    // the ACP agent. `exec` so signals reach agentty directly and ssh tears
-    // it down cleanly when Zed closes stdin.
+    // 远程命令：先设置隧道 SOCKS 代理，再通过 exec 执行
+    // ACP 代理。这样信号能直接到达 agentty，Zed 关闭
+    // 标准输入时 ssh 也能正确终止它。
     std::string remote_cmd =
         "AGENTTY_SOCKS_PROXY=localhost:1080 exec " + remote_agentty + " acp";
     if (!acp_extra.empty()) remote_cmd += " " + acp_extra;
 
-    // The ssh args, as a JSON array. -T: no PTY (ACP is a byte protocol, a
-    // PTY would corrupt it with echo/CR translation). -R 1080: the reverse
-    // SOCKS proxy. Liveness opts keep the long-lived session up.
+    // ssh 参数以 JSON 数组表示。-T 不分配 PTY，
+    // 因为 ACP 是字节协议，PTY 的回显和回车转换会破坏数据。
+    // -R 1080 建立反向 SOCKS 代理，保活选项维持长期连接。
     auto jstr = [](const std::string& s) {
         std::string o = "\"";
         for (char c : s) { if (c == '\\' || c == '"') o += '\\'; o += c; }
@@ -420,7 +420,7 @@ void print_acp_config(const std::string& remote,
         args_json += jstr(ssh_args[i]);
     }
 
-    // Best-effort: tell the user exactly which file to paste into.
+    // 尽力明确告诉用户应把配置粘贴到哪个文件。
     std::string settings_hint;
 #if defined(_WIN32)
     if (const char* appdata = std::getenv("APPDATA"); appdata && *appdata)
@@ -460,7 +460,7 @@ int cmd_airgap(int argc, char** argv) {
     bool        acp_mode = false;
     std::string remote_agentty = "agentty";
     std::string remote;
-    std::string acp_extra;   // everything after --acp, forwarded to `agentty acp`
+    std::string acp_extra;   // --acp 后面的全部参数都转发给 `agentty acp`。
 
     for (int i = 0; i < argc; ++i) {
         std::string a = argv[i];
@@ -468,9 +468,9 @@ int cmd_airgap(int argc, char** argv) {
         else if (a == "--setup")       { setup_mode = true; }
         else if (a == "--clipboard-relay") { clipboard_relay = true; }
         else if (a == "--acp") {
-            // Everything after --acp is the agentty-acp flag tail (model,
-            // profile, workspace, sandbox …). Slurp the rest verbatim and
-            // stop parsing our own flags.
+            // --acp 后面的所有内容都是 agentty-acp 的参数，
+            // 包括模型、配置、工作区和沙箱等。原样收集剩余参数，
+            // 不再解析本工具的选项。
             acp_mode = true;
             for (int j = i + 1; j < argc; ++j) {
                 if (!acp_extra.empty()) acp_extra += ' ';
@@ -498,9 +498,9 @@ int cmd_airgap(int argc, char** argv) {
         if (int rc = copy_credentials(remote); rc != 0) return rc;
     }
 
-    // --acp doesn't launch anything itself: it prints the Zed config that
-    // wires ssh-as-agent-server, then exits. Zed owns the process lifecycle
-    // from there.
+    // --acp 本身不启动进程：它输出把 ssh 配置为
+    // 代理服务器的 Zed 配置后退出。之后由 Zed 管理进程
+    // 生命周期。
     if (acp_mode) {
         print_acp_config(remote, remote_agentty, acp_extra);
         return 0;

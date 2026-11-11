@@ -1,8 +1,8 @@
 #pragma once
-// agentty::ui::view — top-level composition.
+// agentty::ui::view —顶部-level组成。
 //
-// Assembles the per-panel views into the root Element.  All overlay logic
-// (modals, pickers) lives here so per-panel files stay focused.
+// 将 per-panel 视图组装到根元素中。  所有 覆盖面板 逻辑（模态、
+// 选择面板）都位于此处，因此每个 -panel 文件保持专注。
 
 #include <maya/maya.hpp>
 #include "agentty/runtime/model.hpp"

@@ -1,17 +1,17 @@
 #!/bin/sh
-# Build and run agentty's libFuzzer harnesses (clang, ASan+UBSan).
-#   sh tests/fuzz/run.sh [seconds per harness, default 60]
-# Crash inputs land in build-fuzz/crashes/<harness>/; rerun one with
-#   build-fuzz/fuzz_text build-fuzz/crashes/fuzz_text/crash-...
-# Needs clang and nlohmann/json: system headers, or NLOHMANN_INCLUDE=<dir>.
+# 构建和运行 agentty's libFuzzer 绳索(clang, ASan+UBSan).
+#   嘘 tests/fuzz/run.sh [每条绳索秒,默认60]
+# build-fuzz/crashes/<harness> /; 重运行一个 build-fuzz/fuzz_text
+#   build-fuzz/crashes/fuzz_text/crash-...
+# 需要串联和 nlohmann/json 系统: 头文件 ,或 ,或 NLOHMANN_INCLUDE=<dir>.
 set -eu
 cd "$(dirname "$0")/../.."
 SECS=${1:-60}
 OUT=build-fuzz
 mkdir -p "$OUT"
 
-# nlohmann/json: a system copy needs no flag (adding /usr/include as
-# -isystem breaks libstdc++'s #include_next); else one cmake fetched.
+# nlohmann/json : 系统复制需要否 标志 (增加/增加) usr/include 以
+# -isystem 断开libstdc++'s # include_next ),另外还有一份被收集的cmake.
 NJ=${NLOHMANN_INCLUDE:-}
 if [ -z "$NJ" ]; then
     for d in build/_deps/nlohmann_json-src/include \
@@ -26,15 +26,15 @@ else echo "run.sh: nlohmann/json not found; set NLOHMANN_INCLUDE" >&2; exit 2; f
 INC="-Iinclude -Ithird_party/maya/include -Ithird_party/maya/third_party/jaal/include \
  -isystem third_party/mcp-cpp/include $NJ_FLAG"
 FLAGS="-std=c++26 -O1 -g -fno-omit-frame-pointer -fsanitize=fuzzer,address,undefined -fno-sanitize-recover=undefined"
-printf '%s\n' "$INC" > "$OUT/include_flags"   # for one-off repros: eval clang++ $(cat ...)
+printf '%s\n' "$INC" > "$OUT/include_flags"   # 一人的电话 -off 重写: val clang++ $( cat...)
 
 clang++ $FLAGS $INC tests/fuzz/fuzz_text.cpp \
     src/domain/model_name.cpp src/tool/util/partial_json.cpp \
     src/tool/util/utf8.cpp src/util/base64.cpp \
     -o "$OUT/fuzz_text"
 
-# richpaste: compile the whole library (minus other platforms) into the
-# harness, instrumented, so its parsers are covered end to end.
+# richpaste: 编译 整个 库 (减去其他平台) 进入了控制,
+# 仪器,所以它的 解析器 被覆盖到结束。
 RP=third_party/richpaste
 RP_SRC=""
 for f in core sha256 io io_posix wire clipboard wayland x11 image inband armor agent store term report; do
@@ -44,19 +44,19 @@ clang++ -std=c++23 -O1 -g -fno-omit-frame-pointer -fsanitize=fuzzer,address,unde
     -fno-sanitize-recover=undefined -I$RP/include tests/fuzz/fuzz_richpaste.cpp $RP_SRC \
     -lpthread -ldl -o "$OUT/fuzz_richpaste"
 
-# the sandbox proxy's parsers. these read bytes the GUEST wrote, which is the
-# only attacker-controlled parser on the host side of the sandbox, so it gets
-# the same treatment as the clipboard formats.
+# 编号 沙箱 代理服务器 解析器。这些内容改为 字节 编号 GUEST 写着,
+# 这是唯一的攻击者 -controlled 解析器 位于主机侧面 沙箱 ,
+# 因此它得到与剪贴板格式相同的处理。
 #
-# AGENTTY_NETPROXY_PARSERS_ONLY compiles just the pure half of the file: no
-# sockets, no namespaces, no logging or thread pool to link against. The
-# parsers are the part that reads hostile input, and keeping the harness to
-# them is what makes it a two-file link instead of half the binary.
+# AGENTTY_NETPROXY_PARSERS_ONLY 编译
+# 仅仅是文件的纯半部分:没有套接字、没有命名空间、没有记录或 线程
+# 池 改为 链接 反对。 解析器 内容是敌对的, 保持他们的控制
+# 使得它成为两个 -file 链接 而不是一半的 二进制程序.
 clang++ $FLAGS $INC -DAGENTTY_NETPROXY_PARSERS_ONLY=1 tests/fuzz/fuzz_netproxy.cpp \
     src/tool/util/sandbox_netproxy.cpp \
     -o "$OUT/fuzz_netproxy"
 
-# Seed the corpora with well-formed examples of each format.
+# 以井为天蝎子播种 -formed 示例。
 clang++ -std=c++23 -O1 -I$RP/include tests/fuzz/seeds.cpp $RP_SRC -lpthread -ldl -o "$OUT/seeds"
 "$OUT/seeds" "$OUT/corpus/fuzz_richpaste" "$OUT/corpus/fuzz_text"
 

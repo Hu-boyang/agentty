@@ -1,14 +1,14 @@
-// view() is a pure function of the Model. This asserts the one way that
-// has actually been broken.
+// view() 是一个纯函数 Model 这条线说,
+// 是一条被打破的路。
 //
-// A panel read `app::deps().load_settings()` to build its rows. The symptom
-// is not a crash: the same Model paints two different frames depending on
-// what the store happens to hold at call time. That also makes the frame
-// cache unsound — visual_hash summarises the MODEL, so maya is entitled to
-// skip a repaint whose hidden input changed.
+// 面板读作 `app::deps().load_settings()`
+// 来构建其行。症状不是崩溃: 相同的 Model 画两个不同的 帧
+// 取决于商店的状态 调用 时间,这也使得 帧 缓存 不当的 -
+// visual_hash 总结 MODEL ,所以,我说 maya
+// 有权跳过 重绘 隐藏的输入方式改变。
 //
-// A grep is the right shape of test here: the property is "no view TU
-// reaches the seam", which no amount of calling view() can demonstrate.
+// 格氏体是测试的正确形状: 属性是 "no view TU reaches the seam" ,
+// 没有拨打次数 view() 能够证明。
 #include "agtest.hpp"
 
 #include <filesystem>
@@ -20,7 +20,7 @@ namespace fs = std::filesystem;
 
 namespace {
 
-// Strip // and /* */ so a mention in prose doesn't fail the test.
+// 脱/和/*** /所以在散文中提及不会不合格测试.
 [[nodiscard]] std::string without_comments(const std::string& src) {
     std::string out;
     out.reserve(src.size());
@@ -35,7 +35,7 @@ namespace {
     return out;
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("view: no view TU reads through the Deps seam") {
     const fs::path root = fs::path{AGENTTY_SRC_ROOT} / "src" / "runtime" / "view";

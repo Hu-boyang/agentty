@@ -1,24 +1,24 @@
-// agentty::i18n — Portuguese (Brazil).
+// agentty::i18n — 葡萄牙语（巴西）。
 //
-// pt-BR specifically, not pt. The two differ in vocabulary where it matters
-// for a dev tool -- "tela" vs "ecrã", "arquivo" vs "ficheiro" -- and this
-// catalog uses the Brazilian forms throughout. parse_tag maps pt-PT here as
-// well, which is a deliberate trade: a European Portuguese speaker reading
-// Brazilian forms is far better served than one reading English. (Contrast
-// zh-TW, which does NOT fall back to zh-CN -- see parse_tag for why the two
-// cases differ.)
+// 具体来说，pt-BR，而不是pt。两者在对开发工具很重要的词汇上有所不同
+// ——"tela" vs "ecrã"，"arquivo" vs
+// "ficheiro"——而目录自始至终都使用巴西形式。 parse_tag
+// 在这里也映射了 pt-PT，这是一项经过深思熟虑的交易：阅读巴西表格的
+// 欧洲葡萄牙语使用者比阅读英语的使用者得到的服务要好得多。 （对比 zh-TW，
+// 不 会回退到 zh-CN——请参阅 parse_tag 了解两种情况
+// 不同的原因。）
 //
 // TRANSLATION NOTES:
 //
-//   * "arquivo" not "ficheiro", "tela" not "ecrã", "usuário" not "utilizador".
-//     The pt-PT reader will notice; they will also understand every word.
+//   * "arquivo"不是"ficheiro"，"tela"不是"ecrã"，"usuário"不是"utilizador"。
+//     pt-PT读者将会注意到；他们也会理解每一个字。
 //
-//   * você, with verbs conjugated third-person. That is the neutral
-//     Brazilian register for software, and it sidesteps the tu/você regional
-//     split entirely.
+//   * você，动词变位third-person。那就是中性
+//     巴西软件注册，
+//     并且它完全回避了tu/você区域分裂。
 //
-//   * "Sandbox" stays. "Caixa de areia" is a literal translation that reads
-//     as a children's sandpit in exactly the way the English does not.
+//   * "Sandbox" 保留。 "Caixa de areia" 是直译，内容为
+//     作为儿童沙坑的方式与英语完全不同。
 
 #include <string_view>
 

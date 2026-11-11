@@ -1,22 +1,22 @@
-// thread_log_corpus_probe — round-trip every REAL thread through the log.
+// thread_log_corpus_probe - 圆形 -trip 每隔一段时间 真实 线程 穿过木头。
 //
-// The unit tests in thread_log_test.cpp use synthetic messages, which
-// means they only exercise the shapes I thought to write. This probe runs
-// the master property — write to a log, read it back, get the same thread
-// — over the actual threads in ~/.agentty/threads, which contain shapes
-// nobody would think to invent: tool calls that failed mid-stream, images
-// from three different providers, thinking blocks, compaction markers,
-// half-migrated blob references, and text in every encoding a shell can
-// produce.
+// thread_log_test.cpp中的单元测试使用合成信息,
+// 这意味着它们只行使我想象的形状。这个探测器运行主属性—
+// —写到一个日志,读回,得到同样的线程——
+// 比~/.agentty/threads中实际的线程更远,
+// 它包含着没有人会想发明的形状:工具调用失败了-stream,
+// 来自三个不同提供者的图像,思维块,压缩标记,
+// 半-migrated blob引用,以及每个贝壳的编码可以产生
+// 的文本.
 //
 //   ./build/agentty_standalone_tests thread_log_corpus_probe [dir] [--verbose]
 //
-// Exit 0 = every thread round-tripped. Non-zero = the count that didn't,
-// with the first few named.
+// 退出 0 = 每条 线程 圆形 -tripped。无 -zero =没有的伯爵,
+// 最早的几个名字.
 //
-// Not a ctest case with real data: it reads the user's home directory, so
-// it no-ops (and passes) when the corpus isn't there. Run it by hand
-// before trusting the migration with anyone's history.
+// 而不是一个有真实数据的测试案例:它读取了用户的家目录,
+// 所以当程序不存在时它不会(和通过)-ops。
+// 在相信迁移之前先用手进行。
 
 #include <agentty/domain/conversation.hpp>
 #include <agentty/io/persistence.hpp>
@@ -39,9 +39,9 @@ struct Mismatch {
     std::string why;
 };
 
-// Compare a message before and after the log round-trip. Deliberately
-// field-by-field rather than a serialise-and-diff: when this fails, the
-// name of the field that changed is the whole debugging story.
+// 对比日志回合前后的信件 -trip . 故意领域
+// -by-field 而不是连载 -and-diff :
+// 当此失败时, 更改的字段名称是整个调试故事。
 bool compare(const Message& a, const Message& b, std::string& why) {
     auto fail = [&](const char* f) { why = f; return false; };
     if (a.id.value  != b.id.value)  return fail("id");
@@ -60,9 +60,9 @@ bool compare(const Message& a, const Message& b, std::string& why) {
     for (std::size_t i = 0; i < a.images.size(); ++i) {
         if (a.images[i].media_type != b.images[i].media_type)
             return fail("image.media_type");
-        // Materialise both: this is where a broken blob reference or a
-        // lost lazy source would show up, and it is the failure that
-        // would otherwise be invisible until a user re-sent the turn.
+        // 按需加载 两者:这里是断裂的blob参考物或
+        // 丢失的 惰性 源会出现,而失败是否则在用户
+        // 重新使用之前是隐形的 -sent 轮到你了
         if (a.images[i].bytes() != b.images[i].bytes())
             return fail("image.bytes");
     }
@@ -77,16 +77,16 @@ bool compare(const Message& a, const Message& b, std::string& why) {
     for (std::size_t i = 0; i < a.attachments.size(); ++i) {
         if (a.attachments[i].kind != b.attachments[i].kind)
             return fail("attachment.kind");
-        // Materialise both: this is where a lost blob reference or a
-        // broken lazy source would show up, and it is exactly the failure
-        // that stays invisible until the turn is re-sent.
+        // 按需加载 两者:这里是丢失的blob
+        // 参考或断裂之处 惰性 源会出现, 正是失败
+        // 保持隐形,直到转弯 -sent.
         if (a.attachments[i].body.bytes() != b.attachments[i].body.bytes())
             return fail("attachment.body");
     }
     return true;
 }
 
-} // namespace
+} // 命名空间结束。
 
 int main(int argc, char** argv) {
     fs::path dir;
@@ -112,7 +112,7 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    // Somewhere to write the logs that is NOT the user's thread directory.
+    // 写日志的地方 不 用户的 线程 目录。
     const fs::path work = fs::temp_directory_path() / "agentty_log_corpus";
     fs::remove_all(work, ec);
     fs::create_directories(work, ec);
@@ -143,8 +143,8 @@ int main(int argc, char** argv) {
             continue;
         }
 
-        // Reopen from scratch so the index is read back off disk rather
-        // than reused from memory — the read path a real switch takes.
+        // 从头重新打开,这样索引会被从磁盘上读回,
+        // 而不是从内存重新使用——一个真正的切换器的读取路径.
         auto reopened = ThreadLog::open_path(work / (id + ".jsonl"));
         if (!reopened) { bad.push_back({id, "could not reopen"}); continue; }
 
@@ -165,8 +165,8 @@ int main(int argc, char** argv) {
         }
         if (!ok) continue;
 
-        // The windowed read must agree with the full read, since that is
-        // the whole point of the offset index.
+        // 窗口读数必须与全读数一致,
+        // 因为这是抵消指数的全部点。
         if (back.size() > 60) {
             const auto tail = reopened->range(back.size() - 60, back.size());
             if (tail.size() != 60) {

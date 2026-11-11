@@ -1,5 +1,5 @@
-// VectorCache / CachedEmbedder: the vectors embedded outside the RAG index
-// lock (#112) and read inside it. Pure: a fake embedder, no network.
+// VectorCache / CachedEmbedder : 嵌入在
+// RAG 指数 锁 (#112)并读其内. 纯:假嵌 ⁇ ,无网.
 
 #include "agtest.hpp"
 #include "agtest_cap.hpp"
@@ -16,8 +16,8 @@ using agentty::rag::VectorCache;
 
 namespace {
 
-// Counts calls; the vector for a text is {len, first byte}. `fail_from` makes
-// every batch whose first text is >= it fail, to test partial failure.
+// 计数 调用 ; 文本的矢量是{len, 第一 字节}.
+// `fail_from` 使每个批次的第一稿都是 失败的,测试部分失败。
 struct FakeEmbedder {
     std::string id = "fake-a";
     std::shared_ptr<std::atomic<int>> calls = std::make_shared<std::atomic<int>>(0);
@@ -39,7 +39,7 @@ struct FakeEmbedder {
     }
 };
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("vector cache: prefetch once, then every lookup is a hit") {
     FakeEmbedder fe;
@@ -48,16 +48,16 @@ TEST_CASE("vector cache: prefetch once, then every lookup is a hit") {
     std::vector<std::string> texts;
     for (int i = 0; i < 100; ++i) texts.push_back("text-" + std::to_string(i));
 
-    REQUIRE(cache->prefetch(agtest::cap(), real, texts, /*batch=*/8).has_value());
+    REQUIRE(cache->prefetch(agtest::cap(), real, texts, /*批次=(单位:千美元)*/8).has_value());
     CHECK(fe.texts->load() == 100);
-    CHECK(fe.calls->load() == 13);   // ceil(100/8)
+    CHECK(fe.calls->load() == 13);   // ceil( 100/8) 数据
     CHECK(cache->stats().entries == 100);
 
-    // A second prefetch of the same texts costs nothing.
+    // 同样的文本的第二个预示 并不花费什么。
     REQUIRE(cache->prefetch(agtest::cap(), real, texts, 8).has_value());
     CHECK(fe.texts->load() == 100);
 
-    // The locked side: all hits, no calls.
+    // 锁定的侧面:所有命中,没有调用.
     CachedEmbedder ce{real, cache};
     auto r = ce.embed(texts);
     REQUIRE(r.has_value());
@@ -87,7 +87,7 @@ TEST_CASE("vector cache: a miss falls back to the real embedder and is counted")
     CHECK((*r)[0] == va);
     CHECK((*r)[1] == vn);
     CHECK((*r)[2] == vb);
-    CHECK(fe.calls->load() == calls + 1);   // one call, for the one miss
+    CHECK(fe.calls->load() == calls + 1);   // 单曲 调用 ,为一位小姐
     CHECK(cache->stats().misses == 1);
     CHECK(cache->stats().hits == 2);
 }
@@ -102,7 +102,7 @@ TEST_CASE("vector cache: a different model never gets another model's vector") {
     rag::Vector v;
     CHECK(cache->get("fake-a", "same text", v));
     CHECK(!cache->get("fake-b", "same text", v));
-    // And key boundaries can't be forged: ("fake-a", "x") vs ("fake-ax", "").
+    // 而密钥边界不能伪造:("fake-a","x")对("fake-ax","").
     CHECK(!cache->get("fake-a" "same", " text", v));
     (void)b;
 }
@@ -113,7 +113,7 @@ TEST_CASE("vector cache: partial failure keeps what worked; total failure says w
     rag::dense::AnyEmbedder real{fe};
     auto cache = std::make_shared<const VectorCache>();
     std::vector<std::string> texts{"a1", "a2", "z1", "z2"};
-    CHECK(cache->prefetch(agtest::cap(), real, texts, /*batch=*/2).has_value());
+    CHECK(cache->prefetch(agtest::cap(), real, texts, /*批次=(单位:千美元)*/2).has_value());
     rag::Vector v;
     CHECK(cache->get("fake-a", "a1", v));
     CHECK(!cache->get("fake-a", "z1", v));
@@ -126,14 +126,14 @@ TEST_CASE("vector cache: partial failure keeps what worked; total failure says w
 TEST_CASE("vector cache: over capacity, the oldest entries go first") {
     FakeEmbedder fe;
     rag::dense::AnyEmbedder real{fe};
-    auto cache = std::make_shared<const VectorCache>(/*capacity=*/4);
+    auto cache = std::make_shared<const VectorCache>(/*容量=*/4);
     std::vector<std::string> first{"1", "2", "3"};
     std::vector<std::string> second{"4", "5", "6"};
     REQUIRE(cache->prefetch(agtest::cap(), real, first).has_value());
     REQUIRE(cache->prefetch(agtest::cap(), real, second).has_value());
     CHECK(cache->stats().entries == 4);
     rag::Vector v;
-    // Every new vector survives; the one slot left goes to an old one.
+    // 每个新的矢量都存活下来;剩下的一个槽到一个旧的槽.
     CHECK(cache->get("fake-a", "4", v));
     CHECK(cache->get("fake-a", "5", v));
     CHECK(cache->get("fake-a", "6", v));
@@ -142,7 +142,7 @@ TEST_CASE("vector cache: over capacity, the oldest entries go first") {
 }
 
 TEST_CASE("vector cache: batches run side by side, up to the backend's width") {
-    // A slow fake: each call sleeps, so overlapping calls are visible.
+    // 慢假: 每一个 调用 睡觉,如此重叠 调用 可见。
     struct Slow {
         std::shared_ptr<std::atomic<int>> now  = std::make_shared<std::atomic<int>>(0);
         std::shared_ptr<std::atomic<int>> peak = std::make_shared<std::atomic<int>>(0);
@@ -161,7 +161,7 @@ TEST_CASE("vector cache: batches run side by side, up to the backend's width") {
     auto cache = std::make_shared<const VectorCache>();
     std::vector<std::string> texts;
     for (int i = 0; i < 16; ++i) texts.push_back(std::to_string(i));
-    REQUIRE(cache->prefetch(agtest::cap(), rag::dense::AnyEmbedder{slow}, texts, /*batch=*/2).has_value());
+    REQUIRE(cache->prefetch(agtest::cap(), rag::dense::AnyEmbedder{slow}, texts, /*批次=(单位:千美元)*/2).has_value());
     CHECK(slow.peak->load() >= 2);
     CHECK(slow.peak->load() <= 4);
 }

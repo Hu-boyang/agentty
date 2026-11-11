@@ -1,13 +1,13 @@
-// stats_refresh_bench — how much does the per-frame projection copy cost?
+// stats_refresh_bench ——每笔多少钱? -frame 投影复制成本?
 //
-// Projection::refresh() rebuilds `view_` from `sealed_` on EVERY call, and
-// the stats panel calls it twice per frame (once in the view, once in the
-// StatsTab reducer). Facts owns ~6 double series capped at 256 entries plus
-// several string-keyed tallies, so that assignment is a deep copy, not a
-// memcpy.
+// Projection::refresh () 重建 `view_` 发件人
+// `sealed_` 打开 每个 调用 ,并显示数据面板 调用 每张两次 帧 (在视图中,
+// 在 StatsTab 状态更新函数。 事实拥有 ~6 双系列, 封顶为 256 个
+// 条目加数个字符串 -keyed 统计,所以这个任务是一个深层的复制,
+// 而不是一个memcpy。
 //
-// This is not a test of behaviour -- it prints numbers for a human. Kept as
-// a NO_TEST probe so it builds with the suite and cannot bit-rot silently.
+// 这不是行为测试,它为人类打印数字。 NO_TEST
+// 探测器可以搭配套房 无法搭配 -rot 默然无声.
 
 #include "agentty/domain/stats/facts.hpp"
 #include "agentty/domain/conversation.hpp"
@@ -45,19 +45,19 @@ Message assistant_turn(int i) {
     return m;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 int main() {
     using namespace std::chrono;
 
-    // A long session: the case where the copy is biggest, and exactly the
-    // case a user is in when they open the panel to see what happened.
+    // 长篇: 复制最大,
+    // 以及 用户打开面板看事情发生时,
     Thread t;
     t.id = ThreadId{"bench"};
     for (int i = 0; i < 400; ++i) t.messages.push_back(assistant_turn(i));
 
     stats::Projection p;
-    p.refresh(t);                       // warm: seal everything once
+    p.refresh(t);                       // 温暖: 封住所有的东西一次
 
     constexpr int kIters = 2000;
     auto t0 = steady_clock::now();
@@ -75,10 +75,10 @@ int main() {
     std::printf("  at 30fps       : %.1f%% of a 33ms frame\n",
                 us * 2 / 33000.0 * 100.0);
 
-    // The projection is only one part of a frame. What the user actually
-    // waits for is the whole panel: build the element tree, lay it out,
-    // paint it. Measure THAT, or the number above is a true fact about an
-    // irrelevant thing.
+    // 预测只是a的一部分 帧。用户实际上等待的是
+    // 整个面板:构建元素 源码树 铺平 涂平 量度 该 ,
+    // 或者上面的数字是一个事实 一个无关
+    // 紧要的事情。
     Model m;
     m.d.current = t;
     auto [opened, _] = app::update(std::move(m), Msg{OpenStats{}});

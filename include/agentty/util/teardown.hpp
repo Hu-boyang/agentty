@@ -1,11 +1,11 @@
 #pragma once
-// agentty::util::teardown — the process-exit join registry.
+// agentty::util::teardown——进程-exit加入注册表。
 //
-// ── The design flaw this closes ──────────────────────────────────────────
+// ── 设计缺陷就结束了 ──────────────────────────────────────────
 //
-// Several subsystems own a background thread. Each must be joined before the
-// CRT runs static destructors. Today that obligation is discharged by a
-// hand-written list at the bottom of main():
+// 多个子系统拥有后台线程。每个都必须在 CRT 运行静态析
+// 构函数之前连接。今天，该义务由 main() 底部的
+// 手 -written 列表履行：
 //
 //     join_workspace_prewarm();
 //     join_workspace_symbols_prewarm();
@@ -13,40 +13,40 @@
 //     provider::release_acp_agents();
 //     ...
 //
-// A list like that is correct exactly until someone adds a subsystem and
-// forgets to append to it — which is precisely what happened to
-// settings_cache: it wrote `shutdown()`, documented it as "called during
-// teardown", and no call was ever added. The worker stayed joinable inside a
-// function-local static and ~thread fired std::terminate at exit.
+// 这样的列表是完全正确的，直到有人添加了一个子系统并忘记附加到它——这正是
+// settings_cache 所发生的情况：它写了 `shutdown()`，
+// 将其记录为 "called during teardown"，
+// 并且从未添加过 调用。 工作线程 在函数 -local 静态中保持可连接，
+// 并且 ~线程 在退出时触发 std::terminate。
 //
-// The flaw is that main() is asked to KNOW about every threaded subsystem.
-// That is backwards: main() is the one place with no knowledge of what the
-// subsystems are. Inverting it — each subsystem registers its own shutdown
-// when it first starts a thread — makes the list self-maintaining, and makes
-// "I added a thread but forgot to join it" impossible for anything built on
-// a subsystem that owns a thread.
+// 缺陷在于，关于每个线程子系统，main()被询问到KNOW。
+// 这是倒退的：main()是一个不知道子系统是什么的地方。颠倒它——每
+// 个子系统在第一次启动 线程 时都会注册自己的关闭——使列表成为 self
+// -maintaining，
+// 并使 "I added a thread but forgot to join it" 对于构建在拥有
+// 线程 的子系统上的任何东西都是不可能的。
 //
-// Ordering: LIFO, like static destruction. A subsystem registered later may
-// depend on one registered earlier, so it is torn down first.
+// 排序：LIFO，同静态破坏。后来注册的子系统可能
+// 依赖于先注册的子系统，因此它会先被拆除。
 //
-// `run()` is idempotent and safe to call when nothing registered.
+// 当没有注册时，`run()`是幂等并且对调用是安全的。
 //
-// ── The rule, for anything that starts a thread ──────────────────────────
+// ── 规则,对于任何开始 线程 ──────────────────────────
 //
-//     Register the join in the function that CREATES the thread,
-//     not in main().
+//     注册连接在CREATES的线程的函数中，
+//     而不是在main()中。
 //
-// Wrap it in a `std::call_once` so repeated starts register once, and skip
-// `cancel()` only when the target is a process-lifetime static (the common
-// case: a function-local `Bg&`). Anything shorter-lived MUST cancel in its
-// destructor, or run() would call into freed memory.
+// 将其包装在`std::call_once`中，这样重复启动寄存器一次，
+// 并且仅当目标是进程-lifetime静态时才跳过`cancel()`（常见情况：
+// 函数-local `Bg&`）。在其析构函数中任何较短的 -lived 必须 取消
+// 或 run() 都会将 调用 放入已释放的 内存 中。
 //
-// Adoption is partial, and deliberately visible here rather than implied:
-// settings_cache, modelsdev and blob_gc self-register; the remaining joins
-// in main() (workspace prewarm, symbol prewarm, persistence flush, ACP
-// agent release) are still spelled out by hand and should move here as
-// each is touched. tests/teardown_registration_test.cpp pins the ones that
-// have moved, so they cannot silently regress to the old arrangement.
+// 采用是部分的，并且在这里故意可见而不是暗示：
+// settings_cache、modelsdev 和 blob_gc self
+// -register； main() 中的其余连接（工作区 预热、符号 预热、
+// 持久化 冲洗、ACP 药剂释放）仍然是手工拼写的，并且在触摸每个连接时
+// 应移动到此处。 tests/teardown_registration_test.cpp
+// 固定已移动的那些，因此它们不能默默地回归到旧的排列。
 
 #include <cstddef>
 #include <cstdint>
@@ -58,35 +58,35 @@
 
 namespace agentty::util::teardown {
 
-// A shutdown action. It runs from run(), which is called at the end of main
-// with no lock held, so every action is handed `unlocked`: it may stop
-// pools and worker groups, flush, and take any lock in rank order.
+// 关闭动作。它从 run() 运行，在 main 末尾调用，
+// 没有 锁 持有，因此每个操作都会被交给 `unlocked`：它
+// 可能会停止池和 工作线程 组，刷新，并按排名顺序采取任何 锁。
 using Action = std::function<void(const maya::unlocked&)>;
 
-// Register a shutdown action under `name` (used only for diagnostics).
-// Actions must be noexcept in spirit: any exception is swallowed by run(),
-// because a throw during teardown is worse than the failure it reports.
+// 在`name`下注册关闭动作（仅用于诊断）。
+// 动作在精神上必须是 noexcept：任何异常都会被
+// run() 吞噬，因为拆卸期间的抛出比它报告的失败更糟糕。
 //
-// Returns a TOKEN identifying the registration. An owner whose lifetime is
-// shorter than the process must pass it to `cancel()` in its destructor —
-// otherwise run() would invoke a callback bound to freed memory. Callers that
-// genuinely live forever (function-local statics, the common case) can ignore
-// the token.
+// 返回标识注册的TOKEN。 生命周期 比进程短的所有者必须
+// 将其传递给析构函数中的 `cancel()` — 否则
+// run() 将调用绑定到已释放的 内存 的 回调。真正永远存在
+// 的调用者（function-local 静态，常见情况）可以
+// 忽略令牌。
 using Token = std::uint64_t;
 
 Token on_shutdown(std::string name, Action action);
 
-// Remove a registration. Idempotent, and safe with a token whose action has
-// already run. This is what lets a registrant with a bounded lifetime stay
-// safe: the registry never holds a callback into a dead object.
+// 删除注册。 幂等，并且使用已运行操作的令牌是安全的。
+// 这就是让具有有限 生命周期 的注册者保持安全的原因：
+// 注册表 永远不会将 回调 保留在死对象中。
 void cancel(Token token) noexcept;
 
-// Run every registered action, most-recently-registered first, then clear the
-// registry. Idempotent: a second call is a no-op unless new actions were
-// registered in between. Never throws. Needs `unlocked`: it joins.
+// 运行每个注册的动作，首先运行最-recently-registered，
+// 然后清除注册表。 幂等：第二个 调用 是 no-op，
+// 除非在其间注册了新操作。从不抛出。需要`unlocked`：它加入。
 void run(const maya::unlocked& cap) noexcept;
 
-// How many actions are pending. For tests and diagnostics.
+// 待处理有多少个动作。用于测试和诊断。
 [[nodiscard]] std::size_t pending() noexcept;
 
 } // namespace agentty::util::teardown

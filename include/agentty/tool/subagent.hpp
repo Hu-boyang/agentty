@@ -1,12 +1,12 @@
 #pragma once
-// agentty::tools::subagent — injection seam for the `task` tool.
+// agentty::tools::subagent-`task`工具的注入接口边界。
 //
-// The subagent loop needs the wire credential + default model, which
-// live in the runtime layer (deps()). The tool layer must not depend on
-// the runtime, so startup installs a small config blob here; the `task`
-// tool reads it at execute time. If nothing is installed (tests, ACP
-// without a default model), the tool returns a clear "unavailable"
-// error instead of crashing.
+// 子代理循环需要传输 凭据+默认模型，其存在于运行时层(
+// deps())。工具层不能依赖于运行时，因此启动时会在
+// 这里安装一个小的配置blob； `task` 工具在执行
+// 时读取它。如果未安装任何内容（测试，没有默认型号的 ACP），
+// 该工具将返回明确的 "unavailable"
+// 错误而不是崩溃。
 
 #include <chrono>
 #include <cstddef>
@@ -27,142 +27,142 @@
 
 namespace agentty::tools::subagent {
 
-// Runtime-installed config for the subagent loop. Auth/model are refreshed as
-// the user switches providers, accounts, and models during the session.
+// 子代理循环的运行时-installed配置。当用户在会话期间
+// 切换提供商、帐户和模型时，Auth/model 会刷新。
 struct Config {
-    auth::AuthHeader auth;       // wire credential for the sub-stream
-    std::string      model;      // model id for sub-agent turns
+    auth::AuthHeader auth;       // 传输 凭据为子-stream
+    std::string      model;      // sub-agent 转的型号 ID
     bool             installed = false;
 
-    // The active provider's available models, refreshed alongside `model`.
-    // The subagent runner routes READ-ONLY roles (explorer/reviewer) to the
-    // cheapest capable model in this list (catalog::cheapest_capable_model),
-    // since those roles do grunt work a small model handles as well as a
-    // flagship. Empty (or nothing cheaper) ⇒ the role runs on `model`, so a
-    // single-model provider sees no change. Never routes cross-provider.
+    // 活动提供商的可用模型与`model`一起更新。
+    // 子代理运行器将READ-ONLY角色(explorer/reviewer)
+    // 路由到该列表中最便宜的有能力的模型(catalog::cheapest_capable_model)，
+    // 因为这些角色对小型模型手柄和旗舰进行繁重的工作。空（或者没有更
+    // 便宜的东西）⇒角色在 `model` 上运行，因此单个 -model
+    // 提供者看不到任何变化。切勿路由交叉-provider。
     std::vector<ModelInfo> candidates;
 
-    // Provider-agnostic stream seam — the SAME dispatch main.cpp installs
-    // into Deps::stream (routes on provider::active() at call time:
-    // Anthropic / OpenAI-compat / Ollama native). Installed alongside auth
-    // so a subagent talks to whatever backend the USER selected instead of
-    // hardcoding the Anthropic transport — previously `task` failed on
-    // every non-Anthropic provider (wrong wire, wrong auth). Null ⇒ the
-    // runner falls back to the Anthropic transport (old behaviour, keeps
-    // tests that install only auth+model working). Runs on the subagent's
-    // worker, which holds no lock: it gets that worker's `unlocked`.
+    // Provider-agnostic 数据流 接口边界 — 相同 分派 main.cpp 安装到
+    // Deps::stream（调用 时间在 provider::active() 上的路由：
+    // Anthropic/OpenAI-compat/Ollama本机）。
+    // 与身份验证一起安装，以便子代理与 USER 选择的任何后端进行对话，
+    // 而不是对 Anthropic 传输层 进行硬编码 - 以前 `task`
+    // 在每个非 -Anthropic 提供商上都失败（错误的 传输，错误的身份验证）。
+    // Null ⇒ 运行程序回退到 Anthropic 传输层（旧行为，
+    // 保持仅安装 auth+model 的测试正常工作）。在子代理的 工作线程 上运行，
+    // 该子代理不包含 锁：它获取 工作线程 的 `unlocked`。
     ::agentty::util::Callback<provider::StreamResult(const maya::unlocked&,
                                           provider::Request,
                                           provider::EventSink)> stream;
 
-    // The same dispatch, but to a NAMED provider instead of the active one.
+    // 相同的分派，但是到NAMED提供商而不是活动提供商。
     //
-    // `stream` above closes over provider::active() at call time, which is
-    // right for a subagent that runs where the parent runs — and makes a
-    // cross-provider role inexpressible. A Smart Mode slot pinned on another
-    // endpoint had to be dropped for exactly that reason (docs/design/
-    // smart-mode.md §9 called this "per-role auth threading").
+    // 上面的`stream`在调用时间关闭于provider::active()，
+    // 这对于在父代理运行的地方运行的子代理是正确的——并且使得cross
+    // -provider角色难以表达。正是由于这个原因，固定在另一个端点上的智能模式
+    // 插槽必须被删除（docs/design/ smart-mode.md §
+    // 9 称为 "per-role auth threading"）。
     //
-    // Separate seam rather than a defaulted argument on `stream`, because
-    // the two have different failure modes: dispatching to the active
-    // provider cannot fail to find one, and dispatching to a named provider
-    // can (signed out, removed, misspelled). A caller that does not install
-    // this gets the old behaviour — the role falls back to the active
-    // provider's own cheapest capable model, never a 404. Runs on the
-    // subagent's worker: it gets that worker's `unlocked`.
+    // 单独的 接口边界 而不是 `stream` 上的默认参数，
+    // 因为两者具有不同的故障模式：分派到活动提供者不能
+    // 找不到一个，而分派到指定提供者则可以（注销、删除、
+    // 拼写错误）。不安装此功能的调用者将获得旧行为 -
+    // 角色会回退到活动提供者自己的最便宜的功能模型，
+    // 而不是 404。在子代理的 工作线程 上运行：它
+    // 获取 工作线程 的 `unlocked`。
     ::agentty::util::Callback<provider::StreamResult(const maya::unlocked&,
                                           const std::string& provider_id,
                                           provider::Request,
                                           provider::EventSink)> stream_to;
 
-    // Smart Mode config, mirrored from the Model so the subagent runner can
-    // resolve a worker's model by its ROLE (Layer 3b) when
-    // smart.subagent_routing() is on. Off/unconfigured ⇒ the existing
-    // read-only tier auto-router stands. Refreshed via set_smart().
+    // 智能模式配置，从 Model 镜像，因此当 smart.subagent_routing
+    // () 开启时，子代理运行器可以通过 ROLE (第 3b 层)解析
+    // 工作线程 的模型。 Off/unconfigured ⇒ 现有的 read-only
+    // 层 auto-router 代表。通过 set_smart() 刷新。
     smart::RoleConfig smart;
-    // The provider the parent turn is currently dispatched on. A pinned slot
-    // model is only meaningful to the endpoint that serves it, so the role
-    // resolver replays a pin ONLY when its recorded provider matches this
-    // (see smart::SlotOverride::provider). Mirrored down alongside `smart`
-    // because `task` runs on a worker thread with no access to the Model.
-    // Empty ⇒ unknown, and every pin is honoured (pre-existing behaviour).
+    // 当前调度父回合的提供者。固定插槽模型仅对为其提供服务的端点有意义，
+    // 因此当其记录的提供程序与此匹配时，角色解析器会重播引脚 仅
+    // （请参阅 smart::SlotOverride::provider）。
+    // 与 `smart` 一起镜像，因为 `task`
+    // 在 工作线程 线程 上运行，无法访问 Model。
+    // 空⇒未知，并且每个引脚都受到尊重（pre-existing 行为）。
     std::string provider;
 };
 
-// Install the subagent config (call once at startup, after auth resolves).
+// 安装子代理配置（调用 在启动时、身份验证解析后一次）。
 void install(Config cfg);
 
-// Update just the auth header the subagent loop uses. Called whenever login,
-// logout, account switching, or provider switching changes the runtime auth.
-// Empty is valid for local and native-OAuth providers whose transports resolve
-// credentials themselves.
+// 仅更新子代理循环使用的身份验证头文件。每当登录、注销、
+// 帐户切换或提供商切换更改 运行时 身份验证时调用。
+// 空对于传输层本身解析凭据的本地和本机
+// -OAuth提供者有效。
 void set_auth(Io, auth::AuthHeader auth);
 
-// Update just the model the subagent loop uses, without disturbing auth
-// or the installed flag. Called when the user switches models mid-session
-// (model picker) so subagents track the live model instead of the stale
-// startup default. No-op if the config was never installed.
+// 仅更新子代理循环使用的模型，而不干扰认证或安装的标志。
+// 当用户切换模型 mid-session（模型 选择面板）时调用，
+// 以便子代理跟踪实时模型而不是 过期 启动默认值。
+// 如果从未安装过配置，则为 No-op。
 void set_model(Io, std::string model);
 
-// Update the provider's available-models list the router picks cheap roles
-// from. Called alongside set_model whenever the model list is (re)loaded or
-// the provider changes, so routing always reflects the live provider.
+// 更新路由器从中选择廉价角色的提供商的可用-models列表。
+// 每当模型列表（重新）已加载 或提供程序发生更改时，
+// 都会与 set_model 一起调用，因此路由始终反映实时提供程序。
 void set_candidates(Io, std::vector<ModelInfo> candidates);
 
-// Update the Smart Mode role config the subagent router honours (Layer 3b).
-// Called alongside set_candidates whenever Smart Mode or the model list
-// changes. No-op if the config was never installed.
+// 更新子代理路由器所遵循的智能模式角色配置（第3b层）。
+// 每当智能模式或型号列表改变时，与set_candidates一起调用。
+// 如果从未安装过配置，则为 No-op。
 void set_smart(Io, smart::RoleConfig smart);
 
-// Update the provider the parent turn runs on, so pinned slots stay scoped to
-// the endpoint that can actually serve them. Pushed alongside set_smart /
-// set_candidates whenever the active provider changes.
+// 更新父回合运行的提供者，因此固定槽的范围保持在可以实际服务它们的端点。
+// 每当活动提供商发生变化时，就会与 set_smart /
+// set_candidates 一起推送。
 void set_provider(Io, std::string provider);
 
-// Snapshot the installed config. `installed == false` until install() runs.
+// 快照已安装的配置。 `installed == false` 直到 install() 运行。
 [[nodiscard]] Config current();
 
-// Maximum nesting depth. A subagent may itself spawn subagents, but only
-// down to this depth — beyond it the `task` tool refuses, preventing a
-// runaway fork bomb / unbounded token spend. Depth 0 is the top-level
-// agent; the first subagent runs at depth 1.
+// 最大嵌套深度。子代理本身可能会生成子代理，但只能达到这个深度
+// ——超过这个深度，`task` 工具就会拒绝，
+// 从而防止失控的分叉炸弹/无限制的代币支出。深度0为top-level代理；
+// 第一个子代理在深度 1 运行。
 inline constexpr int kMaxDepth = 2;
 
-// Maximum sub-agent turns (model completions) before the loop force-stops
-// and returns whatever it has. Bounds token spend + wall-clock so a
-// looping subagent can't wedge the parent indefinitely.
+// 在循环force-stops之前最大sub-agent转动（模型
+// 完成）并返回其所具有的任何内容。限制令牌花费+ wall-clock，
+// 因此循环子代理不能无限期地楔入父代理。
 //
-// This is the CEILING across all roles — the bound that exists to stop a
-// runaway, not a target. Per-role budgets below are what actually apply;
-// keep this >= the largest of them.
+// 这是所有角色的 CEILING——存在的界限是为了阻止逃跑者，
+// 而不是目标。下面的 Per-role 预算是实际适用的；
+// 保持这个 >= 其中最大的一个。
 inline constexpr int kMaxTurns = 80;
 
-// ── Per-role turn budgets ──────────────────────────────────────
-// One global cap could not fit every role, because the roles do
-// structurally different work:
+// ── 人数 -role 转帐预算 ──────────────────────────────────────
+// 一个全局上限不可能适合每个角色，因为这些角色在
+// 结构上执行不同的工作：
 //
-//   READ-ONLY roles (explorer, reviewer) are a bounded sweep: read, grep,
-//   map, summarise. They converge in a handful of turns and a big budget
-//   buys nothing but token spend — an explorer still on turn 40 is lost,
-//   not thorough.
+//   READ-ONLY角色（探索者、审阅者）是有界扫描：读取、
+//   grep、映射、总结。他们在几个回合中汇聚在一起，大笔预算除了
+//   象征性支出之外什么也买不到——一个仍在 40 回合的探险者迷路了，
+//   不彻底。
 //
-//   WRITE roles (coder, tester, general) are ITERATIVE: read the code,
-//   make an edit, build, read the errors, fix, re-build, run the tests,
-//   fix again. One honest implementation cycle is easily 6-10 turns, and
-//   a real task is several cycles. At 24 turns a coder routinely spent
-//   its whole budget on orientation and reported "I ran out of turns" —
-//   the failure this sizing exists to prevent. Compilation-heavy work
-//   (C++ here) is the worst case: every build is a turn, every error list
-//   is another read.
+//   WRITE角色（编码员、测试员、一般）是ITERATIVE：
+//   读取代码、进行编辑、构建、读取错误、修复、重新-build、
+//   运行测试、再次修复。一个诚实的实施周期很容易是 6-10 轮，
+//   而一项真正的任务是几个周期。在 24 圈时，编码员通常将其全部
+//   预算花在定向上，并报告 "I ran out of turns"
+//   — 此尺寸调整旨在防止的失败。 编译-heavy 工作（
+//   这里是 C++）是最坏的情况：每个构建都是一个回合，每个错误列表
+//   都是另一个读取。
 //
-// These are CAPS, not quotas: a subagent that finishes in 5 turns stops in
-// 5. Nothing is spent by raising a ceiling that isn't reached, so the cost
-// of being generous is only paid by runs that would otherwise have FAILED
-// at the cap — which is exactly the trade we want.
+// 这些是 CAPS，不是配额：在 5 回合内完成的子代理停止于
+// 5.提高未达到的上限不会花费任何费用，因此成本
+// 慷慨的行为只能通过运行来支付，否则上限为
+// FAILED — 这正是我们想要的交易。
 inline constexpr int kMaxTurnsReadOnly = 32;
 inline constexpr int kMaxTurnsWrite    = 80;
 
-// The budget for a role, given whether it may modify the workspace.
+// 角色的预算，考虑到它是否可以修改工作区。
 [[nodiscard]] inline constexpr int max_turns_for(bool read_only) noexcept {
     return read_only ? kMaxTurnsReadOnly : kMaxTurnsWrite;
 }
@@ -170,43 +170,43 @@ inline constexpr int kMaxTurnsWrite    = 80;
 static_assert(kMaxTurnsReadOnly <= kMaxTurns);
 static_assert(kMaxTurnsWrite    <= kMaxTurns);
 
-// ── Run deadline, inherited across nesting ────────────────────────────
+// ── 运行期限, 继承到整个巢穴 ────────────────────────────
 //
-// The wall-clock ceiling for one subagent run. It exists because kMaxTurns
-// bounds COMPLETIONS, not time: a backend that keeps a stream technically
-// alive without finishing it is healthy to every layer below.
+// 一次子代理运行的wall-clock上限。它的存在是因为 kMaxTurns
+// 限制了 COMPLETIONS，而不是时间：在技术上保持
+// 数据流 活跃但未完成的后端对下面的每一层都是健康的。
 //
-// A NESTED run takes the min of its own budget and whatever is left of the
-// run above it, so the ceiling holds for the whole tree rather than per
-// level. The depth and the inherited deadline travel with the tool call
-// (tools::CallContext::depth / deadline), not on the thread.
+// NESTED运行取其自身预算的最小值以及高于其之上的运行的剩余部分，
+// 因此上限适用于整个源码树而不是每个级别。深度和继承的
+// 最后期限旅行用工具调用（tools::CallContext::depth
+// /最后期限），而不是线程。
 using RunClock    = std::chrono::steady_clock;
 using RunDeadline = std::optional<RunClock::time_point>;
 
 
-// ── Running-run registry, for a bounded shutdown ──────────────────────
+// ── 运行-run 注册表, 用于有限度的关闭 ──────────────────────
 //
-// A subagent runs on a Cmd::task_isolated thread, and jaal DETACHES those:
-// kernel/pool.hpp says outright that isolated threads are "asked to stop but
-// never waited for". The ask does now arrive (run_tool's cancellation probe
-// reads its stop_token), but nothing waits for the answer — so main() can
-// return while a subagent is still inside its provider stream, and that
-// stream holds the provider objects BY REFERENCE off main's stack.
+// 子代理在 Cmd::task_isolated 线程 和 jaal DETACHES 上运行：
+// kernel/pool.hpp明确表示分离的线程是
+// "asked to stop but never waited for"。现在请求确实
+// 到达了（run_tool 的 取消 探针读取其 stop_token），
+// 但没有任何东西等待答案 - 因此 main() 可以在子代理仍在其提供者 数据流 内部时返回，
+// 并且 数据流 将提供者对象 BY REFERENCE 保留在主堆栈之外。
 //
-// Zed does not have this problem because a subagent there is an owned
-// `Entity<Thread>` in a `running_subagents` list, and cancelling the parent
-// turn awaits each one (`turn.cancel()` returns a `Task<()>`). We cannot
-// adopt the ownership model without rewriting the Cmd layer, but we can
-// adopt the REGISTRY: every live run publishes a cancel flag plus a
-// "finished" latch, teardown trips them all and waits a bounded moment for
-// the threads to leave the provider call.
+// Zed不存在这个问题，因为子代理在`running_subagents`
+// 列表中有一个拥有的`Entity<Thread>`，并且取消父轮次
+// 等待每一个(`turn.cancel()`返回`Task<()>`)。
+// 我们不能在不重写 Cmd 层的情况下采用 所有权 模型，
+// 但我们可以采用 REGISTRY：每次实时运行都会发布 取消
+// 标志 加上 "finished" 锁存器，拆卸会使它们全部失效，
+// 并等待 线程 离开提供者 调用 的有限时刻。
 //
-// Bounded, not indefinite, on purpose: a wedged syscall must not hold the
-// process open (the reason jaal detaches in the first place). The win is
-// that the common case — a stream that notices the cancel in tens of
-// milliseconds — stops being a race against main's unwind.
+// 有意有界，而非无限期：楔入的系统调用不得使进程
+// 保持打开状态（jaal首先分离的原因）。
+// 胜利在于常见情况——数据流 在几十毫秒内注意到
+// 取消——不再是针对 main 展开的 竞态。
 
-// Per-run handle. `run()` below holds one for the whole subagent loop.
+// Per-run手柄。下面的 `run()` 保存了整个子代理循环的一个。
 class RunRegistration {
 public:
     RunRegistration();
@@ -214,40 +214,40 @@ public:
     RunRegistration(const RunRegistration&)            = delete;
     RunRegistration& operator=(const RunRegistration&) = delete;
 
-    // Has shutdown asked this run to stop? The loop polls it between turns.
+    // 关机是否要求此运行停止？循环在轮次之间轮询它。
     [[nodiscard]] bool cancelled() const noexcept;
 
-    // The same signal as a real std::stop_token, so the stream's cancel can
-    // ride a stop_callback instead of a polling thread. Already stopped if
-    // the run was refused admission because shutdown had begun.
+    // 与真实std::stop_token相同的信号，
+    // 因此数据流的取消可以骑乘stop_callback而不是轮询线程。
+    // 如果由于关闭已开始而拒绝运行，则已停止。
     [[nodiscard]] std::stop_token token() const noexcept;
 
-    // Per-run flags. Public because the registry that trips them lives in
-    // the .cpp and must name the type; nothing outside constructs one.
+    // 每-run 标志。公开，因为触发它们的 注册表 位于 .
+    // cpp 中并且必须命名该类型；外部没有任何东西可以构建一个。
     struct State;
 
 private:
     std::shared_ptr<State> state_;
 };
 
-// Ask every live run to stop and wait up to `grace` for them to leave.
-// Returns how many were still running when the grace expired (0 = clean).
-// Idempotent; safe with no runs in flight. Registered with util::teardown by
-// the first run that starts, so main() needs no knowledge of this.
+// Ask每次实时运行停止并等待至`grace`他们离开。
+// 返回当宽限期满时有多少仍在运行（0=干净）。
+// 幂等;安全，飞行中不会跑动。在第一次运行启动时向 util::teardown 注册，
+// 因此 main() 不需要知道这一点。
 std::size_t shutdown_running(const maya::unlocked&,
                              std::chrono::milliseconds grace
                                  = std::chrono::milliseconds(1500)) noexcept;
 
-// Provenance of an agent persona by name, for the task card's transparency
-// tag: "builtin" (explorer/reviewer/…), "user" (~/.agentty/agents), or
-// "project" (a workspace-local .agentty/agents that rode in on the repo).
-// Returns "builtin" for an unknown name (the safe default — no tag shown).
-// A PROJECT agent's role prompt is attacker-controllable via a clone, so the
-// UI surfaces it; it is NOT blocked (its tools stay gated like any other).
+// 任务卡的透明标签的特工角色的姓名来源："builtin" (explorer/reviewer/…)、
+// "user" (~/.agentty/agents)或"project"
+// (骑在仓库上的工作区-local .agentty/agents)。
+// 对于未知名称返回 "builtin"（安全默认值 — 不显示标签）。
+// PROJECT特工的角色提示词是通过克隆攻击者-controllable，
+// 因此UI将其暴露出来；它被 不 阻止（它的工具像其他工具一样保持封闭状态）。
 [[nodiscard]] std::string_view agent_origin(Io, std::string_view name) noexcept;
 
 } // namespace agentty::tools::subagent
 
-// The stream seams are util::Callback: set at install and called, never
-// mutated, after; the callables capture shared, thread-safe provider handles
-// (main.cpp). The rest is owned data, so jaal walks the struct itself.
+// 数据流 接口边界是util::Callback:在安装时设置并调用，
+// 之后从未改变；可调用对象捕获共享的 线程-safe 提供程序句柄 (
+// main.cpp)。其余的都是拥有的数据，因此 jaal 遍历结构本身。

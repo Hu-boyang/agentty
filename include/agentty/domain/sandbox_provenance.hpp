@@ -1,58 +1,58 @@
 #pragma once
-// agentty::sandbox_cfg::provenance — which files the AGENT wrote, and what the
-// host trusts.
+// agentty::sandbox_cfg::provenance — AGENT 写入了哪些文件，
+// 以及主机信任哪些文件。
 //
-// ── The threat this exists for ───────────────────────────────────────────
+// ── 威胁是... ───────────────────────────────────────────
 //
-// Pillar Security's "Week of Sandbox Escapes" (July 2026) reproduced escapes
-// across Cursor, Codex, Gemini CLI and Antigravity. In almost none of them did
-// the agent break the sandbox. It wrote a file that a trusted component
-// OUTSIDE the sandbox later ran:
+// Pillar Security 的 "Week of Sandbox Escapes" (
+// 2026 年 7 月)再现了跨 Cursor、Codex、Gemini CLI 和
+// Antigravity 的逃逸。几乎没有一个特工破坏了 沙箱。它写入了一个受信任组件
+// OUTSIDE 和 沙箱 后来运行的文件：
 //
-//   * a .claude hook config              -> CVE-2026-48124, Cursor, CVSS 8.5
-//   * a virtualenv interpreter           -> GHSA-p9g2-cr55-cw9c, run by the
-//                                           Python extension during discovery
-//   * a .git directory under another name-> GHSA (Cursor 3.0.0), fsmonitor
-//   * a .vscode task config              -> Antigravity, run by the host later
-//   * a `git show` invocation            -> GitPwned, Codex CLI 0.95.0
+//   * .claude 钩子配置 -> CVE-2026-48124，光标，CVSS 8.5
+//   * virtualenv解释器->GHSA-p9g2-cr55-cw9c，由
+//                                           发现期间的Python扩展
+//   * 另一个名称下的.git目录->GHSA(光标3.0.0),fsmonitor
+//   * 一个.vscode任务配置->Antigravity，稍后由主机运行
+//   * `git show` 调用 -> GitPwned、Codex CLI 0.95.0
 //
-// Their conclusion, which I think is exactly right: "an agent's blast radius
-// is not the agent process; it includes everything the agent can write that
-// the host later trusts." A sandbox that confines the process and lets it
-// write executable configuration has moved the boundary, not built one.
+// 他们的结论，我认为是完全正确的：
+// "an agent's blast radius is not the agent process; it includes everything the agent can write that the host later trusts."
+// 限制进程并让它写入可执行配置的沙箱
+// 已经移动了边界，而不是构建了边界。
 //
-// ── Why agentty is already better here, and where the gap still is ──────
+// ── 为什么 agentty 已经好一些了, 差距仍然在什么地方 ──────
 //
-// agentty does not have the Cursor bug. Hooks run THROUGH the sandbox (same
-// bwrap/claybin wrapper as the bash tool) and are content-hash gated, so any
-// byte change re-prompts. Plugins use the same Approvals primitive.
+// agentty不存在光标错误。挂钩运行 THROUGH 和 沙箱（与 bash
+// 工具相同的 bwrap/claybin 包装器）并且内容-hash 门控，
+// 因此任何 字节 更改都会重新-prompts。插件使用相同的批准原语。
 //
-// But the hash gate cannot answer the question Pillar says matters most:
+// 但是哈希门无法回答 Pillar 所说的最重要的问题：
 //
-//     "Can the product distinguish user-created project state from
-//      agent-created project state?"
+//     产品能否区分用户创建的项目状态与代理
+//      创建的项目状态？
 //
-// Today it cannot. A hooks.json the USER wrote and a hooks.json the AGENT
-// wrote produce the same prompt, so the prompt carries no signal -- and a
-// prompt that always looks the same is a prompt people click through. The
-// approval says "this file changed", when what a user needs to hear is "the
-// agent just wrote the file that runs commands on your machine".
+// 今天不能。 USER 写入的 hooks.json 和 AGENT 写入的
+// hooks.json 产生相同的 提示词，因此 提示词 不携带任何信号，而看起来总是
+// 相同的 提示词 是人们点击的 提示词。当用户需要听到的是
+// "the agent just wrote the file that runs commands on your machine" 时，
+// 批准会显示 "this file changed"。
 //
-// ── What this module does ───────────────────────────────────────────────
+// ── 模块的功能 ───────────────────────────────────────────────
 //
-// claybin's sandbox is the only place that can answer it cheaply, because the
-// agent's writes all pass through one mount namespace we built. So:
+// claybin的沙箱是唯一能够廉价地回答它的地方，
+// 因为代理的写入全部通过我们构建的一个挂载命名空间。所以：
 //
-//   1. Every path the sandbox writes is recorded, per turn, with the command
-//      that wrote it. That is the provenance record.
-//   2. Paths the HOST later trusts (hooks.json, .vscode/tasks.json,
-//      .git/config, venv interpreters, .envrc ...) are a known set.
-//   3. The intersection is the alarm: an agent-authored file that a host
-//      component will execute. That escalates from "approve this hash" to a
-//      named warning -- and by default, refuses.
+//   1. 沙箱每轮写入的每条路径都用命令记录
+//      写的。这就是出处记录。
+//   2、HOST后来信任的路径(hooks.json，.vscode/tasks.json，
+//      .git/config、venv解释器、.envrc…)是已知的集合。
+//   3、交集为告警：某主机有一个agent-authored文件
+//      组件将被执行。这会从 "approve this hash"
+//      升级为命名警告，并且默认情况下会拒绝。
 //
-// This is the layer Pillar builds a product to sell. It belongs in the agent,
-// because the agent is the only thing that knows which writes were its own.
+// 这是层Pillar构建的产品来销售。它属于代理，
+// 因为代理是唯一知道哪些写入是它自己的。
 
 #include <chrono>
 #include <cstdint>
@@ -62,27 +62,27 @@
 
 namespace agentty::sandbox_cfg {
 
-// A file the sandbox wrote, and who asked.
+// 沙箱所写的文件，以及谁询问的。
 struct WriteRecord {
-    std::string path;     // absolute, as resolved inside the sandbox
-    std::string command;  // the shell command that produced it
+    std::string path;     // 绝对的，如沙箱里面解析的
+    std::string command;  // 产生它的shell命令
     std::uint64_t at_ms = 0;
-    bool created = false;  // true = the file did not exist before
+    bool created = false;  // true=该文件之前不存在
 };
 
-// Why a path is dangerous for an agent to author. Naming the mechanism
-// matters: "the agent wrote .vscode/tasks.json" means nothing to most people,
-// "the agent wrote a file VS Code will execute when you open this folder"
-// means everything.
+// 为什么路径对于代理创作来说是危险的。命名机制很重要："the agent wrote .vscode/tasks.json"
+// 对大多数人来说毫无意义，
+// 代理写入了一个文件，打开目录时 VS Code 将执行它。
+// 意味着一切。
 enum class TrustKind : std::uint8_t {
-    HookConfig,     // agentty hooks.json, .claude/*, lifecycle automation
-    EditorTask,     // .vscode/tasks.json, launch.json -- host runs these
-    GitConfig,      // .git/config, hooks/, fsmonitor -- git runs these
-    Interpreter,    // venv/bin/python, node_modules/.bin -- discovery runs these
-    ShellInit,      // .envrc, .bashrc, activate scripts
-    BuildScript,    // Makefile, package.json scripts, build.rs
-    DaemonSocket,   // docker.sock and friends -- a second execution env
-    SessionStart,   // autostart, systemd user units, WM config -- run at login
+    HookConfig,     // agentty hooks.json、.claude/*、生命周期自动化
+    EditorTask,     // .vscode/tasks.json、launch.json——主机运行这些
+    GitConfig,      // .git/config、hooks/、fsmonitor——git 运行这些
+    Interpreter,    // venv/bin/python、node_modules/.bin——发现运行这些
+    ShellInit,      // .envrc、.bashrc、激活脚本
+    BuildScript,    // Makefile、package.json 脚本、build.rs
+    DaemonSocket,   // docker.sock和朋友——第二个执行环境
+    SessionStart,   // 自动启动、systemd 用户单元、WM 配置——登录时运行
 };
 
 [[nodiscard]] constexpr std::string_view explain(TrustKind k) noexcept {
@@ -107,23 +107,23 @@ enum class TrustKind : std::uint8_t {
     return "";
 }
 
-// An agent-authored write to something the host trusts. The thing worth
-// interrupting a user for.
+// 代理-authored写入主机信任的内容。
+// 值得打扰用户的事情。
 struct TrustHandoff {
     WriteRecord write;
     TrustKind kind;
 };
 
-// What to do when one is detected.
+// 当检测到时该怎么做。
 //
-// Refuse is the default, and that is a deliberate break from how every other
-// control here works. Approval prompts are the right shape for "this might be
-// risky"; a trust handoff is the shape of every escape in the Pillar series,
-// so the default is no, and the user opts into being asked.
+// 拒绝是默认的，这是对这里每个其他控制的工作方式的故意破坏。
+// 批准 提示词 是 "this might be risky"
+// 的正确形状；信任移交是 Pillar 系列中每次逃逸的形式，
+// 因此默认设置为“否”，用户选择被询问。
 enum class HandoffPolicy : std::uint8_t {
-    Refuse,  // default: the write fails, and the pane says why
-    Warn,    // allow, but surface it loudly and record it
-    Allow,   // off. for a workspace whose config the agent is MEANT to edit
+    Refuse,  // 默认：写入失败，面板说明原因
+    Warn,    // 允许，但大声表达并记录下来
+    Allow,   // 关闭。对于配置为 MEANT 的 工作区 代理进行编辑
 };
 
 [[nodiscard]] constexpr const char* to_string(HandoffPolicy p) noexcept {
@@ -135,16 +135,16 @@ enum class HandoffPolicy : std::uint8_t {
     return "refuse";
 }
 
-// Is this path something the host will later trust? Pure and table-driven, so
-// the set is reviewable in one place rather than spread across call sites.
+// 该路径是主机稍后信任的路径吗？纯粹且表 -driven，
+// 因此该集合可以在一个地方进行审查，而不是分布在 调用 站点上。
 //
-// Matching is on the path SHAPE, not on an exact name, because
-// "Git directories do not have to be called .git" (Pillar, Cursor 3.0.0) is
-// precisely the bug that comes from exact-name matching.
+// 匹配是在路径SHAPE上，而不是在确切的名称上，
+// 因为"Git directories do not have to be called .git"(
+// Pillar，Cursor 3.0.0)正是来自精确-name匹配的错误。
 [[nodiscard]] bool is_host_trusted(std::string_view path, TrustKind* out_kind);
 
-// The per-turn record. Cleared at the start of each turn so "what did the
-// agent just write" is answerable without a full audit log.
+// per-turn记录。在每回合开始时清除，
+// 因此 "what did the agent just write" 无需完整审核日志即可负责。
 struct Provenance {
     std::vector<WriteRecord> writes;
     std::vector<TrustHandoff> handoffs;

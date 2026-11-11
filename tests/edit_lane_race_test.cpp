@@ -1,21 +1,21 @@
-// edit_lane_race_test — concurrent edits of ONE file must not lose each other.
+// edit_lane_race_test ——同时编辑 一个 文件不得相互丢失。
 //
-// ── WHY ──────────────────────────────────────────────────────────────────
+// ── 原因 ──────────────────────────────────────────────────────────────────
 //
-// edit / apply_patch / write are read-modify-write: read the bytes, compute
-// the change, write_atomic the result. The parent's tool scheduler keeps its
-// own calls on one path apart, but it is not the only caller. `task`
-// subagents schedule as {ReadFs, Net}, so several run at once and beside the
-// parent's writers, and each dispatches its tools straight through
-// DynamicDispatch with no scheduler. Two edits of the same file then
-// interleaved as read A, read B, write A, write B: B's write was computed
-// from the bytes before A and silently dropped A's change, while BOTH calls
-// reported success.
+// 编辑/ apply_patch / 写作读取 -modify-write
+// : 读取 字节 计算变化, write_atomic 结果。
+// 父工具调度器保留自己的工具 调用 一条路是分开的,但这不是唯一
+// 的呼叫者。 `task` 子剂调度为 { ReadFs , Net],
+// 所以几个跑一次 和旁边的父母的作者, 每一个发送工具 直接
+// 通过 DynamicDispatch。两个编辑相同的文件,
+// 然后互页为读 A,读 B,写 A,写 B: B的写法是从“ ” 中
+// 计算出来的。 字节 之前,和沉默地放弃了A的改变, 而 两者 调用
+// 报告取得了成功。
 //
-// The fix is a per-path write lane in the tool bridge. This test drives the
-// real `edit` tool from many threads at the same file, each replacing its own
-// distinct marker. With the lane every replacement survives; without it some
-// of them are lost (the file ends with markers still in it).
+// 修补是每个 -path 工具桥中的写道。此测试驱动真实的
+// `edit` 工具从许多 线程 在同一文件,每个文件都会替换
+// 自己的显著标记。每个替换的通道都存活下来;没有它,
+// 就失去了其中一部分(文件结尾处还有仍然在其中的标记)。
 #include "agtest.hpp"
 
 #include "agentty/tool/registry.hpp"
@@ -56,7 +56,7 @@ std::string get(const fs::path& p) {
 std::string marker(int i) { return "TODO_SLOT_" + std::to_string(i) + "_END"; }
 std::string done(int i)   { return "DONE_SLOT_" + std::to_string(i) + "_END"; }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("edit lane: concurrent edits of one file each land, none is lost") {
     constexpr int kThreads = 12;
@@ -66,7 +66,7 @@ TEST_CASE("edit lane: concurrent edits of one file each land, none is lost") {
     for (int i = 0; i < kThreads; ++i) body += "line " + marker(i) + "\n";
     put(p, body);
 
-    // Line up the threads so their reads overlap as much as possible.
+    // 排队 线程 所以他们的读数尽可能重叠
     std::atomic<int> ready{0};
     std::atomic<bool> go{false};
     std::atomic<int> ok{0};
@@ -127,21 +127,21 @@ TEST_CASE("edit lane: edits of DIFFERENT files are not serialised into failure")
     }
 }
 
-// ── The lane table itself (write_lanes.hpp) ─────────────────────────────────
+// ── 车道表本身(write_lanes.hpp) ─────────────────────────────────
 #include "agentty/tool/write_lanes.hpp"
 
 namespace wl = agentty::tools::write_lanes;
 
 TEST_CASE("write lanes: a writer that names no file holds the whole workspace") {
     agentty::tools::CallContext ctx;
-    // git_commit / an MCP tool: writes, names nothing.
+    // git_commit / 一个 MCP 工具:写,名称无。
     const auto any = wl::lanes_for("git_commit", json::object(), ctx);
     REQUIRE(any.size() == 1);
     CHECK(any[0] == std::string{wl::kWholeWorkspace});
-    // It collides with every file lane, so it runs alone among writers.
+    // 它与每个文件道相撞,所以它独自在作家之间运行.
     CHECK(wl::overlap(any[0], "/ws/src/a.c"));
     CHECK(wl::overlap("/ws/src/a.c", any[0]));
-    // A non-string or empty path is "unsure", which is also the whole lane.
+    // 非 国 家 -string 或空路径为 "unsure" 这条路也是整个车道
     CHECK(wl::lanes_for("edit", json{{"path", 7}}, ctx)[0] == std::string{wl::kWholeWorkspace});
     CHECK(wl::lanes_for("edit", json{{"path", ""}}, ctx)[0] == std::string{wl::kWholeWorkspace});
 }
@@ -167,11 +167,11 @@ TEST_CASE("write lanes: a call cancelled while queued gives up, holds nothing") 
         wl::Hold second{agtest::cap(), lanes, queued_ctx};
         gave_up = !second.held();
     });
-    std::this_thread::sleep_for(std::chrono::milliseconds(150));   // let it queue
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));   // 让它排队
     cancel.request_stop();
     waiter.join();
     CHECK(gave_up.load());
-    CHECK(wl::held_count(agtest::cap()) == lanes.size());   // only `first`'s
+    CHECK(wl::held_count(agtest::cap()) == lanes.size());   // 仅限 `first`'s
 }
 
 TEST_CASE("write lanes: crossing claims (move A->B beside B->A) never deadlock") {
@@ -190,7 +190,7 @@ TEST_CASE("write lanes: crossing claims (move A->B beside B->A) never deadlock")
             }
             done.fetch_add(1);
         });
-    for (auto& w : ws) w.join();   // a deadlock hangs here (ctest TIMEOUT)
+    for (auto& w : ws) w.join();   // a 死锁 挂在这里( 测试) TIMEOUT)
     CHECK(done.load() == 16);
     CHECK(wl::held_count(agtest::cap()) == 0);
 }

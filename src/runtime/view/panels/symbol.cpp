@@ -1,7 +1,7 @@
-// symbol.cpp — the #-symbol palette.
+// symbol.cpp —— 爱 -symbol 调色板。
 //
-// Pure adapter: builds maya::Panel::Config from Model state; the widget
-// owns every chrome decision. Shared scaffolding: panels_prologue.hpp.
+// 纯适配器: 构建 maya::Panel::Config 发件人 Model 状态;
+// 部件拥有每个铬决定。 共享脚手架 : panels_prologue.hpp.
 
 #include "panels_prologue.hpp"
 
@@ -22,8 +22,8 @@ Element symbol_panel(const Model& m) {
     cfg.scroll     = &m.ui.symbol_palette_scroll;
     cfg.selected   = matches.empty() ? -1 : o->picker.index();
 
-    // The sigil is the trigger character, so the header reads as a
-    // continuation of what was typed in the composer.
+    // 锡吉尔是触发字符,所以 头文件 将它
+    // 视为过去 带类型的 作曲家的作品
     cfg.header.push_back(
         filter_header(o->picker.query(), "symbols", highlight, "# "));
     cfg.header.push_back(sep);
@@ -42,14 +42,14 @@ Element symbol_panel(const Model& m) {
             const auto& sym = entries[matches[static_cast<std::size_t>(i)]];
             auto [fname, dir] = split_name_dir(sym.path);
             Panel::Item row;
-            // Combine symbol name + locus into the leading cell so a
-            // long parent-dir trailing still has room to render; the
-            // "name  file:line" pair is what the user is scanning.
+            // 组合 符号 名称 + 蝗虫进入主线 存储单元 如此长的
+            // 家长 -dir 后面还有空间 渲染 ;
+            // 缩写 "name  file:line" 配对是用户正在扫描的内容。
             row.leading        = sym.name + "  " + std::string{fname}
                                + ":" + std::to_string(sym.line_number);
             row.leading_style  = fg_of(fg);
-            // Highlight the matched chars of the symbol NAME (which is the
-            // leading segment, so its offsets map directly onto row.leading).
+            // 突出显示符号 NAME(是领先部分,
+            // 因此其抵消直接映射到row.leading)的匹配字符.
             if (!o->picker.query().empty()) {
                 auto fm = fuzzy::score(sym.name, o->picker.query());
                 if (fm.matched()) { row.highlight = std::move(fm.positions);
@@ -68,7 +68,7 @@ Element symbol_panel(const Model& m) {
             fg_dim(muted)));
     }
 
-    // Same gap as the @ picker: the keys worked, nothing said so.
+    // 与@ 选择面板 的空档相同: 键有效, 没有任何内容。
     cfg.footer.push_back(key_hints({
         {"\xe2\x86\x91\xe2\x86\x93", "move", 5},   // ↑↓
         {"Enter", matches.empty() ? "" : "insert", 6},

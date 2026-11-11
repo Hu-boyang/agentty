@@ -1,7 +1,7 @@
-// Drift reminder: when shell detours chain, the tip gets a plain reminder on
-// top from the third in a row. Any non-detour call resets the streak.
-// Detour-ness comes from analyze_detour().substitutable(), the same gate
-// the tip uses, so a build or a write never counts.
+// 漂移提醒: 当 shell 绕道链时, 提示会从第三排的顶部
+// 得到一个简单的提醒。 任何非-detour 调用 重排此串。
+// 绕行 -ness 来源 analyze_detour().substitutable() ,
+// 提示所用的同一门,所以一个构件或一个书写永远不会算数。
 
 #include <chrono>
 #include <string>
@@ -21,7 +21,7 @@ using agentty::app::detail::apply_tool_output;
 
 namespace {
 
-// Push one Running shell (or other) call and feed it its output.
+// 按下一个运行 shell(或其他) 调用,并输入它的输出。
 std::string run(Model& m, int n, const char* tool, const std::string& cmd,
                 std::string out = "tip: something\n\nok") {
     Message msg;
@@ -39,7 +39,7 @@ std::string run(Model& m, int n, const char* tool, const std::string& cmd,
     return m.d.current.messages.back().tool_calls.back().output();
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("shell detour streak adds a reminder from the third in a row") {
     Model m;
@@ -50,12 +50,12 @@ TEST_CASE("shell detour streak adds a reminder from the third in a row") {
     check(third.find("tip: something") != std::string::npos, "3rd: tip kept under it");
     check(m.d.shell_detour_streak == 3, "streak counted");
 
-    // A native call resets it.
+    // 本地人 本地人 调用 重新发售它。
     run(m, 4, "read", "", "file body");
     check(m.d.shell_detour_streak == 0, "native call resets");
     check(run(m, 5, "shell", "cat b").find("[reminder]") == std::string::npos, "after reset: quiet again");
 
-    // Real shell work resets it too, and never counts as a detour.
+    // 真正的壳也重新装配它, 从来不算作绕道.
     run(m, 6, "shell", "cat c");
     run(m, 7, "shell", "cmake --build build -j12", "ok");
     check(m.d.shell_detour_streak == 0, "build resets");

@@ -1,4 +1,4 @@
-// settings_items.cpp — build each category's rows live from the loaders.
+// settings_items.cpp——从装货机上搭建每个类别的行直播.
 
 #include "agentty/runtime/panel/settings/items.hpp"
 #include "agentty/util/home_dir.hpp"
@@ -7,8 +7,8 @@
 
 #include "agentty/runtime/model.hpp"
 #include "agentty/domain/profile.hpp"
-#include "agentty/domain/web_search_config.hpp"   // Web Search row summary
-#include <mcp/tools/web_search.hpp>                // service labels for that summary
+#include "agentty/domain/web_search_config.hpp"   // 网络搜索行摘要
+#include <mcp/tools/web_search.hpp>                // 该摘要的服务标签
 #include "agentty/domain/ui_theme.hpp"
 #include "agentty/tool/plugin.hpp"
 #include "agentty/tool/registry.hpp"
@@ -16,7 +16,7 @@
 #include "agentty/tool/hooks.hpp"
 #include "agentty/tool/util/sandbox.hpp"   // is_active/describe_state/config_enforceable
 
-#include "agentty/runtime/fuzzy.hpp"      // settings search scoring
+#include "agentty/runtime/fuzzy.hpp"      // 设置搜索评分
 
 #include <algorithm>
 #include <climits>
@@ -27,7 +27,7 @@
 #include <fstream>
 
 #include "agentty/mcp/client.hpp"   // PluginModel, plugin_model()
-#include "agentty/tool/tool_plan.hpp"   // tool loading modes (#98)
+#include "agentty/tool/tool_plan.hpp"   // 工具加载模式 (# 98)
 #include <sstream>
 
 namespace fs = std::filesystem;
@@ -39,7 +39,7 @@ namespace {
 std::vector<Item> general(const Model& m) {
     std::vector<Item> out;
 
-    // Permission profile.
+    // 权限 简介.
     {
         Item i;
         i.primary   = "Permission profile";
@@ -49,14 +49,14 @@ std::vector<Item> general(const Model& m) {
         i.action    = Action::CycleProfile;
         out.push_back(std::move(i));
     }
-    // Smart Mode.
+    // 聪明的模范。
     //
-    // BOTH branches describe what the setting DOES. The off branch used to
-    // be the bare word "off", which read as a row whose description had
-    // gone missing — and off is the DEFAULT, so that was the first thing
-    // every new user saw. A state word is not a description: the row has to
-    // answer "what would turning this on change?" while it is still off,
-    // because that is the only moment the answer matters.
+    // 两者 分支描述设置 执行。。 关闭的分支曾经是赤裸的字
+    // "off" ,读成一行,其描述已丢失—— 和关闭是
+    // DEFAULT ,所以这是每个新用户所看到的第一件事。
+    // 状态词不是描述:行必须回答
+    // 开启此选项会改变什么？
+    // 因为它是唯一一个重要的时刻 答案是最重要的
     {
         Item i;
         i.primary   = "Smart Mode";
@@ -67,7 +67,7 @@ std::vector<Item> general(const Model& m) {
         i.action    = Action::OpenSmart;
         out.push_back(std::move(i));
     }
-    // RAG proactive retrieval.
+    // RAG 主动检索。
     {
         Item i;
         i.primary   = "Proactive retrieval (RAG)";
@@ -76,10 +76,10 @@ std::vector<Item> general(const Model& m) {
         i.action    = Action::OpenRag;
         out.push_back(std::move(i));
     }
-    // Changes strip. A display preference, not an action — it decides
-    // whether a persistent banner sits above the composer after edits. It
-    // used to live in the palette beside "Accept all changes", which put a
-    // durable setting next to two irreversible verbs.
+    // 更改条。显示偏好,而不是动作,它决定是否 持久化
+    // 横幅在编辑后坐落在作曲家之上。它曾经生活在旁边的调色板
+    // 中 "Accept all changes" ,
+    // 它把一个持久的设置放在两个不可逆动词旁边。
     {
         Item i;
         i.primary   = "Changes strip";
@@ -90,9 +90,9 @@ std::vector<Item> general(const Model& m) {
         i.action    = Action::ToggleChangesStrip;
         out.push_back(std::move(i));
     }
-    // Chat names. Costs one cheap request per new chat and sends its first
-    // message to the utility model, so it's a visible switch, not a
-    // settings.json-only key.
+    // 聊天名称。每个新聊天需要一个便宜的请求, 并且向公用模式发送第一个信息,
+    // 所以它是一个可见的切换,而不是一个 settings.json
+    // -only 键。
     {
         Item i;
         i.primary   = "Chat names";
@@ -114,7 +114,7 @@ std::vector<Item> general(const Model& m) {
         out.push_back(std::move(i));
     }
     {
-        // #98. What each mode does, in the row, so nobody has to look it up.
+        // 98,每个模式都做什么,排成一行,所以没人要查
         const auto mode = agentty::tools::plan::loading_from(m.d.persisted.tool_loading);
         Item i;
         i.primary   = "MCP tool loading";
@@ -136,10 +136,10 @@ std::vector<Item> general(const Model& m) {
         i.action    = Action::CycleToolLoading;
         out.push_back(std::move(i));
     }
-    // Appearance. A pane, not rows: it is grouped and has its own theme
-    // browser, neither of which this flat list can hold. The row shows the
-    // theme in use so the commonest reason to open it is answered without
-    // opening it.
+    // 外观。 A 面板, 不是行: 它被分组并有自己的
+    // 主题浏览器, 并且不能持有此平面列表。
+    // 该行显示正在使用的主题, 因此打开它的最常见原因不打开它
+    // 就被解答。
     {
         Item i;
         i.primary   = "Appearance";
@@ -151,19 +151,19 @@ std::vector<Item> general(const Model& m) {
         out.push_back(std::move(i));
     }
 
-    // Sandbox. Also a pane: it carries a live wall report and a dozen
-    // grouped rows. The secondary line is the one thing worth saying from out
-    // here -- which backend is actually enforcing, because that decides
-    // whether the rows inside do anything at all. Only claybin can apply this
-    // policy, so a bwrap session gets told before it opens the pane and
-    // configures something inert.
+    // 沙箱。a。。 也请检查a。 面板 :它
+    // 载有活墙报告和十几条组合行。第二行是值得从
+    // 这里说的一个东西—— 后端实际上是执行的,
+    // 因为那决定了里面的行是否做任何事情。
+    // claybin 可以在打开。
+    // 面板 并配置惰性的东西。
     {
         Item i;
         i.primary = "Sandbox";
         namespace sb = tools::util::sandbox;
-        // describe_state() already renders "sandbox: active (claybin)" and the
-        // no-backend cases; strip its prefix rather than re-deriving the text
-        // from the enum, so this row cannot disagree with the startup banner.
+        // describe_state()已经是渲染 "sandbox: active (claybin)"
+        // 和n-backend的案例;从枚举中剥去它的前缀而不是re
+        // -deriving的文本,因此这行不能与启动的横幅有分歧.
         std::string st = sb::describe_state();
         if (const auto c = st.find(": "); c != std::string::npos) st = st.substr(c + 2);
         if (!sb::is_active()) {
@@ -177,11 +177,11 @@ std::vector<Item> general(const Model& m) {
         i.action    = Action::OpenSandbox;
         out.push_back(std::move(i));
     }
-    // Web Search. web_search's policy and the services it asks. The
-    // secondary line says what the policy currently DOES, so "why didn't it
-    // search?" and "who answers?" are answered from the list without opening
-    // the pane. Read from the persisted record — the same value the pane
-    // edits and the tool layer is handed.
+    // 网易搜索. web_search 政策和它要求的服务。
+    // 第二线说明目前的政策 执行 ,所以,
+    // 我说 "why didn't it search?" 财务报告和已审计财务报表
+    // "who answers?" 从列表中解答,而不打开 面板 从持续的记录中读取,
+    // 其价值与 面板 编辑和工具层被递交。
     {
         const auto& s = m.d.persisted.web_search;
         Item i;
@@ -190,14 +190,14 @@ std::vector<Item> general(const Model& m) {
         if (mode == web_search_cfg::Mode::Off) {
             i.secondary = "off";
         } else {
-            // Auto names itself rather than a count: the count rows are not
-            // applied there, so showing one would describe a setting that
-            // does nothing.
+            // 自动名称本身而不是一个计数:计数行没有在那里应用,
+            // 所以显示一个可以描述一个无所作为
+            // 的设置.
             i.secondary = mode == web_search_cfg::Mode::Auto
                 ? std::string{"auto"}
                 : "on \xc2\xb7 " + std::to_string(s.count) + " results";
-            // The service asked first, by its menu name. An id this build
-            // does not know is not named (the plan skips it too).
+            // 服务先问其菜单名。 此建筑的 id 并
+            // 不知道它没有命名( 计划也跳过它 )。
             if (const auto* svc = ::mcp::tools::find_web_search_service(s.primary))
                 i.secondary += " \xc2\xb7 " + svc->label;
             const auto n = web_search_cfg::exclude_list(s.exclude_sites).size();
@@ -210,8 +210,8 @@ std::vector<Item> general(const Model& m) {
         out.push_back(std::move(i));
     }
 
-    // Paste: how Ctrl+V reads the clipboard. The secondary line names the
-    // routes that are on, so "why didn't my image paste?" starts here.
+    // 粘贴:如何粘贴 Ctrl +V 读取剪贴板。第二行命名了运行的路径,
+    // 所以 "why didn't my image paste?" 从这里开始。
     {
         const auto& p = m.d.persisted.paste;
         Item i;
@@ -232,8 +232,8 @@ std::vector<Item> general(const Model& m) {
         out.push_back(std::move(i));
     }
 
-    // Doors to the lists. Each summary answers "anything here?" without
-    // opening it.
+    // 列表的门。每张摘要回答"anything here?"
+    // 而不打开。
     const auto door = [&](Category c, std::string secondary) {
         Item i;
         i.primary   = label(c);
@@ -275,11 +275,11 @@ std::vector<Item> general(const Model& m) {
 
 std::vector<Item> plugins(const agentty::mcp::PluginModel& model, bool loading,
                           const std::vector<std::string>& expanded) {
-    // Pure projection of the PluginModel snapshot OWNED BY THE MODEL
-    // (m.ui.plugins) — NOT a live plugin_model() call. This keeps items_for
-    // (and therefore the view) a pure function of the Model, so the render
-    // gate + update loop can see every change. No reconciliation here: the
-    // snapshot already unified config vs live catalog.
+    // 纯度投影 PluginModel 快照 OWNED BY 该
+    // MODEL (m.ui.plugins) — 不 活下来 plugin_model
+    // () 调用。这可以保持 items_for (因此,观点) Model ,
+    // 所以,请 渲染 闸门 + 更新循环可以看到每个变化。
+    // 这里没有调节 : 快照 已统一配置 vs 已存在 目录.
     std::vector<Item> out;
 
     if (model.servers.empty()) {
@@ -296,36 +296,36 @@ std::vector<Item> plugins(const agentty::mcp::PluginModel& model, bool loading,
         return out;
     }
 
-    // The loading summary (counts, mode, cost) is the pane HEADER, drawn by
-    // the view, so it never takes the cursor or scrolls away.
+    // 装载摘要(counts, mode, cost)是视图绘制的
+    // 面板 HEADER,因此它永远不会将光标或卷轴带走.
 
     for (const auto& s : model.servers) {
         Item i;
         i.primary   = s.name;
         i.on        = !s.disabled;
         i.arg       = s.name;
-        // Provenance: badge the scope and carry the config dir so a
-        // remove/toggle edits THIS server's actual mcp.json, not always the
-        // user file. A user-scope server needs no badge (the common case).
+        // 证明: 标记范围并携带配置目录 remove/toggle
+        // 编辑 此 服务器实际 mcp.json ,并不总是用户文件。
+        // 用户 -scope 服务器不需要徽章(普通的大小写)。
         i.scope_label = std::string{agentty::mcp::to_string(s.origin)};
         i.config_dir  = s.config_dir;
         i.untrusted   = s.untrusted;
         const std::string scope_tag =
             (s.origin == agentty::mcp::Origin::User) ? "" : (i.scope_label + " · ");
-        // Passthrough servers execute nothing locally — they forward a
-        // proxy-advertised call's args to a URL. Badge the row so the
-        // difference from a spawned/MCP server is visible at a glance.
+        // 传阅服务器不会执行本地任何操作 —— 它们转发一个代理
+        // -advertised 调用 ' 参数为 a URL
+        // 标记行所以区别于 spawned/MCP 服务器可一目了然。
         const std::string kind_tag = s.passthrough ? "⇄ passthrough · " : "";
-        // A tool is EFFECTIVELY inactive unless its plugin is enabled AND
-        // connected — a disabled or still-connecting plugin can run nothing,
-        // so its whole subtree renders dimmed (but keeps individual state).
+        // 一个工具是 EFFECTIVELY 除非其插件启用,
+        // 否则不活动 和 连接——已禁用或仍在使用 -connecting 插件
+        // 不能运行任何内容, 所以它的整个子树 渲染 暗淡(但保持单个状态).
         const bool subtree_inactive = s.disabled || !s.connected;
         if (s.disabled) {
             i.secondary = scope_tag + kind_tag + "disabled · "
                         + std::to_string(s.tools.size())
                         + (s.tools.size() == 1 ? " tool" : " tools")
                         + " — Enter to enable";
-            i.status    = Item::Status::Neutral;   // off on purpose — not an error
+            i.status    = Item::Status::Neutral;   // 故意关闭——不是错误
         } else if (!s.error.empty()) {
             i.secondary = scope_tag + kind_tag + s.error;
             i.status    = Item::Status::Bad;
@@ -333,9 +333,9 @@ std::vector<Item> plugins(const agentty::mcp::PluginModel& model, bool loading,
             i.secondary = scope_tag + kind_tag + "connecting…";
             i.status    = Item::Status::Pending;
         } else if (s.passthrough) {
-            // "active", not "connected" — nothing handshakes; the tools
-            // dispatch to the URL on demand. Show WHERE calls go: that URL
-            // is the entire trust story of this entry.
+            // "active" ,没有 "connected" - 没有握手;
+            // 工具 分派 编号 URL 显示 WHERE 调用 开始:
+            // URL 代表本条目的全部信任故事。
             i.secondary = scope_tag + kind_tag
                         + std::to_string(s.enabled_count()) + " of "
                         + std::to_string(s.tools.size())
@@ -343,8 +343,8 @@ std::vector<Item> plugins(const agentty::mcp::PluginModel& model, bool loading,
                         + " → " + s.url;
             i.status    = Item::Status::Ok;
         } else {
-            // What this server contributes right now: how many tools, how
-            // many of those the model sees without searching, what's off.
+            // 这个服务器现在的贡献是: 有多少工具,
+            // 有多少模型在不搜索的情况下看到,什么是关闭的。
             std::size_t on_demand = 0, pinned = 0, skipped = 0;
             for (const auto& t : s.tools) {
                 if (!t.enabled) continue;
@@ -362,10 +362,10 @@ std::vector<Item> plugins(const agentty::mcp::PluginModel& model, bool loading,
             i.secondary = scope_tag + d;
             i.status    = skipped > 0 ? Item::Status::Bad : Item::Status::Ok;
         }
-        // Enter toggles the WHOLE plugin on/off (reversible). Remove is the
-        // deliberate `d` key — destructive actions aren't the default Enter.
-        // But an UNTRUSTED project server can't be toggled into life at all
-        // until its config is vouched for, so there Enter APPROVES instead.
+        // Enter 切换 编号 整个 插件 on/off (可逆转)。
+        // 删除是故意的 `d` 关键——破坏性行动不是默认 Enter.
+        // 但是,一个 UNTRUSTED 工程服务器在配置得到保证之前,
+        // 根本无法切换成生命, 所以那里 Enter APPROVES 换成是的
         if (s.untrusted) {
             i.action = Action::ApprovePlugin;
             i.hint   = "trust & enable";
@@ -375,8 +375,8 @@ std::vector<Item> plugins(const agentty::mcp::PluginModel& model, bool loading,
         }
         out.push_back(std::move(i));
 
-        // Tools are collapsed until you open the server: a 75-tool server is
-        // one row, and the list you scroll is the list of servers.
+        // 工具崩溃,直到打开服务器:一个75-tool服务器是一行,
+        // 而你滚动的列表是服务器列表.
         const bool open = std::find(expanded.begin(), expanded.end(), s.name) != expanded.end();
         if (!s.tools.empty()) {
             Item& srv = out.back();
@@ -388,7 +388,7 @@ std::vector<Item> plugins(const agentty::mcp::PluginModel& model, bool loading,
             Item ti;
             ti.primary   = t.name;
             if (!subtree_inactive && t.enabled) {
-                // Pinned beats on-demand: a pin always loads.
+                // 被打的脚步声 -demand : 针头总是 加载.
                 if (!t.skipped.empty())
                     ti.secondary = "skipped: bad schema";
                 else if (t.pinned)
@@ -396,22 +396,22 @@ std::vector<Item> plugins(const agentty::mcp::PluginModel& model, bool loading,
                 else if (t.on_demand)
                     ti.secondary = "on demand";
             }
-            // The tool's description, under the focused row, so you can
-            // tell op_12 from op_13 before you switch one off. A skipped
-            // tool shows WHY instead.
+            // 工具的描述, 在焦点行下, 您可以在关闭一个前从
+            // op_13 中得知 op_12。 一个跳过的
+            // 工具显示的是 原因。
             ti.detail    = t.skipped.empty() ? t.description
                                              : "left out of requests: " + t.skipped;
             if (!t.skipped.empty()) ti.status = Item::Status::Bad;
             ti.action    = Action::ToggleTool;
             ti.arg       = s.name;
             ti.arg2      = t.name;
-            ti.config_dir = s.config_dir;   // route the exclude edit to THIS server's file
+            ti.config_dir = s.config_dir;   // 将排除编辑到 此 服务器文件
             ti.indented  = true;
             ti.on        = t.enabled;
             ti.pinned    = t.pinned;
             ti.inactive  = subtree_inactive;
-            // Under a disabled plugin, toggling one tool is meaningless —
-            // enable the plugin first. Say so instead of "disable/enable".
+            // 在已禁用的插件下, 拖动一个工具毫无意义 —— 先启用插件。
+            // 说吧, 而不是 "disable/enable"。
             ti.hint      = subtree_inactive ? ""
                                             : (t.enabled ? "disable" : "enable");
             out.push_back(std::move(ti));
@@ -426,7 +426,7 @@ std::vector<Item> commands(const Library& lib) {
         Item i;
         i.primary   = "/" + c.name;
         i.secondary = c.description;
-        i.hint      = c.source;   // project | user
+        i.hint      = c.source;   // 项目 | 用户
         out.push_back(std::move(i));
     }
     if (out.empty()) {
@@ -441,7 +441,7 @@ std::vector<Item> commands(const Library& lib) {
 
 std::vector<Item> agents(const Library& lib) {
     std::vector<Item> out;
-    // Built-ins first (always available), then this project's own.
+    // 建成-ins先(永远可用),然后是这个项目的自有.
     for (const char* b : {"explorer", "reviewer", "tester", "coder", "general"}) {
         Item i;
         i.primary   = b;
@@ -454,8 +454,8 @@ std::vector<Item> agents(const Library& lib) {
         i.secondary = "project \xc2\xb7 .agentty/agents/" + a + ".md";
         out.push_back(std::move(i));
     }
-    // User agents are discovered by the task backend; surface the authoring
-    // path so the pane is self-documenting even before any exist.
+    // 用户代理通过任务后端发现; 显示作者路径, 从而显示 面板
+    // 属于自身 -documenting 甚至在任何存在之前
     Item hint;
     hint.primary   = "+ user subagents";
     hint.secondary = "author one: .agentty/agents/<name>.md "
@@ -495,7 +495,7 @@ std::vector<Item> hooks(const Library& lib) {
 
 
 
-} // namespace
+} // 命名空间结束。
 
 std::vector<Item> items_for(const Model& m, Category cat) {
     switch (cat) {
@@ -526,7 +526,7 @@ const char* pane_label(ListOpen::Pane p) noexcept {
 
 namespace {
 
-// A row's current value as short text, the way the pane would show it.
+// 一行的当前值作为短文本,即面板将显示的方式.
 std::string value_text(const form::FieldValue& v) {
     namespace ff = form::field;
     return std::visit([](const auto& x) -> std::string {
@@ -542,7 +542,7 @@ std::string value_text(const form::FieldValue& v) {
         else if constexpr (std::is_same_v<T, ff::Text> || std::is_same_v<T, ff::Path>)
             return x.value;
         else if constexpr (std::is_same_v<T, ff::Secret>)
-            return x.value.empty() ? std::string{} : std::string{"set"};   // never the value
+            return x.value.empty() ? std::string{} : std::string{"set"};   // 永远不设值
         else if constexpr (std::is_same_v<T, ff::Pick>) return x.label;
         else return {};
     }, v);
@@ -559,7 +559,7 @@ bool contains_ci(std::string_view hay, std::string_view needle) {
                        [&](char a, char b) { return lc(a) == lc(b); }) != hay.end();
 }
 
-// The query's words. Every word must match for a row to count.
+// 查询的单词。 每个单词必须匹配行以计数。
 std::vector<std::string_view> words_of(std::string_view query) {
     std::vector<std::string_view> words;
     for (std::size_t i = 0; i < query.size();) {
@@ -572,7 +572,7 @@ std::vector<std::string_view> words_of(std::string_view query) {
     return words;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 std::vector<int> label_match(std::string_view label, std::string_view query) {
     std::vector<int> out;
@@ -589,7 +589,7 @@ void index_form(std::vector<ListOpen::Hit>& out, const form::Form& f,
     std::string section;
     for (const auto& row : f.fields) {
         if (row.is_header()) { section = trim(row.label); continue; }
-        if (row.is_action()) continue;   // buttons ("Test", "Save") aren't settings
+        if (row.is_action()) continue;   // 按钮("Test","Save")不是设置
         ListOpen::Hit h;
         h.label   = trim(row.label);
         h.help    = row.help;
@@ -603,12 +603,12 @@ void index_form(std::vector<ListOpen::Hit>& out, const form::Form& f,
 
 std::vector<int> search(const std::vector<ListOpen::Hit>& index,
                         std::string_view query) {
-    // Each word of the query must match somewhere in the row; the label
-    // counts most, so "port" ranks a Port row above one that only mentions
-    // ports in its help.
+    // 查询的每个单词必须匹配行中的某个地方;标签数最多,
+    // 所以"port"将一个端口列排在它帮助的仅提及端口
+    // 的端口之上.
     const auto words = words_of(query);
     if (words.empty()) return {};
-    std::vector<std::pair<int, int>> scored;   // (score, index)
+    std::vector<std::pair<int, int>> scored;   // (分数,指数)
     for (int i = 0; i < static_cast<int>(index.size()); ++i) {
         const auto& h = index[static_cast<std::size_t>(i)];
         const std::string where = std::string{pane_label(h.pane)} + " " + h.section;
@@ -617,8 +617,8 @@ std::vector<int> search(const std::vector<ListOpen::Hit>& index,
         for (const auto w : words) {
             const auto l = fuzzy::score(h.label, w);
             const auto s = fuzzy::score(where, w);
-            // Help only counts as a plain substring: fuzzy over a sentence
-            // matches nearly anything.
+            // 帮助只算作一个简单的下弦:一个句子上的模糊度几乎
+            // 与任何事物都匹配.
             const bool in_help = contains_ci(h.help, w);
             int best = INT_MIN;
             if (l.matched()) best = l.score * 3;
@@ -639,7 +639,7 @@ std::vector<int> search(const std::vector<ListOpen::Hit>& index,
 
 namespace {
 
-// Whitespace-split a line into tokens.
+// Whitespace-split 一条线成符号.
 std::vector<std::string> split_ws(const std::string& s) {
     std::vector<std::string> out;
     std::istringstream in(s);
@@ -648,17 +648,17 @@ std::vector<std::string> split_ws(const std::string& s) {
     return out;
 }
 
-// A plugin/command NAME token: [A-Za-z0-9_:-], non-empty, length-capped.
-// `:` is allowed here because commands namespace with it (git:fixup) and
-// plugin names may too; create_starter() maps it to a subdirectory rather
-// than writing it into a single filename (which would be illegal on Windows).
-constexpr std::size_t kMaxNameLen = 96;   // whole spec
-constexpr std::size_t kMaxSegLen  = 64;   // one path segment between colons
+// A plugin/command NAME 符号 : [A] -Za-z0-9_ :-],无 -empty 长度 -capped.
+// `:` 这里允许, 因为它可以命令命名空间( git: fixup)
+// 和插件名称; create_starter () 将其映射到一个子目录,
+// 而不是将其写入一个文件名(在下面是非法的) Windows).
+constexpr std::size_t kMaxNameLen = 96;   // 整个光谱
+constexpr std::size_t kMaxSegLen  = 64;   // 结肠之间的一个路径段
 
 bool valid_name(const std::string& n) {
     if (n.empty() || n.size() > kMaxNameLen) return false;
-    // A leading '-' is a flag the user misplaced (e.g. `--http url` with no
-    // name), not a real plugin name — reject rather than mint a plugin called
+    // 一个领先者 '-' 是一个 标志 用户错误( E) e.g. `--http url` ,
+    // 而不是一个名为“没有名称”的插件名称——拒绝而不是薄荷
     // "--http".
     if (n.front() == '-') return false;
     for (char c : n)
@@ -668,10 +668,10 @@ bool valid_name(const std::string& n) {
     return true;
 }
 
-// Validate a create_starter name AND split it into path segments on ':'.
-// Each segment must be a safe filename fragment: non-empty, length-capped,
-// no leading dot / dash (avoids hidden files and option-looking names), and
-// never "."/".." (path escape). Returns {} on any violation.
+// 验证 a create_starter 名称 和 将其分割为路径段 ':'.
+// 每个段必须是安全的文件名片段:n-empty、long -capped、
+// 无线索点/破折号(避免隐藏文件和选项-looking名称),
+// 绝不是"."/".."(路径逃逸)。
 std::vector<std::string> starter_segments(const std::string& name) {
     if (name.empty() || name.size() > kMaxNameLen) return {};
     std::vector<std::string> segs;
@@ -693,16 +693,16 @@ std::vector<std::string> starter_segments(const std::string& name) {
         else          cur.push_back(c);
     }
     if (!flush()) return {};
-    if (segs.size() > 3) return {};   // matches the loader's kMaxDepth nesting
+    if (segs.size() > 3) return {};   // 匹配装填器的 kMax 深度嵌入
     return segs;
 }
 
-} // namespace
+} // 命名空间结束。
 
 AddResult add_plugin_from_line(Io io, const lock_levels::below_file_lane& cap, const std::string& line) {
     auto tok = split_ws(line);
-    // Pull an optional --project flag from anywhere in the line; the rest is
-    // the <name> <recipe> [args…] spec.
+    // 拖动可选 --project 标志 任何一行的,其余的就是... ...
+    // <name> <recipe> 说吧,说吧
     bool project = false;
     std::vector<std::string> pos;
     for (auto& t : tok) {
@@ -728,9 +728,9 @@ AddResult add_plugin_from_line(Io io, const lock_levels::below_file_lane& cap, c
         spec.command = "python3";
         std::error_code ec;
         fs::path abs = fs::absolute(rest[0], ec);
-        // Reject a non-existent script up front — otherwise the plugin is
-        // written to mcp.json and only fails opaquely at spawn time on the
-        // next reload, with no hint the path was a typo.
+        // 拒绝非 -existent 脚本上方的- 否则插件会
+        // 写到 mcp.json 并且只在下次重装时在产卵时间
+        // 不透明地失败,没有提示路径是twico.
         if (!ec && !fs::is_regular_file(abs, ec))
             return {false, "no such script: " + abs.string()};
         if (!ec) rest[0] = abs.string();
@@ -745,25 +745,25 @@ AddResult add_plugin_from_line(Io io, const lock_levels::below_file_lane& cap, c
         spec.args.push_back("-y");
         for (auto& t : rest) spec.args.push_back(std::move(t));
     } else if (recipe == "--http" || recipe == "--sse") {
-        // Remote transport — a url, no local command. Not trust-gated (it
-        // spawns nothing) and connects on the next reload.
+        // 远程 传输层 url,没有本地命令,没有信任 -gated
+        // 接下来的重载上连接起来 接下来的再重载上
         if (rest.empty()) return {false, std::string{recipe} + " needs a url"};
         if (rest[0].rfind("http://", 0) != 0 && rest[0].rfind("https://", 0) != 0)
             return {false, "url must start with http:// or https://"};
         spec.url  = rest[0];
         spec.type = (recipe == "--sse") ? "sse" : "http";
     } else if (recipe == "--passthrough") {
-        // Foreign tools a proxy/gateway advertises to the model (e.g.
-        // LiteLLM + headroom injecting `headroom_retrieve`): register them
-        // for DISPATCH — agentty POSTs the call's args to <url> and returns
-        // the body — without advertising them (the proxy owns the schema).
+        // 外国工具a proxy/gateway 向模型发布广告( e.g.
+        // LiteLLM + 头部注射 `headroom_retrieve`
+        // : 登记这些表格 DISPATCH — agentty 邮递员 调用
+        // 参数为 <url> 返回 正文 - 不作广告(代理拥有 模式定义).
         if (rest.size() < 2)
             return {false, "--passthrough needs <url> <tool>[,<tool>…]"};
         if (rest[0].rfind("http://", 0) != 0 && rest[0].rfind("https://", 0) != 0)
             return {false, "url must start with http:// or https://"};
         spec.url  = rest[0];
         spec.type = "passthrough";
-        // Tools: remaining tokens, each possibly comma-separated.
+        // 工具:剩余符号,每个可能为逗号-separated.
         for (std::size_t r = 1; r < rest.size(); ++r) {
             std::string_view sv{rest[r]};
             while (!sv.empty()) {
@@ -782,7 +782,7 @@ AddResult add_plugin_from_line(Io io, const lock_levels::below_file_lane& cap, c
     }
 
     const auto path = tools::plugin::config_path(io, project);
-    switch (tools::plugin::add_server(io, cap, path, spec, /*force=*/false)) {
+    switch (tools::plugin::add_server(io, cap, path, spec, /*力=*/false)) {
         case tools::plugin::EditResult::Ok:
             return {true, "added " + std::string{project ? "project " : ""}
                           + "plugin '" + name + "'"};
@@ -796,10 +796,10 @@ AddResult add_plugin_from_line(Io io, const lock_levels::below_file_lane& cap, c
 }
 
 AddResult create_starter(Io io, Category cat, const std::string& name) {
-    // Validate AND split on ':' into safe path segments. The command/agent
-    // loaders map a `:`-namespaced name to a SUBDIRECTORY (git:fixup ->
-    // git/fixup.md), so writing the colon verbatim into one filename both
-    // fails on Windows (`:` is illegal there) and mismatches the loader.
+    // 校验 和 拆分开 ':' 输入安全路径段。 command/agent 装填器
+    // 映射a `:`-namespaced 名称改为 a SUBDIRECTORY
+    // (git: 修补 - > git/fixup.md ),所以将缩写逐字写入
+    // 一个文件名中,两者都失败了 Windows (`:` 非法),并不符合装载器。
     const std::vector<std::string> segs = starter_segments(name);
     if (segs.empty())
         return {false, "name: letters/digits/_/- per segment, ':' to nest, "
@@ -825,24 +825,24 @@ AddResult create_starter(Io io, Category cat, const std::string& name) {
         return {false, "create_starter only supports commands/agents"};
     }
 
-    // Build <user-root>/<sub>/<seg1>/<seg2>/<leaf>.md from the validated
-    // segments (all-but-last are directories). Segments are known-safe
-    // (no '.'/'..'/separators), so no path escape is possible. user_root
-    // honors $AGENTTY_HOME and is the same base the skills/commands
-    // scan ladder resolves (scope::Env::user_native_base).
+    // 构建 <user-root>/<sub>/<seg1>/<seg2>/<leaf> .
+    // md 从经验证的段段(全部) -but-last 属于目录。 -safe (无)
+    // '.'/'..' /分离者),所以不可能有路径逃逸. user_root 荣誉
+    // $AGENTTY_HOME 和同一基础 skills/commands 扫描梯度解析
+    // ( E) scope::Env::user_native_base).
     fs::path dir = uroot / sub;
     for (std::size_t i = 0; i + 1 < segs.size(); ++i) dir /= segs[i];
     const fs::path file = dir / (segs.back() + ".md");
 
-    // Created whole, and only if the name is free: no exists-then-write race
-    // with an editor or a second agentty making the same file.
+    // 创建了整体,并且只有在名称是免费的时:没有存在-then-write 竞态,
+    // 有一个编辑器或第二个agentty制作相同的文件.
     if (!persistence::create_exclusive(io, file, tmpl)) {
         std::error_code ec;
         if (fs::exists(file, ec)) return {false, "already exists: " + file.string()};
         return {false, "could not create " + file.string()};
     }
 
-    // Force a rescan so the new entry shows on the next open.
+    // 强制重新扫描, 新的条目会在下一个打开时显示。
     if (cat == Category::Commands) tools::commands::invalidate_cache();
     return {true, "created " + file.string() + " — edit it, then reopen"};
 }

@@ -1,40 +1,40 @@
 #pragma once
-// agentty::tools::util — the ONE place agentty runs another program.
+// agentty::tools::util-ONE处agentty运行另一个程序。
 //
-// mcp-cpp asks (mcp::tools::Exec); jaal supplies the primitive
-// (maya::platform::posix_process, whose exit is a handle a reactor watches).
-// This is the piece in between: the policy.
+// mcp-cpp询问(mcp::tools::Exec); jaal 提供原
+// 语（maya::platform::posix_process，其出口是反应堆监视的句柄）。
+// 这是介于两者之间的部分：政策。
 //
-// WHY THIS FILE EXISTS AT ALL
+// 原因 此 FILE EXISTS AT 全部
 //
-// There used to be two poll loops — one in mcp-cpp, one here — and they
-// drifted. One grew an absolute wall-clock ceiling, the other kept only an
-// idle one, and because agentty installed ITS runner into mcp-cpp whenever
-// the sandbox was on, the configuration that shipped was the one without the
-// ceiling. A command that never stopped printing was never reaped. The bug
-// was not in either loop; it was in there being two.
+// 曾经有两个轮询循环——一个在mcp-cpp，一个在这里—
+// —并且它们发生了漂移。一个安装了绝对的墙壁-clock天花板，
+// 另一个只保留了一个闲置的天花板，并且由于每当沙箱打开时，
+// agentty都会将ITS滑道安装到mcp-cpp中，
+// 因此发货的配置是没有天花板的配置。从未停止打印的命令永远不会被收获。
+// 该错误并不在任何一个循环中；那里有两个。
 //
-// So there is one, it is here, and the things that used to be duplicated are
-// now split by WHO KNOWS THEM:
+// 所以有一个，就在这里，以前重复的东西现在被WHO KNOWS
+// THEM分割了：
 //
-//   jaal     how to spawn, how to wait, how an exit becomes readable.
-//            Platform facts, one conformance suite, several backends.
-//   here     how long to wait, what to do when that runs out, how much
-//            output to keep. Policy, which differs per caller and belongs
-//            to the app that has the user.
-//   mcp-cpp  nothing. It states intent and reads bytes.
+//   jaal如何产生、如何等待、退出如何变得可读。
+//            平台事实、一个一致性套件、多个后端。
+//   这里等待多长时间，用完后做什么，保留多少输出。
+//            策略，每个调用者都不同，
+//            属于拥有该用户的应用程序。
+//   mcp-cpp什么也没有。它表明了意图并显示为 字节。
 //
-// THE TWO CLOCKS, which is the whole reason policy is interesting:
+// 该 两个 CLOCKS，这就是政策有趣的全部原因：
 //
-//   idle  bounds SILENCE. Reset by every byte, so a build that keeps
-//         printing is never cut off however long it runs. This is the one
-//         that catches a hang.
-//   wall  bounds TOTAL TIME and never resets. This is the one that catches
-//         a runaway that stays chatty — which the idle clock structurally
-//         cannot, because output is exactly what keeps it alive.
+//   空闲界限SILENCE。每个 字节 都会重置，
+//         因此无论运行多长时间，保持打印的构建都不会被中断。
+//         这是一个很棘手的问题。
+//   墙限制TOTAL TIME并且永不重置。这是一个捕获保持
+//         喋喋不休的失控的时钟的时钟——空闲时钟在结构上不能
+//         做到这一点，因为输出正是让它保持活力的原因。
 //
-// Neither alone is enough and that is not a tuning question, it is what the
-// two measure. Tonight's bug was having only the first.
+// 单独两者都不够，并且这不是调整问题，
+// 而是两者测量的内容。今晚的错误是只有第一个。
 
 #include <chrono>
 #include <functional>
@@ -48,108 +48,108 @@
 
 namespace agentty::tools::util {
 
-/// Defaults applied when a request leaves a budget unset.
+/// 当请求未设置预算时应用默认值。
 ///
-/// Generous on purpose. A ceiling that fires on real work teaches people to
-/// raise it everywhere, and a limit everyone disables is not a limit. The
-/// wall default is derived from the idle one rather than fixed, so a caller
-/// that asks for a long silence implicitly asks for a long run.
+/// 故意慷慨。实际工作中的上限教会人们在任何地方都提高它，
+/// 而每个人都禁用的限制并不是限制。
+/// 墙默认值是从空闲墙衍生而来的，而不是固定的，
+/// 因此请求长时间静默的调用者隐含地要求长时间运行。
 ///
-/// `$AGENTTY_TOOL_HARD_TIMEOUT_SECS` overrides the wall default for the
-/// process (0 disables the wall clock entirely). A ceiling nobody can raise
-/// is its own kind of broken: the one session where a legitimate job needs
-/// forty minutes should not need a rebuild.
+/// `$AGENTTY_TOOL_HARD_TIMEOUT_SECS`
+/// 覆盖该过程的挂钟默认值（0完全禁用挂钟）。
+/// 没人能提高的上限本身就是一种破碎：合法工作需要四十
+/// 分钟的一次会议不应该需要重建。
 struct ExecDefaults {
     std::chrono::seconds idle{120};
-    /// wall = idle × this, floored at `wall_floor`.
+    /// 墙=空闲×这个，地板在`wall_floor`。
     int                  wall_multiple = 20;
     std::chrono::seconds wall_floor{600};
     std::size_t          max_output_bytes = 8u * 1024u * 1024u;
-    /// SIGTERM, then this long, then SIGKILL. Long enough for a shell to
-    /// flush and reap its own children; short enough not to look hung.
+    /// SIGTERM，然后这么长，然后SIGKILL。足够长，
+    /// 足以让贝壳冲走并收获自己的孩子；足够短，不会显得悬挂。
     std::chrono::milliseconds kill_grace{2000};
 };
 
-/// Build the exec capability agentty hands to mcp-cpp.
+/// 构建执行能力agentty交给mcp-cpp。
 ///
-/// Sandboxed when a sandbox is active. Two ways in, one way to watch:
-/// claybin clones with namespace flags, installs a seccomp filter and enters
-/// a cgroup -- none of which is expressible as "fork then exec this argv" --
-/// so it spawns, and jaal adopts the pid and pidfd it hands back. Everything
-/// after that line is identical whichever way the child started, including
-/// the conformance suite that pins the exit semantics.
+/// 当沙箱处于活动状态时被沙箱化。两种方式进入，一种观看方式：
+/// claybin 克隆具有命名空间 标志，安装 seccomp 过滤器
+/// 并进入 cgroup——其中没有一个可以表示为
+/// "fork then exec this argv"——因此它产生，
+/// 并且 jaal 采用它返回的 pid 和 pidfd。无论孩子以哪种方式开始，
+/// 该行之后的所有内容都是相同的，包括固定退出语义的一致性套件。
 ///
-/// The seccomp broker, when the policy delegates syscalls, is serviced in
-/// the SAME reactor wait as output and exit. The kernel blocks the guest
-/// until someone answers a brokered call, so an unpolled listener is a hang
-/// rather than a weaker wall -- and a wait that already covers three kinds
-/// of readiness is the reason not to grow a thread for it.
+/// 当策略委托系统调用时，seccomp代理在SAME
+/// 反应器中被服务，等待作为输出和退出。内核会阻止来宾，
+/// 直到有人回答代理的 调用，因此未轮询的侦听器是
+/// 挂起而不是较弱的墙 - 并且已经涵盖三种就绪
+/// 状态的等待是不为其增长 线程 的原因。
 [[nodiscard]] std::shared_ptr<::mcp::tools::Exec>
 make_exec(ExecDefaults defaults = {});
 
-/// Run fn(0..n-1) on a maya::scope, the caller taking share 0; every share
-/// is joined before it returns. The fan-out behind the libraries' splitters.
+/// 在maya::scope上运行fn(0..n-1)，调用者获得份额0；
+/// 每股在返回之前都会被加入。 库'分离器后面的风扇-out。
 void scope_fan_out(std::size_t n, const std::function<void(std::size_t)>& fn);
 
-// ── run_child: the one supervise loop ───────────────────────────────────────────
+// ── run_child: 监督环线的 ───────────────────────────────────────────
 //
-// Everything agentty runs to completion goes through here: tool commands,
-// git for checkpoints, the keyring helpers, sandbox probes, hooks. jaal
-// spawns (or adopts what the sandbox spawned) and makes the exit a handle;
-// this loop is the policy around it: two clocks, SIGTERM then SIGKILL,
-// output cap, progress, cancel, the seccomp broker.
+// agentty 运行完成的一切都经过这里：工具命令、
+// 用于检查点的 git、密钥环助手、沙箱 探针、钩子。
+// jaal 生成（或采用 沙箱 生成的内容）并使退出成为句柄；
+// 这个循环是围绕它的策略：两个时钟，SIGTERM 然后 SIGKILL，
+// 输出上限，进度，取消，seccomp 代理。
 
-/// A child the sandbox started, for run_child to adopt. The sandbox gets the
-/// write end of one pipe for stdout+stderr and hands back the rest.
+/// 沙箱开始了一个孩子，供run_child收养。 沙箱 获取 stdout
+/// +stderr 的一个管道的写入端，并将其余部分交回。
 struct AdoptedChild {
     int pid = -1;
     int pidfd = -1;
-    int supervisor_fd = -1;                 ///< seccomp listener, -1 if none
-    std::function<bool()> service_broker;   ///< answer one notification
-    std::function<bool()> kill_tree;        ///< cgroup.kill; false = fall back
-    /// Resources the sandbox must keep alive for the child's whole life: the
-    /// filtered network proxy owns the listening socket in the guest's netns,
-    /// and dropping it closes that socket under the guest.
+    int supervisor_fd = -1;                 ///< seccomp 侦听器，如果没有则为 -1
+    std::function<bool()> service_broker;   ///< 回答一 通知
+    std::function<bool()> kill_tree;        ///< cgroup.kill; false = 后退
+    /// 沙箱必须在孩子的整个生命周期中保持活动的资源：
+    /// 过滤的网络代理拥有访客的netns中的侦听套接字，
+    /// 并且删除它会关闭访客下的该套接字。
     std::shared_ptr<void> keepalive;
     bool leads_own_group = true;
-    std::string error;                      ///< non-empty = it never started
+    std::string error;                      ///< non-empty = 从未开始
 };
 
 struct ChildRun {
-    /// argv[0] is the program; no shell unless argv says so.
+    /// argv[0]为程序；除非 argv 这么说，否则没有 shell。
     std::vector<std::string> argv;
-    /// Windows: the command line verbatim (cmd.exe /S /C "..."), instead
-    /// of quoting argv. Ignored elsewhere.
+    /// Windows:命令行逐字(cmd.exe /S /C "...")，
+    /// 而不是引用argv。其他地方被忽略了。
     std::string windows_command_line;
-    std::string cwd;                                          ///< empty = ours
-    std::vector<std::pair<std::string, std::string>> env;     ///< layered on ours
-    /// Bytes written to the child's stdin, then closed. Empty = /dev/null.
+    std::string cwd;                                          ///<空=我们的
+    std::vector<std::pair<std::string, std::string>> env;     ///< 分层在我们的之上
+    /// 字节写入孩子的stdin，然后关闭。空 = /dev/null.
     std::string stdin_data;
 
-    std::chrono::milliseconds idle{120'000};   ///< silence budget; 0 = none
-    std::chrono::milliseconds wall{0};         ///< ceiling from spawn; 0 = none
+    std::chrono::milliseconds idle{120'000};   ///<沉默预算； 0 = 无
+    std::chrono::milliseconds wall{0};         ///<产卵上限； 0 = 无
     std::chrono::milliseconds kill_grace{2000};
     std::size_t max_output_bytes = 30'000;
 
-    /// Whole buffer so far, at most every ~80 ms and once at the end.
+    /// 到目前为止整个缓冲区，最多每~80毫秒一次并且在最后一次。
     std::function<void(std::string_view)> on_progress;
-    /// Polled each wake (at least every 100 ms); true stops the child.
+    /// 每次唤醒轮询（至少每100毫秒）； true 阻止了孩子。
     std::function<bool()> stop_requested;
-    /// Given the output so far; true stops the child as "done early".
+    /// 给出迄今为止的输出； true 将子进程停止为 "done early"。
     std::function<bool(std::string_view)> stop_when;
-    /// Spawn inside a sandbox instead: receives the write end of the output
-    /// pipe (stdout and stderr both), returns what it started.
+    /// 相反，在 沙箱 内生成：接收输出管道的写入端（stdout
+    /// 和 stderr 两者），返回其开始的内容。
     std::function<AdoptedChild(int out_fd)> spawn_adopted;
 };
 
 struct ChildResult {
     bool started = false;
     std::string start_error;
-    std::string output;               ///< stdout+stderr, raw bytes
+    std::string output;               ///< 标准输出+标准错误，原始 字节
     bool truncated = false;
-    /// How it ended. Exactly one of these describes it.
-    bool exited = false;   int exit_code = 0;     ///< ran and returned
-    bool signalled = false; int signal = 0;       ///< killed (by us or the OS)
+    /// 它是如何结束的。其中之一恰好描述了这一点。
+    bool exited = false;   int exit_code = 0;     ///<跑回来
+    bool signalled = false; int signal = 0;       ///< 被我们或 OS 杀死
     bool timed_out_idle = false;
     bool timed_out_wall = false;
     bool cancelled = false;
@@ -159,11 +159,11 @@ struct ChildResult {
 
 [[nodiscard]] ChildResult run_child(const ChildRun& run);
 
-/// How many shares are worth making: the hardware threads.
+/// 值得制作多少股：硬件线程。
 [[nodiscard]] std::size_t fan_out_width() noexcept;
 
-/// The splitter agentty hands to mcp-cpp for its parallel scans (grep,
-/// structural search, repo map, extract/aggregate).
+/// 分离器agentty将其交给mcp-cpp进行并行扫描(grep、结构搜索、
+/// 仓库图、extract/aggregate)。
 [[nodiscard]] ::mcp::tools::Splitter make_splitter();
 
 }  // namespace agentty::tools::util

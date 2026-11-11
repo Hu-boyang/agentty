@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
-"""hidden_locks: blocking waits that jaal's lock order can't see.
+"""hidden_locks：检测 jaal 锁顺序机制看不到的阻塞等待。
 
-  spin         this_thread::yield() in a loop waiting on another thread
+  spin：在循环中调用 this_thread::yield()，等待另一线程。
 
-atomic::wait and std::call_once used to be listed here. They are types now:
-maya::atomic_wait needs `unlocked`, and maya::once runs its body as a leaf
-(a lock or wait inside aborts), so the banlist refuses the raw spellings and
-no hand check is needed. A spin can't be made a type: each site below was
-checked by hand to wait only on a syscall-length window with no jaal lock
-held. A new site needs the same check, then a line here saying why.
+atomic::wait 和 std::call_once 过去也在此列出，现在已用类型约束：
+maya::atomic_wait 要求 unlocked，maya::once 的主体作为叶操作执行，
+内部加锁或等待会中止。禁用清单拒绝原始写法，无需再逐项人工检查。
+自旋无法用同样方式封装；下方各位置已人工确认只等待系统调用级别的短窗口，
+并且等待期间不持有 jaal 锁。新增位置必须完成相同检查，并在此说明原因。
 
-Usage: hidden_locks.py ROOT
+用法：hidden_locks.py ROOT
 """
 
 import os
@@ -26,10 +25,10 @@ RULES = {
     "spin": (
         r"\bthis_thread::yield\s*\(",
         {
-            "src/util/logx.cpp",           # only while a dup2 swap is in flight
-            "src/workspace/symbols.cpp",   # a scheduler seam, not a wait
+            "src/util/logx.cpp",           # 只在Dup2交换机在飞行时
+            "src/workspace/symbols.cpp",   # 排程器接口边界, 不等待
             "src/provider/chatgpt/codex_oauth.cpp",  # a cancel's shutdown() call
-            "include/agentty/util/child_process.hpp",  # a stop/reap syscall
+            "include/agentty/util/child_process.hpp",  # a stop/reap 循环
         },
     ),
 }

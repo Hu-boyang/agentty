@@ -4,9 +4,9 @@
 
 namespace agentty::ui {
 
-// Build the Thread widget config from Model. Pure data extraction —
-// the widget owns all rendering chrome (welcome screen, conversation
-// layout, in-flight indicator, per-turn rail).
+// 从 Model 构建 线程 小部件配置。纯数据提取 - 小
+// 部件拥有所有 渲染 镶边（欢迎屏幕、对话布局、
+// in-flight 指示器、per-turn 导轨）。
 [[nodiscard]] maya::Thread::Config thread_config(const Model& m);
 
 } // namespace agentty::ui

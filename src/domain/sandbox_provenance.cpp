@@ -1,18 +1,18 @@
-// sandbox_provenance.cpp — WHICH path shapes the host later trusts.
+// sandbox_provenance.cpp-WHICH路径塑造了主机后来的信任。
 //
-// The matching moved to claybin (clay::shape_matches, policy/path_shape.hpp)
-// because it is general mechanism with a sharp edge: whole-component rather
-// than substring, or a rule fires on ".gitignore" and gets ignored; and
-// shape rather than exact name, or `git --git-dir=.foo` walks past it, which
-// is the bug Cursor shipped and fixed in 3.0.0.
+// 匹配移至claybin (clay::shape_matches，
+// policy/path_shape.hpp)，因为它是具有尖锐边缘的通用机制：整个
+// -component而不是子串，或者规则在".gitignore"上触发并被忽略；
+// 和形状而不是确切的名称，或者 `git --git-dir=.foo` 走过它，
+// 这是 Cursor 在 3.0.0 中发布并修复的错误。
 //
-// What stays here is the only part that is agentty's opinion: the TABLE. Every
-// entry is a place a documented escape landed, or the obvious sibling of one.
-// claybin has no view on whether ".vscode/tasks.json" matters -- that is a
-// statement about how developer tooling behaves, not about the kernel.
+// 这里留下的是agentty的意见的唯一部分：TABLE。
+// 每一个条目都是记录在案的逃亡地点，或者明显的兄弟姐妹。
+// claybin 对 ".vscode/tasks.json" 是否重要
+// 没有看法——这是关于开发者工具如何行为的声明，而不是关于内核的声明。
 
 #include "agentty/domain/sandbox_provenance.hpp"
-#include "agentty/domain/sandbox_config.hpp"   // Config, kAlwaysMasked*, mask_paths
+#include "agentty/domain/sandbox_config.hpp"   // 配置，kAlwaysMasked*，mask_paths
 
 #include <algorithm>
 #include <array>
@@ -22,16 +22,16 @@
 
 #include <maya/runtime.hpp>
 
-// The matcher lives in claybin, which is a required submodule -- so this is a
-// plain include, not a guarded one.
+// 匹配器位于 claybin 中，这是必需的 子模块 ——所以这是一个普通的包含，
+// 而不是受保护的包含。
 //
-// This used to carry a second, local copy of the same shape logic for builds
-// without claybin, on the reasoning that the trust-handoff TABLE is agentty's
-// opinion and should compile either way. That reasoning was sound and the
-// conclusion was wrong: it meant sixty lines of duplicated matching, two
-// configurations where a classification could differ, and a comment admitting
-// the duplication was "deliberate". With claybin required there is exactly one
-// matcher, which is what the boundary audit wanted in the first place.
+// 这用于携带用于没有claybin的构建的相同形状逻辑
+// 的第二本地副本，理由是信任-handoff TABLE
+// 是agentty的意见并且应该编译无论如何。
+// 这个推理是合理的，但结论是错误的：这意味着六十行
+// 重复匹配，两种分类可能不同的配置，以及承认重复的注释
+// 是 "deliberate"。由于需要 claybin，
+// 因此只有一个匹配器，这正是边界审核首先想要的。
 #include "claybin/policy/path_shape.hpp"
 
 namespace agentty::sandbox_cfg {
@@ -42,44 +42,44 @@ using clay::ShapeMatch;
 using clay::ShapeRule;
 using clay::shape_matches;
 
-// tag == TrustKind, cast through the opaque integer claybin carries.
+// tag == TrustKind，通过claybin携带的不透明整数进行投射。
 constexpr std::uint32_t tag(TrustKind k) { return static_cast<std::uint32_t>(k); }
 
-// Ordered: first match wins, so the more specific reason comes first where a
-// path could plausibly hit two rules.
+// 有序：第一场比赛获胜，因此更具体的原因首先出现，
+// 其中路径可能符合两个规则。
 constexpr std::array kRules{
-    // ── lifecycle hooks: CVE-2026-48124 (Cursor, CVSS 8.5) ──────────────
+    // ── 生命周期钩:CVE-2026-48124(Cursor,CVSS 8.5)  ⁇ . ──────────────
     ShapeRule{"hooks.json", tag(TrustKind::HookConfig), ShapeMatch::Basename},
     ShapeRule{".claude", tag(TrustKind::HookConfig), ShapeMatch::Component},
     ShapeRule{".agentty", tag(TrustKind::HookConfig), ShapeMatch::Component},
     ShapeRule{".cursor", tag(TrustKind::HookConfig), ShapeMatch::Component},
 
-    // ── editor automation: Antigravity's ".vscode time bomb" ────────────
+    // ── 编辑器自动化:反重力的".vscode time bomb" ────────────
     ShapeRule{".vscode", tag(TrustKind::EditorTask), ShapeMatch::Component},
     ShapeRule{"tasks.json", tag(TrustKind::EditorTask), ShapeMatch::Basename},
     ShapeRule{"launch.json", tag(TrustKind::EditorTask), ShapeMatch::Basename},
     ShapeRule{".idea", tag(TrustKind::EditorTask), ShapeMatch::Component},
 
-    // ── git: fsmonitor + hooks + config (Cursor 3.0.0) ──────────────────
+    // ── ⁇ :fsmonitor + 钩子 + 配置 (Cursor 3.0.0) ──────────────────
     //
-    // ".git" as a COMPONENT so a renamed git dir does not slip past, and the
-    // internals by basename because the directory can be called anything
-    // while `config` and `HEAD` cannot.
+    // ".git" 作为 COMPONENT，因此重命名的 git dir 不会溜过去，
+    // 并且内部按基本名称，因为该目录可以被称为任何东西，而 `config`
+    // 和 `HEAD` 则不能。
     ShapeRule{".git", tag(TrustKind::GitConfig), ShapeMatch::Component},
     ShapeRule{"config", tag(TrustKind::GitConfig), ShapeMatch::Basename},
     ShapeRule{"HEAD", tag(TrustKind::GitConfig), ShapeMatch::Basename},
     ShapeRule{"hooks", tag(TrustKind::GitConfig), ShapeMatch::Component},
 
-    // ── interpreters and entry points: GHSA-p9g2-cr55-cw9c ──────────────
+    // ── 口译和入境点: GHSA-p9g2-cr55-cw9c ──────────────
     //
-    // The Python extension executed a venv interpreter during discovery. Any
-    // bin/ under the workspace has the same property.
+    // Python扩展在发现期间执行venv解释器。
+    // 工作区 下的任何 bin/ 都具有相同的属性。
     ShapeRule{"node_modules/.bin", tag(TrustKind::Interpreter), ShapeMatch::Component},
     ShapeRule{"pyvenv.cfg", tag(TrustKind::Interpreter), ShapeMatch::Basename},
     ShapeRule{".venv", tag(TrustKind::Interpreter), ShapeMatch::Component},
     ShapeRule{"venv", tag(TrustKind::Interpreter), ShapeMatch::Component},
 
-    // ── shell init: runs on the user's next shell here ──────────────────
+    // ── shell init: 运行在用户的下一个 shell 上 ──────────────────
     ShapeRule{".envrc", tag(TrustKind::ShellInit), ShapeMatch::Basename},
     ShapeRule{".bashrc", tag(TrustKind::ShellInit), ShapeMatch::Basename},
     ShapeRule{".zshrc", tag(TrustKind::ShellInit), ShapeMatch::Basename},
@@ -96,11 +96,11 @@ constexpr std::array kRules{
     ShapeRule{".pam_environment", tag(TrustKind::ShellInit), ShapeMatch::Basename},
     ShapeRule{"activate", tag(TrustKind::ShellInit), ShapeMatch::Basename},
     ShapeRule{".direnv", tag(TrustKind::ShellInit), ShapeMatch::Component},
-    // fish, and per-user environment.d, read at every login
+    // fish，以及per-userenvironment.d，在每次登录时读取
     ShapeRule{".config/fish", tag(TrustKind::ShellInit), ShapeMatch::Component},
     ShapeRule{".config/environment.d", tag(TrustKind::ShellInit), ShapeMatch::Component},
 
-    // ── session start: run at the next login, outside any sandbox ───────
+    // ── 会话开始: 在下一个登录时运行, 位于任意的 沙箱 之外 ───────
     ShapeRule{".config/autostart", tag(TrustKind::SessionStart), ShapeMatch::Component},
     ShapeRule{".config/systemd", tag(TrustKind::SessionStart), ShapeMatch::Component},
     ShapeRule{".config/hypr", tag(TrustKind::SessionStart), ShapeMatch::Component},
@@ -108,39 +108,39 @@ constexpr std::array kRules{
     ShapeRule{".config/i3", tag(TrustKind::SessionStart), ShapeMatch::Component},
     ShapeRule{".config/plasma-workspace", tag(TrustKind::SessionStart), ShapeMatch::Component},
 
-    // ── PATH: a file here shadows a real command for every later shell ──
+    // ── PATH: 这里的文件会显示每个后期 shell 的 真实命令 ──
     ShapeRule{".local/bin", tag(TrustKind::Interpreter), ShapeMatch::Component},
 
-    // ── other agents: config that names commands they run unsandboxed ───
+    // ── 其他代理: 配置命令他们运行的未保存的名 ───
     ShapeRule{".codex", tag(TrustKind::HookConfig), ShapeMatch::Component},
     ShapeRule{".gemini", tag(TrustKind::HookConfig), ShapeMatch::Component},
 
-    // ── build scripts: run on the next build, which is soon ─────────────
+    // ── 构建脚本: 在下一个构建上运行, 即将完成 ─────────────
     ShapeRule{"Makefile", tag(TrustKind::BuildScript), ShapeMatch::Basename},
     ShapeRule{"package.json", tag(TrustKind::BuildScript), ShapeMatch::Basename},
     ShapeRule{"build.rs", tag(TrustKind::BuildScript), ShapeMatch::Basename},
     ShapeRule{"CMakeLists.txt", tag(TrustKind::BuildScript), ShapeMatch::Basename},
     ShapeRule{"conftest.py", tag(TrustKind::BuildScript), ShapeMatch::Basename},
 
-    // ── daemon sockets: GHSA-v4xv-rqh3-w9mc ─────────────────────────────
+    // ── 守护进程套接字 : GHSA-v4xv-rqh3-w9mc ─────────────────────────────
     //
-    // "One Docker socket to rule them all" escaped Codex, Cursor AND Gemini
-    // CLI. A privileged local daemon is a second execution environment.
+    // "One Docker socket to rule them all"转义Codex，
+    // 光标AND Gemini CLI。特权本地守护进程是第二个执行环境。
     ShapeRule{"docker.sock", tag(TrustKind::DaemonSocket), ShapeMatch::Basename},
     ShapeRule{"containerd.sock", tag(TrustKind::DaemonSocket), ShapeMatch::Basename},
     ShapeRule{"podman.sock", tag(TrustKind::DaemonSocket), ShapeMatch::Basename},
 };
 
-}  // namespace
+}  // 命名空间结束。
 
 bool is_host_trusted(std::string_view path, TrustKind* out_kind) {
     std::uint32_t t = 0;
 #if defined(_WIN32)
-    // claybin's shape rules split on '/'. A Windows path from
-    // std::filesystem ("C:\\repo\\.git\\hooks\\post-commit") had no '/' at
-    // all, so NO trusted file ever matched and the handoff gate reported
-    // nothing on Windows. Match on the generic form; '\\' is never a legal
-    // filename byte there, so this cannot create a false match.
+    // claybin的形状规则在'/
+    // '上分裂。来自 std::filesystem ("C:\\repo\\.git\\hooks\\post-commit") 的 Windows 路径根本没有 '
+    // /'，因此 NO 可信文件曾经匹配，并且切换门在 Windows 上没有报告任何内容。匹配通用形式； '
+    // \\' 永远不是合法的文件名 字节，
+    // 因此这不能创建错误匹配。
     std::string generic{path};
     std::ranges::replace(generic, '\\', '/');
     path = generic;
@@ -152,18 +152,18 @@ bool is_host_trusted(std::string_view path, TrustKind* out_kind) {
 
 namespace {
 
-// Directories never worth walking for a credential file.
+// 目录永远不值得为凭据文件而走动。
 //
-// Two properties, and BOTH are needed to justify skipping one: it is reliably
-// enormous (so walking it costs real time on every spawn), and a credential
-// file does not legitimately live there. The second is the safety argument --
-// if a name on this list ever becomes somewhere secrets DO live, skipping it
-// stops being a performance decision and becomes a hole.
+// 需要两个属性和 两者 来证明跳过一个属性是合理的：它确实
+// 是巨大的（因此每次生成时都会花费实时时间），并且 凭据
+// 文件并不合法地存在于那里。第二个是安全论点——如果这个
+// 列表中的某个名字曾经成为秘密 DO 的某个地方，
+// 那么跳过它就不再是一个性能决策，而是成为一个漏洞。
 //
-// .git is the interesting case: it holds no `.env`, but it DOES hold
-// `.git/config`, which can carry a credential helper. That is covered by the
-// trust-handoff rules above (TrustKind::GitConfig) rather than by masking, so
-// skipping it here loses nothing.
+// .git 是一个有趣的情况：它不保存 `.env`，但 执行 保存
+// `.git/config`，它可以携带 凭据 助手。这是由上面的 trust
+// -handoff 规则（TrustKind::GitConfig）覆盖的，而不是通过屏蔽来覆盖，
+// 因此在这里跳过它不会丢失任何东西。
 constexpr std::string_view kNeverWalk[] = {
     ".git", "node_modules", "target", "build", "dist", ".venv", "venv",
     "__pycache__", ".mypy_cache", ".pytest_cache", ".cache", ".next",
@@ -175,30 +175,30 @@ constexpr std::string_view kNeverWalk[] = {
     return false;
 }
 
-// Does this basename name a credential file?
+// 该基本名称是否命名为 凭据 文件？
 //
-// Two kinds of rule, told apart by an explicit marker:
+// 两种规则，由显式标记区分：
 //
-//   SUFFIX  `*.pem`, `*.tfvars` — matches any file ENDING in the extension.
-//           These are why the walk had to exist at all: a suffix cannot be
-//           turned into a path without looking at what is actually on disk.
-//   NAME    everything else matches the whole basename, exactly.
+//   SUFFIX `*.pem`、`*.tfvars` —匹配扩展名中的任何文件 ENDING。
+//           这就是步行必须存在的原因：如果不查看磁盘
+//           上实际存在的内容，则后缀无法转变为路径。
+//   NAME 其他所有内容都与整个基本名称完全匹配。
 //
-// The marker is explicit rather than inferred from shape. Inferring "starts
-// with a dot and has no second dot" looks tidy and is wrong: it silently
-// promotes `.env`, `.npmrc` and `.netrc` to suffixes, so `prod.env` and
-// `scoped.npmrc` start being masked too. Widening what a SECURITY rule covers
-// as a side effect of adding an unrelated entry is exactly the kind of
-// accident this list must not have -- a mask that appears from nowhere is as
-// confusing as one that goes missing, and nobody reviewing the list would see
+// 标记是明确的而不是从形状推断的。
+// 推断 "starts with a dot and has no second dot"
+// 看起来很整洁，但却是错误的：它默默地将 `.env`、`.npmrc`
+// 和 `.netrc` 提升为后缀，因此 `prod.env` 和
+// `scoped.npmrc` 也开始被屏蔽。将 SECURITY
+// 规则的覆盖范围扩大为添加不相关条目的 副作用 正是此列表绝不能发生的意外
+// - 不知从何而来的掩码与丢失的掩码一样令人困惑，并且没有人审查该列表会看到
 // it.
 [[nodiscard]] bool is_masked_name(std::string_view name) {
     for (const char* n : kAlwaysMaskedNames) {
         std::string_view rule{n};
         if (rule.starts_with("*")) {
             rule.remove_prefix(1);                 // "*.pem" -> ".pem"
-            // `>` not `>=`, so the rule never matches a file that IS the bare
-            // suffix: a file called ".pem" is not a key.
+            // `>`不是`>=`，因此该规则从不匹配IS裸后缀的
+            // 文件：名为".pem"的文件不是密钥。
             if (name.size() > rule.size() && name.ends_with(rule)) return true;
             continue;
         }
@@ -207,20 +207,20 @@ constexpr std::string_view kNeverWalk[] = {
     return false;
 }
 
-// Walk `dir` to `depth_left` levels, appending every file whose basename is a
-// credential name.
+// 从 `dir` 走到 `depth_left` 层，附加基本名称为 凭据
+// 名称的每个文件。
 //
-// Recursive, and safe to be: the depth is bounded by mask_scan_depth before
-// the first call, and directory symlinks are never followed, so no input can
-// drive this deeper than the bound.
+// 递归且安全：深度以第一个 调用 之前的 mask_scan_depth 为界，
+// 并且从不遵循目录符号链接，因此没有输入可以将
+// 其驱动得比界限更深。
 void sweep(const std::filesystem::path& dir, int depth_left,
            std::vector<std::string>& out) {
     std::error_code ec;
-    // skip_permission_denied: a workspace can contain directories we cannot
-    // read, and a masking sweep must not fail the whole spawn over one of
-    // them. Directory symlinks are NOT followed -- following one out of the
-    // workspace would mask host paths the user never asked about, and one
-    // pointing back inside would walk the tree twice.
+    // skip_permission_denied：工作区
+    // 可以包含我们无法读取的目录，并且掩蔽扫描不得使其中
+    // 一个目录的整个生成失败。目录符号链接后面不是——跟随
+    // 工作区 中的一个将掩盖用户从未询问过的主机路径，
+    // 而指向内部的一个将遍历 源码树 两次。
     std::filesystem::directory_iterator it{
         dir, std::filesystem::directory_options::skip_permission_denied, ec};
     if (ec) return;
@@ -228,9 +228,9 @@ void sweep(const std::filesystem::path& dir, int depth_left,
     for (const auto& entry : it) {
         std::error_code sec;
         const auto name = entry.path().filename().string();
-        // symlink_status, not status: a symlink NAMED .env is masked as the
-        // link rather than followed. Following it would mask wherever it
-        // points and leave the link itself readable.
+        // symlink_status，不是状态：符号链接NAMED .
+        // env被掩码为链接而不是跟随。跟随它会掩盖它指向
+        // 的任何地方，并使 链接 本身可读。
         const auto st = entry.symlink_status(sec);
         if (sec) continue;
 
@@ -243,27 +243,27 @@ void sweep(const std::filesystem::path& dir, int depth_left,
     }
 }
 
-// A fingerprint of the DIRECTORY SHAPE that `sweep` above traverses: the
-// mtime of every directory it would descend into, folded together.
+// 上面的`sweep`遍历的DIRECTORY SHAPE的
+// 指纹：它将下降到的每个目录的mtime，折叠在一起。
 //
-// Why this is the right key for sweep's cache, and why it is exact rather
-// than approximate: creating, deleting or renaming an entry updates the
-// mtime of the directory CONTAINING it. That is the only mutation that can
-// change which files sweep returns -- editing a file's CONTENTS cannot add
-// or remove it from the list, and that is the operation whose parent mtime
-// does not move. So "same stamp" really does imply "same answer".
+// 为什么这是扫描的缓存的右键，以及为什么它是精确的而不是近似的：创建、
+// 删除或重命名条目会更新目录CONTAINING的运行时间。
+// 这是唯一可以更改扫描返回的文件的突变 - 编辑文件的
+// CONTENTS 无法将其添加到列表中或将其从列表中删除，
+// 并且该操作的父级 mtime 不会移动。
+// 所以 "same stamp" 确实意味着 "same answer"。
 //
-// It must mirror sweep's traversal EXACTLY -- same depth arithmetic, same
-// never_walk skips, same no-follow rule. A stamp that visited fewer
-// directories than the sweep would be blind to changes inside the ones it
-// skipped, which is a stale mask, which is a hole. Both functions therefore
-// take the same shape deliberately; change one and you must change the other.
+// 它必须镜像扫描的遍历EXACTLY——相同的深度算术、
+// 相同的never_walk跳过、相同的no-follow规则。
+// 访问的目录少于扫描的邮票将对其跳过的目录内的更改视而不见，
+// 这是一个 过期 掩码，这是一个洞。因此，
+// 这两个功能故意采用相同的形状；改变其中一个，就必须改变另一个。
 //
-// Cheap on purpose: one status() per DIRECTORY, no readdir of its entries
-// beyond what the iterator already yields, and no per-file symlink_status.
+// 故意便宜：每个DIRECTORY一个status()，除了迭代器已经产生的内容之外，
+// 没有对其条目的readdir，并且没有每个-file symlink_status。
 std::uint64_t dir_stamp(const std::filesystem::path& dir, int depth_left) {
     std::error_code ec;
-    std::uint64_t h = 1469598103934665603ull;          // FNV-1a offset basis
+    std::uint64_t h = 1469598103934665603ull;          // FNV-1a偏移基础
     const auto mix = [&h](std::uint64_t v) {
         h ^= v;
         h *= 1099511628211ull;
@@ -289,76 +289,76 @@ std::uint64_t dir_stamp(const std::filesystem::path& dir, int depth_left) {
     return h;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 std::vector<std::string> mask_paths(const Config& cfg, std::string_view workspace,
                                    std::string_view home) {
     std::vector<std::string> out;
 
-    // 1. $HOME credentials. Not configurable, by design: a control the user
-    //    can switch off to make their build work is a control that is off.
+    // 1. $HOME 凭据。根据设计不可配置：用户控制
+    //    可以关闭以使它们的构建工作处于关闭状态的控件。
     if (!home.empty()) {
         const std::string h{home};
         for (const char* m : kAlwaysMasked) out.push_back(h + m);
     }
 
-    // 2. Credential names inside the workspace, found by walking. The
-    //    workspace is bound READ-WRITE by both backends, so scope cannot save
-    //    anything in here and the mask is the only wall.
+    // 2. 工作区里面的凭据名字，通过行走找到。的
+    //    工作区由两个后端绑定READ-WRITE，因此范围不能
+    //    保存这里的任何东西，并且掩模是唯一的墙。
     if (!workspace.empty()) {
-        // CACHED, because this is in the latency path of EVERY command.
+        // CACHED，因为这是在EVERY命令的延迟路径中。
         //
-        // The header already warned that an unbounded walk here "would put a
-        // full directory scan in the latency path of every shell command" and
-        // bounded the depth in response. Bounding was not enough: measured on
-        // the agentty tree at the shipped depth=3, the sweep costs 3.7 ms and
-        // runs again for every single spawn -- re-deriving a byte-identical
-        // answer each time. Against a ~10 ms sandboxed `true`, that is most
-        // of the floor, and it grows with the repo rather than with the work.
+        // 头文件已经警告
+        // 会让每条 shell 命令的延迟路径都包含一次完整目录扫描。
+        // 这里无界行走并限制深度作为响应。边界是不够的：在 agentty
+        // 源码树 上以发送深度 = 3 进行测量，扫描花费 3.7 毫秒，
+        // 并为每个生成再次运行 - re-deriving 每次都会得到
+        // 字节-identical 答案。针对大约 10 毫秒的沙盒
+        // `true`，这是大部分内容，它随着 仓库 而不是随着工作而增长。
         //
-        // THE KEY IS THE TREE'S OWN SHAPE, not a clock.
+        // 该 KEY IS 该 TREE'S 自身 SHAPE，不是时钟。
         //
-        // A time-to-live was the obvious first try and it is WRONG here: it
-        // means a credential that appears inside the TTL is readable by the
-        // next command. sandbox_live_check caught it immediately -- it plants
-        // `services/api/key.pem` and runs a command against it in well under
-        // a second, and the stale list let the body through. A mask that is
-        // merely eventually-correct is not a wall, and a 2-second hole is
-        // exactly long enough for the `write file` → `run tool` pair an agent
-        // does constantly.
+        // time-to-live是明显的第一次尝试，这里是WRONG：
+        // 这意味着出现在TTL内的凭据可由下一个命令读取。
+        // sandbox_live_check 立即捕获了它——它植入了
+        // `services/api/key.pem` 并在不到一秒的时间
+        // 内对其运行了命令，而 过期 列表让 正文 通过了。一个最终只是
+        // -correct的面具并不是一堵墙，一个2-second的洞对于特工经常做的
+        // `write file` → `run tool`对来说
+        // 已经足够长了。
         //
-        // So key on the mtimes of every DIRECTORY the sweep descends into.
-        // Creating, deleting or renaming a file bumps its parent's mtime --
-        // that is the one thing POSIX guarantees here, and it is precisely
-        // the event that can change this list. Stat-ing the directories costs
-        // a fraction of walking their entries (one syscall per directory, no
-        // readdir, no per-file symlink_status), so the common case stays
-        // cheap while staying exact.
-        // maya::snapshot rather than a lock: commands spawn from tool worker
-        // threads, so this really is shared, but it is a read-mostly value
-        // keyed by (ws, depth, stamp). Readers take one atomic load; a miss
-        // sweeps OUTSIDE any lock and publishes the result. Two concurrent
-        // misses both sweep and the last store wins -- both results are
-        // correct for their key, so that costs a walk, never correctness.
+        // 因此，关键是扫描下降到的每个 DIRECTORY 的 mtime。
+        // 创建、删除或重命名文件会影响其父文件的修改时间——这是
+        // POSIX 在此保证的一件事，并且正是 事件 可以更改此列表。
+        // Stat-ing 目录的成本只是遍历其条目的一小部分（每个
+        // 目录一个系统调用，没有 readdir，没有 per-file
+        // symlink_status），因此常见情况在保持
+        // 精确的同时保持便宜。
+        // maya::snapshot而不是锁：命令从工具工作线程 线程产生，
+        // 因此这确实是共享的，但它是由(ws、深度、标记)键入的
+        // read-mostly值。读者拿一个原子加载；未命中则扫除
+        // OUTSIDE 任何 锁 并公布结果。两次并发的失误都会
+        // 导致扫描失败，最后一个存储获胜——这两个结果对于它们的
+        // 密钥来说都是正确的，因此这会花费一段时间，而不是正确性。
         struct Cache {
             std::string              ws;
             int                      depth = -1;
             std::uint64_t            stamp = 0;
             std::vector<std::string> paths;
         };
-        // Function-local static: the first command can land from a worker
-        // during startup, and a file-scope global would race its own ctor.
+        // Function-local静态：第一命令可以在启动期间从
+        // 工作线程登陆，并且文件-scope全局将竞态其自己的构造函数。
         static maya::snapshot<Cache> cache;
 
         const int depth = static_cast<int>(cfg.mask_scan_depth);
-        // OUTSIDE the lock: stat-ing the tree is the slow part, and holding
-        // the lock across it would serialise every concurrent spawn behind
-        // one filesystem walk -- turning a latency fix into a latency bug.
+        // OUTSIDE、锁:stat-ing、
+        // 源码树是缓慢的部分，并且将锁跨过它会序列化一次文件
+        // 系统行走之后的每个并发生成——将延迟修复变成延迟错误。
         const std::uint64_t stamp =
             dir_stamp(std::filesystem::path{workspace}, depth);
 
-        // Copying ~16 short strings once per command is nothing against the
-        // walk this exists to avoid.
+        // 每个命令复制〜16个短字符串一次并不妨碍
+        // 这种存在的避免。
         std::vector<std::string> hits;
         {
             auto cur = cache.load();
@@ -378,16 +378,16 @@ std::vector<std::string> mask_paths(const Config& cfg, std::string_view workspac
                    std::make_move_iterator(hits.end()));
     }
 
-    // 3. The user's own denials, last, so an explicit deny cannot be undone
-    //    by one of ours.
+    // 3.最后是用户自己的拒绝，因此显式拒绝无法撤消
+    //    由我们之一。
     for (const auto& d : cfg.deny_paths)
         if (auto r = resolve_user_path(d, workspace, home); !r.empty())
             out.push_back(std::move(r));
 
-    // Deduplicate: a path can arrive from the sweep and from deny_paths, and
-    // emitting the same mount twice is at best noise in the plan. Sorting is
-    // also what makes the argv stable across runs -- a test asserting order
-    // would otherwise be flaky on directory-iteration order.
+    // 重复数据删除：路径可以从扫描和从deny_paths到达，
+    // 并且发射相同的安装两次最多是计划中的噪声。排序也是使 argv
+    // 在运行中保持稳定的原因——否则测试断言顺序在 Directory
+    // -iteration 顺序上会不稳定。
     std::sort(out.begin(), out.end());
     out.erase(std::unique(out.begin(), out.end()), out.end());
     return out;
@@ -416,78 +416,78 @@ Config apply_posture(const Config& base, Posture p) {
     Config c = base;
     c.configured = true;
 
-    // Deliberately NOT touched: backend, read_paths, write_paths, deny_paths.
-    // A posture is a statement about how tight the walls are; the engine and
-    // the user's project-specific path list are not the posture's business.
-    // See the header.
+    // 故意触及NOT：后端，read_paths，write_paths，deny_paths。
+    // 姿势是关于墙壁有多紧的陈述；引擎和用户的
+    // 项目-specific路径列表与姿势无关。
+    // 参见头文件。
 
     switch (p) {
         case Posture::Permissive:
-            // Off, not "loose". There is no filter, no caps and no netns --
-            // only the mount walls, which both backends always build. This
-            // exists so that a user whose toolchain breaks has somewhere to go
-            // that is not `--sandbox off`: the masks and the mount namespace
-            // still hold, which is strictly more than nothing.
+            // 关闭，不是"loose"。没有过滤器，没有盖子，
+            // 也没有网络——只有两个后端总是构建的安装墙。
+            // 它的存在是为了让工具链中断的用户有一个不是
+            // `--sandbox off` 的地方可以去：掩码和
+            // 挂载命名空间仍然保留，这绝对比没有更重要。
             c.fs_scope = FsScope::Toolchain;
             c.net_mode = NetMode::Full;
             c.syscall_mode = SyscallMode::Off;
             c.wx_protect = false;
             c.memory_mb = 0;
-            // The fork-bomb cap SURVIVES Permissive, and it is the one
-            // resource wall that does.
+            // Permissive 仍保留防止 fork 炸弹的进程数上限，
+            // 并且它是唯一一个资源墙。
             //
-            // memory/cpu/nofile/time all go to 0 here for the reason the field
-            // comments give: the right ceiling is a property of the machine and
-            // the build, so a wrong guess turns a working `cargo build` into an
-            // OOM kill that looks like agentty's fault. Dropping them is what
-            // makes Permissive a real answer to "my toolchain breaks".
+            // memory/cpu/nofile/time在这里全部变成0，
+            // 因为现场评论给出的原因是：正确的上限是机器和构建的属性，
+            // 因此错误的猜测将工作的`cargo build`变成了OOM杀戮，
+            // 看起来像是agentty的错误。放弃它们使得 Permissive
+            // 成为 "my toolchain breaks" 的真正答案。
             //
-            // max_procs is different, and the field's own comment says why:
-            // "unlike memory, there IS a number that is safe everywhere. No
-            // legitimate build needs 4096 concurrent processes; `make -j` on a
-            // 64-core box peaks in the low hundreds, and the pathological case
-            // is not 'a big build' but `:(){ :|:& };:`, which wants millions."
+            // max_procs不同，该领域自己的评论说明了原因：
+            // 与内存不同，进程数存在普遍安全的上限。正常构建不需要同时
+            // 运行 4096 个进程；即使在 64 核机器上执行 make -j，
+            // 峰值通常也只有数百个。异常情形通常是试图创建数百万进程的
+            // fork 炸弹，例如 `:(){ :|:& };:`。
             //
-            // It was being zeroed with the rest, which handed every Permissive
-            // user an unbounded fork bomb from any approved command -- the
-            // exact finding tests/sandbox_audit.cpp was written for (it saw
-            // resource.pids as `none` and that is why 4096 became the default),
-            // reintroduced through the preset. claybin treats 0 as unlimited
-            // and sets no rlimit and no pids.max at all, so this was not a
-            // softer cap; it was no cap.
+            // 它与其余部分一起归零，这为每个许可用户提供了来自任何批准命令的
+            // 无限分叉炸弹 - 为 tests/sandbox_audit.cpp
+            // 的确切发现而编写（它将 resource.pids 视为
+            // `none`，这就是为什么 4096 成为默认值），通过预设重新引入。
+            // claybin 将 0 视为无限制，并且没有设置 rlimit，
+            // 也根本没有设置 pids.max，因此这不是一个
+            // 较软的上限；没有上限。
             //
-            // Permissive means "the walls are off", not "the machine is
-            // forfeit". A fork bomb is not a toolchain compatibility problem,
-            // so there is nothing for this to unbreak.
+            // 许可意味着"the walls are off"，
+            // 而不是"the machine is forfeit"。分叉炸弹不是
+            // 工具链兼容性问题，因此没有什么可以破解的。
             c.max_procs = 4096;
             c.cpu_percent = 0;
             c.max_open_files = 0;
             c.wall_clock_secs = 0;
             c.cpu_secs = 0;
             c.scope_ipc = false;
-            c.close_inherited_fds = true;   // never a compatibility problem
+            c.close_inherited_fds = true;   // 从来没有兼容性问题
             c.fake_hostname = false;
-            c.mask_scan_depth = 3;          // secrets stay masked REGARDLESS
-            // Handoff stays at the caller's value rather than being loosened.
-            // Permissive is about the walls around the process; the handoff
-            // gate is about what the agent writes for the HOST to run, and
-            // those are different questions (§14). A loose sandbox is a
-            // choice; letting the agent author your git hooks as a side effect
-            // of that choice is not one anybody made.
+            c.mask_scan_depth = 3;          // 秘密被掩盖 REGARDLESS
+            // 切换保持在呼叫者的值上而不是被放松。
+            // 许可是关于过程周围的围墙；切换门是关于代理为
+            // HOST 运行编写的内容，这些是不同的问题（第
+            // 14 节）。宽松的沙箱是一个选择；
+            // 让代理将你的 git hooks 作为该选择的 副作用
+            // 来编写，这不是任何人都能做出的。
             break;
 
         case Posture::Balanced:
-            // Exactly the struct defaults, by construction: this is what
-            // `configured = false` already means, so a user who picks Balanced
-            // explicitly gets the same boundary as one who never opened the
-            // pane. Writing them out rather than default-constructing keeps
-            // the four postures readable side by side.
+            // 通过构造，正是结构默认值：这就是
+            // `configured = false` 已经意味着的，
+            // 因此选择平衡的用户显式地获得与从未打开 面板 的用户
+            // 相同的边界。将它们写出来而不是默认的
+            // -constructing可以使四种姿势并排可读。
             c.fs_scope = FsScope::Toolchain;
             c.net_mode = NetMode::Full;
             c.syscall_mode = SyscallMode::Compiler;
             c.wx_protect = true;
-            c.memory_mb = 0;        // the machine's business, not ours
-            c.max_procs = 4096;     // fork-bomb cap; the audit found this none
+            c.memory_mb = 0;        // 机器的事，不是我们的事
+            c.max_procs = 4096;     // 叉-bomb帽；审计发现没有
             c.cpu_percent = 0;
             c.max_open_files = 0;
             c.wall_clock_secs = 0;
@@ -500,16 +500,16 @@ Config apply_posture(const Config& base, Posture p) {
             break;
 
         case Posture::Hardened:
-            // Every wall claybin can build, with caps a real build survives.
+            // claybin可以建造的每堵墙，带有上限，真实的建造得以幸存。
             //
-            // The numbers are the interesting part. They are chosen to be
-            // survivable rather than impressive: 8 GB and 400% (four cores)
-            // because a linker peaks high and an OOM kill mid-build reads as
-            // an agentty bug, and no wall-clock cap at all because a long
-            // build is not an attack and a timeout that fires on one teaches
-            // the user to turn the sandbox off.
+            // 数字是有趣的部分。它们被选择为可生存而不是令人印象
+            // 深刻：8 GB 和 400%（四核），因为 链接器
+            // 峰值很高，OOM 杀死 mid-build 读取为
+            // agentty 错误，并且根本没有 wall-clock 上限，
+            // 因为长构建不是攻击，并且在其中触发的 超时
+            // 会教用户关闭 沙箱。
             c.fs_scope = FsScope::Minimal;
-            c.net_mode = NetMode::Ports;   // 443/80/22/53 by default
+            c.net_mode = NetMode::Ports;   // 默认为443/80/22/53
             c.syscall_mode = SyscallMode::Strict;
             c.wx_protect = true;
             c.memory_mb = 8192;
@@ -520,21 +520,21 @@ Config apply_posture(const Config& base, Posture p) {
             c.cpu_secs = 0;
             c.scope_ipc = true;
             c.close_inherited_fds = true;
-            c.fake_hostname = true;        // keeps the host name out of logs
-            c.mask_scan_depth = 5;         // deeper sweep; it is a cost row
+            c.fake_hostname = true;        // 将主机名保留在日志之外
+            c.mask_scan_depth = 5;         // 更深层次的扫掠；这是一个成本行
             c.handoff = HandoffPolicy::Refuse;
             break;
 
         case Posture::Airgapped:
-            // The posture that makes §11's admission untrue.
+            // 这种态度使得§11的承认不真实。
             //
-            // Everywhere else in this subsystem, network is open and the
-            // documentation says plainly that read access plus network is read
-            // plus exfiltrate. This is the one setting where that stops being
-            // true, which is why it is worth a preset even though it breaks
-            // most workflows: for reading and editing code it costs nothing,
-            // and it is the only configuration here where a leaked credential
-            // cannot leave the machine.
+            // 在这个子系统的其他地方，网络是开放的，
+            // 并且文档清楚地说明读取访问加网络是读取加渗漏。
+            // 这是一个不再真实的设置，这就是为什么
+            // 它值得预设，即使它破坏了大多数工作
+            // 流程：读取和编辑代码不需要任何成本，
+            // 而且它是这里唯一一个泄漏的 凭据 无法
+            // 离开机器的配置。
             c.fs_scope = FsScope::Minimal;
             c.net_mode = NetMode::None;
             c.syscall_mode = SyscallMode::Strict;
@@ -553,36 +553,36 @@ Config apply_posture(const Config& base, Posture p) {
             break;
 
         case Posture::Custom:
-            // Not selectable: it is what detect_posture REPORTS, not a thing
-            // to apply. Returning the config untouched is the only sound
-            // answer -- there is nothing to write.
+            // 不可选择：是detect_posture REPORTS，
+            // 不是要申请的东西。原封不动地返回配置是唯一
+            // 合理的答案——没有什么可写的。
             break;
     }
     return c;
 }
 
 Posture detect_posture(const Config& cfg) {
-    // By COMPARISON against what each posture would produce, not by inspecting
-    // fields one at a time.
+    // 通过COMPARISON对照每种姿势将产生的结果，
+    // 而不是通过一次检查一个区域。
     //
-    // This is why the label cannot be wrong. apply_posture is the single
-    // definition of what a posture means, and detect asks it rather than
-    // re-encoding the same knowledge in a second place that can drift. Add a
-    // field to Config and this keeps working; add a field and hand-write the
-    // comparison, and the day you forget one the pane starts claiming
-    // "Hardened" for a config that is not.
+    // 这就是为什么标签不会错的原因。apply_posture
+    // 是姿势含义的唯一定义，并且检测询问它而不是重新定义
+    // -encoding同样的知识在第二位可能会漂移。
+    // 向 Config 添加一个字段，这样就可以继续工作；
+    // 添加字段和手-write比较，以及您忘记窗格开始声明的那一天
+    // "Hardened"对于不是的配置。
     //
-    // `configured` is normalised out of the comparison on both sides. It is
-    // bookkeeping about whether the user has ever touched the pane, not part of
-    // the boundary -- and apply_posture always sets it, so without this a
-    // never-opened config (configured = false) would report Custom even though
-    // its walls are exactly Balanced. The pane would open on "Custom" for every
-    // new user, which is both wrong and the least useful thing it could say.
+    // `configured`是从两侧的比较中归一化的。
+    // 它是关于用户是否曾经触摸过 面板 的簿记，而不是边界的一部分 -
+    // 并且 apply_posture 总是设置它，因此如果没有这个，
+    // 则 never-opened 配置（configured =
+    // false）将报告自定义，即使它的墙完全平衡。 面板 会在
+    // "Custom" 上为每个新用户打开，这既是错误的，也是最没用的。
     Config probe = cfg;
     probe.configured = true;
 
-    // Order matters only for display: Balanced is checked first because it is
-    // the overwhelmingly common answer, so the common case costs one compare.
+    // 顺序仅对于显示而言重要：首先检查平衡，
+    // 因为这是压倒性的常见答案，因此常见情况需要进行比较。
     for (auto p : {Posture::Balanced, Posture::Hardened, Posture::Airgapped,
                    Posture::Permissive}) {
         if (probe == apply_posture(probe, p)) return p;

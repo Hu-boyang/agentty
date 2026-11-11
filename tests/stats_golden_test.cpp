@@ -1,36 +1,36 @@
-// stats_golden_test — byte-identity guard for every stats tab, at every
-// width and height that changes its layout.
+// stats_golden_test — 字节-identity 守护每个
+// 数据标签, 以改变其布局的每个宽度和高度。
 //
-// WHY THIS EXISTS
+// 原因 此 EXISTS
 // ===============
-// The stats viewer is about to be ported from its own StatSheet -- which
-// re-implements chrome, viewport, width negotiation and column layout that
-// maya::Panel already owns -- onto the panel family's Item/Control
-// vocabulary. That is a rewrite of the render path, and a rewrite is
-// exactly the change a reading of the diff cannot verify.
+// 数据查看器即将从自己的端口移植 StatSheet ——
+// 重新分类 -implements 铬, 可视区域 ,宽度谈判和列布局,
+// maya::Panel 已经拥有了—— 进入面板家族
+// 的 Item/Control 词汇表。这是重写 渲染 路径,
+// 重写就是修改 diff 读取无法校验。
 //
-// Three separate attempts at improving this subsystem shipped regressions
-// that the existing tests were all green for: a bar that swallowed its own
-// value column, a track frozen at 14 cells, a scroll offset the frame gate
-// could not see. Each time the fix looked right in the diff. What was
-// missing was a record of what the pixels USED to be.
+// 三次不同的尝试来改进这个子系统 运出回归,
+// 现有的测试都是绿色的: 吞噬自己值柱的条,
+// 冻结在14的轨迹 存储单元 ,滚动来抵消 帧 门无法看到。
+// 修复器每次在 diff 中都正确看。
+// 缺少的是像素记录。 USED 成为。
 //
-// So this pins the pixels. Not "does it look reasonable" -- that asserts
-// nothing -- but "these exact cells, and if any of them move you must say
-// why".
+// 这么一来,像素就被钉上了 "does it look reasonable" - 说不出来 - 但是
+// 这些单元格必须完全一致；任何变化都要说明原因。
 //
-// HOW TO USE IT WHEN IT FAILS
+//
+// 测试失败后的使用方法。
 // ===========================
-// A failure is not automatically a bug. It says the rendering changed.
-//   1. Run tests/stats_visual at the failing width to SEE the change.
-//   2. If the change is wrong, fix it. That is the case this exists for.
-//   3. If the change is right, set kGoldenHash to 0, run once to print the
-//      new hash, and paste it back -- in the same commit as the change, so
-//      the diff shows a pixel change was intended and reviewed.
+// 失败不是自动错误, 它说渲染 已经更改。
+//   1. 运行 tests/stats_visual 以失败的宽度表示 SEE 零钱。
+//   2. 如果改变是错误的,就予以纠正,这就是存在的情况。
+//   3. 如果更改正确, 将 kGoldenHash 设置为 0, 运行一次打印
+//      新的散列,并粘贴它回来-- 与变化的相同承诺,
+//      所以diff显示一个像素变化是被打算和审查的.
 //
-// The per-tab feature assertions below are the part that survives a
-// deliberate re-pin: they say what the output must CONTAIN regardless of
-// its exact bytes, so a re-pinned hash cannot quietly drop a whole section.
+// 人均数 -tab 特征断言如下: -pin :他们
+// 说必须输出什么 CONTAIN 不论它的确切值多少 字节 ,
+// 所以一个 -pinned 散列不能悄悄地掉下整节.
 
 #include "agtest.hpp"
 
@@ -80,14 +80,14 @@ void install_stub_deps() {
     });
 }
 
-// A FIXED transcript. Every number the panel prints is derived from this,
-// so the golden bytes are a function of the renderer alone.
+// A FIXED 记录。每个数字的面板打印都来自这个,
+// 所以金色 字节 函数 渲染器 一个人
 //
-// Deliberately varied: several models, a routed and an unrouted turn, a
-// failed tool, cache hits and misses, reasoning tokens, and a long tool
-// name (git_status) -- because a table's label column is as wide as its
-// widest entry, and a fixture of four-character names cannot exercise the
-// case where a long label crowds the track.
+// 故意的有多种:几种型号,路由和无序转弯,工具失败,
+// 缓存点击和失手,推理符,以及一个长的工具名称(
+// git_status)——因为一张表格的标签栏
+// 的条目最宽,
+// 而4-character名称的固定不能行使长标签挤占赛道的情况.
 Model golden_model() {
     Model m;
     m.d.current.id = ThreadId{"golden-stats"};
@@ -124,23 +124,23 @@ Model golden_model() {
     return m;
 }
 
-// A LONG session, the shape a real one reaches.
+// A LONG 切换到一个真实的形状
 //
-// The fixture above is four turns with tidy numbers, and every value it
-// produces is short: "4 turns", "16s", "2.1k". Real threads are not like
-// that — a screenshot of a working session showed 2223 turns and 3h33m,
-// where the counts are four digits, the durations carry two units, and
-// every string in the panel is wider than anything this file had ever
-// rendered.
+// 上面的固定是四个转弯, 和干净的数字, 和它产生的
+// 每个值是短的: "4 turns", "16s",
+// "2.1k" 实值 线程 工作会议截图显示2223
+// 转和3h33m, 计数是四个数字, 持续时间带
+// 两个单位, 面板中的每个字符串都比文件所显示的
+// 要宽。
 //
-// That matters because width bugs are triggered by CONTENT width, not by
-// terminal width, and a fixture whose values are all short cannot reach
-// them. A tidy fixture does not test a layout; it tests the layout's
-// easiest case and reports that as a pass.
+// 这一点很重要,因为宽度错误是由CONTENT宽而不是
+// 终端宽度触发的,而且一个其值都短的固定点无法到达它们。
+// 整洁的固定点不会测试布局;它测试布局最简单的情况,
+// 并报告为通过。
 //
-// Deliberately awkward: four-digit counts, hour-scale durations, a model
-// name long enough to compete for the label lane, and reasoning tokens so
-// the "of which reasoning" sub-row appears.
+// 故意尴尬:四 -digit 计数,小时 -scale 持续时间,
+// 一个模型名称足够长,可以竞争标签道, 推理符号如此 "of which reasoning"
+// 子目录 -row 出现。
 Model heavy_model() {
     Model m;
     m.d.current.id = ThreadId{"heavy-stats"};
@@ -170,7 +170,7 @@ Model heavy_model() {
         return &m.d.current.messages.emplace_back(std::move(a));
     };
 
-    // Enough turns for four-digit counts and hour-scale totals.
+    // 转四圈够多了 -digit 计数和小时 -scale 总计。
     for (int i = 0; i < 400; ++i) {
         turn("claude-opus-4-5",    9100, 2300, 48000, 9100, 2400, 31000, 4100);
         turn("claude-sonnet-4-5",  7400, 1900, 52000,    0, 1100, 18000,    0);
@@ -179,22 +179,22 @@ Model heavy_model() {
     return m;
 }
 
-// Flatten the panel to text at a given width and height.
-// Text the stats panel had CLIPPED AWAY, across every tab and width.
+// 将面板平整为文字, 并设定宽度和高度。
+// 文本 STATs 面板有 CLIPPED AWAY ,横跨每个标签和宽度。
 //
-// Filled by render_at while the frames are painted, asserted once at the
-// end. This is the one fact about a frame that cannot be recovered from
-// the frame: the golden hash, the overflow scan and every feature check
-// read what LANDED on the canvas, and a canvas cannot show you what was
-// never drawn. A row whose value was clipped leaves a tidy-looking frame
-// that is missing a number — which is precisely how a week of width bugs
-// stayed invisible to this file while being obvious in a screenshot.
+// 填充单位: render_at 时 帧 画,
+// 在结尾处一次。 帧 无法从 帧 黄金散
+// 列 外溢扫描 和每个功能检查读到什么
+// LANDED 画布上,画布上无法显示
+// 从未画过的东西。 -looking 帧
+// 缺少一个数字——这正是一周宽度bug如何
+// 在屏幕截图中明显地不为这个文件所覆盖。
 std::vector<std::string> g_clipped;
 
 std::string render_at(const Model& m, int w, int rows) {
-    // Panel clamps its own min_width to the terminal and reads COLUMNS when
-    // there is no tty; LINES drives the viewport the same way. Both must be
-    // set or the golden bytes are a function of the machine, not the code.
+    // 面板将自己的min_width夹在终端上,当没有tty
+    // 时读作COLUMNS;LINES驱动可视区域的方式相同,
+    // 两者必须设定或金色的字节是机器的一种功能,而不是代码.
     const std::string cols = std::to_string(w);
     const std::string lns  = std::to_string(rows);
     setenv("COLUMNS", cols.c_str(), 1);
@@ -215,9 +215,9 @@ std::string render_at(const Model& m, int w, int rows) {
     for (int y = 0; y < rows; ++y) {
         for (int x = 0; x < w; ++x) {
             const char32_t c = canvas.get(x, y).character;
-            // UTF-8 encode: the figures are braille and box-drawing, and
-            // folding them to '?' would make the hash blind to exactly the
-            // glyphs this panel is made of.
+            // UTF -8编码:数字是盲文和盒子 -drawing ,
+            // 然后折叠到 '?' 使散列对这个面板所
+            // 编的文字完全视而不见。
             const char32_t ch = c ? c : U' ';
             if (ch < 0x80) out += static_cast<char>(ch);
             else if (ch < 0x800) {
@@ -239,18 +239,18 @@ std::string render_at(const Model& m, int w, int rows) {
     return out;
 }
 
-// Every tab, at the widths and heights that change the layout.
+// 每个标签,在改变布局的宽度和高度上.
 //
-// The widths bracket the decisions the sheet makes: 40 is below any split,
-// 68 is the reported phone-pane width, 76/90 straddle the split threshold,
-// 120/200 are where a wide surface should be used rather than left blank.
-// The heights matter because column count is a response to VERTICAL
-// pressure -- a tab that fits does not split, whatever its width.
+// 表格所作决定的宽度:40个在任何拆分以下,
+// 68个是报告的电话-pane宽度,76/90跨分分界线,
+// 120/200是应当使用宽面而不是留空面的地方。
+// 高度之所以重要,是因为列数是对VERTICAL压力
+// 的反应——一个适合不分裂的标签,无论它的宽度如何.
 //
-// Model is move-only (it owns a scrollback ledger and a view cache), which
-// is the right call for a type this size -- so each case builds its own
-// rather than copying a base. The fixture is deterministic, so rebuilding
-// is equivalent to copying and costs nothing that matters here.
+// Model 正在移动 -only (拥有一个 回滚缓冲区 分类账
+// 和视图 缓存 ),这是正确的 调用 对于这样大小的一类,
+// 每一个案例都会建立自己的基础,而不是复制一个基础。固定的定型是决定性的,
+// 所以重建相当于复制, 并且成本不值任何重要的东西。
 std::string render_all() {
     const int widths[]  = {40, 60, 68, 76, 90, 120, 200};
     const int heights[] = {24, 40, 60};
@@ -272,22 +272,22 @@ std::string render_all() {
     return all;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("stats_golden: every tab renders byte-identically") {
     install_stub_deps();
     const std::string out = render_all();
 
-    // STATS_DUMP=<tab> prints the rendered frames for a tab and stops.
+    // STATS_DUMP=<tab> 打印已提供 帧 给一个标签和停止。
     //
-    // The hash says THAT the rendering changed; this says WHAT it changed
-    // to, which is the question you actually have when it fails. It reuses
-    // this harness rather than living in stats_visual because the fixture
-    // here is the one the assertions are written against — a second fixture
-    // is a second thing to keep true.
+    // 散列说 该 编号 渲染 更改; 此内容 内容 换成这个,
+    // 这就是你实际遇到的问题,当它失败时。
+    // 它重新使用这个绳子而不是生活在 stats_visual
+    // 因为这里的固定是写在断言上反对的——第二套固定是
+    // 第二套要保持真实的东西.
     //
     //   STATS_DUMP=Tools ctest -R stats_golden --output-on-failure
-    //   STATS_DUMP=all   …            every tab
+    //   STATS_DUMP 全部... 每个标签
     if (const char* want = std::getenv("STATS_DUMP")) {
         const std::string sel = want;
         std::size_t pos = 0;
@@ -303,24 +303,24 @@ TEST_CASE("stats_golden: every tab renders byte-identically") {
         }
     }
 
-    // ── What the panel threw away ────────────────────────────────
+    // ── 板子丢掉的东西 ────────────────────────────────
     //
-    // Every other check in this file reads the painted frames, so none of
-    // them can see a cell that was never painted. A clipped value leaves a
-    // frame that looks right and is missing a number, which is how a week
-    // of width bugs survived a green suite here.
+    // 文件中的每个其它支票都读取了所画的 帧 ,
+    // 所以他们都看不到 存储单元。
+    // 一个剪切的值会留下一个 帧 一周宽度的虫子
+    // 如何幸存了这里的绿色套房
     //
-    // ASSERTED, not merely reported, because the panel is clip-clean and
-    // that is worth keeping. The first run of this check found nine drops
-    // the golden hash had been happily pinning — three subtitles cut dead
-    // at 40 columns with no ellipsis, so the sentence just stopped and the
-    // reader had no reason to think a word was missing.
+    // ASSERTED 不只是报道 因为面板是剪辑
+    // -clean 这张支票的第一行发现,
+    // 金色的散列物 已经很幸福地被打翻了—— 三个
+    // 字幕被砍死在40列没有椭圆的栏目上, 所以句子就停了,
+    // 读者没有理由认为一个字不见了。
     //
-    // A deliberate truncation does NOT trip this: an ellipsised label has
-    // already shortened itself to fit, so nothing reaches the clip edge.
-    // That is the distinction this assertion is built on — it fires on
-    // information lost WITHOUT the reader being told, and stays quiet on
-    // information the panel chose to abbreviate.
+    // 故意的截断会使NOT 跌倒:椭圆形的标签已经缩短了,
+    // 以便适应,所以没有东西到达剪贴板的边缘。
+    // 这就是这一说法所依据的区别——它以
+    // 丢失的信息为火线。 无需 并且保持安静 信息,
+    // 小组选择 缩写。
     if (!g_clipped.empty()) {
         std::fprintf(stderr, "\nstats: %zu clipped write(s) across the sweep\n",
                      g_clipped.size());
@@ -337,22 +337,22 @@ TEST_CASE("stats_golden: every tab renders byte-identically") {
     check(g_clipped.empty(),
           "no stats text is cut off without an ellipsis");
 
-    // The same question asked of a LONG session.
+    // 问的同样问题 LONG 届会。
     //
-    // Width bugs are triggered by content width, not terminal width, so a
-    // fixture whose every value is short ("4 turns", "16s") cannot reach
-    // them — it exercises the layout's easiest case and reports that as a
-    // pass. A real thread carries four-digit counts and hour-scale
-    // durations, which is where the strings actually compete for the row.
+    // 宽度错误由内容宽度触发, 不是 终端 宽度,
+    // 所以每个值都短的固定图( "4 turns",
+    // "16s" ——它行使布局最简单的情况,并报告情况,
+    // 作为通行。 线程 携带四 -digit 计数和
+    // 小时 -scale 持续时间,这是弦实际竞争行的地方.
     //
-    // Not hashed, deliberately. Pinning the bytes of a 1200-turn fixture
-    // would make every unrelated formatting change a re-pin chore for no
-    // extra safety; what is worth asserting is the property, and the
-    // property is that nothing is lost without the reader being told.
+    // 而不是故意的。 将1200 -turn 固定的 字节
+    // 将使得每个不相关的格式改变为 re-pin 的 jore ,
+    // 以示没有额外的安全; 值得断言的是财产,
+    // 而财产是,没有读者被告知,任何东西都不会丢失。
     g_clipped.clear();
-    // HEAVY_DUMP=<width> prints the heavy fixture at one width, which is
-    // the shape a real session has: four-digit counts, hour-scale
-    // durations, values wide enough to compete for the row.
+    // HEAVY_DUMP=<width> 以一个宽度打印重修饰,
+    // 这是真实会话的形状 : 4 -digit 计数,
+    // 小时 -scale 持续时间, 数值宽到可以对行进行竞争。
     if (const char* hw = std::getenv("HEAVY_DUMP")) {
         const int w = std::atoi(hw);
         for (const auto& desc : stats::kTabs) {
@@ -387,11 +387,11 @@ TEST_CASE("stats_golden: every tab renders byte-identically") {
     check(g_clipped.empty(),
           "a long session loses no text either");
 
-    // ── Feature assertions ──────────────────────────────────
+    // ── 特征断言 ──────────────────────────────────
     //
-    // What the output must CONTAIN, regardless of its exact bytes. These
-    // are what survives a deliberate re-pin: a new hash cannot quietly
-    // drop a section, because these still have to hold.
+    // 输出必须进行什么 CONTAIN ,无论准确与否 字节
+    // 这些是经过精心研究后存活下来的 -pin : 新的散列
+    // 不能悄悄地掉下一节,因为这些仍然必须保持.
     check(out.find("Session") != std::string::npos, "the Session tab is drawn");
     check(out.find("Tokens")  != std::string::npos, "the Tokens tab is drawn");
     check(out.find("Cache")   != std::string::npos, "the Cache tab is drawn");
@@ -402,10 +402,10 @@ TEST_CASE("stats_golden: every tab renders byte-identically") {
     check(out.find("\xe2\x94\x82") != std::string::npos,
           "the panel frame is drawn");
 
-    // No row may exceed the width it was rendered at -- the frame-overdraw
-    // class, pinned here too because this harness sees every tab at every
-    // size. Each block is preceded by a "== Tab WxH ==" marker, so the
-    // expected width is in the stream itself.
+    // 任何行都不得超过在 -- -- 时间 -- -- 所显示的宽度。
+    // 帧-overdraw 分类, 也固定在此, 因为这支绳索可以看到每
+    // 个标签的大小。 每个块前有一个 "== Tab WxH ==" 标记,
+    // 因此,预期宽度在 数据流 自己来
     {
         int over = 0;
         int want = 0;
@@ -417,7 +417,7 @@ TEST_CASE("stats_golden: every tab renders byte-identically") {
             pos = nl + 1;
 
             if (line.rfind("== ", 0) == 0) {
-                // "== Tab 76x40 ==" -- take the width between space and 'x'.
+                // "== Tab 76x40 ==" -- 取空格之间的宽度, 和 'x'.
                 const std::size_t x = line.rfind('x');
                 const std::size_t sp = line.rfind(' ', x);
                 if (x != std::string::npos && sp != std::string::npos)
@@ -425,7 +425,7 @@ TEST_CASE("stats_golden: every tab renders byte-identically") {
                 continue;
             }
             if (want <= 0) continue;
-            // Display width, not bytes: the figures are multi-byte.
+            // 显示宽度, 不 字节 : 数字是多的 -byte.
             int cells = 0;
             for (std::size_t i = 0; i < line.size(); ) {
                 const unsigned char c = static_cast<unsigned char>(line[i]);
@@ -437,15 +437,15 @@ TEST_CASE("stats_golden: every tab renders byte-identically") {
         check(over == 0, "no row overruns the width it was rendered at");
     }
 
-    // ── Byte identity ────────────────────────────────────────────────
+    // ── 字节 身份标识 ────────────────────────────────────────────────
     //
-    // Set to 0 to bootstrap: the run prints the hash to stderr, paste it
-    // back IN THE SAME COMMIT as the change that moved it.
-    // Moved 2026-11: the footer key strip went from a hand-spelled
-    // cfg.note to the shared key_hints helper, so it now sheds keys under
-    // width pressure like every other panel. Only the footer line changed;
-    // the clip scan, the overrun check and every feature assertion stayed
-    // green across the sweep.
+    // 设置为 0 到 ritrap: 运行打印散列到 stderr,
+    // 粘贴到后面 IN 该 相同 COMMIT 因为它的改变 移动它。
+    // 移动 2026- 11 : 页脚键条从手-spelled
+    // cfg.note 移动到共享的 key_hints 帮助器,
+    // 所以它现在像其他面板一样在宽度压力下放出键。
+    // 只有页脚线改变了;剪辑扫描、 超时检查和每个特性断言在整个
+    // 扫荡期间都保持绿色。
     const std::uint64_t kGoldenHash = 0x024089ffde43e434ull;
     const std::uint64_t got = fnv1a(out);
 

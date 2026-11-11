@@ -1,8 +1,8 @@
-// settings_input_bench — keystroke-to-paint latency on every settings pane.
+// settings_input_bench 键盘键 -to-paint 每个设置的延迟 面板.
 //
-// Each key goes the real way: on_key (key -> Msg) -> update -> view -> paint.
-// Prints the worst and median per pane so a slow keystroke has a name. Not a
-// test: microsecond assertions would test the machine, not the code.
+// 每把钥匙都用真枪 on_key (键 - > Msg ) - > 更新 - > 视图 - > 油漆。
+// 打印每 面板 中最差和中位数, 慢键键有名字。
+// 不是测试: 微秒断言会测试机器, 而不是代码。
 
 #include "agentty/runtime/app/deps.hpp"
 #include "agentty/runtime/app/subscribe.hpp"
@@ -56,7 +56,7 @@ double med(std::vector<double> v) {
 }
 double mx(const std::vector<double>& v) { return *std::max_element(v.begin(), v.end()); }
 
-// A key mix a user actually types: move, adjust, enter, type, leave.
+// 一个键键组合一个用户实际类型:移动,调整,输入,键入,离开.
 std::vector<maya::KeyEvent> script() {
     using S = maya::SpecialKey;
     std::vector<maya::KeyEvent> k;
@@ -99,7 +99,7 @@ Result run(Model m, Msg open, const char* name) {
     return r;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 int main() {
     install_stub_deps();

@@ -1,42 +1,35 @@
 #!/usr/bin/env python3
-"""ui_boundary -- agentty describes UI, maya draws it.
+"""ui_boundary：agentty 描述界面，maya 负责绘制。
 
-THE RULE
-========
-agentty's view layer builds `maya::Element` values and hands them over. It
-never touches a cell, a canvas, or a raw escape sequence. Every pixel decision
--- layout, truncation, colour resolution, the cursor -- belongs to maya, which
-is why a maya widget can change its mind about width negotiation and agentty
-keeps working.
+规则
+====
+agentty 视图层构建 maya::Element 值并交给 maya，
+不直接接触单元格、画布或原始转义序列。布局、截断、颜色解析和光标等
+所有像素层决策均归 maya，因此 maya 改变组件宽度协商方式时 agentty 仍能工作。
+本检查把原先依靠习惯遵守的边界变成明确约束。
 
-That boundary holds today by habit. This makes it hold by rule.
+在 agentty 的 src/ 和 include/ 中禁止：
 
-WHAT IT BANS, in agentty's src/ and include/:
+  * 直接写画布或单元格，例如 canvas.set/put、Canvas&、Cell{。
+  * 自行定义组件，包括 paint/draw/render 方法或返回几何信息的 layout()。
+  * 输出原始 ANSI 转义序列。
 
-  * writing a canvas or cell directly (canvas.set/put, Canvas&, Cell{)
-  * defining a widget: a paint/draw/render method, a layout() that returns
-    geometry -- the shapes that mean "I am doing maya's job here"
-  * emitting a raw ANSI escape
+允许以下场景：
 
-WHAT IT ALLOWS, and why each is not a hole:
+  * 测试需要将 Element 栅格化后断言，这是读取 maya 输出。
+  * CLI 部分，如 agentty paste page、Ctrl+G 运行器、--version。
+    此时 maya 未运行或已经交还终端。豁免逐个指定，不按整个目录放行。
+  * 注释和字符串。turn.cpp 提到的转义序列用于说明 maya 的 HardReset 行为；
+    扫描前会去掉注释和字面量。
 
-  * TESTS. A render test has to rasterise an Element to assert on it; that
-    is reading maya's output, not bypassing it.
-  * The CLI half. `agentty paste page`, the Ctrl+G runner, `--version`: maya
-    is not running (or has handed the terminal back), so there is no layer to
-    go through. These are named individually, not waved through by directory.
-  * COMMENTS AND STRINGS. The ones in turn.cpp that spell \\x1b[2J are
-    describing what maya's HardReset does. Code is scanned with comments and
-    literals stripped.
-
-Usage: ui_boundary.py <agentty source root>
+用法：ui_boundary.py <agentty source root>
 """
 import re
 import sys
 from pathlib import Path
 
-# Files that legitimately emit escapes because maya is not mediating the
-# terminal at that moment. Each needs a reason, not just a path.
+# 合法释放出的文件,因为 maya 不在调解中
+# 终端 每个人需要的是理由,而不是一条路
 ALLOW = {
     "src/runtime/app/cmd_code_block_run.cpp":
         "runs a user command on the real tty after maya releases it; "
@@ -46,9 +39,9 @@ ALLOW = {
         "the TUI",
 }
 
-# A terminal cell is `maya::Cell`. Matching a bare `Cell{` caught agentty's
-# own unrelated Cell types -- a cache slot in gen_cache.hpp, a lazy-bytes
-# holder -- which have nothing to do with a screen. Qualify it.
+# A 终端 存储单元 谓 `maya::Cell`。匹配一个赤裸裸的 `Cell{` 被抓到了
+# 被抓到了吗 agentty 自己无关 存储单元 类型 -- -- a 缓存 插槽输入
+# gen_cache.hpp, a 惰性-bytes 持有器 – 和屏幕无关。 认证它。
 CANVAS = re.compile(r"\bcanvas\s*\.\s*(set|put|write)\b"
                     r"|\bmaya::Canvas\s*&"
                     r"|\bmaya::Cell\s*\{")
@@ -57,7 +50,7 @@ ANSI = re.compile(r"\\x1b\[|\\033\[|\\e\[")
 
 
 def strip_code(text: str) -> str:
-    """Blank comments and string/char literals, keeping line numbers."""
+    """将注释及字符串、字符字面量置空，保留行号。"""
     out, i, n = [], 0, len(text)
     while i < n:
         c = text[i]
@@ -84,12 +77,11 @@ def strip_code(text: str) -> str:
 
 
 def strip_comments(text: str) -> str:
-    """Blank comments only, keeping string literals and line numbers.
+    """只将注释置空，保留字符串字面量和行号。
 
-    An escape sequence only ever appears INSIDE a literal, so the ANSI rule
-    has to read literals -- stripping them (as the structural rules want)
-    made that check unreachable, and it silently never fired. Comments still
-    go, because turn.cpp legitimately describes \\x1b[2J in prose.
+    转义序列只会出现在字面量中，因此 ANSI 规则必须读取字面量。
+    若像结构规则一样先移除它们，检查将永远不会触发。
+    注释仍需移除，因为 turn.cpp 会合法地用文字说明 \\x1b[2J。
     """
     out, i, n = [], 0, len(text)
     while i < n:

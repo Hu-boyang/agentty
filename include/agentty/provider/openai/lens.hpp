@@ -1,63 +1,63 @@
 #pragma once
-// agentty/provider/openai/lens.hpp — observing a dialect that has no spec.
+// agentty/provider/openai/lens.hpp-观察没有规范的方言。
 //
-// ── WHY THIS IS NOT acp::Codec<T> ────────────────────────────────────────
+// ── 原因 此 IS 不 acp::Codec<T> ────────────────────────────────────────
 //
-// acp-cpp and mcp-cpp model their wire with `Codec<T>`, a partial ISOMORPHISM
+// acp-cpp和mcp-cpp用`Codec<T>`（部分ISOMORPHISM）对他们的传输进行建模
 //
-//        T  ⇄  Json           decode ∘ encode = id_T
-//      encode   decode
+//        T⇄JSON解码∘编码=id_T
+//      编码解码
 //
-// and that law is meaningful because ACP and MCP are PROTOCOLS: a published
-// specification says what the bytes are, so an unknown field is a peer bug and
-// `throw CodecError` is the correct response.
+// 并且该定律是有意义的，因为 ACP 和 MCP 是 PROTOCOLS：
+// 已发布的规范说明了 字节 是什么，因此未知字段是 对端 错误，
+// 而 `throw CodecError` 是正确的响应。
 //
-// "OpenAI-compatible" is not a protocol. It is an API shape that won by
-// adoption and was then cloned. There is no RFC, no registry, no version
-// negotiation, and no body that owns it. The two de-facto sources of truth —
-// OpenAI's own openapi document and vLLM's server — DISAGREE, and the
-// ecosystem follows whichever is closer to hand. Concretely:
+// "OpenAI-compatible"不是协议。它是一种 API 形状，
+// 因采用而获胜，然后被克隆。没有 RFC，没有 注册表，没有版本协商，
+// 也没有拥有它的 正文。 de-facto 的两个事实来源 - OpenAI
+// 自己的 openapi 文档和 vLLM 的服务器 - DISAGREE，
+// 以及生态系统遵循更接近的那个。具体来说：
 //
-//   • OpenAI's Responses API streams thinking as `reasoning`.
-//   • DeepSeek introduced `reasoning_content` on Chat Completions.
-//   • vLLM followed DeepSeek. Some gateways emit BOTH, one of them empty.
-//   • `context_length` in /v1/models is a vLLM extension that is not in
-//     OpenAI's shape at all.
+//   ·OpenAI的响应API 数据流认为是`reasoning`。
+//   ·DeepSeek在聊天完成上引入了`reasoning_content`。
+//   · vLLM 遵循 DeepSeek。某些网关发出 两者，其中之一是空的。
+//   ·/v1/models中的`context_length`是vLLM扩展，其不在
+//     OpenAI的形状根本不存在。
 //
-// None of those is a violation, because there is nothing to violate. So the
-// algebra has to be different in two ways:
+// 这些都不是违规，因为没有什么可违规的。
+// 所以代数必须在两个方面有所不同：
 //
-//   1. THERE IS NO ENCODE SIDE. agentty consumes provider responses; it never
-//      produces one. A Codec needs an inverse and a spec on both sides; here
-//      there is neither, so the round-trip law cannot even be stated.
+//   1. THERE IS NO ENCODE SIDE。 agentty 消耗提供者响应；它从来没有
+//      生产一个。编解码器需要逆元和两边都有规格；这里两者都不存在，
+//      所以 round-trip 定律甚至无法被陈述。
 //
-//   2. FAILURE IS ORDINARY, NOT EXCEPTIONAL. A missing key means "this server
-//      spells it differently", not "this server is broken". Decoding must
-//      DEGRADE, never throw.
+//   2. FAILURE IS ORDINARY，不 EXCEPTIONAL。缺少密钥意味着“此服务器
+//      拼写不同", not "此服务器已损坏”。解码必须DEGRADE，
+//      绝不抛出。
 //
-// ── WHAT THIS IS INSTEAD ─────────────────────────────────────────────────
+// ── 内容 此 IS INSTEAD ─────────────────────────────────────────────────
 //
-// A `Lens<T>` witnesses a partial OBSERVATION of a Json value
+// `Lens<T>`见证了JSON值的部分OBSERVATION
 //
-//        observe : Json ⇀ T
+//        观察：JSON⇀T
 //
-// and the laws are about choice rather than round-tripping. `Lens` is an
-// Alternative over Maybe; `|` is its choice operator:
+// 并且法律是关于选择而不是round-tripping。 `Lens` 是
+// Maybe 的替代方案； `|` 是其选择运算符：
 //
-//        (a | b) succeeds   ⟺   a succeeds ∨ b succeeds
-//        (a | b) | c        =   a | (b | c)             (associative)
-//        a | fail  =  a  =  fail | a                    (fail is the identity)
+//        (a | b)成功 ⟺ a 成功 ∨ b
+//        成功 (a | b) | c = a | (b | c)
+//        (结合) a | 失败 = a = 失败 | a (失败为恒等式)
 //
-// which is exactly the structure of "this field has three spellings in the
-// wild, try them in order of specificity". The deviations stop being `if`
-// branches buried in a 3000-line decoder and become DATA — a declaration you
-// can read, test against captured fixtures, and extend with one line.
+// 这正是
+// "this field has three spellings in the wild, try them in order of specificity"的结构。
+// 偏差不再是隐藏在 3000-line 解码器中的 `if` 分支，
+// 而是变成 DATA——这是一个您可以读取、针对捕获的装置进行测试并用一行进行扩展的声明。
 //
 // ── SSOT ─────────────────────────────────────────────────────────────────
 //
-// dialect.hpp holds the observation tables built from this algebra. They are
-// the single source of truth for how a field is spelled on this wire; the
-// transport observes THROUGH them and nowhere else.
+// dialect.hpp保存根据该代数构建的观测表。
+// 它们是 传输 上的字段拼写方式的唯一事实来源； 传输层 观察
+// THROUGH 他们，而不是其他地方。
 
 #include <functional>
 #include <optional>
@@ -72,10 +72,10 @@ namespace agentty::provider::openai {
 
 using Json = nlohmann::json;
 
-// ── Lens<T> ──────────────────────────────────────────────────────────────
-// An erased partial observation. Total in the sense that it never throws:
-// a shape it does not recognise yields nullopt, which the caller treats as
-// "not present in this dialect", not as an error.
+// ── 镜头 <T> ──────────────────────────────────────────────────────────────
+// 删除的部分观察结果。总的意思是它永远不会抛出：
+// 它无法识别的形状会产生 nullopt，调用者将其视为
+// "not present in this dialect"，而不是错误。
 template <class T>
 struct Lens {
     using Observe = std::function<std::optional<T>(const Json&)>;
@@ -86,17 +86,17 @@ struct Lens {
     }
 };
 
-// ── fail : Lens<T> ───────────────────────────────────────────────────────
-// The identity of `|`. Observes nothing, ever.
+// ── 失败: 镜头 <T> ───────────────────────────────────────────────────────
+// `|`的身份。从来没有观察到任何事情。
 template <class T>
 [[nodiscard]] inline Lens<T> fail() {
     return Lens<T>{[](const Json&) { return std::optional<T>{}; }};
 }
 
-// ── a | b : choice ───────────────────────────────────────────────────────
-// Try `a`; if it observes nothing, try `b`. Associative, with `fail` as
-// identity — the Alternative instance that makes a deviation table a single
-// readable expression.
+// ── a | b:选择 ───────────────────────────────────────────────────────
+// 尝试`a`；如果没有观察到任何结果，请尝试 `b`。
+// 关联，以 `fail` 作为标识 — 使偏差表成为单个可读
+// 表达式的替代实例。
 template <class T>
 [[nodiscard]] inline Lens<T> operator|(Lens<T> a, Lens<T> b) {
     return Lens<T>{[a = std::move(a), b = std::move(b)](const Json& j)
@@ -106,11 +106,11 @@ template <class T>
     }};
 }
 
-// ── key : Lens<T> ────────────────────────────────────────────────────────
-// Observe one object member, when it is present AND of the right JSON type.
-// A wrong-typed member yields nullopt rather than throwing: a gateway that
-// sends `reasoning: null` alongside a populated `reasoning_content` must fall
-// through to the next alternative, not abort the stream.
+// ── 键 : 镜头 <T> ────────────────────────────────────────────────────────
+// 观察一个对象成员，当它存在右侧JSON类型的AND时。
+// 错误的-typed成员产生nullopt而不是抛出：与填充的
+// `reasoning_content`一起发送`reasoning: null`
+// 的网关必须落入下一个替代方案，而不是中止数据流。
 template <class T>
 [[nodiscard]] inline Lens<T> key(std::string name) {
     return Lens<T>{[name = std::move(name)](const Json& j) -> std::optional<T> {
@@ -121,11 +121,11 @@ template <class T>
             if (!it->is_string()) return std::nullopt;
             return it->template get<std::string>();
         } else if constexpr (std::is_same_v<T, bool>) {
-            // BEFORE the integral arm: std::is_integral_v<bool> is TRUE, so
-            // a bool would otherwise be tested with is_number_integer() and
-            // rejected — `"reasoning": true` reads as "absent", which is
-            // indistinguishable from a provider that never declared it.
-            // Strict: only a real JSON boolean, never 0/1 or "true".
+            // BEFORE积分臂：std::is_integral_v<bool>
+            // 是TRUE，因此布尔值将用is_number_integer
+            // ()进行测试并被拒绝——`"reasoning": true`
+            // 读作"absent"，这与从未声明它的提供者没有区别。
+            // 严格：只有真正的JSON布尔值，而不是0/1或"true"。
             if (!it->is_boolean()) return std::nullopt;
             return it->template get<bool>();
         } else if constexpr (std::is_integral_v<T>) {
@@ -138,14 +138,14 @@ template <class T>
     }};
 }
 
-// ── nonempty : Lens<string> → Lens<string> ───────────────────────────────
-// Reject an empty observation so it falls through to the next alternative.
+// ── 非空: 镜头 <string> + 镜头 <string> ───────────────────────────────
+// 拒绝空观察，因此它落入下一个选择。
 //
-// THIS ONE IS LOAD-BEARING, not a nicety. Some OpenRouter passthroughs send an
-// EMPTY `reasoning_content` alongside a populated `reasoning`. Taking the
-// first key that merely EXISTS silently drops every token of reasoning on
-// those endpoints. The bug is invisible: no error, no warning, just a model
-// that appears to think in silence.
+// 此 一个 IS LOAD-BEARING，不太好。某些 OpenRouter
+// 直通会发送 空 `reasoning_content` 以及已填充的
+// `reasoning`。获取仅 EXISTS 的第一个密钥，
+// 默默地丢弃这些端点上的所有推理标记。该错误是看不见的：没有错误，没有警告，
+// 只是一个似乎在沉默中思考的模型。
 [[nodiscard]] inline Lens<std::string> nonempty(Lens<std::string> inner) {
     return Lens<std::string>{
         [inner = std::move(inner)](const Json& j) -> std::optional<std::string> {
@@ -155,23 +155,23 @@ template <class T>
         }};
 }
 
-// ── truthy_object : Lens<bool> ───────────────────────────────────────────
-// Observe "this capability object is PRESENT" as a boolean true.
+// ── truthy_object : 镜头 <bool> ───────────────────────────────────────────
+// 将 "this capability object is PRESENT" 观察为布尔值 true。
 //
-// Some servers declare a capability as a bare bool, others as an object
-// describing how to use it, and the object's mere presence is the claim:
+// 一些服务器将能力声明为裸布尔值，其他服务器将能力声明
+// 为描述如何使用它的对象，并且对象的存在本身就是声明：
 //
-//     "reasoning": true                                   Mistral
-//     "reasoning": {"allowed_options":["off","on"],       LM Studio
-//                   "default":"on"}
+//     "reasoning":真正的米斯特拉尔"reasoning":{
+//     "allowed_options":["off","on"]，
+//                   LM工作室"default":"on"}
 //
-// A model that cannot reason omits the key entirely, so there is nothing to
-// read INSIDE the object to answer yes/no — presence is the answer. This
-// composes with `key<bool>` under `|` so a table states both spellings as
-// one expression instead of branching on is_boolean() at a call site.
+// 无法推理的模型完全省略了密钥，因此没有什么可以读取INSIDE对象来回答yes/no
+// ——存在就是答案。这与 `|` 下的 `key<bool>`
+// 组合在一起，因此表格将两种拼写表述为一个表达式，
+// 而不是在 调用 站点的 is_boolean() 上分支。
 //
-// Empty object = present but says nothing; treated as a declaration, since
-// a server that meant "no" would omit the key.
+// 空物体=存在但什么也没说；被视为声明，
+// 因为表示 "no" 的服务器将省略该密钥。
 [[nodiscard]] inline Lens<bool> truthy_object(std::string name) {
     return Lens<bool>{[name = std::move(name)](const Json& j) -> std::optional<bool> {
         if (!j.is_object()) return std::nullopt;
@@ -181,9 +181,9 @@ template <class T>
     }};
 }
 
-// ── under : (key, Lens<T>) → Lens<T> ─────────────────────────────────────
-// Descend into a nested object and observe there. Lets a table say
-// `under("delta", reasoning)` without the caller unpacking the envelope.
+// ── 下方: (键, 连) <T> ) + 连 <T> ─────────────────────────────────────
+// 下降到嵌套对象中并观察那里。让表格显示
+// `under("delta", reasoning)`，而呼叫者无需打开信封。
 template <class T>
 [[nodiscard]] inline Lens<T> under(std::string name, Lens<T> inner) {
     return Lens<T>{[name = std::move(name), inner = std::move(inner)](
@@ -195,8 +195,8 @@ template <class T>
     }};
 }
 
-// ── map : (Lens<A>, A → B) → Lens<B> ─────────────────────────────────────
-// The functor instance. Observe an A, then transform it.
+// ── 地图 : (Lens) <A> ) 镜头 <B> ─────────────────────────────────────
+// 函子实例。观察 A，然后对其进行变换。
 template <class A, class F>
 [[nodiscard]] inline auto map(Lens<A> a, F f)
     -> Lens<std::invoke_result_t<F, A>> {
@@ -208,10 +208,10 @@ template <class A, class F>
     }};
 }
 
-// ── collect : Lens<vector<T>> ────────────────────────────────────────────
-// Observe an ARRAY member by walking each element with an element lens and
-// keeping the ones that observe. Used for the structured content-parts form
-// (Mistral) where `content` is a list of typed parts instead of a string.
+// ── 收集: 镜头 <vector<T>> ────────────────────────────────────────────
+// 通过用元件镜头行走每个元件并保留观察的元件来观察ARRAY成员。
+// 用于结构化内容 -parts 形式 (Mistral)，
+// 其中 `content` 是 带类型的 部分的列表，而不是字符串。
 template <class T>
 [[nodiscard]] inline Lens<std::vector<T>> collect(std::string name,
                                                   Lens<T> element) {
@@ -230,9 +230,9 @@ template <class T>
         }};
 }
 
-// ── when : (predicate, Lens<T>) → Lens<T> ────────────────────────────────
-// Gate an observation on a discriminator, e.g. only read `text` out of a
-// content part whose `type` is "thinking".
+// ── 当 : (预告, 连数) <T> ) + 连 <T> ────────────────────────────────
+// 对鉴别器e.g进行观察。仅从`type`为"thinking"
+// 的内容部分中读取`text`。
 template <class T>
 [[nodiscard]] inline Lens<T> when(std::string tag_key, std::string tag_value,
                                   Lens<T> inner) {
@@ -247,21 +247,21 @@ template <class T>
     }};
 }
 
-// ── Provenance / Observed<T> ─────────────────────────────────────────────
+// ── 证明/观察 <T> ─────────────────────────────────────────────
 //
-// A fact about an endpoint is one of three things, and "unknown" MUST NOT
-// collapse into "no".
+// 关于端点的事实是三件事之一，并且"unknown" 必须 NOT
+// 折叠成"no"。
 //
-// The bug this exists to prevent has a name and a number. PR #53 proposed a
-// registry row for a provider, DECLARING that it served models `yolo` and
-// `yolo-small`. Probed with a real key, `/v1/models` listed neither, and
-// calling them returned 403 for every free account. A declaration is not an
-// observation. In an ecosystem with no source of truth, only the probe can
-// speak — and the type system should refuse to let a hint impersonate a fact.
+// 为了防止而存在的错误具有名称和编号。 PR #53 为供应商
+// DECLARING 提出了 注册表 行，它为型号 `yolo`
+// 和 `yolo-small` 提供服务。用真正的密钥进行探测，
+// `/v1/models` 都没有列出，并且调用它们为每个免费
+// 帐户返回 403。声明不是观察。在没有真相来源的生态系统中，
+// 只有探测器才能说话——并且类型系统应该拒绝让暗示冒充事实。
 enum class Provenance : std::uint8_t {
-    Probed,    // we dialled the endpoint and saw this. authoritative.
-    Declared,  // a registry row or a doc page asserts it. a HINT.
-    Absent,    // we probed, and it is not there.
+    Probed,    // 我们拨打端点并看到了这一点。权威性。
+    Declared,  // 注册表行或文档页面断言它。 HINT。
+    Absent,    // 我们探查过，它不存在。
 };
 
 template <class T>
@@ -277,15 +277,15 @@ struct Observed {
     }
     [[nodiscard]] static Observed absent() { return {Provenance::Absent, {}}; }
 
-    // DELIBERATELY NOT operator bool, and deliberately not named `has_value`.
-    // `if (caps.tools)` would read a Declared hint as true, which is exactly
-    // the confusion this type exists to make unrepresentable. A caller must
-    // say which standard of evidence it needs.
+    // DELIBERATELY NOT操作符bool，并且故意不命名为`has_value`。
+    // `if (caps.tools)`将声明的提示读取为真，
+    // 这正是该类型存在的造成不可表示的混乱。
+    // 来电者必须说明其需要哪种证据标准。
     [[nodiscard]] bool confirmed() const noexcept {
         return how == Provenance::Probed && value.has_value();
     }
-    // Good enough when being wrong is cheap (picker copy, a default), not
-    // when it decides whether a request is well-formed.
+    // 当错误时足够好很便宜（选择面板副本，默认），
+    // 而不是当它决定请求是否好-formed时。
     [[nodiscard]] bool believed() const noexcept {
         return how != Provenance::Absent && value.has_value();
     }

@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""io_roots: only the files in io_roots.txt may mint an Io.
+"""io_roots：只有 io_roots.txt 列出的文件可以创建 Io。
 
-agentty::Io (include/agentty/util/io.hpp) is the permission to do IO. A
-function that touches the world takes one, and reducers and views never get
-one. That only holds if nobody else can make one, so IoAccess, the one way to
-make one, is allowed only in the files listed in io_roots.txt.
+agentty::Io（include/agentty/util/io.hpp）表示执行 I/O 的权限。
+接触外部世界的函数需要该令牌，状态更新函数和视图不会获得它。
+为保证这一点，唯一创建途径 IoAccess 只能出现在 io_roots.txt 指定文件中。
 
-Tests are exempt (they stand in for the host). Fails on an unlisted file that names IoAccess, and on a listed file that no
-longer does (so the list can only shrink to what is true).
+测试代表宿主，因此豁免。未列出的文件使用 IoAccess，或已列出的文件不再使用它，
+都会导致检查失败，使清单始终与实际需求一致。
 """
 import pathlib
 import re
@@ -23,7 +22,7 @@ for line in (root / "tests/lint/io_roots.txt").read_text().splitlines():
 pat = re.compile(r"\bIoAccess\b")
 comment = re.compile(r"//.*")
 found = set()
-# Tests may make one freely: they stand in for the host.
+# 测试可以自由进行:它们代表宿主。
 for top in ("src", "include"):
     for p in (root / top).rglob("*"):
         if p.suffix not in (".cpp", ".hpp", ".h"):

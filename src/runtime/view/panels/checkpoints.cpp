@@ -1,27 +1,27 @@
-// checkpoints.cpp — the rewind checkpoint picker.
+// checkpoints.cpp - 倒车检查站 选择面板.
 //
-// Pure adapter: builds maya::Panel::Config from Model state; the widget
-// owns every chrome decision. Shared scaffolding: panels_prologue.hpp.
+// 纯适配器: 构建 maya::Panel::Config 发件人 Model 状态;
+// 部件拥有每个铬决定。 共享脚手架 : panels_prologue.hpp.
 
 #include "panels_prologue.hpp"
-#include <maya/core/anim_clock.hpp>   // anim_now: the frame clock
+#include <maya/core/anim_clock.hpp>   // anim_now : 数据 帧 时钟
 
 namespace agentty::ui {
 
 
-// Rewind checkpoint picker. One row per checkpointed user turn (oldest at
-// the top, newest at the bottom nearest the composer — same spatial order
-// as the transcript). Each row: turn number + one-line prompt preview
-// (leading), and "Nm ago · diffstat" (trailing) where the diffstat shows
-// what the worktree has changed SINCE that point so the rewind is never
-// blind. Enter rewinds; the destructive files+transcript revert is the
-// existing RestoreCheckpoint flow.
+// 倒车检查站 选择面板。每个检查点用户转弯一行(最老的顶部,
+// 最接近作曲者的最下部的最新——与记录的空间顺序相同)。
+// 每行:转弯号+1 -line 提示词 预览(铅),
+// 和 "Nm ago · diffstat" (拖累)
+// diffstat显示工作树的改变 SINCE 倒影从不盲目
+// Enter 倒转; 破坏性文件+拖放返回是已有的
+// RestoreCheckpoint 流动。
 Element checkpoints_panel(const Model& m) {
     auto* o = m.ui.panel.get<pn::Checkpoints>();
     if (!o) return nothing();
 
-    // Relative "time ago" from a wall-clock ms stamp — local to the view;
-    // no shared helper exists and the grammar here is picker-specific.
+    // 相对 "time ago" 从墙上 -clock ms 印章 — 本地到视图;
+    // 不存在共享帮助符, 这里的语法是 选择面板-specific.
     const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
         m.wall_at(maya::anim_now()).time_since_epoch()).count();
     auto ago = [now](std::int64_t ts_ms) -> std::string {
@@ -49,8 +49,8 @@ Element checkpoints_panel(const Model& m) {
         row.leading = "#" + std::to_string(e.turn) + "  " + e.preview;
         row.leading_style = fg_of(fg);
 
-        // Trailing: "<time> · <diffstat>". The diffstat is filled in async;
-        // until then a subtle ellipsis so the row doesn't jump.
+        // 拖曳:"<time> · <diffstat>". diffstat是用
+        // 亚眠填充;直到那时,一个微妙的椭圆形,这样一行就不会跳动.
         std::string when = ago(e.timestamp_ms);
         std::string stat;
         switch (e.diff_state) {
@@ -75,7 +75,7 @@ Element checkpoints_panel(const Model& m) {
         if (!stat.empty())
             trailing += (when.empty() ? "" : " \xc2\xb7 ") + stat;
         row.trailing = std::move(trailing);
-        // Green when a real rewind (has changes), dim when clean/no-stat.
+        // 绿色当真实的倒转时( 已改变), 暗淡时( 变换时) clean/no-stat.
         const bool has_changes =
             e.diff_state == checkpoints::Entry::DiffState::Ready && !e.clean;
         row.trailing_style = has_changes ? fg_of(success) : fg_dim(muted);

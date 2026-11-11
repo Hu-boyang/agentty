@@ -1,9 +1,9 @@
-// subs_key must cover everything subscribe() reads, and nothing else.
+// subs_key 一定要包罗万象 subscribe() 读,没有别的。
 //
-// subscribe() asks only for the Tick timer and the login worker. Input goes
-// through on_key/on_paste, which read the live model (jaal D43), so input
-// state must NOT be in the key: if it were, every keystroke would re-run
-// subscribe() for nothing.
+// subscribe() 仅询问 Tick 计时器和登录 工作线程 输入通过
+// on_key/on_paste ,读取直播模式( jaal D43 ),
+// 所以输入状态不得 键中:如果是的话,每个键中键都会重现 -run
+// subscribe() 白费了
 #include "agtest.hpp"
 
 #include "agentty/runtime/app/subscribe.hpp"

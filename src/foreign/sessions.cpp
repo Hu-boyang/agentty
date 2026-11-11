@@ -1,7 +1,7 @@
-// foreign/sessions.cpp — read Codex and Claude Code sessions as threads.
+// foreign/sessions.cpp —将 Codex 和 Claude 代码会话读取为 线程。
 //
-// Both tools write one JSON object per line. Unknown lines and fields are
-// skipped, never fatal: neither format is documented, and both change.
+// 两种工具每行写入一个JSON对象。未知的行和字段会被跳过，
+// 永远不会致命：两种格式都没有记录，并且都会改变。
 
 #include "agentty/foreign/sessions.hpp"
 
@@ -28,8 +28,8 @@ namespace fs = std::filesystem;
 using json = nlohmann::json;
 
 ThreadId thread_id_for(Source s, std::string_view session_id) {
-    // FNV-1a 64 over "<tool>:<session>", then a finaliser so near-identical
-    // ids spread. 16 hex, the same shape persistence::new_id makes.
+    // FNV-1a 64超过"<tool>:<session>"，然后终结器因此靠近-identical
+    // ids传播。 16 六角形，与 persistence::new_id 的形状相同。
     std::uint64_t h = 1469598103934665603ull;
     auto mix = [&](std::string_view part) {
         for (unsigned char c : part) { h ^= c; h *= 1099511628211ull; }
@@ -50,7 +50,7 @@ namespace {
 
 using Clock = std::chrono::system_clock;
 
-// "2026-07-27T13:57:26.936Z" → time_point. Zero on anything else.
+// "2026-07-27T13:57:26.936Z"→time_point。其他一切都归零。
 Clock::time_point parse_time(std::string_view s) {
     if (s.size() < 19) return {};
     auto num = [&](std::size_t at, std::size_t n) {
@@ -73,7 +73,7 @@ Clock::time_point parse_time(std::string_view s) {
         }
         for (; n < 3; ++n) ms *= 10;
     }
-    // days_from_civil (Howard Hinnant), UTC.
+    // days_from_civil (霍华德·欣南特)，UTC。
     const int y = Y - (Mo <= 2);
     const int era = (y >= 0 ? y : y - 399) / 400;
     const unsigned yoe = static_cast<unsigned>(y - era * 400);
@@ -103,7 +103,7 @@ Clock::time_point parse_time(std::string_view s) {
     return it != j.end() && it->is_array() ? &*it : nullptr;
 }
 
-// A data: URL image → ImageContent. nullopt for remote URLs or junk.
+// A数据：URL图像→ImageContent。 nullopt 远程 URL 或垃圾邮件。
 std::optional<ImageContent> data_url_image(std::string_view url) {
     if (!url.starts_with("data:")) return std::nullopt;
     const auto semi = url.find(';');
@@ -116,7 +116,7 @@ std::optional<ImageContent> data_url_image(std::string_view url) {
     return ImageContent{std::string{url.substr(5, semi - 5)}, std::move(raw)};
 }
 
-// Lines that are scaffolding the tool injects, not something the user typed.
+// 构建工具注入的行，而不是用户带类型的的东西。
 [[nodiscard]] bool injected_user_text(std::string_view t) {
     while (!t.empty() && (t.front() == ' ' || t.front() == '\n')) t.remove_prefix(1);
     static constexpr std::string_view kTags[] = {
@@ -130,8 +130,8 @@ std::optional<ImageContent> data_url_image(std::string_view url) {
     return false;
 }
 
-// Provider APIs take tool names and call ids of [A-Za-z0-9_-], at most 64.
-// Imported ones are replayed as past calls, so keep them inside that.
+// Provider API采用[A-Za-z0-9_-]的工具名称和调用 id，最多64个。
+// 导入的重播为过去的调用，因此将它们保留在其中。
 [[nodiscard]] std::string wire_safe(std::string s, std::string_view fallback) {
     for (char& c : s)
         if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_' && c != '-') c = '_';
@@ -165,7 +165,7 @@ void set_output(ToolUse& tc, std::string output, bool failed,
     }
 }
 
-// A tool call that never got a result in the file (the session was cut off).
+// 工具 调用 从未在文件中得到结果（会话被切断）。
 void mark_unfinished(std::vector<Message>& msgs) {
     for (auto& m : msgs)
         for (auto& tc : m.tool_calls)
@@ -175,22 +175,22 @@ void mark_unfinished(std::vector<Message>& msgs) {
 
 // ── Codex ────────────────────────────────────────────────────────────────
 
-// Codex's code-mode wraps tool calls in a JS script:
+// Codex的代码-mode将工具调用包装在JS脚本中：
 //   const r = await tools.exec_command({"cmd":"…","workdir":"…"});
 //   const patch = "*** Begin Patch…"; await tools.apply_patch(patch);
-// Pull the first call's name and its JSON argument back out.
+// 将第一个 调用 的名称及其 JSON 参数拉回。
 struct ScriptCall {
     std::string name;
     json        args;
-    int         count = 0;   // tool calls in the script
+    int         count = 0;   // 脚本中的工具调用
 };
 
-// A JS string literal starting at `i` (on the quote) → its value.
+// 从 `i`（在引号上）开始的 JS 字符串文字 → 它的值。
 std::optional<std::string> js_string(std::string_view s, std::size_t& i) {
     const char q = s[i];
     if (q != '"' && q != '\'' && q != '`') return std::nullopt;
     if (q == '"') {
-        // A JSON string is a JS string; let nlohmann decode the escapes.
+        // JSON字符串是JS字符串；让 nlohmann 解码转义码。
         std::size_t j = i + 1;
         while (j < s.size() && s[j] != '"') j += s[j] == '\\' ? 2 : 1;
         if (j >= s.size()) return std::nullopt;
@@ -214,7 +214,7 @@ std::optional<std::string> js_string(std::string_view s, std::size_t& i) {
     return out;
 }
 
-// The balanced {...} or [...] starting at `i`, skipping strings.
+// 平衡的{...}或[...]从`i`开始，跳过字符串。
 std::string_view balanced(std::string_view s, std::size_t i) {
     const char open = s[i], close = open == '{' ? '}' : ']';
     int depth = 0;
@@ -231,8 +231,8 @@ std::string_view balanced(std::string_view s, std::size_t i) {
     return {};
 }
 
-// JS object/array literal → JSON: quotes bare keys, drops trailing commas,
-// and fills shorthand properties (`{ plan }`) from `consts`.
+// JS object/array 文字 → JSON：引用裸键，删除尾随逗号，
+// 并从 `consts` 填充速记属性 (`{ plan }`)。
 json js_object(std::string_view lit,
                const std::map<std::string, json, std::less<>>* consts = nullptr) {
     json v = json::parse(lit, nullptr, false);
@@ -264,7 +264,7 @@ json js_object(std::string_view lit,
                 i = j - 1;
                 continue;
             }
-            // Shorthand property: `plan` means `plan: plan`.
+            // 速记属性：`plan`表示`plan: plan`。
             if (consts && k < lit.size() && (lit[k] == ',' || lit[k] == '}')) {
                 std::size_t b = out.size();
                 while (b > 0 && (out[b - 1] == ' ' || out[b - 1] == '\n')) --b;
@@ -281,7 +281,7 @@ json js_object(std::string_view lit,
         }
         out += c;
     }
-    // Trailing commas are legal JS, not JSON.
+    // 尾随逗号是合法的JS，而不是JSON。
     std::string clean;
     for (std::size_t i = 0; i < out.size(); ++i) {
         if (out[i] == ',') {
@@ -296,7 +296,7 @@ json js_object(std::string_view lit,
 
 ScriptCall parse_script(std::string_view src) {
     ScriptCall sc;
-    // Named string/array consts the call may refer to (`patch`, `plan`).
+    // 命名为string/array的常量调用可以指(`patch`，`plan`)。
     std::map<std::string, json, std::less<>> consts;
     for (std::size_t p = 0; (p = src.find("const ", p)) != std::string_view::npos;) {
         p += 6;
@@ -334,7 +334,7 @@ ScriptCall parse_script(std::string_view src) {
     return sc;
 }
 
-// "*** Update File: /x/y.cpp" — the first file a Codex patch touches.
+// "*** Update File: /x/y.cpp"-Codex 补丁接触的第一个文件。
 std::string patch_first_path(std::string_view patch) {
     for (std::string_view tag : {"*** Update File: ", "*** Add File: ", "*** Delete File: "}) {
         if (auto p = patch.find(tag); p != std::string_view::npos) {
@@ -346,8 +346,8 @@ std::string patch_first_path(std::string_view patch) {
     return {};
 }
 
-// Codex tool → agentty tool name + args, so the timeline renders it with
-// agentty's own cards. Unknown tools keep their name and arguments.
+// Codex工具→agentty工具名称+args，所以时间线渲染
+// 它带有agentty自己的卡。未知的工具保留其名称和参数。
 void map_codex_tool(std::string& name, json& args) {
     if (name == "exec_command" || name == "shell" || name == "local_shell") {
         json a = json::object();
@@ -362,7 +362,7 @@ void map_codex_tool(std::string& name, json& args) {
                 if (auto c = args.find("command"); c != args.end()) {
                     if (c->is_string()) cmd = c->get<std::string>();
                     else if (c->is_array()) {
-                        // ["bash","-lc","…"] → the script itself.
+                        // ["bash","-lc","…"] → 脚本本身。
                         std::vector<std::string> parts;
                         for (const auto& p : *c) if (p.is_string()) parts.push_back(p.get<std::string>());
                         if (parts.size() == 3 && (parts[1] == "-lc" || parts[1] == "-c")) cmd = parts[2];
@@ -411,7 +411,7 @@ void map_codex_tool(std::string& name, json& args) {
     }
 }
 
-// Codex output: a string, or [{type:input_text,text}, {type:input_image}].
+// Codex输出：字符串，或[{type:input_text，text}，{type:input_image}]。
 std::string codex_output_text(const json& o, std::vector<ImageContent>* images) {
     if (o.is_string()) return o.get<std::string>();
     std::string out;
@@ -426,8 +426,8 @@ std::string codex_output_text(const json& o, std::vector<ImageContent>* images) 
     return out;
 }
 
-// Drop Codex's script header ("Script completed\nWall time 1.2 seconds\n
-// Output:\n"), keeping the wall time.
+// 删除Codex的脚本头文件("Script completed\nWall time 1.2 seconds\n Output:\n")，
+// 保持墙上时间。
 std::string strip_script_header(std::string s, bool& failed, std::chrono::milliseconds& took) {
     if (s.starts_with("Script failed")) failed = true;
     if (s.starts_with("Script ")) {
@@ -441,21 +441,21 @@ std::string strip_script_header(std::string s, bool& failed, std::chrono::millis
     return s;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 Parsed parse_codex(std::string_view text, ParseOptions opt) {
     Parsed out;
     std::vector<Message>& msgs = out.messages;
-    std::unordered_map<std::string, std::pair<std::size_t, std::size_t>> by_call;   // call → (msg, tool)
-    std::string reasoning;   // summary text waiting for the next assistant message
+    std::unordered_map<std::string, std::pair<std::size_t, std::size_t>> by_call;   // 调用→（消息，工具）
+    std::string reasoning;   // 等待下一条助理消息的摘要文本
     std::string model;
     std::optional<Message::Telemetry> pending_usage;
-    std::optional<std::pair<std::size_t, std::size_t>> pending_patch;   // (msg, tool)
+    std::optional<std::pair<std::size_t, std::size_t>> pending_patch;   // (消息、工具)
     std::string patch_diff;
 
     auto assistant = [&]() -> Message& {
-        // Calls and text from one model turn share a message until the
-        // user speaks or a tool result arrives.
+        // 调用和来自一个模型的文本轮流共享消息，
+        // 直到用户讲话或工具结果到达。
         if (msgs.empty() || msgs.back().role != Role::Assistant
             || std::ranges::any_of(msgs.back().tool_calls, [](const ToolUse& t) { return t.is_terminal(); })) {
             Message m;
@@ -494,8 +494,8 @@ Parsed parse_codex(std::string_view text, ParseOptions opt) {
             out.session_id = str(*p, "id");
             if (out.session_id.empty()) out.session_id = str(*p, "session_id");
             out.cwd = str(*p, "cwd");
-            // Runs started by other programs through `codex exec` or the app
-            // server are not the user's conversations.
+            // 其他程序通过`codex exec`或应用
+            // 服务器启动的运行不是用户的会话。
             const std::string orig = str(*p, "originator");
             if (orig == "codex_exec" || orig == "codex_sdk_ts" || orig == "codex_sdk_py") out.skip = true;
             if (const json* src = obj(*p, "source"); src && src->contains("subagent")) out.skip = true;
@@ -506,8 +506,8 @@ Parsed parse_codex(std::string_view text, ParseOptions opt) {
             continue;
         }
         if (type == "compacted") {
-            // Codex's own summary of everything before this point. Keep the
-            // turns on screen; tell the model to use the summary instead.
+            // Codex自己对这一点之前的一切的总结。
+            // 保持屏幕上的转弯；告诉模型改用摘要。
             std::string summary = str(*p, "message");
             if (summary.empty())
                 if (const json* rh = arr(*p, "replacement_history"))
@@ -526,8 +526,8 @@ Parsed parse_codex(std::string_view text, ParseOptions opt) {
         if (type == "event_msg") {
             const std::string et = str(*p, "type");
             if (et == "patch_apply_end") {
-                // The diff Codex actually applied. It follows the patch call;
-                // render it the way agentty's own edit output looks.
+                // 实际应用了差异Codex。它遵循 补丁 调用；
+                // 渲染 它是 agentty 自己的编辑输出的样子。
                 std::string diff;
                 if (const json* ch = obj(*p, "changes"))
                     for (auto f = ch->begin(); f != ch->end(); ++f) {
@@ -538,7 +538,7 @@ Parsed parse_codex(std::string_view text, ParseOptions opt) {
                 const bool ok = p->value("success", true);
                 std::string first_file;
                 if (const json* ch = obj(*p, "changes"); ch && !ch->empty()) first_file = ch->begin().key();
-                // Newest apply_patch touching that file, else just the newest.
+                // 最新的apply_patch触及该文件，否则只是最新的。
                 auto is_patch = [](const ToolUse& x) { return x.name.value == "apply_patch"; };
                 ToolUse* hit = nullptr;
                 std::size_t hit_m = 0, hit_t = 0;
@@ -556,7 +556,7 @@ Parsed parse_codex(std::string_view text, ParseOptions opt) {
                 if (hit && ok && !diff.empty()) {
                     const std::string fenced = "```diff\n" + diff + "```";
                     if (hit->is_done()) {
-                        // Its output line came first: swap in the real diff.
+                        // 它的输出行首先出现：交换真实差异。
                         set_output(*hit, fenced, false);
                     } else {
                         pending_patch = {hit_m, hit_t};
@@ -584,7 +584,7 @@ Parsed parse_codex(std::string_view text, ParseOptions opt) {
                         pending_usage = t;
                     }
             } else if (et == "task_complete" || et == "turn_aborted") {
-                // The usage of a turn belongs to its last reply.
+                // 回合的使用属于其最后回复。
                 for (auto it = msgs.rbegin(); it != msgs.rend(); ++it)
                     if (it->role == Role::Assistant) {
                         if (pending_usage) it->telemetry = pending_usage;
@@ -616,7 +616,7 @@ Parsed parse_codex(std::string_view text, ParseOptions opt) {
                 }
             if (role == "user") {
                 if (injected_user_text(body)) continue;
-                // Codex writes the image tag before the text it labels.
+                // Codex将图像标签写入其标记的文本之前。
                 if (auto a = body.find("<image name="); a != std::string::npos)
                     if (auto b = body.find("</image>", a); b != std::string::npos)
                         body.erase(a, b + 8 - a);
@@ -637,8 +637,8 @@ Parsed parse_codex(std::string_view text, ParseOptions opt) {
             continue;
         }
         if (it == "reasoning") {
-            // Only the readable summary. encrypted_content only works for the
-            // account and model that made it.
+            // 仅可读摘要。 encrypted_content 仅
+            // 适用于创建它的帐户和模型。
             if (const json* sum = arr(*p, "summary"))
                 for (const auto& s : *sum) {
                     const std::string t = str(s, "text");
@@ -655,14 +655,14 @@ Parsed parse_codex(std::string_view text, ParseOptions opt) {
             if (it == "custom_tool_call") {
                 const std::string input = str(*p, "input");
                 if (name == "exec") {
-                    // Code mode: unwrap the script to the call inside it.
+                    // 代码模式：将脚本解包至其中的调用处。
                     ScriptCall sc = parse_script(input);
                     if (sc.count == 1 && !sc.name.empty()) {
                         name = sc.name;
                         args = std::move(sc.args);
                     } else {
-                        // A script with several calls, or none (Codex reading
-                        // its own tool list): show the script itself.
+                        // 具有多个调用或没有(Codex读取其自己
+                        // 的工具列表)的脚本：显示脚本本身。
                         name = "codex_script";
                         args = json{{"script", input}};
                     }
@@ -676,7 +676,7 @@ Parsed parse_codex(std::string_view text, ParseOptions opt) {
                 args = json::parse(str(*p, "arguments"), nullptr, false);
                 if (args.is_discarded()) args = json{{"arguments", str(*p, "arguments")}};
             }
-            // `wait` polls a yielded exec; its output belongs to that call.
+            // `wait`轮询产生的执行；它的输出属于调用。
             if (name == "wait") {
                 by_call[call_id] = {SIZE_MAX, 0};
                 continue;
@@ -686,7 +686,7 @@ Parsed parse_codex(std::string_view text, ParseOptions opt) {
             take_reasoning(m);
             m.tool_calls.push_back(done_tool(call_id.empty() ? "codex_" + std::to_string(m.tool_calls.size()) : call_id,
                                              name, std::move(args), {}, false));
-            // Re-open as pending until its output line arrives.
+            // Re-open为待处理直到其输出线到达。
             m.tool_calls.back().status = ToolUse::Pending{};
             by_call[call_id] = {msgs.size() - 1, m.tool_calls.size() - 1};
             continue;
@@ -701,12 +701,12 @@ Parsed parse_codex(std::string_view text, ParseOptions opt) {
             auto found = by_call.find(call_id);
             if (found == by_call.end()) continue;
             if (found->second.first == SIZE_MAX) {
-                // A `wait` result: append to the newest still-running call.
+                // `wait`结果：附加到最新的仍然-running 调用。
                 for (auto m = msgs.rbegin(); m != msgs.rend(); ++m) {
                     bool hit = false;
                     for (auto t = m->tool_calls.rbegin(); t != m->tool_calls.rend(); ++t)
                         if (t->is_done() && t->output().find("Script running") != std::string::npos) {
-                            // The poll's wall time is the rest of the run.
+                            // 民意调查的有效时间是剩余的运行时间。
                             const auto before = std::chrono::duration_cast<std::chrono::milliseconds>(
                                 std::get<ToolUse::Done>(t->status).finished_at
                                 - std::get<ToolUse::Done>(t->status).started_at);
@@ -720,8 +720,8 @@ Parsed parse_codex(std::string_view text, ParseOptions opt) {
             }
             auto& [mi, ti] = found->second;
             if (mi >= msgs.size() || ti >= msgs[mi].tool_calls.size()) continue;
-            // A patch whose applied diff was already seen keeps that diff as
-            // its output; Codex's own reply here is just "Success".
+            // 其所应用的差异已经被看到的补丁保持该差异作为其输出；
+            // Codex自己的回复就是"Success"。
             if (pending_patch && pending_patch->first == mi && pending_patch->second == ti
                 && !patch_diff.empty() && !failed) {
                 output = std::move(patch_diff);
@@ -731,7 +731,7 @@ Parsed parse_codex(std::string_view text, ParseOptions opt) {
             continue;
         }
     }
-    // Trailing reasoning with no reply after it.
+    // 尾随推理，之后没有回复。
     if (!reasoning.empty() && !msgs.empty() && msgs.back().role == Role::Assistant)
         take_reasoning(msgs.back());
     if (pending_usage)
@@ -741,11 +741,11 @@ Parsed parse_codex(std::string_view text, ParseOptions opt) {
     return out;
 }
 
-// ── Claude Code ──────────────────────────────────────────────────────────
+// ── Claude 代码 ──────────────────────────────────────────────────────────
 
 namespace {
 
-// Claude Code tool → agentty tool name + args.
+// Claude 代码工具→agentty工具名称+参数。
 void map_claude_tool(std::string& name, json& args) {
     if (!args.is_object()) return;
     if (name == "Bash") {
@@ -842,17 +842,17 @@ std::string claude_result_text(const json& c, std::vector<ImageContent>* images)
     return out;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 Parsed parse_claude(std::string_view text, ParseOptions opt) {
     Parsed out;
-    // Every message line by uuid; the conversation is the chain from the
-    // newest leaf back to the root, so rewound branches drop out.
+    // 每个消息行由uuid;对话是从最新的叶子
+    // 回到根的链，因此重绕的分支会丢失。
     struct Line { json j; std::string parent; };
     std::unordered_map<std::string, Line> lines;
     std::vector<std::string> order;
     std::string summary_title;
-    std::vector<std::pair<std::string, std::string>> summaries;   // leafUuid, text
+    std::vector<std::pair<std::string, std::string>> summaries;   // leafUuid，文本
 
     std::size_t pos = 0;
     while (pos < text.size()) {
@@ -877,8 +877,8 @@ Parsed parse_claude(std::string_view text, ParseOptions opt) {
         if (d.value("isSidechain", false)) continue;
         if (out.session_id.empty()) out.session_id = str(d, "sessionId");
         if (out.cwd.empty()) out.cwd = str(d, "cwd");
-        // SDK and ACP runs (agentty itself spawns these) are not the
-        // user's own Claude Code sessions.
+        // SDK和ACP运行（agentty本身产生这些）不是
+        // 用户自己的Claude代码会话。
         const std::string ep = str(d, "entrypoint");
         if (ep.starts_with("sdk") || ep == "claude-agent-acp" || ep == "acp") out.skip = true;
         std::string uuid = str(d, "uuid");
@@ -890,7 +890,7 @@ Parsed parse_claude(std::string_view text, ParseOptions opt) {
     if (!summary_title.empty()) out.title = summary_title;
     else if (!summaries.empty()) out.title = summaries.back().second;
 
-    // The newest line in file order is the live leaf.
+    // 文件顺序中最新的行是活叶。
     std::vector<const json*> chain;
     if (!order.empty()) {
         std::string at = order.back();
@@ -906,7 +906,7 @@ Parsed parse_claude(std::string_view text, ParseOptions opt) {
 
     std::vector<Message>& msgs = out.messages;
     std::unordered_map<std::string, std::pair<std::size_t, std::size_t>> by_id;
-    std::string last_msg_id;   // Claude Code splits one reply into a line per block
+    std::string last_msg_id;   // Claude 代码将一个回复分成每个块的一行
 
     for (const json* dp : chain) {
         const json& d = *dp;
@@ -922,8 +922,8 @@ Parsed parse_claude(std::string_view text, ParseOptions opt) {
 
         if (role == "user") {
             if (d.value("isCompactSummary", false)) {
-                // The summary Claude Code wrote when it compacted. Turns stay on
-                // screen; the model gets the summary instead of them.
+                // 压缩时写入的摘要Claude代码。转身停留在屏幕上；
+                // 模型得到的是摘要而不是它们。
                 const std::string s = content.is_string() ? content.get<std::string>()
                                                           : claude_result_text(content, nullptr);
                 if (!s.empty() && !msgs.empty()) {
@@ -979,7 +979,7 @@ Parsed parse_claude(std::string_view text, ParseOptions opt) {
         if (d.value("isApiErrorMessage", false)) continue;
         const std::string mid = str(*m, "id");
         if (msgs.empty() || msgs.back().role != Role::Assistant || mid.empty() || mid != last_msg_id) {
-            // A new reply, unless the last one still has unanswered calls.
+            // 一个新的回复，除非最后一个仍然有未回复的调用。
             const bool open_calls = !msgs.empty() && msgs.back().role == Role::Assistant
                 && std::ranges::any_of(msgs.back().tool_calls, [](const ToolUse& t) { return !t.is_terminal(); });
             if (!open_calls || mid != last_msg_id) {
@@ -1014,8 +1014,8 @@ Parsed parse_claude(std::string_view text, ParseOptions opt) {
                 if (!am.text.empty()) am.text += "\n\n";
                 am.text += str(c, "text");
             } else if (ct == "thinking") {
-                // Readable text only; the signature is tied to Anthropic's key
-                // for that model and is dropped.
+                // 仅可读文本；该签名与该型号的 Anthropic
+                // 密钥绑定并被删除。
                 if (!am.thinking.empty()) am.thinking += "\n\n";
                 am.thinking += str(c, "thinking");
             } else if (ct == "tool_use") {
@@ -1032,18 +1032,18 @@ Parsed parse_claude(std::string_view text, ParseOptions opt) {
             }
         }
     }
-    // Drop assistant shells left empty by skipped error lines.
+    // 删除因跳过错误行而留空的助手外壳。
     std::erase_if(msgs, [](const Message& mm) {
         return mm.role == Role::Assistant && mm.text.empty() && mm.thinking.empty()
             && mm.tool_calls.empty();
     });
-    // Erasing shifts indices; recompute compaction cut points by clamping.
+    // 擦除移位索引；通过夹紧重新计算压实切割点。
     for (auto& rec : out.compactions) rec.up_to_index = std::min(rec.up_to_index, msgs.size());
     mark_unfinished(msgs);
     return out;
 }
 
-// ── Thread assembly ──────────────────────────────────────────────────────
+// ── 线程 组装 ──────────────────────────────────────────────────────
 
 Thread to_thread(Source src, Parsed p, const fs::path& file, std::uint64_t size,
                  std::int64_t mtime) {
@@ -1055,7 +1055,7 @@ Thread to_thread(Source src, Parsed p, const fs::path& file, std::uint64_t size,
     t.updated_at = p.updated != Clock::time_point{} ? p.updated : t.created_at;
     t.messages = std::move(p.messages);
     t.imported->messages = static_cast<std::uint32_t>(t.messages.size());
-    // Compactions must cover at least one message and leave the tail.
+    // 压缩必须覆盖至少一条消息并留下末尾。
     for (auto& rec : p.compactions)
         if (rec.up_to_index > 0 && rec.up_to_index <= t.messages.size())
             t.compactions.push_back(std::move(rec));
@@ -1070,7 +1070,7 @@ Thread to_thread(Source src, Parsed p, const fs::path& file, std::uint64_t size,
                 break;
             }
     }
-    // Never ask a model to rename it; it already has the name the user saw.
+    // 切勿要求模型重命名；它已经具有用户看到的名称。
     t.auto_titled = true;
     return t;
 }
@@ -1102,7 +1102,7 @@ std::optional<std::string> slurp(const fs::path& p) {
 }
 
 struct Header {
-    Thread thread;   // messages empty
+    Thread thread;   // 消息为空
     bool   skip = false;
 };
 
@@ -1122,11 +1122,11 @@ Header read_header(Source src, const fs::path& file, std::uint64_t size, std::in
     return h;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 Scan list_sessions(Io, const Scan& previous) {
     const fs::path home = util::home_dir_or_empty();
-    // What the last scan saw, by path, so unchanged files aren't re-read.
+    // 上次扫描通过路径看到的内容，因此未更改的文件不是 re-read。
     std::unordered_map<std::string, const Thread*> seen;
     std::unordered_map<std::string, const Thread::Import*> seen_skip;
     for (const auto& t : previous.sessions)
@@ -1138,7 +1138,7 @@ Scan list_sessions(Io, const Scan& previous) {
         const fs::path root = sessions_root(src, home);
         std::error_code ec;
         if (root.empty() || !fs::is_directory(root, ec)) continue;
-        // Codex nests by date (YYYY/MM/DD); Claude Code by project dir.
+        // Codex按日期嵌套(YYYY/MM/DD)； Claude 项目目录的代码。
         const int leaf_depth = src == Source::Codex ? 3 : 1;
         for (auto it = fs::recursive_directory_iterator(root, fs::directory_options::skip_permission_denied, ec);
              !ec && it != fs::recursive_directory_iterator(); it.increment(ec)) {

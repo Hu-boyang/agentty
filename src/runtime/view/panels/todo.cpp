@@ -1,7 +1,7 @@
-// todo.cpp — the ambient todo modal (renders UNDER the slot).
+// todo.cpp 环境待办事宜 弹出面板 (渲染 UNDER ),"("时间档").
 //
-// Pure adapter: builds maya::Panel::Config from Model state; the widget
-// owns every chrome decision. Shared scaffolding: panels_prologue.hpp.
+// 纯适配器: 构建 maya::Panel::Config 发件人 Model 状态;
+// 部件拥有每个铬决定。 共享脚手架 : panels_prologue.hpp.
 
 #include "panels_prologue.hpp"
 
@@ -16,18 +16,18 @@ Element todo_panel(const Model& m) {
     cfg.min_width  = kPanelNarrow;
     cfg.viewport_h = panel_viewport_h();
     cfg.scroll     = &m.ui.todo_scroll;
-    // No selection cursor in the todo modal — read-only. Pass -1
-    // so the auto-scroll-to-selection is a no-op and the user's
-    // manual scroll position is fully respected.
+    // 待办事宜中没有选择光标 弹出面板 ——读 -only。通过 -1 ,
+    // 所以自动 -scroll-to-selection 是一个不
+    // -op 并且用户的手动滚动位置被充分尊重.
     cfg.selected   = -1;
 
     if (m.ui.todo.items.empty()) {
         cfg.prebuilt.push_back(text("  No tasks yet.", fg_italic(muted)));
         cfg.prebuilt.push_back(text("  The agent will create tasks as it works.", fg_dim(muted)));
     } else {
-        // PlanView returns one Element with all tasks. It lives in
-        // the scrollable region so a long task list pages cleanly
-        // when it overflows the viewport.
+        // PlanView 返回一个元素,包含所有任务。
+        // 它会生活在可滚动区域,这样,当任务清单超过时,
+        // 它会干净地保存长长的任务列表页。 可视区域.
         maya::PlanView plan;
         for (const auto& item : m.ui.todo.items) {
             maya::TaskStatus ts;

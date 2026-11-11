@@ -1,6 +1,6 @@
 #pragma once
-// `agentty paste …`: `config` is agentty's (the paste.* settings); every other
-// subcommand is richpaste's command line, run with those settings installed.
+// `agentty paste …`：`config`是agentty的（粘贴.*设置）；
+// 每个其他子命令都是 richpaste 的命令行，在安装这些设置的情况下运行。
 
 #include <span>
 #include <string>

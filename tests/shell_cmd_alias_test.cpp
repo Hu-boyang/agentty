@@ -1,18 +1,18 @@
-// Regression test for the `cmd` shell-tool alias canonification
-// (agentty/runtime/app/update/stream_args.hpp).
+// `cmd`外壳-tool别名的复航试验(
+// agentty/runtime/app/update/stream_args.hpp).
 //
-// Reproduces the discrepancy observed with Laguna S 2.1: the model emits
-// the shell tool's command parameter as `cmd` (OpenAI-style spec shape)
-// instead of the schema's `command`. mcp-cpp's dispatcher ArgReader
-// already accepts `cmd` via its alias table — but the host-side
-// required-field guard (missing_required_field) and every UI surface
-// (permission card, output panel, timeline) read `tc.args["command"]`
-// literally, so the call died with "missing the required field
-// `command`" before dispatch. The fix canonifies `cmd` → `command` at
-// each args-parse site and makes the guard alias-aware.
+// 复制与 Laguna S 2.1 的观测差异: 模型释放 shell 工具的命令参数为
+// `cmd` (OpenAI-style 光谱形状)而不是 模式定义's `command`.
+// mcp-cpp's 分派器 ArgReader 已经接受 `cmd` 通过其
+// 别名表——但东道主 -side 所需员额 -field 警卫(
+// missing_required_field 和每个 UI 表面( 微米) 权限 纸牌、
+// 输出面板、时间表)改为 `tc.args["command"]` 字面意思是,所以,
+// 我说, 调用 与死亡的 "missing the required field `command`"
+// 之前的 分派。修补的神通 `cmd` → `command` 在每
+// 个参数中 -parse 并让警卫化名 -aware.
 //
-// Standalone (no maya / no runtime) — compiles against the header +
-// nlohmann + spec, mirroring param_tag_repair_test.cpp.
+// 独立( 无) maya /无 运行时) — 编译 反 对 头文件 + nlohmann
+// + 光谱,镜像 param_tag_repair_test.cpp.
 
 #include "agtest.hpp"
 
@@ -34,15 +34,15 @@ void expect(const std::string& name, bool cond, const std::string& detail = {}) 
     std::string msg = detail.empty() ? name : name + " — " + detail;
     CHECK_MESSAGE(cond, msg);
 }
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("shell cmd alias canonification") {
-    // ── Case 1: the exact shape seen on the wire (Laguna S 2.1) ─────────
-    // {"cmd": "cat /etc/os-release …"} — parses fine, then the old guard
-    // failed it with "missing the required field `command`".
+    // ── 案例1:在地图上看到的准确形状 传输 (拉古纳S 2.1) ─────────
+    // {"cmd": "cat /etc/os-release …"} — 解析 不错,那老警卫就失败了
+    // "missing the required field `command`".（缺少必需字段 command。）
     {
         json args = {{"cmd", "cat /etc/os-release 2>/dev/null | head -3"}};
-        // Canonify first (as the parse sites now do), then guard.
+        // 将“第一”加冕(作为 解析 现场现在有,然后守卫。
         (void)canonify_tool_args("shell", args);
         auto missing = missing_required_field("shell", args);
         expect("cmd-shaped call passes the required-field guard",
@@ -56,7 +56,7 @@ TEST_CASE("shell cmd alias canonification") {
                args.contains("cmd"));
     }
 
-    // ── Case 2: every accepted alias, canonified ────────────────────────
+    // ── 案例2: 每一个可接受的异名, 被封禁 ────────────────────────
     {
         for (auto alias : kCommandAliases) {
             if (alias == "command") continue;
@@ -75,9 +75,9 @@ TEST_CASE("shell cmd alias canonification") {
         }
     }
 
-    // ── Case 3: canonical key already present wins ──────────────────────
-    // Both keys sent (rare, but a proxy could merge chunks): the canonical
-    // value must never be overwritten by the alias.
+    // ── 案例3: 已存在的峡谷密钥胜诉 ──────────────────────
+    // 两种密钥都发送( 稀有, 但代理可以合并块):
+    // 犬形值绝不能被别名覆盖。
     {
         json args = {{"command", "echo canonical"},
                      {"cmd",     "echo alias"}};
@@ -88,9 +88,9 @@ TEST_CASE("shell cmd alias canonification") {
         expect("guard passes", missing_required_field("shell", args).empty());
     }
 
-    // ── Case 4: genuinely missing → still fails, unchanged ──────────────
-    // The guard is an alias extension, not a weakening of the required
-    // field: a shell call with NO command variant still reports the error.
+    // ── 案例4:真正失踪 ——仍然失败,没有改变 ──────────────
+    // 警卫是别名扩展,而不是削弱所需的战区:一个
+    // 拥有NO命令变体的hell 调用仍然报告错误.
     {
         json args = {{"display_description", "no command here"}};
         auto missing = missing_required_field("shell", args);
@@ -102,10 +102,10 @@ TEST_CASE("shell cmd alias canonification") {
                !args.contains("command"));
     }
 
-    // ── Case 5: non-string alias value is not canonified ────────────────
-    // The guard's alias check accepts only nonempty strings; canonify
-    // matches that contract so a numeric `cmd` can't smuggle through as
-    // an "empty" command (the dispatcher would then coerce-dump it).
+    // ── 案例5:非-string别名价值没有被划线 ────────────────
+    // 守卫的别名检查只接受非空字符串; 将合同与合同相匹配,
+    // 从而成为数字 `cmd` 不能作为走私者通过 "empty" 命令(
+    // 命令 分派器 将胁迫, -dump ) , , —— —— , ) .
     {
         json args = {{"cmd", 42}};
         bool changed = canonify_alias_keys(args, "command", kCommandAliases);
@@ -114,7 +114,7 @@ TEST_CASE("shell cmd alias canonification") {
                missing_required_field("shell", args) == "command");
     }
 
-    // ── Case 6: tool scoping — other tools are untouched ────────────────
+    // ── 案例6:工具范围界定——其他工具未受影响 ────────────────
     {
         json read_args = {{"cmd", "should stay"}};
         expect("canonify is inert for non-command tools",
@@ -126,7 +126,7 @@ TEST_CASE("shell cmd alias canonification") {
                !canonify_tool_args("shell", empty));
     }
 
-    // ── Case 7: diagnostics / test / process_start share the fix ────────
+    // ── 案例7:诊断/测试/process_start共享固定 ────────
     {
         for (std::string_view tn : {"diagnostics", "test", "process_start"}) {
             json args = {{"cmd", "echo shared"}};
@@ -142,17 +142,17 @@ TEST_CASE("shell cmd alias canonification") {
         }
     }
 
-    // ── Case 8: the alias list stays SHORT, and deliberately so ────────
+    // ── 案例8:别名清单保留SHORT,并故意如此 ────────
     //
-    // Every entry is a key whose value gets handed to a shell, so a wrong
-    // guess does not cost a failed call -- it executes the wrong string.
-    // `shell` and `run` were in the first version of this list and are out:
-    // `shell` as a key on a tool NAMED shell is ambiguous rather than a
-    // spelling of "the command", and `run` is a real agentty subcommand a
-    // model could send meaning something else (notably to process_start).
+    // 每个条目都是一个键,其值被交给 shell,
+    // 所以一个错误的猜测不会花费一个失败的调用——它执行错误的字符串.
+    // `shell` 财务报告和已审计财务报表 `run` 名单的第一版中,并退出:
+    // `shell` 作为工具上的密钥 NAMED 壳是模糊的,而不是拼写
+    // "the command" ,和 `run` 是个真实的 agentty 子
+    // 命令模型可以发送其它含义( 特别是要发送到 process_start).
     //
-    // Pinned as a test because the failure mode of re-adding them is silent
-    // and bad: the call succeeds, running a string nobody intended.
+    // 被钉住作为测试,因为失败模式是 re -adding
+    // 沉默和坏: 调用 成功,运行一个无人想要的字符串。
     {
         for (auto alias : kCommandAliases) {
             expect("no ambiguous alias in the command family",
@@ -162,8 +162,8 @@ TEST_CASE("shell cmd alias canonification") {
                    "\"the command to run\"");
         }
 
-        // And a call that sends ONLY an unaccepted key must still fail the
-        // guard loudly, rather than be silently promoted to a command.
+        // 而送ONLY的调用,一个未接受的密钥,
+        // 仍必须大声地让守军失败,而不是默默地晋升到一个指挥部.
         json args = {{"shell", "rm -rf /"}};
         (void)canonify_tool_args("shell", args);
         expect("an unaccepted key is NOT promoted to command",
@@ -173,13 +173,13 @@ TEST_CASE("shell cmd alias canonification") {
                "a key we do not understand must fail loudly, not execute");
     }
 
-    // ── Case 9: canonify is IDEMPOTENT ───────────────────────────────
+    // ── 案例9: 被没收为IDEMPOTENT ───────────────────────────────
     //
-    // It now runs at the stream-parse sites AND again at the dispatch
-    // boundary (mcp_tools_bridge's def.execute), so args are canonified
-    // twice on the normal path. The second pass must be a no-op: the first
-    // one leaves `command` present, which is exactly the case
-    // canonify_alias_keys refuses to touch.
+    // 现在它运行在 数据流-parse 网站 和 再来一次 分派 边界(
+    // 秒数 ) mcp_tools_bridge's def.execute ),
+    // 所以在正常路径上两次被加冕。第二段通道必须是无 -op : 第一位
+    // 离开 `command` 即时,情况正是如此
+    // canonify_alias_keys 拒绝接触。
     {
         json args = {{"cmd", "echo once"}};
         const bool first = canonify_tool_args("shell", args);
@@ -194,21 +194,21 @@ TEST_CASE("shell cmd alias canonification") {
 }
 
 TEST_CASE("edit top-level old_text/new_text guard acceptance") {
-    // Regression for the second Laguna S 2.1 finding (do_edit.md trace).
-    // The edit tool's edits[] entries are keyed old_text/new_text — the
-    // schema's OWN vocabulary — and the model leaks that spelling into the
-    // top-level old_string/new_string slots. parse_edit_args accepts both
-    // spellings at both levels, so the call was well-formed and would have
-    // executed; the guard failed it with "missing the required field
-    // `old_string`" because kOldStrAliases/kNewStrAliases didn't list the
-    // _text forms. Unlike the shell fix, NO canonification is involved:
-    // every edit surface (guard, preview sniffer, edit_body, the ACP diff
-    // card) already reads both spellings, and widening the guard alone
-    // makes the whole path work.
+    // 第二次拉古纳S 2.1号发现的回转(do_edit.md追踪)。
+    // 编辑工具的编辑[]条目键为old_text/new_text——模式
+    // 定义的OWN词汇——模式漏出拼写到顶端的-levelold_string/new_string槽.
+    // parse_edit_args接受两个级别上的两种拼写,
+    // 因此调用是很好的-formed,本会执行;
+    // 警卫用"missing the required field `old_string`"失败,
+    // 因为kOldStrAliases/kNewStrAliases没有列出_文本表.
+    // 与贝壳固定不同,NO canonifation涉及: .
+    // 每个编辑表面( 守护、 预览嗅探器, edit_body ,
+    // 则 ACP diff卡)已经读过两种拼写,而单是拓宽了
+    // 警卫就使整个路径都奏效了.
 
-    // ── Case 1: the exact shape reconstructed from the wire trace ──────
-    // Streamed fragments: {"path": …, "old_text": …, "new_text": …,
-    // "display_description": …} (the logged tail starts at `, "new_text":`).
+    // ── 案例1:根据 传输 痕量重建的准确形状 ──────
+    // 流化的碎片 : { "path": …, "old_text": …, "new_text": …,
+    // "display_description" :...}(记录) 末尾 开始于 `, "new_text":`).
     {
         json args = {{"path", "~/.config/yazi/superuser.yazi/main.lua"},
                      {"old_text", "local sudo = \"sudo\""},
@@ -221,7 +221,7 @@ TEST_CASE("edit top-level old_text/new_text guard acceptance") {
                "missing_required_field returned `" + std::string{missing} + "`");
     }
 
-    // ── Case 2: every spelling pair the guard now accepts ───────────────
+    // ── 案例2: 警卫现在接受的每对拼写 ───────────────
     {
         struct Spelling { const char* oldk; const char* newk; };
         const Spelling spellings[] = {{"old_string", "new_string"},
@@ -240,8 +240,8 @@ TEST_CASE("edit top-level old_text/new_text guard acceptance") {
         }
     }
 
-    // ── Case 3: mixed spellings accepted — each field checked against
-    //    its own table independently ─────────────────────────────────
+    // 用例 3：接受混合字段写法，每个字段都分别检查
+    //    独立地使用自己的表格
     {
         json args = {{"path", "a.lua"},
                      {"old_text", "x"},
@@ -255,9 +255,9 @@ TEST_CASE("edit top-level old_text/new_text guard acceptance") {
                missing_required_field("edit", args2).empty());
     }
 
-    // ── Case 4: edits[] short-circuit behaviour is preserved ────────────
-    // A non-empty edits[] array satisfies the guard before the top-level
-    // old/new check ever runs.
+    // ── 案例4:保留了短-circuit行为 ────────────
+    // 非 国 家 -empty 编辑[ 阵列在顶部之前满足守护 -level
+    // old/new 检查过运行。
     {
         json args = {{"path", "a.lua"},
                      {"edits", json::array({
@@ -271,11 +271,11 @@ TEST_CASE("edit top-level old_text/new_text guard acceptance") {
                "returned `" + std::string{missing} + "`");
     }
 
-    // ── Case 5: non-evidenced synonyms stay out ─────────────────────────
-    // Policy (see the table comment in stream_args.hpp): add an alias only
-    // with a transcript showing a model actually emitting it. None of these
-    // has one, so they must keep failing — a wrong `old` guess on the edit
-    // path does not cost a failed call, it mutates the wrong text.
+    // ── 案例5:非-evidenced同义词不包括在内 ─────────────────────────
+    // 政策(见2004年6月30日的表格评论) stream_args.hpp
+    // : 添加一个别名,只加上一个显示实际排放的模型的文字记录。
+    // 这些模型没有一个,所以它们必须不断失败——一个错误。 `old`
+    // 猜测编辑路径上不花费失败的成本 调用 ,它会变换错误的文本。
     {
         json args = {{"path", "a.lua"},
                      {"old", "x"},
@@ -284,7 +284,7 @@ TEST_CASE("edit top-level old_text/new_text guard acceptance") {
                missing_required_field("edit", args) == "old_string");
     }
 
-    // ── Case 6: genuinely missing still fails, unchanged ─────────────────
+    // ── 案例6:真正失踪仍未成功,没有改变 ─────────────────
     {
         json args = {{"path", "a.lua"}, {"new_text", "y"}};
         auto missing = missing_required_field("edit", args);

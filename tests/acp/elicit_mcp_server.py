@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Minimal MCP stdio server whose one tool asks the user a question.
+"""最小 MCP 标准输入输出服务器，唯一工具用于向用户提问。
 
-tools/call "ask_name" sends elicitation/create (form mode) to the client and
-returns "hello <name>" from the answer, or "declined"/"cancelled".
+tools/call "ask_name" 向客户端发送表单模式的 elicitation/create，
+根据回答返回 "hello <name>"，或返回 "declined" / "cancelled"。
 """
 import json
 import sys
@@ -36,7 +36,7 @@ TOOL = {"name": "ask_name", "description": "Ask the user their name.",
         "inputSchema": {"type": "object", "properties": {}}}
 LINK = {"name": "open_link", "description": "Send the user to a sign-in page.",
         "inputSchema": {"type": "object", "properties": {}}}
-url_ok = [False]   # the client advertised elicitation.url
+url_ok = [False]   # 客户广告elicitation.url
 
 while True:
     m = read()

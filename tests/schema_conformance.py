@@ -1,50 +1,36 @@
 #!/usr/bin/env python3
-"""schema_conformance.py — is our codec algebra the schema's type algebra?
+"""schema_conformance.py：编解码类型代数是否与协议模式一致？
 
-A protocol schema IS a type algebra, and our codec DSL already embeds it:
+协议模式本身就是类型代数，编解码 DSL 已表达相同结构：
 
-    record(...)            product      T ≅ Π fᵢ : Tᵢ
-    sum_tagged("k", ...)   coproduct    T ≅ Σ (k = tagᵢ) × Tᵢ
-    variant_codec(...)     untagged coproduct
-    enum_codec(...)        finite sum of units   T ≅ 1 + 1 + …
-    Maybe<U>               option       U + 1
-    List<U>                free monoid  U*
-    required / optional / defaulted / constant   — field MODALITY
+    record(...)            积类型        T ≅ Π fᵢ : Tᵢ
+    sum_tagged("k", ...)   带标签和类型  T ≅ Σ (k = tagᵢ) × Tᵢ
+    variant_codec(...)     无标签和类型
+    enum_codec(...)        有限单位和    T ≅ 1 + 1 + …
+    Maybe<U>               可选类型      U + 1
+    List<U>                自由幺半群    U*
+    required / optional / defaulted / constant   — 字段模式
 
-So conformance is not "does this string appear somewhere" — it is whether
-our algebra and the schema's agree, constructor for constructor. Grepping
-for a field name answers a weaker question and gets it wrong in both
-directions: a name mentioned in a comment passes, and a field declared but
-never wired into the record() also passes (that one actually happened — a
-mutation deleting a struct member survived a struct-body search because the
-codec line below mentioned the name).
+因此，一致性要求类型构造逐项对应。仅搜索字段名不足以验证：
+注释中提到名称会误通过，结构体声明了字段但未接入 record() 也会误通过。
+后者曾实际发生：删除成员的变异仍因编解码行提到同名字段而逃过结构体搜索。
 
-What this checks, per type we implement:
+对每个已实现类型检查：
 
-  1. PRODUCT SHAPE   every schema-required key is a field in the codec, and
-                     every codec key exists in the schema (no invented keys)
-  2. MODALITY        a schema-required key is not modelled `optional`
-                     (that would let us omit a MUST field), and a
-                     schema-optional key is not modelled `required`
-                     (that would make us reject a legal peer message)
-  3. CARRIER         the C++ member type encodes to the JSON type the
-                     schema declares — a key can be present and correctly
-                     required and still carry a string where the protocol
-                     says integer
-  4. SUM VALUES      every enum's codec carries exactly the schema's
-                     allowed strings — no missing, no invented
+  1. 积类型结构：模式要求的键都在编解码器中，编解码器也不得凭空增加键。
+  2. 字段模式：必需字段不能建模为 optional，可选字段不能建模为 required。
+  3. 承载类型：C++ 成员必须编码成模式声明的 JSON 类型。
+     即使键存在且必需性正确，也不能在协议要求整数时发送字符串。
+  4. 和类型取值：枚举编解码器包含的字符串必须与模式完全一致。
 
-  MCP   {"type":"string","enum":[…]}          two spellings of the same
-  ACP   {"oneOf":[{"const":"…"}, …]}          finite sum; both handled
+  MCP   {"type":"string","enum":[…]}    有限字符串和的第一种写法
+  ACP   {"oneOf":[{"const":"…"}, …]}    同一概念的另一种写法，均支持
 
-Usage:
-    python3 tests/schema_conformance.py \
-        --mcp …/modelcontextprotocol/schema/2026-07-28/schema.json \
-        --acp …/agent-client-protocol/schema/v1/schema.json
+用法：
+    python3 tests/schema_conformance.py --mcp …/modelcontextprotocol/schema/2026-07-28/schema.json --acp …/agent-client-protocol/schema/v1/schema.json
 
-Exit 0 = the algebras agree for every type we implement. Types we do not
-implement are skipped: not modelling `ElicitResult` is a scope decision,
-modelling it wrongly is a bug.
+退出 0 表示所有已实现类型的代数一致。未实现类型会跳过：
+是否建模 ElicitResult 属于范围选择，错误建模才是缺陷。
 """
 import argparse
 import json
@@ -54,7 +40,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# ── Reading OUR algebra ──────────────────────────────────────────────────
+# ── 读取OUR代数 ──────────────────────────────────────────────────
 
 
 def cpp_sources(*rel_dirs):
@@ -69,7 +55,7 @@ def cpp_sources(*rel_dirs):
 
 
 def _balanced(blob, open_idx):
-    """The {...} block starting at open_idx, brace-matched."""
+    """从 open_idx 开始，通过大括号配对提取 {...} 块。"""
     depth = 0
     for j in range(open_idx, len(blob)):
         if blob[j] == "{":
@@ -82,11 +68,10 @@ def _balanced(blob, open_idx):
 
 
 def codec_body(sources, name):
-    """Body of `CodecOf<name>` — the CODEC, never the struct.
+    """提取 CodecOf<name> 的编解码器主体，不读取结构体。
 
-    A field can be declared as a member and never wired into the record(),
-    in which case it exists in C++ and is absent from the wire. That is the
-    whole bug class; reading the struct would pass it.
+    字段可能已经声明为 C++ 成员，却没有接入 record()，导致传输数据中缺失。
+    这正是要检测的缺陷；只读取结构体会让它通过。
     """
     for _, blob in sources.items():
         m = re.search(r"struct\s+CodecOf<\s*" + re.escape(name) + r"\s*>\s*\{", blob)
@@ -95,61 +80,56 @@ def codec_body(sources, name):
     return None
 
 
-# One codec field: modality + wire key.
+# 一个编码字段:模式+传输键.
 FIELD_RE = re.compile(
     r"\b(required|optional|defaulted|constant|meta)\s*\(\s*\"([^\"]+)\"")
 
 
 def our_product(body):
-    """{key: modality} for a record codec, or None if it isn't one.
+    """返回记录编解码器的 {key: modality}；不是记录时返回 None。
 
-    Two shapes, because not every codec uses the combinators:
+    并非所有编解码器都使用组合子，因此支持两种形式：
 
-      record(required("k", &T::k), …)     the DSL — modality is explicit
-      j["k"] = …;                          hand-written — modality inferred
+      record(required("k", &T::k), …)     DSL 显式声明字段模式。
+      j["k"] = …;                          手写实现，需要推导。
 
-    The second exists where the wire shape is irregular enough that the
-    combinators can't express it (CreateMessageResult encodes `content` as
-    either one block or an array). Skipping those left 17 modelled types
-    never compared at all — a silent hole exactly like the ones this script
-    is for, so they are parsed rather than ignored.
+    手写形式用于组合子难以表达的不规则结构，例如 CreateMessageResult 的 content
+    可以是单个块或数组。跳过它们会漏掉 17 个已建模类型，因此必须解析。
 
-    For a hand-written codec the KEY SET is recoverable but the modality is
-    not — `if (r.title) j["title"] = …` is indistinguishable from an
-    unconditional write at this level. Those keys are marked "unknown" so
-    the presence checks still run while the modality checks stay quiet,
-    rather than firing on a guess.
+    手写编解码器只能恢复键集合，无法可靠恢复必需性，例如条件写入和无条件写入
+    在此层次难以区分。因此这些键标记为 unknown，仍检查是否存在，
+    但不猜测其字段模式。
     """
     if body is None:
         return None
     if "variant_codec" in body or "sum_tagged" in body or re.search(r"\bmatch\s*\(", body):
-        return None            # a coproduct, not a product
+        return None            # 一种共产物,而不是一种产品
     if "record<" in body:
         return {k: mod for mod, k in FIELD_RE.findall(body)}
-    # Hand-written. Two ways a key gets written:
-    #   j["k"] = v;                  assignment
-    #   Json j = {{"k", v}, ...};    brace-init
-    # Missing the second reported PromptReference.name as absent when it is
-    # right there in `{{"type", "ref/prompt"}, {"name", r.name}}`.
+    # 手提-written. 键的两种写法:
+    #   j["k" =v;转让 JSON j = {{"k" ,
+    #   v}, ...}; 扶手( ) -init 第二次
+    # 报告缺失 PromptReference.name 即当它就在那里时就缺席
+    # `{{"type", "ref/prompt"}, {"name", r.name}}`.
     keys = set(re.findall(r'\b\w+\s*\[\s*"([^"]+)"\s*\]\s*=', body))
     keys |= set(re.findall(r'\{\s*"([^"]+)"\s*,', body))
     if not keys:
-        return None            # can't infer a shape; nothing to compare
-    # Modality is NOT inferable here — `if (r.title) j["title"] = ...` is an
-    # optional field that looks identical to a required one at this level.
-    # Report the KEY SET only, marked unknown, so the presence checks run
-    # and the modality checks stay silent rather than firing on a guess.
+        return None            # 不能推断形状; 没什么可比较的
+    # 模式不是 这儿可以推断... `if (r.title) j["title"] = ...`
+    # 是一个可选字段,看起来与这个级别上需要的字段相同。
+    # 报告 KEY SET 仅标出未知,所以进行存在
+    # 检查和模式检查时保持沉默,而不是对猜测开火.
     return {k: "unknown" for k in sorted(keys)}
 
 
 def our_sum_values(body):
-    """The wire strings of an enum codec, or None if it isn't one."""
+    """返回枚举编解码器的传输字符串；不是枚举时返回 None。"""
     if body is None or "enum_codec" not in body:
         return None
     return sorted(set(re.findall(r"EnumMapping<[^>]+>\s*\{[^,]+,\s*\"([^\"]+)\"", body)))
 
 
-# ── Reading the SCHEMA's algebra ─────────────────────────────────────────
+# ── 读取 SCHEMA 的代数 ─────────────────────────────────────────
 
 
 def defs_of(schema):
@@ -157,7 +137,7 @@ def defs_of(schema):
 
 
 def schema_product(node):
-    """(required_keys, all_keys) for an object type, or None."""
+    """返回对象类型的 (required_keys, all_keys)，或 None。"""
     if not isinstance(node, dict):
         return None
     props = node.get("properties")
@@ -167,7 +147,7 @@ def schema_product(node):
 
 
 def schema_sum_values(node):
-    """Allowed strings of a finite string sum, in either spelling."""
+    """读取有限字符串和类型的允许值，兼容两种模式写法。"""
     if not isinstance(node, dict):
         return None
     vals = node.get("enum")
@@ -177,20 +157,20 @@ def schema_sum_values(node):
     if isinstance(one_of, list):
         consts = [b["const"] for b in one_of
                   if isinstance(b, dict) and isinstance(b.get("const"), str)]
-        # Only when EVERY arm is a string const — a oneOf mixing consts with
-        # object shapes is a tagged union, not an enum.
+        # 只有在EVERY臂是弦状凸轮时——oneOf与物体形状
+        # 混合的凸轮是标记的结合,而不是枚举.
         if consts and len(consts) == len(one_of):
             return sorted(consts)
     return None
 
 
-# ── Comparing them ───────────────────────────────────────────────────────
+# ── 比较它们 ───────────────────────────────────────────────────────
 
-# Framing the transport writes, not codec fields.
+# 将传输层写成,而不是代码字段.
 ENVELOPE = {"jsonrpc", "method", "id"}
-# Schema bases every concrete type inherits from; each concrete type is
-# checked on its own. We model them as nothing, so matching them only ever
-# finds an unrelated `using Result = R;` in a template.
+# 模式定义 将每个混凝土类型都作为基础;每个混凝块类型都单独检查。
+# 我们把它们当作一无所有,所以匹配它们只会发现一个无关的
+# `using Result = R;` 模板中。
 ABSTRACT = {"Result", "Request", "Notification", "PaginatedRequest",
             "PaginatedResult", "ClientRequest", "ClientNotification",
             "ServerRequest", "ServerNotification", "AgentRequest",
@@ -198,12 +178,11 @@ ABSTRACT = {"Result", "Request", "Notification", "PaginatedRequest",
 
 
 def struct_members(sources, name):
-    """{member: declared C++ type} for `struct <name> { ... };`.
+    """为 struct <name> { ... }; 返回 {member: declared C++ type}。
 
-    The codec gives MODALITY (required/optional/defaulted); the struct gives
-    the CARRIER. Conformance needs both — a key can be present, correctly
-    required, and still carry a string where the schema says integer, which
-    encodes a JSON type the peer rejects.
+    编解码器提供字段模式，即 required/optional/defaulted；结构体提供承载类型。
+    一致性需要同时检查两者：键存在且必需性正确，也可能把应为整数的值编码成字符串，
+    从而被对端拒绝。
     """
     for _, blob in sources.items():
         m = re.search(r"\bstruct\s+" + re.escape(name) + r"\b\s*(?::[^{]*)?\{", blob)
@@ -211,7 +190,7 @@ def struct_members(sources, name):
             continue
         body = _balanced(blob, m.end() - 1)
         out = {}
-        # `Type name;` / `Type name = init;` — one member per statement.
+        # `Type name;` / `Type name = init;` ——每发言一名.
         for decl in re.finditer(
                 r"^\s*((?:const\s+)?[\w:]+(?:\s*<[^;]*?>)?)\s+(\w+)\s*(?:=[^;]*)?;",
                 body, re.M):
@@ -220,9 +199,9 @@ def struct_members(sources, name):
     return None
 
 
-# Schema JSON type -> the C++ carriers that encode to it. Deliberately a
-# whitelist: an unrecognised carrier is reported, not assumed fine. Better a
-# note to widen the table than a silent pass on a real mismatch.
+# 模式定义 JSON 类型 - > 编码它的 C++ 载体。
+# 故意使用白名单: 报告一个未识别载体,而不是假设为精细。
+# 比起一个沉默的不匹配,一个可以拓宽表的注释更好。
 CARRIERS = {
     "string":  ("std::string", "string"),
     "integer": ("int", "int64", "int32", "size_t", "long", "unsigned"),
@@ -234,14 +213,13 @@ CARRIERS = {
 
 
 def carrier_ok(schema_type, cpp_type):
-    """Could `cpp_type` encode to `schema_type`?
+    """cpp_type 是否能够编码为 schema_type？
 
-    Unwraps Maybe<>/List<> to the payload, since the modality and
-    multiplicity dimensions are checked separately — here we only care what
-    is ultimately carried.
+    解包 Maybe<>/List<> 获取载荷。可选性和数量维度由其他检查负责，
+    这里仅判断最终承载的数据类型。
     """
     t = cpp_type
-    # A named newtype (ToolCallId, SessionId, MessageId, …) wraps a string.
+    # 命名的新类型( N) ToolCallId, SessionId, MessageId ,...) 包着一个字符串.
     if re.fullmatch(r"\w*(Id|Name|Path|Uri|Version)", t):
         return schema_type == "string"
     inner = re.sub(r"^Maybe<(.*)>$", r"\1", t).strip()
@@ -250,14 +228,14 @@ def carrier_ok(schema_type, cpp_type):
     inner = re.sub(r"^(List|std::vector)\s*<(.*)>$", r"\2", inner).strip()
     pats = CARRIERS.get(schema_type)
     if pats is None:
-        return True            # union / unconstrained — nothing to check
+        return True            # 工会/不受约束——无任何可查
     low = inner.lower()
     if any(p.lower() in low for p in pats):
         return True
-    # A nested record or enum is a legitimate carrier for object/string — but
-    # only if it is NOT a known scalar. Accepting any identifier here let
-    # `std::string` pass for `type: object`, which is precisely the mismatch
-    # worth catching: a scalar where the peer expects a record.
+    # 嵌入式记录或 枚举 合法承运人, object/string
+    # - 但只有这样 不。在此接受任何标识符时,
+    # 请 `std::string` 传球 `type: object` ,
+    # 这正是错配 值得抓住: 一种滑板,在那里, 对端 期待记录。
     SCALARS = re.compile(
         r"^(std::)?(string|string_view|bool|char|u?int\w*|int\d*_t|"
         r"uint\d*_t|size_t|double|float|long|short)$")
@@ -269,16 +247,13 @@ def carrier_ok(schema_type, cpp_type):
 
 
 def resolve_ref(defs, node, depth=0):
-    """Follow `$ref` to the definition it names.
+    """沿 $ref 查找它引用的定义。
 
-    140 MCP properties are a bare `{"$ref": "#/$defs/Annotations"}` with no
-    `type` of their own, so a checker that only reads `type` skips every one
-    of them — silently, which is the failure mode this whole script exists
-    to avoid. Resolving lets the carrier check see the target's shape.
+    MCP 中 140 个属性仅声明 {"$ref": "#/$defs/Annotations"}，没有自己的 type。
+    如果只读取 type，会悄悄漏掉这些属性。解析引用后，承载类型检查才能看到目标结构。
 
-    Depth-bounded: the schemas are recursive (a ContentBlock can nest a
-    resource that nests content), and an unbounded chase would not
-    terminate.
+    解析设有深度上限，因为模式可以递归，例如内容块嵌套资源再嵌套内容；
+    无限追踪可能无法终止。
     """
     seen = 0
     while isinstance(node, dict) and "$ref" in node and seen < 8:
@@ -292,30 +267,30 @@ def resolve_ref(defs, node, depth=0):
     return node, None
 
 
-# Formats we understand. Two families:
-#   STRING  byte (base64), uri, uri-template, date-time — all strings on the
-#           wire, so the carrier check already covers them.
-#   NUMERIC  double/float/int32/uint32/int64/uint64 — these are WIDTH hints
-#           (OpenAPI style), not string formats, and they DO constrain the
-#           carrier: `uint32` in a std::int64_t is fine, in a std::string is
-#           not — which the carrier check catches via `type` anyway.
-# Listed so an unknown format is visible rather than silently ignored.
+# 格式我们理解。
+#   STRING 字节(base64),uri,uri-template,日期-time
+#           ——所有字符串在传输上,所以承运人的检查已经覆盖了它们.
+#   NUMERIC  double/float/int32/uint32/int64/uint64 -
+#           这些是 WIDTH 提示( 简讯) OpenAPI 样式,而不是字符串格式,
+#           它们 DO 限制承运人: `uint32` 在一个 std::int64_t 不错,
+#           在 std::string 并非——承运人通过检查捕获量 `type` 反正我还是会去的
+# 如此列出的未知格式是可见的,而不是默默忽略的.
 KNOWN_FORMATS = {
     "byte", "uri", "uri-template", "date-time", "uuid",
     "double", "float", "int32", "uint32", "int64", "uint64",
 }
 
 
-# Runtime constraints the C++ type cannot express, enforced at a CHOKE POINT
-# in code instead. Listed here so the checker stays quiet about them and the
-# enforcement site is discoverable from one place — a note nobody acts on is
-# decoration, but deleting the check would lose the contract entirely.
+# 运行时 限制 C++ 类型不能表达,而是用CHOKE
+# POINT 代码执行。在这里列出,这样检查器不会被听到,
+# 执行站点可以从一个地方发现 — — 没有人在
+# 操作的字条就是装饰,但删除检查会完全失去合同。
 #
-#   <Type>.<field>: where the clamp lives
+#   <Type>.<field> : 夹子所在的地方
 ENFORCED_AT = {
-    # `minimum: 0` on a ttl. Clamped in apply_cache_hint (stateless server)
-    # and in the typed server's discover/list paths, so a negative can never
-    # reach the wire regardless of what a caller passes.
+    # `minimum: 0` 被塞进一个TTL。 apply_cache_hint
+    # (无状态服务器)和 带类型的 服务器 discover/list 路径,
+    # 所以负数永远无法到达 传输 不论来电者经过什么
     "DiscoverResult.ttlMs": "server_stateless.hpp apply_cache_hint + server.hpp",
     "ListToolsResult.ttlMs": "server_stateless.hpp apply_cache_hint",
     "ListPromptsResult.ttlMs": "server_stateless.hpp apply_cache_hint",
@@ -326,18 +301,14 @@ ENFORCED_AT = {
 
 
 def semantic_notes(tname, key, prop, cpp_type):
-    """Constraints the TYPE cannot express.
+    """检查类型本身无法表达的约束。
 
-    These are RUNTIME contracts, not shape mismatches, so they are notes
-    rather than failures — and only when the carrier does not already
-    enforce them.
+    这些属于运行时契约，不是结构不匹配，因此仅在承载类型尚未保证时给出提示，
+    不作为失败处理。
 
-    `minimum: 0` is the common one: C++ has no non-negative int, and
-    wrapping 27 fields in a newtype would cost more than the bug. But an
-    UNSIGNED carrier satisfies it outright, and so does a format that
-    already says unsigned (`uint32`), so neither is worth reporting —
-    reporting them anyway produced 20 lines of noise nobody would read,
-    which is how a checker becomes decoration.
+    典型情况是 minimum: 0：C++ 没有非负 int，为 27 个字段分别包装新类型代价过高。
+    但无符号承载类型或已声明 uint32 等无符号格式时，约束已经满足，无需再提示。
+    否则会产生二十行无人阅读的噪声，使检查失去作用。
     """
     out = []
     lo = prop.get("minimum")
@@ -371,10 +342,10 @@ def check(label, schema_path, sources):
             continue
         body = codec_body(sources, name)
         if body is None:
-            continue                      # not implemented — scope decision
+            continue                      # 未执行——范围决定
         node = defs[name]
 
-        # ── finite sums ──
+        # ── 有限数额 ──
         want_vals = schema_sum_values(node)
         got_vals = our_sum_values(body)
         if want_vals is not None and got_vals is not None:
@@ -387,7 +358,7 @@ def check(label, schema_path, sources):
                     fails.append(f"{name}: enum has {v!r}, not in schema")
             continue
 
-        # ── products ──
+        # ── 产品 ──
         want = schema_product(node)
         got = our_product(body)
         if want is None or got is None:
@@ -399,36 +370,36 @@ def check(label, schema_path, sources):
             mod = got.get(k)
             if mod is None:
                 fails.append(f"{name}.{k}: REQUIRED by schema, absent from codec")
-            elif mod == "optional":        # "unknown" never fires here
-                # `optional` encodes a Maybe and OMITS the key when empty —
-                # for a MUST field that is a wire violation we would never
-                # see locally, since our own decoder tolerates the absence.
+            elif mod == "optional":        # "unknown" 永远不要在这里开火
+                # `optional` 编码一个 Maybe 和 OMITS
+                # 空时键——用于 必须 字段为 传输 因为我们的解码员
+                # 容忍了这种缺席 并且我们永远也看不到这种地方的违规行为
                 fails.append(f"{name}.{k}: required by schema, modelled `optional`")
 
         want_opt = want_all - want_req
         for k in sorted(want_opt):
-            if got.get(k) == "required":   # "unknown" never fires here
-                # Mirror image: we would REJECT a legal message from a peer
-                # that legitimately omits it.
+            if got.get(k) == "required":   # "unknown" 永远不要在这里开火
+                # 镜像:我们会 REJECT 法律信息从 对
+                # 端 合法地省略了它。
                 fails.append(f"{name}.{k}: optional in schema, modelled `required`")
 
-        # ── carrier types ──
-        # The fourth dimension. A key can be present, correctly required,
-        # and still carry the wrong JSON type — ttlMs as a string, say,
-        # which encodes `"3600000"` where the peer's schema says integer.
-        # Modality and presence both pass that happily.
+        # ── 运载者类型 ──
+        # 第四维度。 键可以存在, 正确需要, 并且仍然带错 JSON
+        # 类型 —— ttlMs 作为字符串, 说, 哪个编码
+        # `"3600000"` 中标 对端's 模式定义 说整数。
+        # 模式和存在都通过 幸福。
         members = struct_members(sources, name) or {}
         props = node.get("properties") or {}
         for k in sorted(set(got) & set(props) & set(members)):
             prop = props[k]
             if not isinstance(prop, dict):
                 continue
-            # Follow $ref FIRST. 140 MCP properties are a bare $ref with no
-            # `type` of their own; reading `type` alone skips every one.
+            # 依次为$ref 首次. 140MCP属性为赤色的$ref,
+            # 没有自己的`type`;单读`type`则跳过每个属性.
             target, refname = resolve_ref(defs, prop)
             st = target.get("type")
             if isinstance(st, list):
-                st = next((x for x in st if x != "null"), None)   # nullable
+                st = next((x for x in st if x != "null"), None)   # 无效
             if isinstance(st, str):
                 if not carrier_ok(st, members[k]):
                     via = f" (via {refname})" if refname else ""
@@ -436,9 +407,9 @@ def check(label, schema_path, sources):
                         f"{name}.{k}: schema says {st}{via}, codec carries "
                         f"{members[k]}")
             elif refname:
-                # The $ref names a record. The carrier must be that record
-                # (or a Maybe/List of it) — a std::string here would encode
-                # a scalar where the peer expects an object.
+                # 电话 $ref 名称为记录。承运人必须是该记录(或 Maybe/List
+                # ——a) 将第1款改为第2款。 std::string 这里会
+                # 编码一个标尺 在那里, 对端 正在等待对象。
                 inner = re.sub(r"^Maybe<(.*)>$", r"\1", members[k]).strip()
                 inner = re.sub(r"^(List|std::vector)\s*<(.*)>$", r"\2", inner).strip()
                 if re.fullmatch(r"std::string|bool|int\w*|double|float", inner):
@@ -449,15 +420,15 @@ def check(label, schema_path, sources):
 
         extras = sorted(set(got) - want_all - ENVELOPE - tags - {"_meta"})
         if extras:
-            # An extra key is a VIOLATION only when the schema closes the
-            # record (`additionalProperties: false`). JSON Schema leaves it
-            # open by default, and MCP/ACP both rely on that for forward
-            # compatibility — `tasks` and `execution` are draft features we
-            # model ahead of stabilisation, and a peer that doesn't know
-            # them ignores the key.
+            # 另外一个键是VIOLATION,只有在模式定义关闭记录
+            # (`additionalProperties: false`)
+            # 时才打开,JSON模式定义默认打开,
+            # MCP/ACP都依靠它来进行前置兼容——`tasks`和
+            # `execution`是我们在稳定化前模拟的草稿特性,
+            # 一个不知道它们忽略了键的对端.
             #
-            # Reported either way, because an extra key is ALSO how a typo
-            # looks ("temperatuer"), and silence there would hide it.
+            # 报告的方式,因为一个额外的密钥是 ALSO 字型看起来如何
+            # ( Q) "temperatuer" 沉默会隐藏它。
             closed = node.get("additionalProperties") is False
             for k in extras:
                 msg = f"{name}.{k}: in codec, not in schema"
@@ -480,8 +451,8 @@ def main():
     ap.add_argument("--acp")
     a = ap.parse_args()
 
-    # The schemas live upstream, not vendored — pinning a copy would defeat
-    # the point, since the job is to notice when upstream MOVES.
+    # 电话 模式定义 现场直播 上游 ,而不是卖家——把复制品贴上
+    # 会打倒这一点,因为工作是注意何时 上游 MOVES.
     if not any(p and Path(p).exists() for p in (a.mcp, a.acp)):
         print("SKIP: no schema given (clone the spec repos, pass --mcp/--acp)")
         return 0
@@ -496,16 +467,16 @@ def main():
     if bad:
         print(f"{len(bad)} conformance problem(s)")
         return 1
-    # Four dimensions of the algebra, verified:
-    #   product shape   required keys present, no invented keys
-    #   modality        required/optional matches the schema
-    #   carrier         the C++ type encodes to the schema's JSON type
-    #   sum values      enums carry exactly the schema's strings
+    # 代数的四个维度, 校验:
+    #   产品形状需要存在密钥, 没有发明密钥模式
+    #   required/optional 匹配该
+    #   模式定义 C++ 类型编码到 模式定义's JSON
+    #   类型和值 enum 所携带的正数 模式定义 字符串
     #
-    # NOT verified, and worth naming rather than implying otherwise:
-    # semantic constraints (minimum/maxLength/pattern/format), $ref
-    # chasing into nested records, and anything the schema expresses as an
-    # untyped union. Those need a real schema walker, not a shape compare.
+    # 不 值得命名而不是暗示:
+    # 语义限制( e. minimum/maxLength/pattern/format),
+    # $ref 追逐着巢中记录, 和任何 模式定义 以中文发表 无
+    # 类型的 工会,他们需要真正的 模式定义 行者,不是形状比较.
     print("codec algebra agrees with the schema algebra")
     print("  (product shape · field modality · carrier type · sum values)")
     return 0

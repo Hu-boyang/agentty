@@ -1,10 +1,10 @@
-// tool_body_preview — `write` tool body.
+// tool_body_preview — `write` 工具 正文.
 //
-// FileWrite: line-numbered body + lines/bytes footer. Settled writes
-// render the FULL new-file content (show_all) so the user sees exactly
-// what was written; streaming stays windowed to a small tail so a growing
-// body never balloons the card height or fragments committed scrollback
-// rows. See the seam discipline in the comments below.
+// FileWrite : 行号 -numbered 正文 +
+// lines/bytes 脚印。 已解决的文字 渲染 编号 完整 新建(
+// N) -file 内容( ưμ㼯A) show_all 用户可以看到写的东西
+// 流式传输 窗口为小 末尾 如此成长 正文 从来没有气球 牌高或碎片 已
+// 承诺 回滚缓冲区 排行,见 接口边界 说明第1段,第3段。
 
 #include "tool_body_common.hpp"
 
@@ -20,7 +20,7 @@ namespace agentty::ui::detail {
 bool write_body(const ToolUse& tc, maya::ToolBodyPreview::Config& out) {
     using Kind = maya::ToolBodyPreview::Kind;
 
-    // FAILED write: error body, same rationale as edit above.
+    // FAILED 写入: 错误 正文 ,与上文编辑的理由相同。
     if (tc.is_failed() && !card_output(tc).empty()) {
         out.kind = Kind::Failure;
         out.text = failure_body_text(tc);
@@ -32,53 +32,53 @@ bool write_body(const ToolUse& tc, maya::ToolBodyPreview::Config& out) {
     out.match_needle = args_match_needle(tc.args);
     if (!content.empty()) {
         out.kind = Kind::FileWrite;
-        out.text_color = text_primary;   // plain output reads as normal text
+        out.text_color = text_primary;   // 纯输出读作普通文本
         out.show_footer_stats = true;
-        // While streaming, show a SMALL tail preview (the last few
-        // lines of what's been written so far) — show_all=false lets
-        // maya elide to its `code_tail` budget, the compact "watch it
-        // write" look. The duplicated-write ghost came from feeding a
-        // LARGE tail slice (64 lines): once those rows overflowed into
-        // native scrollback they were frozen, but on settle the card
-        // switched to a head-anchored show_all render from line 1, so
-        // the committed rows no longer matched and the card was
-        // re-emitted below them (two copies). Keeping the streaming
-        // preview SMALL (a slice barely above maya's tail budget)
-        // keeps it inside the live viewport so it never commits to
-        // scrollback — only the settled show_all render reaches
-        // scrollback, and it's painted once.
+        // 虽曰. 流式传输 ,显示 SMALL 末尾 预览(
+        // 至今为止所写内容的最后几行)—— show_all
+        // 假的让 maya 向它飞去 `code_tail` 预算,
+        // 契约 "watch it write" 看,
+        // 那个复制品 -write 鬼从喂养一个 LARGE 末尾
+        // 切片(64行):一旦这些行溢入原生 回滚缓冲区 被冻住了,
+        // 但是在解决时卡换到头 -anchored show_all
+        // 渲染 由1号线开始,所以承诺的行不再匹配,
+        // 卡片是重新 -emitted 下方(两份)。
+        // 流式传输 预览 SMALL (一个几乎是上面的切片)
+        // maya's 末尾 预算) 可视区域 所以它从来不
+        // 承诺 回滚缓冲区 - 仅是解决了 show_all
+        // 渲染 达到 回滚缓冲区 画过一次
         out.is_streaming = streaming_now;
-        // Settled write renders the FULL body (show_all) in the live
-        // tail AND the frozen snapshot — byte-identical, so the freeze
-        // handoff keys both on the same hash_id and is a pure cache
-        // hit (no committed-row shift = no duplicated/wiped card). The
-        // user sees exactly what was written. The tall card is a
-        // paint-once blit via its per-event hash_id (agent_timeline.
-        // cpp), so the full body costs nothing per frame after the
-        // first paint — no need to window the live card. Only
-        // STREAMING stays windowed: the body is still growing and
-        // would balloon height every frame.
+        // 已解决的写作 渲染 编号 完整 正文 (show_all 现场
+        // 直播中 末尾 和 冰冻 快照 — 字节-identical ,
+        // 所以冻结的交接键 两者在同一 hash_id 纯洁的,
+        // 缓存 击打( 无执行) -row 值 = 无 duplicated/wiped。
+        // 用户看到所写内容。高卡是油漆。 -once 以每桶计,
+        // 以千计 -event hash_id (agent_timeline.
+        // 来,所以,满 正文 零成本(每笔) 帧 第一次
+        // 涂料之后——不需要窗口显示活卡。仅此而已。
+        // STREAMING 保持窗口: 正文 还
+        // 在成长 气球会飞高 帧.
         out.show_all = !streaming_now;
         if (streaming_now) {
-            // Small tail slice → O(window) per frame and a bounded
-            // card height. show_all=false makes maya render just its
-            // `code_tail` lines from this slice; size that tail to
-            // the streaming body budget (3 lines at 18-row terminals
-            // — the oracle-proven floor — up to 12 on tall ones) so
-            // the "watch it write" window uses the height available
-            // without pushing the header row past the viewport top
-            // (the committed-row-rewrite seam; see
-            // stream_body_budget). Footer totals would be wrong on a
-            // partial body, so suppress mid-stream (status bar
-            // carries the live rate); it returns with the true total
-            // the instant we settle.
+            // 小点 末尾 切片 = O(窗口)每 帧 和有界牌高度。
+            // show_all 虚构的 maya 渲染 刚刚的
+            // `code_tail` 从此切片中划出线条;
+            // 大小 末尾 编号 流式传输 正文 预算(3项,
+            // 第18项) -row 终端 ——神谕 -proven
+            // 楼层——高的上12层),所以 "watch it write"
+            // 窗口使用可用的高度而不按下 头文件 横行过 可视区域
+            // 顶部( 承诺) -row-rewrite
+            // 接口边界 ; 见 stream_body_budget。
+            // 部分脚注总数将是错误的。 正文 中点时
+            // -stream (状态栏带有直播率);它随我们解决的
+            // 瞬间真实的总和而返回.
             out.show_all = false;
             out.code_tail = std::clamp(stream_body_budget(), 3, 12);
             out.text = tail_window(content, kStreamTailLines);
-            // Anchor the gutter at the slice's TRUE first line in the file
-            // being written — without this the tail window renders "1, 2,
-            // 3…" every frame while the file is already hundreds of lines
-            // deep. dropped = lines of content above the slice.
+            // 将沟渠锁定在切片的 TRUE 正在写入文件的
+            // 第一道行——没有此选项 末尾 窗口 渲染
+            // "1, 2, 3…" 每隔一段时间 帧 文件已深达数百行。
+            // 已丢弃 = 内容行在切片上方。
             {
                 std::size_t total = 1, kept = 1;
                 for (char c : content)  if (c == '\n') ++total;
@@ -90,12 +90,12 @@ bool write_body(const ToolUse& tc, maya::ToolBodyPreview::Config& out) {
             }
             out.show_footer_stats = false;
         } else {
-            // Terminal: the FULL body, live and frozen alike.
+            // 终端 : 数据 完整 正文 活的和冻的一样
             out.text = std::move(content);
         }
     } else if (tc.is_running()) {
         out.kind = Kind::FileWrite;
-        out.text_color = text_primary;   // plain output reads as normal text
+        out.text_color = text_primary;   // 纯输出读作普通文本
         out.is_streaming = true;
     }
     return true;

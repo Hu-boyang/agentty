@@ -1,5 +1,5 @@
-// mcp/import.cpp — adopt another tool's MCP servers. See import.hpp for why
-// this is an import and not a sixth read root.
+// mcp/import.cpp —采用另一工具的MCP服务器。请参阅 import.hpp
+// 了解为什么这是导入而不是第六个读取根。
 
 #include "agentty/mcp/import.hpp"
 
@@ -25,8 +25,8 @@ using json = nlohmann::json;
 
 namespace {
 
-// Pull an `mcpServers` / `servers` object out of a document. Both spellings
-// are in the wild (agentty accepts either too), so neither is "wrong".
+// 从文档中拉出`mcpServers`/`servers`对象。
+// 这两种拼写都是常见的（agentty 也接受），所以 "wrong" 也不是。
 [[nodiscard]] const json* servers_of(const json& doc) noexcept {
     if (!doc.is_object()) return nullptr;
     if (auto it = doc.find("mcpServers"); it != doc.end() && it->is_object())
@@ -36,58 +36,58 @@ namespace {
     return nullptr;
 }
 
-// Is this a name agentty can actually work with?
+// 这是agentty实际上可以使用的名称吗？
 //
-// Import is a TRUST BOUNDARY: the bytes come from a file another tool wrote,
-// which means they can contain anything. A name is not just a label -- it is
-// the key a user types to disable a server, the prefix on every tool it
-// exposes, and a cell in three different tables.
+// 导入是TRUST BOUNDARY：字节来自另一工具写入的文件，
+// 这意味着它们可以包含任何内容。名称不仅仅是一个标签——
+// 它是用户键入的用于禁用服务器的键、它公开的每个工具的
+// 前缀以及三个不同表中的 存储单元。
 //
-// Observed from a hostile fixture: an EMPTY name renders as a blank row
-// nobody can address, and a name containing a NEWLINE splits `plugin list`
-// across two lines so the table stops parsing by eye. Neither is a security
-// hole -- canonical_mcp_name() sanitises the tool names downstream -- but
-// both produce an entry the user cannot manage, which is its own kind of
-// broken.
+// 从敌对装置观察到：EMPTY名称渲染作为无人能够寻址的空白行，
+// 并且包含NEWLINE的名称将`plugin list`分成两行，
+// 因此表通过肉眼停止解析。两者都不是安全漏洞 -
+// canonical_mcp_name() 清理了工具名称
+// 下游 - 但两者都会产生用户无法管理的条目，这本身就是一种
+// 破坏。
 //
-// Refuse at the boundary rather than carrying junk inward. Deliberately NOT
-// a character allow-list: names legitimately carry dots, dashes and
-// non-ASCII, and guessing which are "safe" would reject real servers to
-// prevent a cosmetic problem.
+// 在边界处垃圾而不是将垃圾运入内部。故意使用 不 字符
+// 允许 -list：名称合法地带有点、破折号和非
+// -ASCII，并且猜测哪些是 "safe" 将拒绝真实
+// 服务器以防止外观问题。
 [[nodiscard]] bool usable_name(std::string_view n) noexcept {
     if (n.empty()) return false;
-    if (n.size() > 128) return false;         // a label, not a payload
+    if (n.size() > 128) return false;         // 标签，不是载荷
     for (unsigned char c : n)
-        if (c < 0x20 || c == 0x7f) return false;   // control bytes
+        if (c < 0x20 || c == 0x7f) return false;   // 控制字节
     return true;
 }
 
-// Decode just enough of one foreign entry to display and validate it.
+// 对一个外来条目进行解码以显示并验证它。
 //
-// The ENTRY ITSELF is kept whole. `mcp.json` is one schema across tools, so
-// an env block, custom headers, a timeoutMs or a tools.exclude are all things
-// agentty's own connect path reads -- rebuilding the entry from the handful
-// of fields we bother to name is how an import silently drops the API key
-// that made the server work. A lossy import is worse than a refused one.
+// ENTRY ITSELF保持完整。 `mcp.json` 是跨
+// 工具的 模式定义，因此环境块、自定义 头文件、timeoutMs
+// 或 tools.exclude 都是 agentty 自己的连接
+// 路径读取的内容 - 从我们费心命名的少数字段中重建条目就是导入
+// 静默删除使服务器工作的 API 键的方式。有损导入比被拒绝更糟糕。
 [[nodiscard]] bool translate(const std::string& name, const json& e,
                              const fs::path& from, Found& out) {
     if (!e.is_object()) return false;
     if (!usable_name(name)) return false;
     out.name  = name;
     out.from  = from;
-    out.entry = e;   // verbatim
+    out.entry = e;   // 逐字记录
     if (auto it = e.find("command"); it != e.end() && it->is_string())
         out.command = it->get<std::string>();
     if (auto it = e.find("url"); it != e.end() && it->is_string())
         out.url = it->get<std::string>();
-    // A server with neither is not a server. Skipping beats importing a
-    // broken entry that then fails to connect with no explanation.
+    // 两者都不具备的服务器不是服务器。跳过节拍导入
+    // 损坏的条目，然后无法连接且没有任何解释。
     return !out.command.empty() || !out.url.empty();
 }
 
-// Claude Code keeps per-project servers under projects.<abs-path>.mcpServers
-// in one big ~/.claude.json. Reach into the entry for THIS project only --
-// adopting another checkout's servers would be a surprise.
+// Claude代码将每个-project服务器保留在一个大~/.claude.json.中的项目下。
+// <abs-path>.mcpServers仅进入THIS项目
+// 的条目——采用另一个结帐的服务器将是一个惊喜。
 void scan_claude_nested(const json& doc, const fs::path& project,
                         const fs::path& from, std::vector<Found>& out) {
     auto projects = doc.find("projects");
@@ -109,10 +109,10 @@ void scan_file(const fs::path& file, const fs::path& project,
     if (!fs::is_regular_file(file, ec)) return;
     std::ifstream in(file);
     if (!in) return;
-    json doc = json::parse(in, nullptr, /*throw=*/false);
+    json doc = json::parse(in, nullptr, /*投掷=*/false);
     if (doc.is_discarded()) {
-        // Refuse rather than guess. A malformed foreign config is the user's
-        // to fix; importing half of it would be worse than importing none.
+        // 拒绝而不是猜测。格式错误的外部配置
+        // 需要用户修复；进口一半比不进口还糟糕。
         error = "could not parse " + file.string();
         return;
     }
@@ -122,14 +122,14 @@ void scan_file(const fs::path& file, const fs::path& project,
             if (translate(it.key(), it.value(), file, f))
                 out.push_back(std::move(f));
             else
-                ++skipped;   // no transport, or a name we cannot manage
+                ++skipped;   // 没有 传输层，或者我们无法管理的名称
         }
     }
     scan_claude_nested(doc, project, file, out);
 }
 
-// Codex keeps servers in TOML under [mcp_servers.<name>] with its own field
-// names. Map them onto ours; anything with no equivalent goes in `notes`.
+// Codex将TOML中的服务器保留在[mcp_servers.<name>]下并具有其
+// 自己的字段名称。将它们映射到我们的；任何没有同等内容的东西都放在 `notes` 中。
 [[nodiscard]] json codex_entry(const json& c, std::vector<std::string>& notes) {
     json e = json::object();
     auto str = [&](const char* k) -> std::string {
@@ -139,7 +139,7 @@ void scan_file(const fs::path& file, const fs::path& project,
     if (auto v = str("command"); !v.empty()) e["command"] = v;
     if (auto v = str("url"); !v.empty()) {
         e["url"]  = v;
-        e["type"] = "http";   // Codex's remote servers are streamable HTTP
+        e["type"] = "http";   // Codex的远程服务器可流式传输HTTP
     }
     if (auto v = str("cwd"); !v.empty()) e["cwd"] = v;
     if (auto it = c.find("args"); it != c.end() && it->is_array()) e["args"] = *it;
@@ -151,7 +151,7 @@ void scan_file(const fs::path& file, const fs::path& project,
     json headers = json::object();
     if (auto it = c.find("http_headers"); it != c.end() && it->is_object())
         headers = *it;
-    // These live in env vars on purpose, so they are not copied into a file.
+    // 这些有意存在于环境变量中，因此它们不会被复制到文件中。
     if (auto it = c.find("env_http_headers"); it != c.end() && it->is_object())
         for (auto h = it->begin(); h != it->end(); ++h)
             if (h->is_string())
@@ -216,8 +216,8 @@ void scan_codex_file(const fs::path& file, std::vector<Found>& out,
     }
 }
 
-// The names agentty already has, so a scan can flag collisions without the
-// caller re-reading our own config.
+// 名称agentty已经有了，因此扫描可以标志冲突，而无需调用者re
+// -reading我们自己的配置。
 [[nodiscard]] std::set<std::string> our_server_names() {
     std::set<std::string> names;
     const scope::Env env = scope::current_env(config::kMcpLayout);
@@ -237,7 +237,7 @@ void scan_codex_file(const fs::path& file, std::vector<Found>& out,
     return names;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 std::string_view name_of(Tool t) noexcept {
     switch (t) {
@@ -257,7 +257,7 @@ std::vector<Tool> all_tools() {
 bool parse_tool(std::string_view s, Tool& out) noexcept {
     for (Tool t : {Tool::Junie, Tool::ClaudeCode, Tool::Cursor, Tool::VsCode, Tool::Codex})
         if (name_of(t) == s) { out = t; return true; }
-    // Accept the obvious aliases rather than being pedantic about it.
+    // 接受明显的别名而不是对此迂腐。
     if (s == "jetbrains" || s == "intellij") { out = Tool::Junie; return true; }
     if (s == "claude-code")                  { out = Tool::ClaudeCode; return true; }
     if (s == "code")                         { out = Tool::VsCode; return true; }
@@ -271,14 +271,14 @@ Locations locations_of(Tool t, const fs::path& home, const fs::path& project) {
             return {home / ".junie" / "mcp" / "mcp.json",
                     project / ".junie" / "mcp" / "mcp.json"};
         case Tool::ClaudeCode:
-            // User scope is one big file with servers nested per project;
-            // project scope is the portable .mcp.json at the repo root.
+            // 用户范围是一个大文件，每个项目嵌套有服务器；
+            // 项目范围是 仓库 根目录下的可移植 .mcp.json。
             return {home / ".claude.json", project / ".mcp.json"};
         case Tool::Cursor:
             return {home / ".cursor" / "mcp.json",
                     project / ".cursor" / "mcp.json"};
         case Tool::VsCode:
-            // No documented user-level file; workspace only.
+            // 没有记录的user-level文件；仅限 工作区。
             return {{}, project / ".vscode" / "mcp.json"};
         case Tool::Codex: {
             fs::path dir = home / ".codex";
@@ -322,7 +322,7 @@ Outcome adopt(Io io, const lock_levels::below_file_lane& cap, const std::vector<
     for (const Found& f : servers) {
         if (f.conflicts && !opts.force) { ++o.skipped; continue; }
         if (opts.dry_run) { ++o.imported; continue; }
-        // Verbatim, not re-derived from a ServerSpec: see Found::entry.
+        // 逐字记录，而不是来自ServerSpec的re-derived：参见Found::entry。
         const auto r = tools::plugin::add_server_raw(io, cap, o.into, f.name, f.entry,
                                                      opts.force);
         if (r == tools::plugin::EditResult::Ok) ++o.imported;
@@ -354,14 +354,14 @@ void print_scan(const Scan& s) {
         for (const std::string& n : f.notes)
             std::printf("      note: %s\n", n.c_str());
     }
-    // Never drop an entry silently. "3 of 5 imported" with no explanation is
-    // how someone concludes the import is broken.
+    // 切勿默默地丢弃条目。 "3 of 5 imported" 没有
+    // 任何解释是有人得出导入已损坏的结论的。
     if (s.skipped > 0)
         std::printf("    %d entry(s) skipped: no command or url, or a name"
                     " agentty cannot manage\n", s.skipped);
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 int cli(Io io, const maya::unlocked& cap, const std::vector<std::string>& argv) {
     Options opts;
@@ -390,8 +390,8 @@ int cli(Io io, const maya::unlocked& cap, const std::vector<std::string>& argv) 
     std::error_code ec;
     const fs::path project = fs::current_path(ec);
 
-    // No --from: report, adopt nothing. Discovery should never be a mutation
-    // -- "what do you see?" and "take it" are different questions.
+    // 无--from：报告，不予采纳。发现永远不应该是一个突变——
+    // "what do you see?" 和 "take it" 是不同的问题。
     if (want.empty()) {
         const auto scans = scan_all(home, project);
         if (scans.empty()) {

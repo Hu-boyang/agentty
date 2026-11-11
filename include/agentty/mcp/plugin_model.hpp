@@ -1,12 +1,12 @@
 #pragma once
-// agentty::mcp::PluginModel — the value snapshot of plugin/tool state.
+// agentty::mcp::PluginModel——plugin/tool状态的值快照。
 //
-// Split out of client.hpp so it can live IN the TEA Model (model.hpp) without
-// dragging in the whole MCP client API (which depends on tools::ToolDef and
-// would form an include cycle). This is a plain data type — <string>/<vector>
-// only — precisely so the Model can own it and the view/visual_hash can treat
-// the Plugins panel as a pure function of the Model. See docs/design/
-// plugin-model.md and docs/design/plugin-model-in-model.md.
+// 从client.hpp中分离出来，因此它可以存在于IN、TEA Model (model.hpp)中，
+// 而不拖入整个MCP客户端API (其取决于tools::ToolDef并且将形成包含循环）。
+// 这是一种普通数据类型 - 仅限 <string>/<vector> - 正是这样 Model
+// 可以拥有它，并且 view/visual_hash 可以将插件面板视为 Model 的纯功能。
+// 参见 docs/design/ plugin-model.md 和
+// docs/design/plugin-model-in-model.md.
 
 #include <cstddef>
 #include <cstdint>
@@ -16,21 +16,21 @@
 
 namespace agentty::mcp {
 
-// One advertised tool of a connected server.
+// 一种广告的连接服务器工具。
 struct ToolState {
-    std::string name;            // bare advertised name (no mcp__ prefix)
-    std::string description;     // advertised description (for the UI)
-    bool        enabled = true;  // NOT in config tools.exclude
-    bool        pinned = false;  // config tools.pin: always loaded, never on demand
-    bool        on_demand = false; // enabled, not loaded now; tool_search finds it
-    // Non-empty: the tool's schema would make providers reject every request,
-    // so it's left out. Shown on its row so the server author can fix it.
+    std::string name;            // 裸广告名称（无 mcp__ 前缀）
+    std::string description;     // 广告描述（针对UI）
+    bool        enabled = true;  // 配置 tools.exclude 中的 不
+    bool        pinned = false;  // 配置tools.pin：始终已加载，从不按需
+    bool        on_demand = false; // 已启用，现在不是已加载； tool_search 找到了
+    // Non-empty：该工具的模式定义将使提供商拒绝每个请求，
+    // 因此将其排除在外。显示在其行上，以便服务器作者可以修复它。
     std::string skipped;
 };
 
-// Where a server's config entry was read from — enough for the picker to
-// badge scope and for a reducer to route an edit back to the right file,
-// without pulling the whole scope algebra into this value header.
+// 从何处读取服务器的配置条目——足以使 选择面板
+// 标记范围并且使 状态更新函数 将编辑路由回正确的文件，
+// 而不将整个范围代数拉入该值 头文件。
 enum class Origin : std::uint8_t { User, Project, Explicit };
 
 [[nodiscard]] constexpr std::string_view to_string(Origin o) noexcept {
@@ -42,18 +42,18 @@ enum class Origin : std::uint8_t { User, Project, Explicit };
     return "user";
 }
 
-// One configured MCP server + its live connection state.
+// 一台已配置的MCP服务器+其实时连接状态。
 struct ServerState {
-    std::string name;            // config key
-    std::string command;         // config command (empty for HTTP/SSE)
-    std::string url;             // config url (empty for stdio)
-    bool        connected = false;   // handshake succeeded this session
-    bool        disabled = false;    // config `disabled:true` — not connected on purpose
-    std::string error;           // why not connected (empty if connected/ok)
-    Origin      origin = Origin::User;   // which scope this entry came from
-    std::string config_dir;      // the .agentty dir holding this entry's mcp.json
-    bool        untrusted = false;   // project config not vouched for — won't connect
-    bool        passthrough = false; // type:"passthrough" — dispatch-only foreign tools
+    std::string name;            // 配置键
+    std::string command;         // 配置命令（HTTP/SSE 为空）
+    std::string url;             // 配置 url（stdio 为空）
+    bool        connected = false;   // 本次握手成功
+    bool        disabled = false;    // 配置 `disabled:true` — 未故意连接
+    std::string error;           // 为什么未连接（如果connected/ok则为空）
+    Origin      origin = Origin::User;   // 该条目来自哪个范围
+    std::string config_dir;      // 保存该条目的 mcp.json 的 .agentty 目录
+    bool        untrusted = false;   // 项目配置未得到保证 — 无法连接
+    bool        passthrough = false; // 型号："passthrough"—分派-only国外工具
     std::vector<ToolState> tools;
 
     [[nodiscard]] std::size_t enabled_count() const noexcept {
@@ -63,30 +63,30 @@ struct ServerState {
     }
 };
 
-// An MCP server prompt, offered as `/name` in the composer.
+// MCP服务器提示词，在编译器中作为`/name`提供。
 struct PromptState {
-    std::string name;          // exposed (possibly namespaced) name
+    std::string name;          // 暴露的（可能命名空间的）名称
     std::string description;
-    std::string hint;          // "<arg> [opt]" from its arguments
+    std::string hint;          // "<arg> [opt]" 来自其参数
 };
 
-// The single UI-facing truth: every configured server, its connection state,
-// and its advertised tools, unified from config + live pool. A value snapshot
-// safe to hold across a concurrent pool swap.
+// 单一UI-facing真相：每个配置的服务器、
+// 其连接状态及其广告的工具，从配置+实时池统一。
+// 可以在并发 池 交换中安全保存的值 快照。
 struct PluginModel {
     std::vector<ServerState> servers;
-    std::vector<PromptState> prompts;  // every connected server's prompts
-    std::size_t native_tool_count = 0; // agentty's own tools (always shipped)
-    // How a fresh thread on the active provider would load tools (#98).
+    std::vector<PromptState> prompts;  // 每个连接的服务器的提示词
+    std::size_t native_tool_count = 0; // agentty自己的工具（一直发货）
+    // 活动提供者上的新 线程 如何使用 加载 工具（#98）。
     std::string loading;               // "auto" | "all" | "on_demand"
-    std::size_t loaded_count      = 0; // schemas on the wire
-    std::size_t on_demand_count   = 0; // enabled, found with tool_search
-    std::size_t schema_tokens     = 0; // what the loaded schemas cost
-    std::size_t context_window    = 0; // the active model's, 0 = unknown
-    // A hard provider limit (OpenAI/Gemini: 128 tools) put tools on demand
-    // even though the setting is "all".
+    std::size_t loaded_count      = 0; // 模式定义 上 传输
+    std::size_t on_demand_count   = 0; // 已启用，发现有tool_search
+    std::size_t schema_tokens     = 0; // 已加载 模式定义 的成本是多少
+    std::size_t context_window    = 0; // 活动模型的，0=未知
+    // 即使设置是"all"，硬提供者限制(OpenAI/Gemini:
+    // 128个工具)也会按需放置工具。
     bool        capped_by_provider = false;
-    // Set by a test or a headless caller that has no live provider.
+    // 由没有现场提供者的测试或无头呼叫者设置。
     [[nodiscard]] std::size_t enabled_mcp() const noexcept { return loaded_count + on_demand_count; }
 };
 

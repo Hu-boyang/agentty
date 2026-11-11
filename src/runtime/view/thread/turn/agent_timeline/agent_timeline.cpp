@@ -11,49 +11,49 @@
 
 #include "agentty/runtime/view/helpers.hpp"
 #include "agentty/runtime/view/palette.hpp"
-#include <maya/core/render_context.hpp>   // available_height (tail-spinner gate)
+#include <maya/core/render_context.hpp>   // available_height (末尾-spinner 门)
 #include "agentty/runtime/view/thread/turn/agent_timeline/tool_args.hpp"
 #include "agentty/runtime/view/thread/turn/agent_timeline/tool_body_preview.hpp"
-#include "agentty/domain/ui_live.hpp"   // tool_output: how much body to show
+#include "agentty/domain/ui_live.hpp"   // tool_output : 多少钱 正文 显示
 #include "agentty/runtime/view/thread/turn/agent_timeline/tool_helpers.hpp"
 
 namespace agentty::ui {
 namespace {
 
-// ── Settled-tool body cache ───────────────────────────────────────────
+// ── 已解决 -tool 正文 缓存 ───────────────────────────────────────────
 //
-// tool_body_preview_config() is O(body): it parses the tool's JSON args
-// (safe_arg over the full `content`), materializes output(), and for an
-// Edit scans the diff body for the ```diff fence + substr's the hunk
-// text. For a write/edit with thousands of lines that's ~tens of ms.
+// tool_body_preview_config ()是 O( )。 正文 曰:其为. 解析 工具的吗?
+// JSON 参数( 参数) safe_arg 满座的, `content` ),实现 output() ,用于
+// Edit 扫描差异正文中的 ```diff 围栏，再提取对应差异块。
+// 文本。对于一个 write/edit, 千行为~10 ms。
 //
-// In an edit/write-heavy turn the in-flight assistant run carries MANY
-// already-terminal cards (each sub-turn settles before the next
-// continuation arrives). build_live_tail gives the whole in-flight run
-// NO hash_id (the latest tool is still pending), so the host rebuilds
-// every settled card's body EVERY frame — O(Σ body sizes) per frame at
-// 10-60 fps. That is the climbing CPU as the turn grows.
+// 在一个 edit/write-heavy 打开 -flight 助理运行载
+// 具 MANY 已经 -terminal 牌( 每个子) -turn
+// 下一期续作到达前结算). build_live_tail 给整个英寸
+// -flight 运行 NO hash_id (最新工具仍然是 待处理 因此,
+// 主机重建了每张已结算的卡片 正文 每个 帧 — O(Σ 正文 大小)每 帧
+// 10-60时 FPS。这就是攀登 CPU 转弯的转弯会增加
 //
-// A terminal tool's body bytes are immutable: status is fixed,
-// output().size() is fixed. So we memoize the built Config under the
-// EXACT content-address the per-event hash_id already trusts —
-// (id, status.index(), output().size(), highlight_lines signature).
-// On hit we copy the cached Config (a plain string/vector copy) instead
-// of re-parsing JSON + re-scanning the diff. Emitted bytes are
-// byte-identical to a fresh build, so the freeze handoff (freeze_range
-// stamps the same assistant_run_hash_id) stays a pure maya cache hit —
-// no scrollback-corruption surface.
+// A 终端 工具的 正文 字节 已经 不可变 : 状态固定, output().
+// size() 已经固定了。所以我们记住了在“设计”下构建的“配置”。 EXACT 内容
+// -address 数字 -event hash_id 已经信任——(d,
+// status.index(), output().size(), highlight_lines 签名).
+// 点击时,我们复制缓存的配置(一个平面) string/vector 而不是重新印发。
+// -parsing JSON + 调值 -scanning 迪夫, 发泄 字节 已经
+// 字节-identical 以新的建筑为装饰,而加以冻结。 freeze_range 邮票,
+// 同一张 assistant_run_hash_id 保持纯洁 maya 缓存 击中——没有
+// 回滚缓冲区-corruption 表面, 显示
 //
-// Single-threaded by construction (runtime serializes update+view on one
-// thread), so a thread_local store needs no locking. Bounded LRU so it
-// can't grow with session length; settled cards that scroll out get
-// frozen into m.ui.frozen and never query this again, so their entries
-// fall out under LRU pressure naturally.
+// 单身 -threaded 建筑工程( 运行时 序列化更新+视图
+// 线程 ),所以一个 thread_local 存储不需要 加锁
+// 已设界 LRU 无法随会话长度而增长; 卷出后会冷冻的已定
+// 卡片 m.ui.frozen 再也不会问这个了 所以他们的
+// 条目都掉到下面了 LRU 压力自然。
 class BodyConfigCache {
 public:
     static constexpr std::size_t kCap = 512;
 
-    // Returns the cached Config for `key`, or nullptr on miss.
+    // 返回缓存配置 `key` ,或 ,或 nullptr 有关小姐。
     std::shared_ptr<const maya::ToolBodyPreview::Config> get(const std::string& key) {
         auto it = map_.find(key);
         if (it == map_.end()) return nullptr;
@@ -86,61 +86,61 @@ private:
     std::list<std::string>                 lru_;
 };
 
-// The three caches below are LOOP-ONLY, and now say so in their types.
+// 三者,我们先走 缓存 下图 LOOP-ONLY ,现在用他们的类型来形容。
 //
-// They used to be `thread_local`, which documents the intent and enforces
-// nothing: a worker that ever called into this file would silently get its
-// own empty cache and render from it. That is a wrong answer, which is worse
-// than a crash — a missing panel or a stale body, with no trace of why.
+// 他们以前是 `thread_local` ,用于记录意图,
+// 并强制执行任何内容:a 工作线程 被调入这个文件 会悄悄地
+// 被自己空空 缓存 财务报告和已审计财务报表 渲染 这回答是错误的,
+// 比坠机更糟糕, 缺少面板或 过期 正文 没有任何原因
 //
-// loop_bound<T> makes the rule checkable. Reaching the value needs proof of
-// being on the kernel's loop thread, and the only way to get that proof is
-// to actually be there; off the loop the access aborts with a message naming
-// the rule instead of quietly handing back a second copy. view() runs on the
-// loop (the kernel arms its identity for its whole lifetime, which covers
-// the between-steps window where a host paints), so the on-loop path is
-// unchanged and still lock-free.
+// loop_bound<T> 实现内核循环值的证明 线程 ,
+// 而获得该证明的唯一方法就是实际存在;从循环中,
+// 访问中断,并带有一个命名规则的信息,而不是悄悄地交回第二个副本.
+// view() 运行在环(内核将它的身份标注在它的
+// 全部) 生命周期 ,它涵盖 -steps 窗口,
+// 显示主机油漆,所以 -loop 路径不变,
+// 并且不变 锁-free.
 //
-// See jaal/kernel/loop.hpp and jaal/docs/concurrency.md §1.2 P1.
+// 见jaal/kernel/loop.hpp和jaal/docs/concurrency.md第1.2和P1节。
 maya::loop_bound<BodyConfigCache> g_body_cache;
 
-// ── Settled-panel ELEMENT cache ───────────────────────────────────────
+// ── 已解决 -panel ELEMENT 缓存 ───────────────────────────────────────
 //
-// One tier above the body cache. The body cache memoizes each terminal
-// tool's O(body) ToolBodyPreview::Config; THIS cache memoizes the WHOLE
-// built panel Element for an all-terminal batch. A long in-flight
-// autopilot turn accumulates many settled sub-turn panels in the live
-// tail; the run has no hash_id while the tail streams, so without this
-// the host re-ran agent_timeline_config (grep scan, per-event detail +
-// CacheIdBuilder, footer/title assembly) AND maya re-laid-out the panel
-// for every settled card on every frame — O(Σ batches) per frame, the
-// linear lag the o1_probe "in-flight run, N accumulated edits" table
-// shows. On hit we copy the prebuilt Element (a variant copy whose
-// committed sub-trees still carry their per-event hash_ids, so maya keeps
-// blitting their cells) instead of rebuilding anything.
+// 上一级 正文 缓存。该词 正文 缓存 记住每个 终端 工具的 O () 正文)
+// ToolBodyPreview::Config; 此 缓存 纪念 整个 全部建
+// 面板元素 -terminal 批量,长篇 -flight 自动驾驶转弯
+// 会累积许多已安顿的子 -turn 实时面板 末尾 ; 运行没有 hash_id
+// 时 末尾 数据流 ,所以没有这个主机 -ran agent_timeline_config
+// (grep扫描,每 -event 细节 + CacheIdBuilder,
+// footer/title 组装) 和 maya 内容 -laid-out
+// 一张卡片的面板 帧 - 零(批)次(X) 帧 ,线性滞后 o1_probe
+// "in-flight run, N accumulated edits"（正在执行的任务，以及已经累计的 N 处编辑。）
+// 表格显示。点击时复制预建元素(a) 变体 复制其承诺的子公司
+// -trees 仍然携带着他们的一 -event hash_ids ,所以,
+// 我说 maya 继续打扫他们 存储单元 而不是重建任何东西。
 //
-// Same LRU + thread_local single-threaded discipline as g_body_cache.
+// 一样 LRU + thread_local 单人 -threaded 纪律为 g_body_cache.
 class PanelElementCache {
 public:
-    // Sized to cover a very long single in-flight autopilot turn without
-    // evicting panels still on screen. Entries are lightweight Element
-    // handles (the heavy body cells live once in maya's component cache,
-    // keyed by the per-event/panel hash_ids), so a high cap is cheap.
-    // Below this, a 300-edit turn thrashed the cache (evicting panels
-    // still in the live tail) and per-frame cost climbed again — the
-    // 160→320 knee in the o1_probe scaling table.
+    // 以覆盖一个很长的单曲在 -flight 自动驾驶转动
+    // 而不将屏幕上的面板驱逐。 正文 存储单元 住过一次
+    // maya 组件 缓存 键入 per-event/panel
+    // hash_ids ),所以高帽是便宜的.
+    // 下方是300块 -edit 转过来打 缓存 (证明面板仍在
+    // 直播中) 末尾 和每笔 -frame 成本再次攀升——160~
+    // 320膝盖在 o1_probe 缩放表格。
     static constexpr std::size_t kCap = 512;
 
-    // Returns the cached shared Element handle, or nullptr on miss.
-    // Stored as shared_ptr<const Element> so a cache hit is a refcount
-    // bump handed to maya's shared_ptr Element ctor (a ComponentElement
-    // with a control-block-keyed hash_id) instead of a DEEP COPY of the
-    // whole panel subtree. The panel is a BoxElement whose children are
-    // vector<Element> (per-event rows, each with its own body rows), so
-    // copying it by value clones the entire tree every frame for every
-    // settled sub-turn in a long in-flight run — O(Σ panel nodes)/frame.
-    // Sharing collapses that to O(1) per settled panel: maya blits the
-    // wrapped subtree's cells from its cross-frame component cache.
+    // 返回缓存共享元素控件, 或丢失时的 nullptr。
+    // 存储为 shared_ptr<const Element> 如此的,这样 缓存
+    // 击中是重计的撞伤 maya's shared_ptr 元素显示器(a)
+    // ComponentElement 带有控件 -block-keyed hash_id
+    // 而不是一个 DEEP COPY。整个面板子树。面板是一个 BoxElement 其
+    // 子孙为矢量者, <Element> (每笔) -event 每一行都有自己的 正文 ),
+    // 所以通过数值复制它可以复制整个 源码树 每隔一段时间 帧 用于每个已结算子
+    // -turn 在一个很长的 -flight 运行 - O( ++ 面板节点)/ 帧.
+    // 共享崩溃, 以 O(1) 为单位, 每块已结算的面板 : maya 被
+    // 包裹的树皮被打碎 存储单元 从它的十字架上 -frame 组件 缓存.
     const std::shared_ptr<const maya::Element>* get(const std::string& key) {
         auto it = map_.find(key);
         if (it == map_.end()) return nullptr;
@@ -172,48 +172,48 @@ private:
     std::list<std::string>                 lru_;
 };
 
-// Loop-only, same as g_body_cache above — see the note there.
+// 循环 -only ,与 g_body_cache 见上文注解。
 maya::loop_bound<PanelElementCache> g_panel_cache;
 
-// ── Per-message panel render memo (fast primary key) ──
+// ── 人数 -message 面板 渲染 记忆缓存 (快速主键) ──
 //
-// g_panel_cache above is content-addressed: hitting it still costs an
-// O(tools) key-string build (std::to_string per tool) before the map
-// lookup. In a long in-flight autopilot run every SETTLED sub-turn is
-// re-emitted every frame (the whole run stays in the live tail until
-// settle), so that key-build runs O(run-length) times per frame — the
-// residual per-frame cost that still crept up with turn depth.
+// g_panel_cache 以上为内容 -addressed : 击打它仍然
+// 需要 O( 工具) 键 -string 建( 建( O) std::to_string 中,
+// 在长的 -flight 自动驾驶运行 SETTLED 子目录 -turn
+// 重新为 -emitted 每隔一段时间 帧 (整个运行 留在现场) 末尾 ),
+// 所以这个密钥 -build 运行 O( 运行) -length 乘数(
+// 每次) 帧 —— 残值 -frame 代价是,它仍然 与转弯深度。
 //
-// This memo removes it. It is keyed on the sub-turn's stable MessageId
-// and stores (render_key, handle): a single-uint64 compare decides the
-// hit, no string built. render_key is Message::compute_render_key(),
-// which changes iff the panel's rendered output would (it folds every
-// tool's status/output/render key). A still-running tool advances the
-// key every frame → natural miss → rebuild (spinner animates); once
-// the sub-turn settles, the key freezes and every later frame is a
-// pure uint64-compare hit returning the shared handle.
+// 这个 记忆缓存 移除它。 它在子上键入 -turn 稳定 MessageId
+// 库存( render_key , 手柄):单张 -uint64 比较一下
+// 击球的判定,没有构建字符串. render_key 谓
+// Message::compute_render_key ()如果面板输出时
+// 会改变(它) 归并 每个工具 status/output/render 键。
+// A still -running 工具将密钥推进到 帧 重建(自然错
+// 失) 加载动画 动画; 一旦子 -turn 解冻, 密钥冻结,
+// 以及以后 帧 纯金币64 -compare 击回共享的手柄。
 //
-// Why this lives HERE and not in ViewCache: entries are lightweight
-// Element HANDLES (the cells live once in maya's component cache,
-// keyed by the panel's per-event hash_ids), NOT the heavy markdown
-// trees ViewCache holds. So this map can be sized generously to cover
-// a very deep run without the >1 GiB retention risk that pins the
-// ViewCache cap at 32 — decoupling "how deep a run stays flat" from
-// "how much markdown RAM we retain".
+// 为什么这个生命 此处 而不是在 ViewCache : 条目为轻量级元素
+// HANDLES (无) 存储单元 住过一次 maya 组件 缓存 ,
+// 按面板的每张键 -event hash_ids), 不 重压下 源码树
+// ViewCache。所以这个地图可以慷慨地覆盖一个非常深的运行,而不包含 > 1
+// GiB 将风险定在 ViewCache 上限为32——脱钩
+// "how deep a run stays flat" 发件人
+// 我们保留了多少 Markdown 内存？
 class PanelRenderMemo {
 public:
-    // Sized to cover a very deep single autopilot turn (each entry is
-    // ~a control block + small ComponentElement). Comfortably above
-    // any realistic sub-turn count; a longer run degrades gracefully
-    // to the g_panel_cache path (which is itself still an O(1) hit,
-    // just with the key-build tax back).
+    // 已缩小以覆盖一个非常深的单自动驾驶转弯( 每个条目为~a控制块
+    // + 小) ComponentElement ) 舒适地高于
+    // 任何现实的子 -turn 计数; 较长的运行会优雅地降低到
+    // g_panel_cache 路径(它本身仍然是 O(1) 命中,
+    // 只是键 -build 税收返还)。
     static constexpr std::size_t kCap = 4096;
 
-    // Returns the stored handle iff a memo entry exists for `mid` AND
-    // its render_key matches — else nullptr (caller rebuilds).
-    // Heterogeneous lookup (string_view key against a std::string map)
-    // so the hot HIT path allocates nothing — no temporary std::string
-    // per sub-turn per frame.
+    // 返回存储的wandif a 记忆缓存条目存在`mid` AND的
+    // render_key匹配——否则为nullptr(呼叫器重建).
+    // 异质的仰望( 超度) string_view 键对 a std::string
+    // 故热 HIT 路径分配无益——无临时 std::string 每分机
+    // -turn 百分比 帧.
     const std::shared_ptr<const maya::Element>*
     get(std::string_view mid, std::uint64_t render_key) {
         auto it = map_.find(mid);
@@ -231,8 +231,8 @@ public:
             lru_.splice(lru_.begin(), lru_, it->second.lru_it);
             return;
         }
-        // Miss is rare (once per sub-turn settle), so the one string
-        // materialization here is off the hot path.
+        // 少见小姐(每名子 -turn ),
+        // 所以这里的一串实现是关闭的 高频路径.
         lru_.emplace_front(mid);
         map_.emplace(std::string{mid},
                      Entry{render_key, std::move(el), lru_.begin()});
@@ -248,8 +248,8 @@ private:
         std::shared_ptr<const maya::Element> el;
         std::list<std::string>::iterator     lru_it;
     };
-    // Transparent hash/eq so find(string_view) doesn't build a
-    // temporary std::string key.
+    // 透明 hash/eq 因此找到( E) string_view )不建立
+    // 临时 std::string 键。
     struct SvHash {
         using is_transparent = void;
         std::size_t operator()(std::string_view s) const noexcept {
@@ -266,10 +266,10 @@ private:
     std::list<std::string>                               lru_;
 };
 
-// Loop-only, same as g_body_cache above — see the note there.
+// 循环 -only ,与 g_body_cache 见上文注解。
 maya::loop_bound<PanelRenderMemo> g_panel_render_memo;
 
-} // namespace
+} // 命名空间结束。
 
 maya::AgentTimeline::Config agent_timeline_config(std::span<const ToolUse> tool_calls,
                                                   int spinner_frame,
@@ -296,29 +296,29 @@ maya::AgentTimeline::Config agent_timeline_config(std::span<const ToolUse> tool_
         bump_cat(std::string{tool_category_label(tc.name.value)});
     }
 
-    // Cross-tool semantics: scan completed Greps once up-front and build
-    // a `path → {line numbers}` index. Subsequent Read/find_definition
-    // tools that open any of those paths inherit the grep hits as
-    // `highlight_lines`, anchoring the user's eye on lines the assistant
-    // flagged earlier in the same turn instead of forcing a re-scan.
-    // Mirrors agent_session.cpp's grep_hits → FileRead wiring in maya.
+    // 十字记 -tool 语义: 扫描完成一次 Greps Name
+    // -front 并建立一个 `path → {line numbers}` 索引。
+    // 随后 Read/find_definition 打开其中任何
+    // 路径的工具继承 grep 点击为 `highlight_lines` ,
+    // 将用户的眼睛固定在前面显示的线上, 而不是强迫重新 -scan.
+    // 镜像 agent_session.cpp's grep_hits → FileRead 线条输入 maya.
     const GrepHits grep_hits = collect_grep_hits(tool_calls);
 
-    // Signature of the grep-hits index, folded into every terminal tool's
-    // body-cache key. grep_hits feed a Read/find_definition body's
-    // `highlight_lines`, which change the rendered HEIGHT without changing
-    // output().size() — so a Read that settled before a same-path Grep
-    // landed must NOT serve a stale (no-highlight) cached body once the
-    // Grep indexes its path. Keying on the whole index is conservative
-    // (any grep change re-mints all entries) but grep hits are stable
-    // once the Greps settle, so the steady state stays a permanent hit.
-    // Cheap to build: just the line numbers, no body bytes.
+    // grep的签名 -hits 索引,折叠为每 终端 工具的 正文-cache 键。
+    // grep_hits 种子 a Read/find_definition
+    // 正文's `highlight_lines` ,从而改变所提供的
+    // HEIGHT 不变 output().size() ——所以一个在同
+    // 一个时代之前就已经解决的读物. -path 格瑞普必须降落 不 服务a
+    // 过期 (无) -highlight ( 缓存) 正文 一旦Grep索引了路径。
+    // 整个索引上的键入是保守的(任何grep变化都重新 -mints ),
+    // 但grep命中数在Greps定点后稳定,因此稳态保持永久命中数.
+    // 便宜的建筑: 仅线号,没有 正文 字节.
     std::string grep_sig;
     {
-        // Deterministic order: unordered_map iteration order is unstable,
-        // but we only need the signature to CHANGE when the contents do,
-        // and to be identical across frames with identical contents —
-        // which holds because the map is rebuilt identically each frame.
+        // 决定顺序 : unordered_map 迭代
+        // 顺序不稳定,但我们只需要签名到 CHANGE
+        // 当内容发生时, 并且要完全相同 帧 内容
+        // 相同——由于地图每张都一样重建,故维持不变 帧.
         for (const auto& [path, lines] : grep_hits) {
             grep_sig += path;
             grep_sig.push_back(':');
@@ -333,8 +333,8 @@ maya::AgentTimeline::Config agent_timeline_config(std::span<const ToolUse> tool_
     maya::AgentTimeline::Config cfg;
     cfg.frame = spinner_frame;
 
-    // ── Stats. Pick a representative color per category so the badge
-    //    matches the per-event tree glyph color downstream.
+    // 统计：每类选择代表颜色，使徽标
+    //    匹配每个 -event 源码树 格言颜色 下游.
     for (const auto& [cat, n] : cat_counts) {
         maya::Color cc = (cat == "mutate")  ? accent
                        : (cat == "execute") ? success
@@ -354,81 +354,81 @@ maya::AgentTimeline::Config agent_timeline_config(std::span<const ToolUse> tool_
                    : tc.is_approved() ? std::string{"approved\xe2\x80\xa6"}
                                       : std::string{"\xe2\x80\xa6"};
         }
-        // Per-event hash_id on every TERMINAL tool event — live tail
-        // AND frozen snapshot. Once a tool is terminal its bytes are
-        // immutable (status fixed, output().size() fixed), so the cache
-        // key is content-addressed and stable across every subsequent
-        // frame: maya blits the event's (header + body) sub-tree from
-        // its component cache instead of re-laying-out ToolBodyPreview's
-        // per-line row Elements. For a settled write/edit with hundreds
-        // of lines that collapses hundreds of flex rows into one cached
-        // blit — the dominant per-frame cost of a tall settled card
-        // sitting in an in-flight assistant run.
+        // 人数 -event hash_id 时值 TERMINAL
+        // 工具 事件 - 现场直播 末尾 和 冻结 快照。一旦一个工具是
+        // 终端 编号 字节 已经 不可变 (状况得到确定, output().
+        // size() 固定),所以 缓存 键是内容 -addressed
+        // 并保持稳定, 帧: maya 擦伤 事件's (头文件 +
+        // 正文 ) 次级 -tree 从其组成部分 缓存 而不是重新
+        // -laying-out ToolBodyPreview 单位
+        // -line 元素 用于解决 write/edit 数百行将数百条弹性
+        // 行折叠成一个缓存的闪光块—— 占优势的每条 -frame 高额的
+        // 定居卡在一英寸 -flight 助理运行。
         //
-        // Why this is safe in the live tail (the historical concern):
-        // the maya prev_cells desync that originally caused live cards
-        // to collapse to their last line and lose the left border is
-        // fixed in maya HEAD (card-border tests 5/5). The freeze handoff
-        // is also a pure cache hit: freeze_range builds the same Element
-        // sub-tree under the same hash_id, so maya's cache entry survives
-        // the live→frozen transition with zero re-paint.
+        // 为什么这在现场是安全的 末尾 (历史问题):
+        // 编号 maya prev_cells 最初导致实卡倒塌到最后一行
+        // 并失去左侧边框的解码器被固定在 maya HEAD (卡片)
+        // (卡片 -border 测试 5/5 )冻结的交接也是纯粹的 缓
+        // 存 点击 : freeze_range 构建相同的元素子 -tree
+        // 下级 hash_id ,所以,我说 maya's 缓存 输入在零
+        // 重置的 活式/ 冻结过渡中存活 -paint.
         //
-        // Why this is needed: an in-flight assistant run can contain
-        // many already-terminal write/edit/read cards (each sub-turn
-        // settles before the next continuation arrives). Without a key,
-        // every frame rebuilds and re-lays out every tall body for the
-        // entire run — ~21 ms/frame for a 3000-line read, multiplied
-        // by every settled card in the run. Over ssh that turns into
-        // visible lag as the turn grows.
+        // 为何需要这样做: -flight 助手运行可以包含很多已
+        // 包含的 -terminal write/edit/read
+        // 牌( 每个子) -turn 在下次续作到达之前就已结算。
+        // 没有密钥,则每张 帧 重建与重建 -lays 每一高个 正文
+        // 整个运行——~21 ms/frame 3000美元
+        // 3000个 -line 读取,乘以每张在运行中的固定牌。
+        // 在转弯增加时,它会变成可见的滞后。
         //
-        // Body config FIRST — its grep-derived `highlight_lines` change
-        // the rendered HEIGHT (FileRead prepends a `▸ matches: …` summary
-        // row when non-empty) WITHOUT changing output().size(). A Read that
-        // settled before a same-path Grep landed is cached with no
-        // highlight; once the Grep's hits index the path, the body grows
-        // one row but the id+status+size key is unchanged — maya would
-        // blit the stale (shorter) cells into the taller reserved slot,
-        // shifting every row below and bleeding stale cells (the
-        // screenshot corruption). Fold the highlight signature into the
-        // key so the height change mints a fresh entry.
-        // Body build cache (terminal tools only). A terminal tool's body
-        // bytes are immutable, so we memoize the O(body) Config build
-        // under a content-address that captures every input the build
-        // depends on: id + status + output size + the grep-hits signature
-        // (which feeds Read/find_definition highlight_lines). On hit we
-        // copy the cached Config instead of re-parsing JSON + re-scanning
-        // the diff — turning O(Σ body sizes)/frame on a long in-flight run
-        // into a cheap copy per settled card. Emitted bytes are identical
-        // to a fresh build, so the freeze handoff stays a pure maya hit.
+        // 正文 配置 首次 ——它的树脂 -derived
+        // `highlight_lines` 更改已交付的 HEIGHT (
+        // FileRead 预留 a `▸ matches: …` 非时摘要
+        // 行 -empty) 无需 变化 output().
+        // size() . 之前解决的读物 -path Grep 登陆时缓存
+        // 了没有突出显示;一旦 Grep的点击索引路径,则 正文 长一行,
+        // 但 id+status+大小密钥不变。 maya 就会打碎 过期
+        // (缩短) 存储单元 进入高点的预留槽, 移动下方的每一行,
+        // 流血 过期 存储单元 (截图腐败). 归并 将突出符号插入到密钥中,
+        // 这样高度就会改变薄荷,从而成为新的条目。
+        // 正文 构建 缓存 (终端 仅限工具)。 终端 工具的 正文 字节
+        // 已经 不可变 ,所以我们记忆O( 正文 (a) 内容下的配置
+        // -address 捕获每个输入的构建取决于: id + 状态
+        // + 输出大小 + grep -hits 签名( 输入)
+        // Read/find_definition highlight_lines。
+        // 点击时,我们复制了缓存的配置而不是重新 -parsing JSON
+        // + 调值 -scanning diff - 转动 O( ) 正文
+        // 大小)/ 缩放 帧 在一个漫长的 -flight 运行到每张结算卡
+        // 的廉价副本。 字节 和新造一样 所以冻结的交接是纯的 maya 击
         maya::ToolBodyPreview::Config body;
-        // For a terminal tool we keep the body behind a shared_ptr (the
-        // same immutable object the body-config cache stores) and hand it
-        // to maya via body_shared — no per-frame deep copy of the body
-        // text here OR inside append_event's terminal closure. For a
-        // non-terminal tool the body is still built fresh and moved into
-        // `.body` by value (it mutates every frame, so there's nothing to
-        // share).
+        // 用于 终端 我们保留工具 正文 后面的a shared_ptr
+        // (中文(简体) ). 不可变 对象 正文-config 缓存 并
+        // 交给 maya 途经 body_shared ——无 -frame
+        // 深层副本 正文 文本此处 OR 内 append_event's
+        // 终端 关闭。 -terminal 工具 正文 仍然被新建 并搬
+        // 进 `.body` 按数值(它变异于每 帧 ,所以没有什么可以
+        // 分享的).
         std::shared_ptr<const maya::ToolBodyPreview::Config> body_sp;
         std::string body_key;
         const bool cacheable = tc.is_terminal();
-        // How much of a tool's output to show. The pref is part of the
-        // cache KEY, not applied after the lookup — a cached body built
-        // under "preview" must not be handed back once the user asks for
-        // "full", which is exactly the bug an after-the-fact tweak would
-        // introduce (and only on the second render, which is worse).
+        // 工具输出要显示多少。 预览是 缓存 KEY 的一部分,
+        // 在查询后没有应用。 在 "preview" 下创建的缓
+        // 存的 正文 , 一旦用户要求 "full" , 则不能交还,
+        // 这正是 -the-fact 后 的 tweak 将
+        // 引入的bug( 仅在 渲染 上, 情况更糟糕 )。
         const auto tool_out = agentty::ui_prefs::current().tool_output;
         const auto apply_tool_output =
             [tool_out](maya::ToolBodyPreview::Config c) {
                 switch (tool_out) {
                     case agentty::ui_prefs::ToolOutput::Collapsed:
-                        // Header only. The card still says WHAT ran and
-                        // whether it failed; the body is what goes.
+                        // 头文件 只有牌上写着 内容 运行,
+                        // 以及它是否失败; 正文 事情就是这样
                         c.code_head = c.code_tail = 0;
                         c.bash_tail = c.read_head = 0;
                         c.show_all  = false;
                         break;
                     case agentty::ui_prefs::ToolOutput::Preview:
-                        break;   // the tuned defaults ARE the preview
+                        break;   // 调制的默认值为 ARE 预览
                     case agentty::ui_prefs::ToolOutput::Full:
                         c.show_all = true;
                         break;
@@ -449,7 +449,7 @@ maya::AgentTimeline::Config agent_timeline_config(std::span<const ToolUse> tool_
             body_key += grep_sig;
             if (auto hit = g_body_cache.with(
                     [&](BodyConfigCache& c) { return c.get(body_key); })) {
-                body_sp = hit;  // SHARE the cached (immutable) build
+                body_sp = hit;  // SHARE 缓存( E) 不可变 ) 建造
             } else {
                 body_sp = std::make_shared<const maya::ToolBodyPreview::Config>(
                     apply_tool_output(tool_body_preview_config(tc, &grep_hits)));
@@ -460,15 +460,15 @@ maya::AgentTimeline::Config agent_timeline_config(std::span<const ToolUse> tool_
             body = apply_tool_output(tool_body_preview_config(tc, &grep_hits));
         }
 
-        // Event-hash / height inputs read from whichever body we have.
+        // 事件-hash / 高度输入从任意一个读取 正文 我们做到了。
         const maya::ToolBodyPreview::Config& body_ref =
             body_sp ? *body_sp : body;
 
-        // Key: tool-call id + status + output size + body-height inputs
-        // that aren't implied by output().size() (highlight_lines).
-        // Permanent cache hit once terminal AND its highlight set is
-        // stable; running/pending events stay un-keyed (their body still
-        // mutates each frame and would alias a stale blit).
+        // 密钥: 工具 -call id + 状态 + 输出大小 + 正文-height 输入,
+        // 但并非由 output().size() (highlight_lines).
+        // 常设 缓存 击打一次 终端 和 其亮点组稳定; running/pending
+        // 事件 保持原样 -keyed (他们) 正文 仍然变异 帧 并会别名
+        // a 过期 ) (英文) (英文(英文). blit).
         maya::CacheId event_hash_id;
         if (tc.is_terminal()) {
             maya::CacheIdBuilder kb;
@@ -485,40 +485,40 @@ maya::AgentTimeline::Config agent_timeline_config(std::span<const ToolUse> tool_
         cfg.events.push_back({
             .name            = tool_display_name(tc.name.value),
             .detail          = std::move(detail),
-            // Elapsed on the event's HEADER row. For a TERMINAL tool this is
-            // final and immutable (finished_at is set) — safe on a committed
-            // row. For a NON-TERMINAL tool tool_elapsed() reads
-            // steady_clock::now(), so it TICKS every wall-second — and the
-            // running tool's header row sits ABOVE its growing progress body,
-            // so once that row crosses into native scrollback the ticking
-            // seconds rewrite a committed row → maya's gate HardResets
-            // (scrollback_oracle t*-r*-run* recoveries). Same seam-immutability
-            // rule as the title/border/spinner just below: a live panel's
-            // header rows must be byte-stable. Emit 0 (no duration cell) while
-            // non-terminal; the live duration lives in the FOOTER's
-            // total_elapsed, which is a bottom append below the seam. The row
-            // doesn't horizontally snap on the terminal flip because the
-            // footer already carried the running total.
+            // 被击落在 事件's HEADER 排队,为一 TERMINAL 工具,
+            // 这是最后的, 不可变 (finished_at ——安全地排在一条承诺的行上。
+            // NON-TERMINAL 工具 tool_elapsed
+            // () 读作: steady_clock::now (,
+            // 所以这个) TICKS 每堵墙 -second - 和运行的工具的
+            // 头文件 排队坐着 上方 其不断进步 正文 一旦划线穿过 变成本土
+            // 回滚缓冲区 计数秒重写承诺的行 {} maya 门
+            // HardResets (scrollback_oracle t*-r*
+            // -run * 追回。 相同 接口边界-immutability
+            // 规则为 title/border/spinner 现场小组 头文件
+            // 必须是行 字节-stable。发送 0(无持续时间) 存储
+            // 单元 )而非则 -terminal 活期在 FOOTER's
+            // total_elapsed ,这是下方的下边附件 接口边界。
+            // 线条不会水平地在 终端 翻转, 因为脚印已经载有运行的总数。
             .elapsed_seconds = tc.is_terminal() ? tool_elapsed(tc) : 0.0f,
             .category_color  = tool_category_color(tc.name.value),
             .status          = tool_event_status(tc),
-            // Terminal tools: body lives in body_shared (maya's terminal
-            // closure captures it by ref-bump, no copy). Non-terminal:
-            // move the fresh build into `.body` (it re-renders anyway).
+            // 终端 工具( ) : 正文 住在这里 body_shared (maya's
+            // 终端 关闭通过参考来捕捉 -bump ,没有副本。 -terminal:
+            // 将新建筑移动到 `.body` (对) -renders 再说了
             .body            = std::move(body),
             .body_shared     = std::move(body_sp),
             .hash_id         = event_hash_id,
         });
     }
 
-    // ── Footer. Present for the entire lifetime of the panel (live and
-    //    settled) so the panel's row count doesn't grow by 1 when the
-    //    last tool transitions to done. Height stability across that
-    //    transition is what keeps panels straddling the scrollback seam
-    //    from leaving rail / border fragments stranded: maya's row diff
-    //    handles in-place row mutations fine, but a height delta on a
-    //    panel that's already partially in native scrollback can't
-    //    rewrite the rows that scrolled off.
+    // 页脚：在面板的整个生命周期内显示，包括实时和
+    //    。所以,当最后一个工具转换到完成时,
+    //    面板的行数不会增加1。 跨过这个转换的高度
+    //    稳定性就是使面板横跨 回滚缓冲区 接口边界
+    //    铁路/边界碎片搁浅: maya diff 的
+    //    行控件在 -place 排成一列的突变,
+    //    但是高三角洲的面板上 已经部分是原生的
+    //    回滚缓冲区 无法重写滚动的行。
     if (total > 0) {
         int failed = 0, rejected = 0;
         for (const auto& tc : tool_calls) {
@@ -541,25 +541,25 @@ maya::AgentTimeline::Config agent_timeline_config(std::span<const ToolUse> tool_
                 f.color = warn;
             }
         } else {
-            // The ONLY animated bytes in a live panel. Seam-safe because the
-            // footer is the panel's LAST row and, while any tool is
-            // non-terminal, the panel is the LAST content in the transcript
-            // (continuation prose only streams after every tool result is
-            // back). Progress output grows the body ABOVE the footer, so
-            // the footer can never be pushed past the viewport top while it
-            // still animates — by the time content streams below the panel,
-            // all tools are terminal and this branch renders the static ✓.
+            // 电话 仅 动画 字节 在一个活面板。
+            // 接口边界-safe 因为脚印是面板的 最后 横行,
+            // 而任何工具都是非 -terminal ,
+            // 面板是 最后 记录中的内容( 仅继续传言)
+            // 数据流 每一个工具结果返回后。进步输出会增长
+            // 正文 上方 脚步,所以脚步永远不能被推过 可视区域 上方,
+            // 仍为动画, 按内容 数据流 面板下面,
+            // 所有工具都是 终端 和这个分支 渲染 静态的...
             //
-            // Glyphs come straight from maya's Spinner<Dots> frame table
-            // (the single source of truth every animated surface maps),
-            // not a hand-copied array. agent_timeline is a STATELESS pure
-            // render — it can't hold a maya::Spinner instance (that owns
-            // per-frame state that must be advanced across frames, and this
-            // Config is rebuilt from scratch every frame, so an embedded
-            // Spinner would reset to frame 0 each render and never move).
-            // The persistent clock is m.s.spinner, ticked once per frame in
-            // meta.cpp; the host threads its frame_index() in as
-            // spinner_frame and we map it onto the shared glyph set here.
+            // 格莱弗斯从 maya's 加载动画<Dots> 帧 表
+            // (每张动画表层图的真相单一来源),而非手 -copied 数组。
+            // agent_timeline 是一个 STATELESS
+            // 纯 渲染 - 它不能坚持 maya::Spinner
+            // 实例( 拥有 -frame 状态,必须推进到整个 帧 ,
+            // 这个配置是从零开始重建的 帧 ,所以嵌入式 加载
+            // 动画 将重置为 帧 每人0次 渲染 永远不要动。
+            // 电话 持久化 时钟是 m.s.spinner 每页中,每页勾选一次 帧 输入
+            // meta.cpp ; 东道主 线程 编号 frame_index (
+            // a) 以下列方式计算: spinner_frame 我们把它映射到这里的共享格言集上
             constexpr auto sp = maya::detail::get_spinner_frames<
                 maya::SpinnerStyle::Dots>();
             f.glyph = sp.frames[((spinner_frame % sp.count) + sp.count) % sp.count];
@@ -572,51 +572,51 @@ maya::AgentTimeline::Config agent_timeline_config(std::span<const ToolUse> tool_
         cfg.footer = std::move(f);
     }
 
-    // ── Title and border. Left side: "ACTIONS · done/total". Right side
-    //    (border-text-end): currently-running tool name while in flight,
-    //    or the total elapsed once settled — splitting the two pins the
-    //    elapsed to the right edge instead of leaving it left-glued to
-    //    the action count.
+    // 标题和边框：左侧为 ACTIONS · done/total，右侧为
+    //    (边界) -text-end : 现时 -running
+    //    工具名称,或 已解决的已全部通过 —— 将已通过
+    //    的两针分割到右边缘, 而不是离开它 -glued
+    //    以动作计数。
     //
-    // ── SCROLLBACK-SEAM IMMUTABILITY (live panels) ─────────────────
+    // ── SCROLLBACK-SEAM IMMUTABILITY (现场直播) ─────────────────
     //
-    // THE SCROLLBACK INVARIANT (maya app.cpp): a row that has scrolled
-    // into native terminal scrollback is immutable. agentty keeps a
-    // TALL live tail while streaming, so a panel's TOP rows — the
-    // bordered title row and the first event/stats rows — can cross the
-    // viewport top the moment enough prose streams in below them. Once
-    // that title row is committed to scrollback, ANY later change to its
-    // bytes is a committed-row rewrite: maya's gate detects the prefix
-    // mismatch and, on the growing frame that caused it, can only recover
-    // by a destructive HardReset (\x1b[2J\x1b[3J wipe + repaint) which
-    // re-strands the panel's chrome one screen up — the reported
-    // "stacked ACTIONS · 1/1 MUTATE fragments in scrollback" corruption.
+    // 该 SCROLLBACK INVARIANT (maya app.cpp
+    // : 卷成本地的一行 终端 回滚缓冲区 谓 不可变.
+    // agentty 保持一个 TALL 现场直播 末尾 时 流式传输 ,
+    // 所以一个面板的 TOP 列——边框标题行和第一行 event/stats
+    // 横行——可以横行 可视区域 足够多的流言 数据流 标题行承诺 回滚缓冲区,
+    // 任意 以后改为 字节 是一个承诺 -row 重写 : maya
+    // 门检测前缀不匹配,在增长时 帧 造成它,只能通过破坏恢复
+    // HardReset (\x1b[2J\x1 b][3J擦擦+]).
+    // 重绘 ) 改为: -strands 面板的铬 上一层屏幕——
+    // 报道的
+    // "stacked ACTIONS · 1/1 MUTATE fragments in scrollback" 腐败。
     //
-    // The animating header inputs are exactly three:
-    //   • the `done/total` counter (ticks 1/2 → 2/2 as tools finish),
-    //   • `title_end` (the running tool name, or a live elapsed),
-    //   • the spinner `frame` (animates Pending/Running status glyphs on
-    //     the first event rows, which sit directly under the title).
-    // For a LIVE (any-tool-non-terminal) panel every one of those can
-    // mutate a row that already committed. So freeze all three to a
-    // batch-stable form while the panel is live: drop the count, the
-    // ticking title_end, and the animated spinner. The panel still
-    // updates its BOTTOM (new event rows, the footer running→done flip)
-    // — all appends below the seam, which the invariant permits.
-    // ── Title. A SINGLE byte-stable string for the panel's ENTIRE
-    //    lifetime — live, settling, and frozen. This is the load-bearing
-    //    invariant: the freeze handoff converts the LIVE panel into the
-    //    all-terminal (settled) panel in place, and if their titles
-    //    differ by even one byte the freeze REWRITES the title row —
-    //    which, once that row has crossed into native scrollback, is a
-    //    committed-row rewrite that trips maya's gate into a destructive
-    //    HardReset (the "card duplicated one screen up" corruption).
-    //    So live and settled MUST render the same title bytes. We carry
-    //    NO count and NO elapsed in the title (both animate / differ
-    //    live vs settled); the exact done/total + duration live in the
-    //    FOOTER, which is always a bottom append below the seam. The
-    //    spinner `frame` is zeroed for any not-yet-all-terminal panel so
-    //    a top event row's status glyph can't animate a committed row.
+    // 动画的头文件输入正中三:
+    //   • 国家 `done/total` 计数器( ticks) 1/2 → 2/2 工具完成时,
+    //   • `title_end`(运行中的工具名称,或活过),
+    //   • 加载动画 `frame`(活体成员Pending/Running 状态格言)
+    //     第一次 第一次 事件 行,直坐于标题下).
+    // 用于 LIVE (任何项目) -tool-non-terminal
+    // ) 每块板可以变异一个已经执行的行。所以冻结所有三至
+    // 批次 -stable 面板启用时的窗体: 放下计数,
+    // 勾选 title_end 动画 加载动画。小组仍在更新其
+    // BOTTOM (新设) 事件 排行,脚步运行~done翻
+    // 转)——所有附件下方 接口边界 ,该 不变量 许可证。
+    // 标题：在面板整个生命周期内保持字节稳定的唯一字符串。
+    //    生命周期 生活,定居,和冻。 加载-bearing 不变量
+    //    : 冻结的交接转换 LIVE 面板进入全部 -terminal
+    //    (已确定)小组到位,如果其名称有差异,甚至一个 字节
+    //    冻结 REWRITES 标题行——一旦该行进入原生 回滚缓冲区 ,
+    //    是执着的 -row 重写旅行 maya 进入一个破坏性的
+    //    大门 HardReset (无)
+    //    "card duplicated one screen up" 腐败问题)。
+    //    故生而安居乐业 必须 渲染 标题 字节 我们携带 NO
+    //    计数和 NO 标题中已过期(动画/活字与已解决的活字不同);
+    //    done/total + 持续时间在 FOOTER ,
+    //    它总是下方的下边附件 接口边界。该词 加载动画
+    //    `frame` 任何非为零 -yet-all-terminal
+    //    面板这样顶端 事件 排的状态格莱弗不能动画一个承诺的排.
     std::string title = " A C T I O N S ";
     std::string title_end;
 
@@ -626,38 +626,38 @@ maya::AgentTimeline::Config agent_timeline_config(std::span<const ToolUse> tool_
 
     cfg.title        = std::move(title);
     cfg.title_end    = std::move(title_end);
-    // Border color is part of EVERY panel row's bytes (left/right border
-    // cells + the title row), so it falls under the same lifecycle-
-    // stability rule as the title: the live→settled flip used to swap
-    // rail_color → muted, restyling every committed row of a panel
-    // straddling the seam — a style-only committed-row rewrite that the
-    // gate treats identically to a glyph rewrite (the memcmp covers
-    // style ids). Fixed muted for the whole lifetime; liveness is
-    // carried by the footer's `● running` and the per-event category
-    // colors, both of which are seam-safe (footer = bottom append,
-    // category colors are fixed per tool from first render).
+    // 边框颜色是其中的一部分 每个 面板行的 字节 (
+    // left/right 边框 存储单元 + 标题行),
+    // 因此它属于与标题相同的生命周期- 稳定性规则: 用于互换
+    // 的活页- 固定翻转 rail_color ~ 沉默,
+    // 使每排被害的棋盘 越过 接口边界 - 一种风格 -only
+    // 承诺 -row 重写闸门对格子重写( 元件覆盖样式
+    // ID) 的处理方式相同。 固定的音效为整齐 生命周期
+    // 活的由脚步手持 `● running` 和每笔 -event
+    // 类别颜色,两者均为 接口边界-safe (脚印 = 下附着,
+    // 类别颜色从第一个开始固定) 渲染).
     cfg.border_color = muted;
-    // frame = -1 ⇒ maya renders STATIC status glyphs (● running, ○ pending)
-    // on event header rows instead of the braille spinner. Those rows can
-    // sit above the seam (tool progress grows the body below them), so they
-    // must be byte-stable — but a frozen braille frame (`⠋` forever) reads
-    // as "stuck". A solid ● is equally immutable and reads as intentional.
-    // The moving spinner lives in the FOOTER glyph (seam-safe, see above).
+    // 帧 = -1 ⇒ maya 渲染 STATIC 状态格言(
+    // * 运行, 0) 待处理 继续 事件 头文件 排行而不是大字报
+    // 加载动画 这些排可以坐到 接口边界 (工具进步增加) 正文
+    // 他们必定是 字节-stable 冻死大号 帧 (`⠋`
+    // 永远) "stuck"。一个固体。。 不可变 并读作故意的。
+    // 动静 加载动画 生活在一个 FOOTER 格莱弗( Q) 接口边界-safe ,见上文)。
     //
-    // EXCEPTION — the TAIL-RUNNING case (the overwhelmingly common
-    // sequential flow): when the ONLY non-terminal event is the LAST one,
-    // its header row is bounded to within a few rows of the transcript
-    // bottom (its own live body is elision-capped, and only the footer +
-    // border render below it), so it cannot have crossed the viewport top
-    // — animating its glyph is exactly as seam-safe as the ●→✓ rewrite
-    // that already lands on that row at completion. Pass the real frame so
-    // the in-flight action visibly spins; every terminal event's ✓/✗ is
-    // frame-independent, so nothing else animates. Any OTHER shape (a
-    // non-terminal event with events after it — parallel batches) keeps
-    // the static ●: those headers can genuinely sit above the seam.
-    // Gated on a roomy viewport: on very short terminals (oracle tests
-    // run 60x18) the bounded distance can still exceed the viewport, so
-    // keep the conservative static glyph there.
+    // EXCEPTION - 电话 TAIL-RUNNING
+    // 大小写(绝对常见的顺序流): 仅 无 -terminal
+    // 事件 是那个 最后 其一,其一,该 头文件 排在记录
+    // 底部的几行内( 其自己的直播) 正文 正在消除 -capped ,
+    // 只选择页脚+边框 渲染 因为它不能越过 可视区域 顶端—
+    // —动画其格言完全等于 接口边界-safe 以重写已到达该行的。
+    // 递回真实的 帧 所以,在 -flight 动作明显旋转;
+    // 终端 事件 ⁇ / ⁇ 是 帧-independent 动画,
+    // 没有其他动画。 OTHER 形状( 非)
+    // -terminal 事件 与 事件 之后的-平行批次)
+    // 保持静态 : 头文件 能够真正坐到 接口边界.
+    // 睡在房间里 可视区域 : 时间很短 终端 (
+    // 甲骨文测试运行于60x18) 边界距离仍然可以超过
+    // 可视区域 保持保守的静态胶片
     if (!all_terminal_title) {
         const bool tail_running =
             !tool_calls.empty()
@@ -669,17 +669,17 @@ maya::AgentTimeline::Config agent_timeline_config(std::span<const ToolUse> tool_
                }();
         const int H = maya::available_height();
         bool animate = tail_running && H >= 20;
-        // The same bound, measured. A tail-running header sits at most
-        // H - 12 rows above the card's bottom (capped body + footer +
-        // border), and that is what makes it safe to spin. When the WHOLE
-        // live card is no taller than that, every header in it is just as
-        // far from the viewport top, so queued and parallel tools can spin
-        // too instead of sitting on a static dot. The card is the last
-        // thing in the transcript while any tool is live, so its height is
-        // the distance that matters.
+        // 相同的约束,计量。 末尾-running 头文件
+        // 最多坐落在卡底上方的 H - 12 行( 盖上)
+        // 正文 + footer + 边框),这就是旋转安全的原因。
+        // 当旋转时, 整个 活牌没有比这高的,每个 头文件
+        // 里面离我们只有一公里 可视区域 上面,所以排队和平
+        // 行工具也可以旋转,而不是坐落在静态点上。
+        // 在任何工具都运行时,卡片是记录片中的最后一件事,
+        // 因此它的高度是重要的距离。
         if (!animate && H >= 20) {
             maya::AgentTimeline::Config probe = cfg;
-            probe.frame = -1;   // same glyph width, so the same height
+            probe.frame = -1;   // 相同的格子宽度,所以同样的高度
             const auto sz = maya::measure_element(
                 maya::AgentTimeline{std::move(probe)}.build(),
                 std::max(20, maya::available_width() - 4));
@@ -688,15 +688,15 @@ maya::AgentTimeline::Config agent_timeline_config(std::span<const ToolUse> tool_
         if (!animate) cfg.frame = -1;
     }
 
-    // Panel-level cache key for an ALL-TERMINAL batch. Settled tool bytes
-    // are immutable and no chrome animates (every elapsed is final, no
-    // spinner), so maya can blit the whole panel's cells across frames
-    // instead of re-laying-out its rows. Content-address every input the
-    // panel shape depends on: tool count + rail color + each tool's id,
-    // status, output size, and render key. Leave empty when any tool is
-    // still in-flight so the spinner/elapsed keep animating. The freeze
-    // handoff stays a pure cache hit because freeze_range builds the same
-    // batch under the same key.
+    // 小组讨论会 -level 缓存 键 全部-TERMINAL 批次。
+    // 已解决的工具 字节 已经 不可变 也没有铬动画(每经一次都是最后的,
+    // 没有) 加载动画 ),所以,(a) ,(a, ) maya 能够
+    // 打碎整个面板 存储单元 横跨 帧 而不是重新 -laying-out
+    // 内容 -address 面板形状取决于:工具计数+铁路颜色+每个工具的ID,
+    // 状态,输出大小,以及 渲染 键。当任何工具仍在使用时,
+    // 留空 -flight 所以,我们 spinner/elapsed
+    // 继续动画 冻结的交接保持纯度 缓存 击出是因为 freeze_range
+    // 在同一键下建立相同的批次。
     {
         bool all_terminal = total > 0;
         for (const auto& tc : tool_calls)
@@ -709,9 +709,9 @@ maya::AgentTimeline::Config agent_timeline_config(std::span<const ToolUse> tool_
               .add(static_cast<std::uint64_t>(rail_color.raw_r()))
               .add(static_cast<std::uint64_t>(rail_color.raw_g()))
               .add(static_cast<std::uint64_t>(rail_color.raw_b()))
-              // The tool-output pref changes the body's HEIGHT, so it has
-              // to key every layer that memoizes a built card — otherwise
-              // flipping it repaints nothing until the next status change.
+              // 工具( E) -output 预览更改 正文's
+              // HEIGHT 因此它必须按键每层 记住一个已建的卡片,
+              // 否则翻转它 重绘 直到下一个状态改变,一切都不会改变。
               .add(static_cast<std::uint64_t>(
                   agentty::ui_prefs::current().tool_output));
             for (const auto& tc : tool_calls) {
@@ -729,12 +729,12 @@ maya::AgentTimeline::Config agent_timeline_config(std::span<const ToolUse> tool_
 maya::Element agent_timeline_element(std::span<const ToolUse> tool_calls,
                                      int spinner_frame,
                                      maya::Color rail_color) {
-    // An all-terminal batch is byte-stable: every tool's status, output,
-    // and args are fixed, and no spinner/elapsed counter animates (all
-    // durations are final). So the WHOLE built Element is content-addressed
-    // and identical across every later frame. A non-terminal batch carries
-    // a running/pending tool (live elapsed counter, animated spinner via
-    // `frame`) and MUST rebuild each frame — fall straight through.
+    // 全部都给我 -terminal 批次为 字节-stable :每个工具的状态,
+    // 输出,和参数都是固定的,没有 spinner/elapsed 反动画
+    // (所有持续时间均为最终时间)。 整个 已建元素为内容 -addressed
+    // 之后每一次都一样 帧。非 -terminal 批次载a
+    // running/pending 工具( 使用后计数器, 动画 加载动画 途经
+    // `frame` 和。 和 简 况 必须 重建每个 帧 - 倒倒直过。
     bool all_terminal = !tool_calls.empty();
     for (const auto& tc : tool_calls) {
         if (!tc.is_terminal()) { all_terminal = false; break; }
@@ -744,12 +744,12 @@ maya::Element agent_timeline_element(std::span<const ToolUse> tool_calls,
             agent_timeline_config(tool_calls, spinner_frame, rail_color)}.build();
     }
 
-    // Content-address: tool count + rail color + each tool's id, status,
-    // output size, and render key (which folds args_streaming / progress /
-    // output sizes — every input the panel body depends on). spinner_frame
-    // is deliberately EXCLUDED: a settled panel has no animated glyph, so
-    // the frame index doesn't affect its bytes; including it would defeat
-    // the cache (the index ticks every frame).
+    // 内容 -address :工具计数+铁路颜色+每个工具的ID,状态,
+    // 输出大小,以及 渲染 键( 键) 归并 args_streaming /
+    // 进度/ 输出大小—— 每一份输入面板 正文 取决于).
+    // spinner_frame 故意的 故意的,故意的,是故意的,这是故意的
+    // EXCLUDED :一个已解决的面板没有动画格,所以 帧 指数不影响它的 字节
+    // 包括它会打败 缓存 (索引每秒勾选) 帧).
     std::string key;
     key.reserve(tool_calls.size() * 40 + 16);
     key += "p|";
@@ -776,16 +776,16 @@ maya::Element agent_timeline_element(std::span<const ToolUse> tool_calls,
     key += std::to_string(
         static_cast<int>(agentty::ui_prefs::current().tool_output));
 
-    // The cache returns an OWNING handle, not a pointer into itself: an
-    // evicting LRU can drop the entry at the next put(), and a `const
-    // shared_ptr<...>*` into the map would dangle right there. Copying the
-    // shared_ptr out is one refcount bump and still no tree copy.
-    // loop_bound<T>::with refuses the pointer-returning shape outright.
+    // 电话 缓存 返回一个 OWNING 手柄,而不是指向自己: 驱逐
+    // LRU 可以在下一个时放弃条目 put() ,并设置一个
+    // `const shared_ptr<...>*` 复制到地图上就会在那里缠绕。
+    // shared_ptr 出局是一次重计,还是没有 源码树 ⁇ .
+    // loop_bound<T> * 拒绝指针 -returning 形状直立。
     if (auto hit = g_panel_cache.with([&](PanelElementCache& c) {
             const std::shared_ptr<const maya::Element>* p = c.get(key);
             return p ? *p : std::shared_ptr<const maya::Element>{};
         }))
-        return maya::Element{hit};   // shared handle: refcount bump, no tree copy
+        return maya::Element{hit};   // 共享手柄:重计凸起,无源码树副本
 
     auto el = std::make_shared<const maya::Element>(
         maya::AgentTimeline{
@@ -799,11 +799,11 @@ maya::Element agent_timeline_element_memoized(std::string_view msg_id,
                                               std::span<const ToolUse> tool_calls,
                                               int spinner_frame,
                                               maya::Color rail_color) {
-    // Only SETTLED (all-terminal) batches are memoizable: a running /
-    // pending tool animates a spinner + live elapsed, so its render_key
-    // (and hence its output) changes every frame — the memo would just
-    // miss-and-store churn. Detect that up front and fall straight to
-    // the per-frame build, exactly as the base function does.
+    // 仅 SETTLED (所有项目) -terminal )
+    // 批次可回忆: 运行 / 待处理 工具动画 a 加载动画 + 活过,
+    // 所以它 render_key (因此其产出) 帧 - 电话
+    // 记忆缓存 只会错过 -and-store 探测到前面,
+    // 直落到每架 -frame 构建, 与基础函数完全相同。
     bool all_terminal = !tool_calls.empty();
     for (const auto& tc : tool_calls) {
         if (!tc.is_terminal()) { all_terminal = false; break; }
@@ -813,26 +813,26 @@ maya::Element agent_timeline_element_memoized(std::string_view msg_id,
             agent_timeline_config(tool_calls, spinner_frame, rail_color)}.build();
     }
 
-    // Fast primary key: MessageId + render_key. A settled sub-turn's
-    // render_key is frozen, so this is a permanent hit after the first
-    // frame — one uint64 compare, NO content-key string built and (via
-    // heterogeneous lookup) NO temporary string allocated. That is the
-    // whole point: it removes the O(tools) std::to_string key-build
-    // that even a g_panel_cache hit pays, which is what still scaled
-    // with run depth (O(run-length) key-builds per frame).
-    // Owning handle out, for the same reason as g_panel_cache above.
+    // 快主键 : MessageId + render_key。一个已结算的
+    // 子公司 -turn's render_key 冰冻,所以这是第一次的永久
+    // 打击 帧 - 比较一个宾特64, NO 内容 -key 字符串已构建和(
+    // 通过多样的查找) NO 临时字符串。这是整个点:它删除 O( 工具)
+    // std::to_string 键 -build 连一个
+    // g_panel_cache 命中支付, 也就是仍然随运行深度而缩放的( O(
+    // 运行) ) -length 键 -builds 百分比 帧).
+    // 自己解决, 原因与 g_panel_cache 上节。
     if (auto hit = g_panel_render_memo.with([&](PanelRenderMemo& c) {
             const std::shared_ptr<const maya::Element>* p = c.get(msg_id, render_key);
             return p ? *p : std::shared_ptr<const maya::Element>{};
         }))
-        return maya::Element{hit};   // shared handle: refcount bump
+        return maya::Element{hit};   // 共享手柄: 重计折叠
 
-    // Miss: build via the content-addressed path (which itself hits
-    // g_panel_cache across sub-turns with identical batch bytes, e.g.
-    // repeated identical edits), then record the resulting handle under
-    // the fast key so every later frame skips the key-build. Storing
-    // the SAME shared handle g_panel_cache returned keeps one stable
-    // control block — maya blits its cells cross-frame.
+    // 密钥: 通过内容构建 -addressed 路径( 本身点击)
+    // g_panel_cache 横跨子 -turns 批次相同 字节, e.g.
+    // ),然后将生成的手柄记录在快速键下,因此以后每一次 帧 跳
+    // 过密钥 -build。将 相同 共享控点 g_panel_cache
+    // 返回时保持一个稳定的控制区块—— maya 擦亮
+    // 它的颜色 存储单元 横 -frame.
     auto el = std::make_shared<const maya::Element>(
         agent_timeline_element(tool_calls, spinner_frame, rail_color));
     g_panel_render_memo.with(

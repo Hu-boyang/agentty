@@ -1,35 +1,30 @@
 #!/usr/bin/env python3
-"""prefs_sync -- every ui::Prefs field must appear in the field table.
+"""prefs_sync：每个 ui::Prefs 字段都必须出现在字段表中。
 
-WHY THIS EXISTS
-===============
-The settings.json writer, its loader and the save-time merge used to spell
-out every Prefs field by hand. Nothing made those three lists agree, and each
-omission failed differently and silently: missing from the writer meant the
-setting never reached disk; missing from the loader meant it was written and
-then ignored on restart; missing from the merge meant a second agentty
-session clobbered it on its next save. That last one is what "settings don't
-persist" looked like.
+检查的原因
+==========
+settings.json 写入器、加载器和保存时的归并过去分别手写全部 Prefs 字段。
+三份清单没有一致性约束，遗漏会无声地产生不同故障：写入器漏项导致无法保存，
+加载器漏项导致重启后忽略设置，归并漏项则让第二个 agentty 会话在保存时覆盖配置。
+最后一种就是用户看到的“设置没有持久化”。
 
-All three now walk ONE table -- `ui_prefs::for_each_field` in
-include/agentty/domain/ui_prefs.hpp -- so none of them names a field and they
-cannot disagree. Defaults come from `Prefs{}` through the member pointer, so
-there is no second copy of a default either.
+现在三者统一遍历 include/agentty/domain/ui_prefs.hpp 中的
+ui_prefs::for_each_field，不再各自枚举字段，因此不会分歧。
+默认值也通过成员指针从 Prefs{} 获取，无需维护第二份默认值。
 
-What is left to check is the single remaining seam: a field added to the
-struct and NOT to the table. The compiler cannot see that (C++ has no
-reflection here), and the field would simply never persist. So: compare the
-two, and fail the build naming the field.
+剩余唯一检查点是：结构体新增字段却没加入字段表。
+这里没有 C++ 反射支持，编译器无法发现，字段就会始终无法保存。
+因此比较两者，发现遗漏时点名字段并使构建失败。
 
-Usage: prefs_sync.py <ui_prefs.hpp>
+用法：prefs_sync.py <ui_prefs.hpp>
 """
 import re
 import sys
 
-# Field types that appear in Prefs. Listed rather than matched loosely so a
-# new type has to be added here deliberately -- an unrecognised type would
-# otherwise make a field invisible to this lint, which is the exact failure
-# the lint exists to prevent.
+# 出现在Prefs中的字段类型。列表而不是松散匹配,
+# 所以必须在此添加一个新类型——一个无法识别
+# 的类型会让字段隐蔽于此,这就是该字段存在的
+# 防止的准确失败。
 TYPES = (
     "ThemeName", "ColorTier", "Polarity", "Density", "Motion", "Scrollback",
     "ToolOutput", "Thinking", "Timestamps", "std::string", "int", "bool",

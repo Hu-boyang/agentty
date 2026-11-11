@@ -1,20 +1,20 @@
-// provider_model_switch_test — the provider/model switching state machine.
+// provider_model_switch_test - 电话 provider/model 切换状态机器。
 //
-// Regression locks for the field complaint "model switching is not working —
-// the model changes but the provider stays the same":
+// 递归 锁 外地投诉
+// 模型切换不正常：模型变了，提供方却没变。
 //
-//   1. STALE-FETCH GATE. fetch_models() stamps the provider it fetched FOR;
-//      the ModelsLoaded reducer drops a payload whose provider_id doesn't
-//      match the provider active at DELIVERY time. Without the gate, two
-//      quick provider switches interleave their slow catalog fetches and
-//      provider A's late catalog is installed under provider B — the picker
-//      then offers models the active backend cannot stream (pick one and the
-//      request 400s, or silently streams the wrong backend's model).
+//   1. STALE-FETCH GATE. fetch_models () 所获取的供应商的邮票 FOR;
+//      编号 ModelsLoaded 状态更新函数 丢弃 a
+//      载荷 其 人 名 provider_id 不符合活跃于
+//      DELIVERY 没有门,两个快开关 将慢速分开 目录
+//      获取和提供者 A 的迟到 目录 安装在提供者B下—— 选择
+//      面板 然后提供无法运行的后端的模型 数据流 (选择一个和400s的要求,
+//      或默默地) 数据流 错误的后端的模型)。
 //
-//   2. ACCEPTED FETCH INSTALLS THE CATALOG and keeps the user's model; only
-//      an empty model is filled in from it.
+//   2. ACCEPTED FETCH INSTALLS 该 CATALOG 并保留用户的模型;
+//      空模型从中填入。
 //
-// Driven through the REAL app::update reducer, no mocks of the reducer path.
+// 开车经过 真实 app::update 状态更新函数 ,没有嘲讽 状态更新函数 路径。
 
 #include "agtest_cap.hpp"
 #include "agtest.hpp"
@@ -43,9 +43,9 @@ namespace pn = agentty::ui::panel;
 
 using namespace agentty;
 
-// The ModelsLoaded reducer touches deps().load_settings() (favorites) and
-// deps().save_settings() (persisting an auto-corrected model). Stub them
-// with an in-memory Settings.
+// ModelsLoaded 状态更新函数 触及deps().load_settings(最
+// 亲近)和deps().save_settings(长期使用自动-corrected模式),
+// 用-memory设置来固定它们。
 static store::Settings g_settings;
 static void install_stub_deps() {
     app::install_deps(app::Deps{
@@ -62,12 +62,12 @@ static void install_stub_deps() {
     });
 }
 
-// Apply a step's effects to the stub store.
+// 将一个阶梯的副作用应用到树根商店.
 //
-// Persistence is an EFFECT now — the reducer returns a value describing the
-// write and the host performs it. These tests assert on `g_settings`, i.e.
-// on what reached the store, so they have to play the host's part. Which is
-// the point: a save only lands here if the arm actually returned it.
+// 持久化 是一个 EFFECT 现在—— 状态更新函数 返回描述写入
+// 和主机执行的值。这些测试坚持 `g_settings`, i.e.
+// 店里有什么东西,所以他们必须扮演主人的角色。
+// 保存 只有手臂真的还回来时才会降落在这里
 static void apply_fx(const Cmd& c) {
     agtest::fx::Store s;
     s.settings = g_settings;
@@ -75,20 +75,20 @@ static void apply_fx(const Cmd& c) {
     g_settings = s.settings;
 }
 
-// A Model with the settings record seeded, the way init() seeds it.
+// A Model 与设置记录种子,方式 init() 种子它。 种子它,种子它。
 //
-// `m.d.persisted` IS the settings record now — reducers read it instead of
-// going back through the seam, which is what stopped the two copies drifting
-// apart. init() assigns it once at startup; a test that builds a bare Model
-// has to do the same or it starts life with a blank record while the stub
-// store has content, which is exactly the split-brain the record exists to
-// prevent (here it read as "no provider is authed", so the fused picker came
-// up empty).
+// `m.d.persisted` IS 设置记录到现在...
+// 状态更新函数 而不是再读一遍 接口边界 ,这就是阻止了两本书的漂移。
+// init() 启动时指定一次; 构建空的测试 Model 要么
+// 用空白记录开始生命 要么就用书根店的 内容来做 这正是拆分
+// -brain 记录的存在是为了防止(此处读作
+// "no provider is authed" ,所以保险丝 选择面板 空着
+// 就来了).
 //
-// The active provider is seeded the same way: init() copies the launch
-// selection out of the global once, and from then on the Model owns it.
+// 活动提供者的播种方式相同: init() 复制
+// 一次全球发射选择,然后从此开始 Model 拥有它。
 //
-// Call AFTER setting g_settings and provider::select().
+// 调用 之后 设置 g_settings 财务报告和已审计财务报表 provider::select().
 [[nodiscard]] static Model seeded_model() {
     Model m;
     m.d.persisted = g_settings;
@@ -108,15 +108,15 @@ static ModelInfo mi(const char* id, const char* prov) {
 
 TEST_CASE("provider model switch") {
     install_stub_deps();
-    // Make the active provider deterministic: the Anthropic path, whose
-    // canonical id ("anthropic") is what active_provider_id() reports.
+    // 使主动提供者具有决定性: Anthropic 路径,其名称 "anthropic"
+    // 是什么 是什么 , 是什么 ) active_provider_id (a) 报告。
     {
         provider::Selection sel;
         sel.kind = provider::Kind::Anthropic;
         provider::select(::agentty::IoAccess::grant(), sel);
     }
 
-    // ── 1: a ModelsLoaded stamped for a DIFFERENT provider is dropped ──
+    // ── 1: a ModelsLoaded 印花为 a 不同 提供者已丢弃 ──
     {
         Model m = seeded_model();
         m.s.models_loading = true;
@@ -124,7 +124,7 @@ TEST_CASE("provider model switch") {
 
         ModelsLoaded stale;
         stale.models      = { mi("gpt-4o", "openai"), mi("o4-mini", "openai") };
-        stale.provider_id = "openai";   // fetched for openai; anthropic active
+        stale.provider_id = "openai";   // 获取为 Openai; 人类活动
 
         auto [m2, cmd] = app::update(std::move(m), Msg{std::move(stale)});
         apply_fx(cmd);
@@ -136,10 +136,10 @@ TEST_CASE("provider model switch") {
               "loading stays armed — the newer fetch is still in flight");
     }
 
-    // ── 2: a ModelsLoaded stamped for the ACTIVE provider installs ──
-    //    and keeps the user's model even when it isn't listed. Replacing it
-    //    with the first model (the old behaviour) turned a pick into another
-    //    model a second later, and saved that as the provider's recall.
+    // ── 2: a ModelsLoaded 印有该图章 活动 供应商安装 ──
+    //    并且即使没有列出,也保留用户的模型。
+    //    用第一个模型(旧行为)来取代它,在后面将一个选择
+    //    变成另一个模型,然后作为提供者的召回的已保存。
     {
         Model m = seeded_model();
         m.s.models_loading = true;
@@ -160,7 +160,7 @@ TEST_CASE("provider model switch") {
               "and the user is told it isn't in the list");
     }
 
-    // ── 2b: with NO model chosen, the first one is filled in ──
+    // ── 2b: 选择NO型号,第一个型号填写 ──
     {
         Model m = seeded_model();
         m.s.models_loading = true;
@@ -177,7 +177,7 @@ TEST_CASE("provider model switch") {
               "an empty model is filled from the catalog");
     }
 
-    // ── 2c: a differently spelled id for a listed model is the same model ──
+    // ── 2c: 列出的模型的不同拼写代号是同一个模型 ──
     {
         Model m = seeded_model();
         m.s.models_loading = true;
@@ -196,9 +196,9 @@ TEST_CASE("provider model switch") {
               "and is not reported as unlisted");
     }
 
-    // ── 2d: a [1m] variant missing from the list stays [1m] ──
-    //    (only a 1M window the account was refused falls back, and to its
-    //    OWN base model, never to whatever sorts first)
+    // ── 2d: 清单上缺少的[1m] 变体 保留[1m。 ──
+    //    (只有1M窗口被拒绝) 账户倒置, 回到它的 自身 基型,
+    //    从来没有先到任何种类)
     {
         Model m = seeded_model();
         m.s.models_loading = true;
@@ -215,14 +215,14 @@ TEST_CASE("provider model switch") {
               "a [1m] pick isn't silently swapped for another model");
     }
 
-    // ── 3: legacy/synthetic dispatch (empty provider_id) still accepted ──
+    // ── 3: legacy/synthetic 分派 (空闲 provider_id ) 仍被接受 ──
     {
         Model m = seeded_model();
         m.s.models_loading = true;
 
         ModelsLoaded legacy;
         legacy.models = { mi("claude-opus-4-5", "anthropic") };
-        // provider_id left empty
+        // 空的 provider_id 号
 
         auto [m2, cmd] = app::update(std::move(m), Msg{std::move(legacy)});
         apply_fx(cmd);
@@ -232,22 +232,22 @@ TEST_CASE("provider model switch") {
     }
 }
 
-// ^E in the model picker toggles a per-model reasoning-effort override and
-// MUST give feedback: flip the catalog registry, persist to Settings, and set
-// a status toast (regression guard for a use-after-move that silently dropped
-// the toast). Driven through the REAL reducer via app::update.
+// ^E 模型中 选择面板 切换 a/ 数 -model 推理 -effort
+// 覆盖和 必须 反馈: 翻转 目录 注册表 ,坚持设置,并设置状态敬酒
+// (用于后退的守护) -after-move 默默地放下了土司 开车
+// 经过 真实 状态更新函数 途经 app::update.
 TEST_CASE("model picker ^E toggles reasoning override + feedback") {
     namespace pick = agentty::ui::pick;
     install_stub_deps();
     g_settings = store::Settings{};
     agentty::clear_reasoning_overrides();
 
-    // A non-chatgpt provider with a genuinely non-reasoning model (codestral,
-    // a code model) highlighted in an open picker — inference does NOT light
-    // it up, so ^E force-on has something to prove.
-    // The picker reads its cached rows, so open it through the REAL reducer
-    // (which seeds provider_catalogs + fused_rows) rather than hand-placing
-    // the overlay. Hermetic auth so the catalog seeds without on-disk creds.
+    // 非 国 家 -chatgpt 真正无提供商 -reasoning 模型(代码、
+    // 代码模型)在打开时突出显示 选择面板 - 推论确实如此 不 点燃它,
+    // 所以 ^E 部队 -on 需要证明
+    // 电话 选择面板 读取其缓存行,所以打开它通过 真实 状态更新函数 (种子)
+    // provider_catalogs + fused_rows 而不是手 而不是手
+    // -placing 编号 覆盖面板 如此的有名无实 目录 种子没有打开 -disk 证明书。
     g_settings.provider_keys["mistral"] = "sk-test";
     provider::select(::agentty::IoAccess::grant(), provider::parse_selection("mistral"));
     Model m0 = seeded_model();
@@ -257,11 +257,11 @@ TEST_CASE("model picker ^E toggles reasoning override + feedback") {
     apply_fx(_open);
     REQUIRE(!m.d.fused_rows.empty());
 
-    // Baseline: inference says NOT a reasoner, so no override, no effort.
+    // 基线:推论说NOT是一个理性,所以没有压倒性,没有努力.
     CHECK(agentty::reasoning_override_for("codestral-latest") == -1);
     CHECK(!agentty::resolved_caps("codestral-latest").supports_effort());
 
-    // 1st ^E: auto -> force ON.
+    // 第1次 7 ^E : 自动 - > 强制 ON.
     auto [m1, c1] = app::update(std::move(m), Msg{ModelsToggleReasoning{}});
     apply_fx(c1);
     CHECK(agentty::reasoning_override_for("codestral-latest") == 1,
@@ -276,7 +276,7 @@ TEST_CASE("model picker ^E toggles reasoning override + feedback") {
           "not as a bare id that would also flip other providers");
     CHECK(!m1.s.status.empty(), "a status toast is set as feedback");
 
-    // 2nd ^E: ON -> force OFF.
+    // 第二届 ^E: ON - > 强度 OFF.
     auto [m2, c2] = app::update(std::move(m1), Msg{ModelsToggleReasoning{}});
     apply_fx(c2);
     CHECK(agentty::reasoning_override_for("codestral-latest") == 0,
@@ -285,7 +285,7 @@ TEST_CASE("model picker ^E toggles reasoning override + feedback") {
           "effort suppressed under force-off");
     CHECK(!m2.s.status.empty(), "force-off also gives feedback");
 
-    // 3rd ^E: OFF -> back to inference (cleared).
+    // 第三届 ^E: OFF - > 回到推论(已清除)。
     auto [m3, c3] = app::update(std::move(m2), Msg{ModelsToggleReasoning{}});
     apply_fx(c3);
     CHECK(agentty::reasoning_override_for("codestral-latest") == -1,
@@ -294,11 +294,11 @@ TEST_CASE("model picker ^E toggles reasoning override + feedback") {
           "cleared override removed from Settings");
     CHECK(!m3.s.status.empty(), "clear-to-auto also gives feedback");
 
-    agentty::clear_reasoning_overrides();   // keep global state clean
+    agentty::clear_reasoning_overrides();   // 保持全球状态清洁
 }
 
-// ^E on a FAMILY-GATED model (Claude) is a no-op for the override but still
-// gives feedback (a hint), and never writes an override.
+// ^E 时间: FAMILY-GATED 模型( 4) Claude )是无
+// -op 用于覆盖但仍然提供反馈(提示),并且从不写覆盖。
 TEST_CASE("model picker ^E on family-gated model is a hinted no-op") {
     namespace pick = agentty::ui::pick;
     install_stub_deps();
@@ -313,8 +313,8 @@ TEST_CASE("model picker ^E on family-gated model is a hinted no-op") {
     auto [m, _open] = app::update(std::move(m0), Msg{OpenModels{}});
     apply_fx(_open);
     REQUIRE(!m.d.fused_rows.empty());
-    // ^E acts on the HIGHLIGHTED row. The seeded catalog carries Anthropic's
-    // bundled line-up, so row 0 isn't necessarily opus — point at it.
+    // ^E 行为 HIGHLIGHTED 排队,种子 目录 携带 Anthropic
+    // 捆绑的线条 -up ,所以第0行不一定是 opus——指向它。
     {
         int idx = -1;
         for (int i = 0; i < static_cast<int>(m.d.fused_rows.size()); ++i)
@@ -350,9 +350,9 @@ TEST_CASE("provider filter: auth-aware browse hides unconfigured") {
         return false;
     };
 
-    // Nothing configured: the browse view is EMPTY of hosted vendors, and
-    // every withheld row is counted so the UI can offer them. Local/no-auth
-    // backends are always usable, so they may legitimately show up.
+    // 无配置:浏览视图是 空 被扣的每行货款都按
+    // UI 能够提供他们。 Local/no-auth
+    // 后端总是可以使用的,所以可以合法地出现.
     {
         auto r = P::filter_provider_indices("", st, view);
         CHECK(!has(r.indices, "cerebras"), "unconfigured vendor is not browsed");
@@ -363,7 +363,7 @@ TEST_CASE("provider filter: auth-aware browse hides unconfigured") {
                   == ps.size(), "every registry row is either shown or counted");
     }
 
-    // Configure one: it appears, the hidden count drops by exactly one.
+    // 配置 : 它出现, 隐藏的计数 掉到 完全。
     {
         auto before = P::filter_provider_indices("", st, view);
         st.provider_keys["groq"] = "gsk_test";
@@ -373,15 +373,15 @@ TEST_CASE("provider filter: auth-aware browse hides unconfigured") {
         CHECK(!has(after.indices, "cerebras"), "others stay hidden");
     }
 
-    // SEARCH still reaches the whole registry -- hiding is a browse-view
-    // decision, never a reachability one. This is the no-dead-end contract.
+    // SEARCH 仍然到达整个 注册表 隐藏是浏览
+    // -view 决断,永远不能实现。 -dead-end 合同。
     {
         auto r = P::filter_provider_indices("cerebras", st, view);
         CHECK(has(r.indices, "cerebras"), "unconfigured vendor still searchable");
         CHECK(r.n_hidden == 0, "search withholds nothing");
     }
 
-    // With a query, configured rows lead the unconfigured ones.
+    // 使用查询,配置的行将引导未配置的行.
     {
         store::Settings s2;
         s2.provider_keys["cerebras"] = "k";
@@ -397,7 +397,7 @@ TEST_CASE("provider filter: auth-aware browse hides unconfigured") {
 TEST_CASE("provider filter: fuzzy narrows + ranks") {
     namespace P = agentty::provider;
 
-    // Empty query = every provider, in registry order.
+    // 空查询 = 每个提供者,按注册表顺序.
     {
         auto all = P::filter_provider_indices("");
         CHECK(all.size() == P::providers().size());
@@ -405,7 +405,7 @@ TEST_CASE("provider filter: fuzzy narrows + ranks") {
             CHECK(all[static_cast<std::size_t>(i)] == i);
     }
 
-    // A specific id floats to the front.
+    // 特定的ID漂浮在前面.
     {
         auto r = P::filter_provider_indices("kimi");
         CHECK(!r.empty());
@@ -418,7 +418,7 @@ TEST_CASE("provider filter: fuzzy narrows + ranks") {
         CHECK(P::providers()[static_cast<std::size_t>(r.front())].id == "deepseek");
     }
 
-    // A label word matches even when it's not the id ("grok" -> xai row).
+    // 一个标签单词即使不是id("grok" - > xai行)也匹配.
     {
         auto r = P::filter_provider_indices("grok");
         bool found_xai = false;
@@ -426,47 +426,47 @@ TEST_CASE("provider filter: fuzzy narrows + ranks") {
         CHECK(found_xai);
     }
 
-    // Gibberish matches nothing.
+    // 胡言乱语根本没用
     CHECK(P::filter_provider_indices("zzqzzq").empty());
 }
 
-// canonical_spec is the ONE normalisation point for custom-host identity: the
-// CLI (--provider) and the TUI modal both run a spec through it before it is
-// persisted or compared. Two spellings of one endpoint that survive this
-// function become two saved hosts, two provider_keys slots and two picker
-// rows — which is the bug series (#8/#10/#11/#17/#19) that put it here. It had
-// no direct coverage; these pin the rules.
+// canonical_spec 是那个 一个 自定义的正常化点 -host
+// 身份: 身份: CLI (--provider 和 和 数据
+// TUI 弹出面板 两种拼写都通过它,然后才能持续或比较。
+// 已保存 主持人,两个 provider_keys 插槽和两个
+// 选择面板 行——即虫子系列(# 8/#10/#11/#17/ 上面写着,
+// 它没有直接的覆盖,这些是规则的定律。
 TEST_CASE("canonical_spec: one endpoint has exactly one spelling") {
     namespace P = agentty::provider;
 
-    // Whitespace and a trailing slash are noise.
+    // 白空间和一副尾翼的斜线是噪音。
     CHECK(P::canonical_spec("  yolo-auto.com  ") == "yolo-auto.com");
     CHECK(P::canonical_spec("yolo-auto.com/")    == "yolo-auto.com");
     CHECK(P::canonical_spec("\tlocalhost:8080\n") == "localhost:8080");
 
-    // DNS is case-insensitive, so the HOST folds.
+    // DNS 情况 -insensitive ,所以,请 HOST 归并.
     CHECK(P::canonical_spec("YOLO-AUTO.COM")  == "yolo-auto.com");
     CHECK(P::canonical_spec("LocalHost:8080") == "localhost:8080");
     CHECK(P::canonical_spec("HTTPS://API.OPENAI.COM") == "https://api.openai.com");
 
-    // ...but the PATH does not. A gateway may serve /V1 and /v1 differently,
-    // so folding it would silently dial the wrong endpoint.
+    // ..但是,我们... PATH。一个网关可以服务/ V1
+    // 和/v1不同,所以折叠它会默默地拨错端点.
     CHECK(P::canonical_spec("HOST.COM/V1") == "host.com/V1");
 
-    // ...and neither does the "#name" account tag, which is user-chosen text
-    // and part of the identity by design.
+    // ... 也一样 "#name" 账户标签,
+    // 用户名 -chosen 文字和部分身份设计。
     CHECK(P::canonical_spec("HOST.COM#Work") == "host.com#Work");
 
-    // The scheme's "//" must survive slash-stripping.
+    // 计划 "//" 一定要在刀刃下幸存下来 -stripping.
     CHECK(P::canonical_spec("https://host.com") == "https://host.com");
     CHECK(P::canonical_spec("https://host.com/") == "https://host.com");
 
-    // Presets pass through untouched (they are ids, not hosts).
+    // 预设通过未受干扰(它们是ID,不是主机).
     CHECK(P::canonical_spec("anthropic") == "anthropic");
     CHECK(P::canonical_spec("ollama")    == "ollama");
 
-    // IDEMPOTENT: running it twice must not change the answer, or a spec
-    // could drift every time it round-trips through settings.
+    // IDEMPOTENT : 运行两次不能改变答案,
+    // 或者每次绕过一次就可能漂移 -trips。通过设置。
     for (const char* s : {"  YOLO-AUTO.COM/  ", "https://Host.com/V1#A",
                           "localhost:11434", "kimi"}) {
         const std::string once  = P::canonical_spec(s);
@@ -479,7 +479,7 @@ TEST_CASE("provider rows: one ordered list, saved hosts searchable") {
     namespace ui = agentty::ui;
     const std::vector<std::string> hosts = {"my-host.example:8443"};
 
-    // Empty query: presets, then the custom host, then the sentinel LAST.
+    // 空查询:预设,然后是自定义主机,然后是哨兵LAST.
     {
         auto rows = ui::build_provider_rows(hosts, "");
         CHECK(!rows.empty());
@@ -493,23 +493,23 @@ TEST_CASE("provider rows: one ordered list, saved hosts searchable") {
         CHECK(saw_host);
     }
 
-    // Filtered by a PRESET name: matching presets + the sentinel. The saved
-    // host does not match "kimi", so it is absent for that reason — not
-    // because saved hosts are hidden while filtering.
+    // 由 a 过滤 PRESET 名称: 匹配预设 + 监视器。
+    // object 已保存 主机不匹配 "kimi" 因此,
+    // 它之所以缺席,是因为 已保存 主机在过滤时隐藏。
     {
         auto rows = ui::build_provider_rows(hosts, "kimi");
-        CHECK(rows.size() >= 2);          // >=1 preset + sentinel
+        CHECK(rows.size() >= 2);          // ++1 预设 + 哨兵
         CHECK(rows.back().is_new_custom_host());
         CHECK(rows.front().preset() != nullptr);
         CHECK(rows.front().preset()->id == "kimi");
         for (const auto& r : rows)
-            CHECK(r.custom_host() == nullptr);   // "kimi" doesn't match the host
+            CHECK(r.custom_host() == nullptr);   // "kimi" 与主机不符
     }
 
-    // A SAVED HOST IS SEARCHABLE. It used to vanish the moment you typed,
-    // so the only way back to a host you had already saved was to scroll
-    // past every preset. A saved host is a provider; it belongs in the
-    // provider search space.
+    // A SAVED HOST IS SEARCHABLE 它曾经
+    // 消失的那一刻 带类型的 所以回到你已经拥有的宿主身边的唯一
+    // 办法 已保存 是要滚动过去每个预设。 已保存 主机是提供者;
+    // 属于提供者搜索空间.
     {
         auto rows = ui::build_provider_rows(hosts, "my-host");
         bool found = false;
@@ -518,63 +518,63 @@ TEST_CASE("provider rows: one ordered list, saved hosts searchable") {
         CHECK(found);
     }
 
-    // No preset matches and the query is NOT endpoint-shaped: still exactly
-    // the sentinel, so the escape hatch is always reachable.
+    // 没有预设匹配, 查询不是 结束点 -shaped :
+    // 仍然完全就是哨兵,所以逃生舱门总是可以到达的.
     {
         auto rows = ui::build_provider_rows(hosts, "zzqzzq");
         CHECK(rows.size() == 1);
         CHECK(rows.front().is_new_custom_host());
-        CHECK(rows.front().new_host_prefill() == nullptr);   // not promoted
+        CHECK(rows.front().new_host_prefill() == nullptr);   // 未晋升
     }
 }
 
-// An endpoint-shaped query PROMOTES the custom-host row to the top and
-// pre-fills it with what was typed.
+// 结束点 -shaped 查询 PROMOTES 习惯 -host 排到顶部和前列
+// -fills 和原本一样 带类型的.
 //
-// WHY THIS IS A TEST AND NOT A TWEAK: agentty has always spoken to any
-// OpenAI-compatible host, but the picker never said so. Typing a hostname
-// made every familiar provider disappear and left one muted grey row, which
-// reads as "no". That UI gap produced a pull request adding a registry row
-// for a service the generic path already handled. These asserts pin the fix:
-// the answer is FIRST, it is CONCRETE, and it carries the typed text forward.
+// 原因 此 IS A TEST 和 不 A TWEAK:
+// agentty 总是跟任何人说话 OpenAI-compatible
+// 主持人,但 选择面板 输入主机名后, 每个熟悉的提供者都消失了,
+// 留下一条哑巴的灰色行, 上面写着 "no"。该 UI 空白导致拉动请求,
+// 添加一个 注册表 已处理的通用路径服务行。 这些声称将固定 :
+// 答案是,我们没有 首次 ,这是 CONCRETE ,它携带 带类型的 文本向前移动。
 TEST_CASE("provider rows: an endpoint-shaped query offers the custom host first") {
     namespace ui = agentty::ui;
     const std::vector<std::string> none;
 
-    // What counts as endpoint-shaped.
+    // 何谓终点-shaped.
     CHECK(ui::query_looks_like_host("yolo-auto.com"));
     CHECK(ui::query_looks_like_host("localhost:8080"));
     CHECK(ui::query_looks_like_host("https://gw.internal/api"));
     CHECK(ui::query_looks_like_host("192.168.1.9:1234"));
     CHECK(ui::query_looks_like_host("api.openai.com/v1"));
     CHECK(ui::query_looks_like_host("host.local:11434/v1"));
-    CHECK(ui::query_looks_like_host("yolo-auto.com/v1#work"));   // #account tag
-    CHECK(ui::query_looks_like_host("YOLO-AUTO.COM"));           // DNS is case-insensitive
-    CHECK(ui::query_looks_like_host("  yolo-auto.com  "));       // pasted with whitespace
-    CHECK(ui::query_looks_like_host("[::1]:8080"));              // bracketed IPv6
+    CHECK(ui::query_looks_like_host("yolo-auto.com/v1#work"));   // # 账户标签
+    CHECK(ui::query_looks_like_host("YOLO-AUTO.COM"));           // DNS 情况 -insensitive
+    CHECK(ui::query_looks_like_host("  yolo-auto.com  "));       // 粘贴白空间
+    CHECK(ui::query_looks_like_host("[::1]:8080"));              // 括号中的IPv6
 
-    // ...and what does not. A provider name must never be mistaken for a host,
-    // or the offer row would shove real providers down on every search.
+    // 绝对不能误认供应商的名字,
+    // 否则要价行会把真正的供应商推到每次搜索中。
     CHECK(!ui::query_looks_like_host("kimi"));
     CHECK(!ui::query_looks_like_host("openrouter"));
     CHECK(!ui::query_looks_like_host("gpt"));
     CHECK(!ui::query_looks_like_host(""));
-    CHECK(!ui::query_looks_like_host("my server"));   // spaces: it's prose
+    CHECK(!ui::query_looks_like_host("my server"));   // 空格:是传言
 
-    // MODEL IDS ARE THE DANGEROUS CLASS. People type them into the provider
-    // box constantly while hunting, and several contain a dot or a dash. If
-    // any of these read as a host, the offer row displaces the real providers
-    // exactly when the user is trying to find one.
+    // MODEL IDS ARE 该 DANGEROUS CLASS。
+    // 人们在打猎时会不断地把它们输入提供者的盒子,有几个则包含一个点
+    // 或一个破折号。如果这些内容中有任何一个读作主机,那么当用户试图
+    // 找到一个时,要约行就将真正的提供者替换。
     CHECK(!ui::query_looks_like_host("gpt-4o"));
     CHECK(!ui::query_looks_like_host("gpt-4.1"));
-    CHECK(!ui::query_looks_like_host("qwen3.8-flash"));    // a REAL model id
+    CHECK(!ui::query_looks_like_host("qwen3.8-flash"));    // a 真实 型号 id
     CHECK(!ui::query_looks_like_host("claude-opus-4-5"));
     CHECK(!ui::query_looks_like_host("v1.5"));
     CHECK(!ui::query_looks_like_host("3.5"));
-    CHECK(!ui::query_looks_like_host("a.b"));             // too short to be real
+    CHECK(!ui::query_looks_like_host("a.b"));             // 实在太短了
 
-    // Promoted: FIRST row, carries the typed text, and the trailing duplicate
-    // sentinel is gone (one offer, not two).
+    // 晋升: 首次 排,带 带类型的 文本,而后面的重复的哨兵
+    // 已经消失(一个提议,而不是两个).
     {
         auto rows = ui::build_provider_rows(none, "yolo-auto.com");
         REQUIRE(!rows.empty());
@@ -586,8 +586,8 @@ TEST_CASE("provider rows: an endpoint-shaped query offers the custom host first"
         CHECK(sentinels == 1);
     }
 
-    // A host:port query still ranks the offer first even though presets may
-    // fuzzy-match the digits.
+    // 寄件者: 端口查询仍然将报价排在首位, 尽管预设可能模糊
+    // -match位数。
     {
         auto rows = ui::build_provider_rows(none, "localhost:11434");
         REQUIRE(!rows.empty());
@@ -595,9 +595,9 @@ TEST_CASE("provider rows: an endpoint-shaped query offers the custom host first"
         CHECK(*rows.front().new_host_prefill() == "localhost:11434");
     }
 
-    // ALREADY SAVED: do not offer to re-add a host that is already a row of
-    // its own further down. Two rows for one endpoint is a papercut that
-    // makes the picker look broken.
+    // ALREADY SAVED : 不主动重新 -add 已经是
+    // 自己一行的宿主, 更往下。 一个终点的两行是纸板切除器,
+    // 使 选择面板 看上去很破烂。
     {
         const std::vector<std::string> saved = {"my-host.example:8443"};
         auto rows = ui::build_provider_rows(saved, "my-host.example:8443");
@@ -608,35 +608,35 @@ TEST_CASE("provider rows: an endpoint-shaped query offers the custom host first"
         CHECK(saw_saved);
     }
 
-    // THE OFFER IS CANONICAL. What the row shows is what gets persisted, so a
-    // messy paste cannot create a second identity for a host you already have.
-    // Without this, "  YOLO-AUTO.COM/  " and "yolo-auto.com" become two saved
-    // hosts with two separate key slots — the user pastes a key into one and
-    // the other still says "no key".
+    // 该 OFFER IS CANONICAL。该行显示的是 被坚持的,
+    // 所以一个混乱的贴纸不能为您已经拥有的宿主创造第二个身份。
+    // 没有这个,"  YOLO-AUTO.COM/  "和"yolo-auto.com"
+    // 成为两个已保存主机,有两个独立的密钥插槽——用户将一个密钥粘贴在其中一个,
+    // 另一个仍表示"no key".
     {
         auto rows = ui::build_provider_rows(none, "  YOLO-AUTO.COM/  ");
         REQUIRE(!rows.empty());
         REQUIRE(rows.front().new_host_prefill() != nullptr);
         CHECK(*rows.front().new_host_prefill() == "yolo-auto.com");
     }
-    // ...and the dedup against saved hosts uses that same canonical form, so a
-    // differently-spelled query still recognises the host you already have.
+    // 和脱衣舞步对抗 已保存 主机使用同样的犬形,
+    // 所以不同 -spelled 查询仍然识别您已经拥有的主机。
     {
         const std::vector<std::string> saved = {"yolo-auto.com"};
         auto rows = ui::build_provider_rows(saved, "YOLO-AUTO.COM");
-        CHECK(rows.front().new_host_prefill() == nullptr);   // no duplicate offer
+        CHECK(rows.front().new_host_prefill() == nullptr);   // 无重复报价
     }
 }
 
-// Fused cross-provider picker, driven through the REAL reducer:
-// open seeds catalogs + fires fetches; a same-provider Select changes the
-// model in place and records the MRU; a FusedCatalogLoaded merges by id.
+// 由第REAL 状态更新函数号驱动的横跨-provider 选择面板号:
+// 打开种子 目录 + 火灾获取; 相同 -provider 选择修改当前模式并
+// 记录 MRU; a FusedCatalogLoaded 由 id 合并.
 TEST_CASE("fused picker open, merge, same-provider switch, MRU") {
     using namespace agentty::msg;
     install_stub_deps();
     g_settings = store::Settings{};
-    // Hermetic auth: don't depend on real on-disk Anthropic creds (absent on
-    // CI). A provider_keys entry makes provider_is_authed("anthropic") true.
+    // 名词: 不要依赖真实 -disk Anthropic 证明(未出席) CI).
+    // A provider_keys 输入 provider_is_authed("anthropic" ) 真实的。
     g_settings.provider_keys["anthropic"] = "sk-test";
     provider::select(::agentty::IoAccess::grant(), provider::parse_selection("anthropic"));
 
@@ -645,8 +645,8 @@ TEST_CASE("fused picker open, merge, same-provider switch, MRU") {
     m.d.available_models = {mi("claude-sonnet-4-6", "anthropic"),
                             mi("claude-opus-4", "anthropic")};
 
-    // Open: picker opens, active provider's catalog is seeded from
-    // available_models (Ready), other authed providers get Loading + a fetch.
+    // 打开:选择面板打开,活动提供者的目录从available_models
+    // (Ready)种子,其他获得授权的提供者得到loading + a figure.
     auto [m1, c1] = app::update(std::move(m), Msg{OpenModels{}});
     apply_fx(c1);
     CHECK(m1.ui.panel.is<pn::Models>());
@@ -658,14 +658,14 @@ TEST_CASE("fused picker open, merge, same-provider switch, MRU") {
         }
     CHECK(anthropic_seeded);
 
-    // The fused rows include both Anthropic models (active pinned first).
+    // 保险线包括两条 Anthropic 模型(主动封钉先行).
     auto rows = app::detail::fused_rows_for_model(m1);
     CHECK(rows.size() >= 2);
     CHECK(rows[0].active);
     CHECK(rows[0].model.id.value == "claude-sonnet-4-6");
 
-    // Move to the opus row and Select: same-provider model change, no hop.
-    // Find opus's index in the fused list.
+    // 移动到 opus 列并选择: 相同的-provider 型号更改, 不跳.
+    // 在保险名单上找到Opus的索引。
     int opus_idx = -1;
     for (int i = 0; i < static_cast<int>(rows.size()); ++i)
         if (rows[static_cast<std::size_t>(i)].model.id.value == "claude-opus-4") {
@@ -677,23 +677,23 @@ TEST_CASE("fused picker open, merge, same-provider switch, MRU") {
     auto [m2, c2] = app::update(std::move(m1), Msg{ModelsSelect{}});
     apply_fx(c2);
     CHECK(m2.d.model_id.value == "claude-opus-4");
-    CHECK(!m2.ui.panel.is<pn::Models>());       // picker closed
-    // MRU recorded the switch (front = the model just selected).
+    CHECK(!m2.ui.panel.is<pn::Models>());       // 选择面板 关闭
+    // MRU记录了开关(front =刚刚选中的模型).
     REQUIRE(!m2.d.recent_models.empty());
     CHECK(m2.d.recent_models.front().provider_id == "anthropic");
     CHECK(m2.d.recent_models.front().model_id == "claude-opus-4");
-    // Persisted to settings.
+    // 被困在设置中。
     CHECK(!g_settings.recent_models.empty());
 }
 
-// A FusedCatalogLoaded for a provider merges into provider_catalogs by id and
-// flips its state to Ready.
+// A FusedCatalogLoaded 用于将提供者合并到 provider_catalogs
+// 以 id 和 翻转 状态准备。
 TEST_CASE("fused catalog loaded merges by provider id") {
     using namespace agentty::msg;
     install_stub_deps();
     g_settings = store::Settings{};
-    g_settings.provider_keys["anthropic"] = "sk-test";  // hermetic auth
-    g_settings.provider_keys["openai"] = "sk-test";   // openai authed → catalog
+    g_settings.provider_keys["anthropic"] = "sk-test";  // 母体亲和
+    g_settings.provider_keys["openai"] = "sk-test";   // oFC 认证 − 目录
     provider::select(::agentty::IoAccess::grant(), provider::parse_selection("anthropic"));
 
     Model m = seeded_model();
@@ -702,7 +702,7 @@ TEST_CASE("fused catalog loaded merges by provider id") {
     auto [m1, c1] = app::update(std::move(m), Msg{OpenModels{}});
     apply_fx(c1);
 
-    // Simulate openai's catalog resolving.
+    // 模拟Openai的目录解析.
     FusedCatalogLoaded loaded;
     loaded.provider_id = "openai";
     loaded.models = {mi("gpt-5-codex", "openai"), mi("gpt-4o", "openai")};
@@ -718,8 +718,8 @@ TEST_CASE("fused catalog loaded merges by provider id") {
     CHECK(openai_ready);
 }
 
-// The fused picker caches its rows (m.d.fused_rows) for cheap per-frame /
-// per-keystroke rendering: populated on open, cleared on close/select.
+// 保险丝 选择面板 缓存 其行数( m.d.fused_rows 低价(每美元) -frame
+// /每笔 -keystroke 渲染 : 露天居住,清空 close/select.
 TEST_CASE("fused picker caches rows and clears them on close") {
     using namespace agentty::msg;
     install_stub_deps();
@@ -732,24 +732,24 @@ TEST_CASE("fused picker caches rows and clears them on close") {
     m.d.model_id = ModelId{"claude-sonnet-4-6"};
     m.d.available_models = {mi("claude-sonnet-4-6", "anthropic")};
 
-    // Open is INSTANT: only the active provider (seeded from available_models)
-    // has models; every other authed provider is empty + Loading and streams
-    // in via the async fetch. The cache reflects exactly that on open.
+    // 打开是INSTANT:只有活动提供者(种子来自available_models)有模型;
+    // 其他所有授权提供者都是空的+装入和数据流通过ASync抓取。
+    // 缓存在打开时准确地反映了这个模型。
     auto [m1, c1] = app::update(std::move(m), Msg{OpenModels{}});
     apply_fx(c1);
-    CHECK(!m1.d.fused_rows.empty());                 // active provider shows now
+    CHECK(!m1.d.fused_rows.empty());                 // 正在显示提供者
     bool anthropic_ready = false, xai_pending = false;
     for (const auto& c : m1.d.provider_catalogs) {
         if (c.provider_id == "anthropic")
             anthropic_ready = (c.state == ProviderCatalog::State::Ready
                                && !c.models.empty());
         if (c.provider_id == "xai")
-            xai_pending = c.models.empty();          // not seeded synchronously
+            xai_pending = c.models.empty();          // 未同步种子
     }
     CHECK(anthropic_ready);
     CHECK(xai_pending);
 
-    // xai's catalog streams in → rows rebuild to include it.
+    // 斋的 目录 数据流 重建以包含它。
     FusedCatalogLoaded xai;
     xai.provider_id = "xai";
     xai.models = {mi("grok-4", "xai"), mi("grok-3", "xai")};
@@ -761,20 +761,20 @@ TEST_CASE("fused picker caches rows and clears them on close") {
         if (c.provider_id == "xai") xai_now = (c.models.size() == 2);
     CHECK(xai_now);
 
-    // Filtering rebuilds the cache in place (cursor clamped, still open).
+    // 过滤重建已设置的 缓存( 已夹住, 仍开放)。
     auto [m2, c2] = app::update(std::move(m1b),
                                 Msg{ModelsFilterInput{U'c'}});
     CHECK(m2.ui.panel.is<pn::Models>());
 
-    // Close releases the cache.
+    // 关闭释放 缓存.
     auto [m3, c3] = app::update(std::move(m2), Msg{CloseModels{}});
     apply_fx(c3);
     CHECK(!m3.ui.panel.is<pn::Models>());
     CHECK(m3.d.fused_rows.empty());
 }
 
-// Digits are ordinary filter input on the fused list — there is no number
-// quick-select. Typing "3" searches for "3", never jumps to the 3rd row.
+// 数字是普通的过滤器输入到已连接列表中——没有快速的数字
+// -select 键入 "3" 搜索 "3" 永远不要跳到第三排
 TEST_CASE("fused picker digits type into the filter") {
     using namespace agentty::msg;
     install_stub_deps();
@@ -797,23 +797,23 @@ TEST_CASE("fused picker digits type into the filter") {
     apply_fx(c2);
     REQUIRE(m2.d.fused_rows.size() >= 3);
 
-    // '3' on the empty query enters the query — it does NOT jump to a row.
+    // '3' 空查询输入查询——它确实 不 跳到一排。
     auto [m3, c3] = app::update(std::move(m2), Msg{ModelsFilterInput{U'3'}});
     apply_fx(c3);
     const auto* c = m3.ui.panel.get<pn::Models>();
     REQUIRE(c != nullptr);
-    CHECK(c->query == "3");           // digit went into the query
+    CHECK(c->query == "3");           // 数字进入查询
 
-    // Digits keep appending like any other search text (so "g3" still works).
+    // 数字像其它搜索文本一样继续附加(因此"g3"仍然有效).
     auto [m4, c4] = app::update(std::move(m3), Msg{ModelsFilterInput{U'g'}});
     apply_fx(c4);
     const auto* c2p = m4.ui.panel.get<pn::Models>();
     REQUIRE(c2p != nullptr);
-    CHECK(c2p->query == "3g");        // both chars appended in order
+    CHECK(c2p->query == "3g");        // 后面的两个字符顺序
 }
 
-// A filtered fused list carries per-row fuzzy-match byte offsets into the
-// model NAME, so the view can highlight WHY each row matched (fzf-style).
+// 过滤后的引信列表携带每-row模糊-match字节抵消入型号为NAME,
+// 因此视图可以突出显示每行匹配的WHY(fzf-style).
 TEST_CASE("fused rows expose name match positions for highlight") {
     using namespace agentty::msg;
     install_stub_deps();
@@ -828,11 +828,11 @@ TEST_CASE("fused rows expose name match positions for highlight") {
     auto [m1, c1] = app::update(std::move(m), Msg{OpenModels{}});
     apply_fx(c1);
 
-    // No query → no highlight offsets.
+    // 无查询 – 没有突出显示偏移。
     for (const auto& r : m1.d.fused_rows)
         CHECK(r.match_positions.empty());
 
-    // Type "son" → the sonnet row gains match offsets into its name.
+    // "son" − 音素列增益比对抵消为它的名称.
     Model m2 = std::move(m1);
     for (char ch : std::string{"son"}) {
         auto [n, c] = app::update(std::move(m2),
@@ -846,8 +846,8 @@ TEST_CASE("fused rows expose name match positions for highlight") {
     CHECK(sonnet_has_hl);
 }
 
-// ^Tab walks the WHOLE MRU ring (A→B→C→A), progressively older, without
-// reordering the ring — not a single A↔B toggle.
+// ^Tab 走路,走着 整个 MRU 环(A_B_C_A),
+// 逐渐老化,不重排环形,没有一个A_B 切换.
 TEST_CASE("^Tab cycles the MRU ring without reordering") {
     using namespace agentty::msg;
     install_stub_deps();
@@ -860,7 +860,7 @@ TEST_CASE("^Tab cycles the MRU ring without reordering") {
     m.d.available_models = {mi("claude-a", "anthropic"),
                             mi("claude-b", "anthropic"),
                             mi("claude-c", "anthropic")};
-    // MRU ring: active at front, then progressively older.
+    // MRU环:活跃在前方,然后逐渐变老.
     m.d.recent_models = {ModelRef{"anthropic", "claude-a"},
                          ModelRef{"anthropic", "claude-b"},
                          ModelRef{"anthropic", "claude-c"}};
@@ -876,19 +876,19 @@ TEST_CASE("^Tab cycles the MRU ring without reordering") {
     m = step(std::move(m));
     CHECK(m.d.model_id.value == "claude-c");            // B → C
     m = step(std::move(m));
-    CHECK(m.d.model_id.value == "claude-a");            // C → A (wrap)
+    CHECK(m.d.model_id.value == "claude-a");            // 中 + A(包装)
 
-    // The ring itself never reordered — that's what makes the walk stable.
+    // 戒指本身从未重新订购——这就是使行走稳定的原因.
     REQUIRE(m.d.recent_models.size() == 3);
     CHECK(m.d.recent_models[0].model_id == "claude-a");
     CHECK(m.d.recent_models[1].model_id == "claude-b");
     CHECK(m.d.recent_models[2].model_id == "claude-c");
 }
 
-// A pick while a turn is running must not move that turn: its tool-loop
-// continuations and retries re-read the model on every request, so switching
-// at once sent half a turn to one model and half to another. The pick waits
-// and lands the moment the turn ends, whatever ended it.
+// 旋转时不能移动这个转弯:它的工具 -loop 续
+// 续 重试 内容 -read 每一个请求的模型,
+// 所以切换一次将半转转到一个模型,半转到另一个模型。选择等待,
+// 然后在转弯结束的时刻着陆,不管它结束什么。
 TEST_CASE("a model picked during a turn applies when the turn ends") {
     using namespace agentty::msg;
     install_stub_deps();
@@ -900,7 +900,7 @@ TEST_CASE("a model picked during a turn applies when the turn ends") {
     m.d.model_id = ModelId{"claude-a"};
     m.d.available_models = {mi("claude-a", "anthropic"), mi("claude-b", "anthropic")};
     m.d.recent_models = {ModelRef{"anthropic", "claude-a"}, ModelRef{"anthropic", "claude-b"}};
-    m.s.phase = phase::Streaming{};   // a turn is running
+    m.s.phase = phase::Streaming{};   // 转弯正在运行
 
     auto [m1, c1] = app::update(std::move(m), Msg{SwitchToPreviousModel{}});
     apply_fx(c1);
@@ -909,7 +909,7 @@ TEST_CASE("a model picked during a turn applies when the turn ends") {
     CHECK(m1.ui.pending_switch->model_id == "claude-b", "the pick is held");
     CHECK(m1.s.status.find("next turn") != std::string::npos, "and the user is told when");
 
-    // Any fold that leaves the turn Idle applies it.
+    // 任意 归并 轮到摇摆时,它就会被应用
     m1.s.phase = phase::Idle{};
     auto [m2, c2] = app::update(std::move(m1), Msg{Tick{}});
     apply_fx(c2);
@@ -925,12 +925,12 @@ TEST_CASE("picking the running model mid-turn cancels a held pick") {
     provider::select(::agentty::IoAccess::grant(), provider::parse_selection("anthropic"));
 
     Model m = seeded_model();
-    m.d.model_id = ModelId{"claude-a"};   // the running turn's model
+    m.d.model_id = ModelId{"claude-a"};   // 运行转弯的模型
     m.d.available_models = {mi("claude-a", "anthropic"), mi("claude-b", "anthropic")};
     m.d.recent_models = {ModelRef{"anthropic", "claude-a"}, ModelRef{"anthropic", "claude-b"}};
     m.s.phase = phase::Streaming{};
 
-    // Pick b mid-turn (held), then pick a (the running model) mid-turn.
+    // 选 B 中 -turn 中点,然后选择一个(运行中的模型) -turn.
     auto [m1, c1] = app::update(std::move(m), Msg{SwitchToPreviousModel{}});
     apply_fx(c1);
     REQUIRE(m1.ui.pending_switch.has_value());
@@ -950,9 +950,9 @@ TEST_CASE("picking the running model mid-turn cancels a held pick") {
     CHECK(m3.d.model_id.value == "claude-a", "nothing changes when the turn ends");
 }
 
-// Selecting a model in the CLASSIC model picker feeds the MRU ring, so ^Tab
-// has more than one entry to cycle (the reported "recents only has one model,
-// ^Tab does nothing" bug — previously only the fused picker recorded).
+// 在CLASSIC型选择面板型中选择一个模型,输入MRU环,因此^Tab有一个以上
+// 的循环条目(所报告的"recents only has one model, ^Tab does nothing"
+// bug——以前只记录了被保险的选择面板).
 TEST_CASE("classic model picker feeds the MRU ring") {
     using namespace agentty::msg;
     install_stub_deps();
@@ -965,26 +965,26 @@ TEST_CASE("classic model picker feeds the MRU ring") {
     m.d.available_models = {mi("claude-a", "anthropic"),
                             mi("claude-b", "anthropic")};
 
-    // Open the classic picker, move to claude-b, select it.
+    // 打开经典 选择面板 ,移动到 Claude 中 -b ,选择它。
     auto [m1, c1] = app::update(std::move(m), Msg{OpenModels{}});
     apply_fx(c1);
     if (auto* p = m1.ui.panel.get<pn::Models>()) p->index = 1;
     auto [m2, c2] = app::update(std::move(m1), Msg{ModelsSelect{}});
     apply_fx(c2);
     CHECK(m2.d.model_id.value == "claude-b");
-    // The pick landed in the ring (front = newest).
+    // 采摘者落在环(前方=新).
     REQUIRE(!m2.d.recent_models.empty());
     CHECK(m2.d.recent_models.front().model_id == "claude-b");
 
-    // Now ^Tab has 2 entries to cycle — it moves off the active model.
+    // 现在^Tab有2个条目进行循环——它从活动模型中移走.
     auto [m3, c3] = app::update(std::move(m2), Msg{SwitchToPreviousModel{}});
     apply_fx(c3);
-    CHECK(m3.d.model_id.value != "claude-b");   // cycled, not a no-op
+    CHECK(m3.d.model_id.value != "claude-b");   // 已循环,而非第-op号
 }
 
-// The single bundled catalog is THE offline floor for every provider — one
-// source, no per-site drift. Sanity-check its shape + that the Anthropic
-// flagship (Fable) and its [1m] companion are present.
+// 单项捆绑 目录 谓 该 每个供应商的离线地板——一个来源,
+// 不 -site 流着, 卫生 -check 其形状+ Anthropic
+// 旗舰(Fable)及其[1m]同伴在场.
 TEST_CASE("bundled catalog is the single provider floor") {
     using agentty::catalog::bundled;
 
@@ -996,24 +996,24 @@ TEST_CASE("bundled catalog is the single provider floor") {
         if (mi.id.value == "claude-opus-4-5")    opus = true;
         CHECK(mi.provider == "anthropic");
     }
-    CHECK(fable);        // the flagship the fused picker was missing
-    CHECK(fable_1m);     // add_1m_variants companion
+    CHECK(fable);        // 旗舰 保险丝 选择面板 丢失
+    CHECK(fable_1m);     // add_1m_variants 伴奏( 双关)
     CHECK(opus);
 
-    // Other providers resolve through the SAME function (no separate tables).
+    // 其他提供者通过SAME函数解决(没有单独的表格).
     CHECK(!bundled("xai").empty());
     CHECK(!bundled("chatgpt").empty());
     CHECK(!bundled("copilot").empty());
     CHECK(!bundled("kimi").empty());
-    // Unknown / user-defined catalogs have no floor.
+    // 未知的/用户-definedXX 目录没有地板.
     CHECK(bundled("openrouter").empty());
     CHECK(bundled("some-custom-host").empty());
 }
 
-// The active provider's fused catalog MIRRORS available_models on every open,
-// so a model that appears in available_models later (e.g. the live /v1/models
-// fetch lands a new flagship after the first open seeded the bundled list)
-// also shows in the fused picker — it must not freeze on the first snapshot.
+// 活动提供者的保险丝 目录 MIRRORS available_models
+// 每一个打开,所以一个模型出现在 available_models
+// 以后( e.g 活的 / 活的 v1/models 第一次公开播种后,
+// 将新的旗舰移到陆地上。 选择面板 - 决不能冻结第一个 快照.
 TEST_CASE("fused active catalog re-seeds when available_models grows") {
     using namespace agentty::msg;
     install_stub_deps();
@@ -1026,16 +1026,16 @@ TEST_CASE("fused active catalog re-seeds when available_models grows") {
     m.d.available_models = {mi("claude-opus-4-5", "anthropic"),
                             mi("claude-sonnet-4-5", "anthropic")};
 
-    // First open seeds the fused catalog from the current (Fable-less) list.
+    // 熔化的第一粒开放种子 目录 从当前( 有线) -less ) 列表(英文).
     auto [m1, c1] = app::update(std::move(m), Msg{OpenModels{}});
     apply_fx(c1);
     auto [m2, c2] = app::update(std::move(m1), Msg{CloseModels{}});
     apply_fx(c2);
 
-    // The live fetch lands a newly-listed flagship into available_models.
+    // 现场收买新货 -listed 旗舰进入 available_models.
     m2.d.available_models.push_back(mi("claude-fable-5", "anthropic"));
 
-    // Re-open: the active catalog must MIRROR the grown available_models.
+    // 调 -open : 活动 目录 必须 MIRROR 成年人 available_models.
     auto [m3, c3] = app::update(std::move(m2), Msg{OpenModels{}});
     apply_fx(c3);
     bool fable_listed = false;
@@ -1051,10 +1051,10 @@ TEST_CASE("fused active catalog re-seeds when available_models grows") {
     CHECK(fable_row);
 }
 
-// A live catalog landing (ModelsLoaded) while the fused picker is OPEN must
-// refresh its rows in place — the active provider's models arrive via
-// ModelsLoaded (not FusedCatalogLoaded), and the picker was showing a stale
-// snapshot until it was reopened. This is the "fused pane doesn't update" bug.
+// 现场直播 目录 着陆( 4) ModelsLoaded ) 引信时 选择面板 谓
+// OPEN 需要刷新其行的位置——活动提供者的模型通过 ModelsLoaded
+// (无) FusedCatalogLoaded ),以及 选择面板 显示一个 过期 快照
+// 直到重新打开。 "fused pane doesn't update" 虫子,你这混蛋
 TEST_CASE("ModelsLoaded refreshes the open fused picker") {
     using namespace agentty::msg;
     install_stub_deps();
@@ -1068,13 +1068,13 @@ TEST_CASE("ModelsLoaded refreshes the open fused picker") {
     auto [m1, c1] = app::update(std::move(m), Msg{OpenModels{}});
     apply_fx(c1);
 
-    // A newer model isn't in the open picker yet.
+    // 更新的模型没有在公开 选择面板 还没呢
     bool before = false;
     for (const auto& r : m1.d.fused_rows)
         if (r.model.id.value == "claude-fable-5") before = true;
     CHECK(!before);
 
-    // The active provider's live /v1/models fetch lands a new flagship.
+    // 活跃的供应商的直播/v1/models 找一个新的旗舰。
     ModelsLoaded ml;
     ml.provider_id = "anthropic";
     ml.models = {mi("claude-opus-4-5", "anthropic"),
@@ -1082,7 +1082,7 @@ TEST_CASE("ModelsLoaded refreshes the open fused picker") {
     auto [m2, c2] = app::update(std::move(m1), Msg{std::move(ml)});
     apply_fx(c2);
 
-    // The OPEN picker's rows refreshed in place — no reopen needed.
+    // 电话 OPEN 选择面板 排行刷新到原位——不需要重新开放.
     CHECK(m2.ui.panel.get<pn::Models>());
     bool after = false;
     for (const auto& r : m2.d.fused_rows)
@@ -1090,9 +1090,9 @@ TEST_CASE("ModelsLoaded refreshes the open fused picker") {
     CHECK(after);
 }
 
-// Halano's bug: a custom host whose /v1/models 401s left the Anthropic
-// launch seed in the picker, labelled as the host, and picking one sent
-// claude-opus-4-5 to it. A failed fetch must clear that list and say why.
+// 哈拉诺的bug:一个自定义的主持人,它的 / v1/models
+// 离开401号 Anthropic 发射种子 选择面板 并挑选一个
+// 送来的克劳德 -opus-4-5 无法获取的要清除列表并说明原因。
 TEST_CASE("ModelsLoaded failure clears another provider's list and keeps the reason") {
     using namespace agentty::msg;
     install_stub_deps();
@@ -1121,7 +1121,7 @@ TEST_CASE("ModelsLoaded failure clears another provider's list and keeps the rea
         if (c.provider_id == host && c.error == "HTTP 401: Invalid API key") shown = true;
     CHECK(shown);
 
-    // The fixed key's fetch clears the error.
+    // 固定键的获取可以清除错误。
     ModelsLoaded ok;
     ok.provider_id = host;
     ok.models = {mi("Qwen3-32B", host.c_str())};
@@ -1132,8 +1132,8 @@ TEST_CASE("ModelsLoaded failure clears another provider's list and keeps the rea
         if (c.provider_id == host) CHECK(c.error.empty());
 }
 
-// A message sent while the Anthropic token probe was out sat as "1 queued"
-// forever when the probe found nothing to refresh.
+// 发送信件时 Anthropic 信号探测器被放出来 "1 queued"
+// 永远当探测器发现没有什么新鲜的。
 TEST_CASE("a message queued behind the OAuth probe is sent when it settles") {
     using namespace agentty::msg;
     install_stub_deps();
@@ -1153,11 +1153,11 @@ TEST_CASE("a message queued behind the OAuth probe is sent when it settles") {
                                 Msg{msg::LoginMsg{OAuthRefreshNotDue{}}});
     apply_fx(c2);
     CHECK(m2.ui.composer.queued.empty());
-    CHECK(!m2.s.is_idle());   // the turn started
+    CHECK(!m2.s.is_idle());   // 转弯开始
 }
 
-// The transport learns a field a host refused (off-thread) and resends. The
-// record must pick it up when the turn ends, or the next launch pays again.
+// 电话 传输层 学习拒绝的主机字段(关闭) -thread )和重发。
+// 当转弯结束,或者下一次发射再次支付时,记录必须收回。
 TEST_CASE("a host rejection learned by the transport is saved when the turn ends") {
     using namespace agentty::msg;
     install_stub_deps();
@@ -1191,15 +1191,15 @@ TEST_CASE("same model id on two providers: a reasoning override is per provider"
     agentty::set_reasoning_override("groq/acme-r1-test", true);
     CHECK(agentty::reasoning_override_for("acme-r1-test", "groq") == 1);
     CHECK(agentty::reasoning_override_for("acme-r1-test", "openrouter") == -1);
-    // A bare override saved by an older build still applies everywhere.
+    // 旧建筑的全重覆覆二十万二十(已保存)仍然适用于各地。
     agentty::set_reasoning_override("acme-bare-test", false);
     CHECK(agentty::reasoning_override_for("acme-bare-test", "groq") == 0);
     CHECK(agentty::reasoning_override_for("acme-bare-test", "openrouter") == 0);
     agentty::clear_reasoning_overrides();
 }
 
-// Two providers serving the same model id, both in the open picker. ^F and
-// ^E on one row must leave the other provider's copy exactly as it was.
+// 两个供应商都提供相同的型号代号, 都公开 选择面板. ^F 财务报告和
+// 已审计财务报表 ^E 排行必须留下另一个供应商的复制件 完全如原样。
 TEST_CASE("same model id on two providers: ^F and ^E touch only the highlighted one") {
     using namespace agentty::msg;
     install_stub_deps();
@@ -1213,7 +1213,7 @@ TEST_CASE("same model id on two providers: ^F and ^E touch only the highlighted 
     m0.d.model_id = ModelId{"acme-twin-model"};
     auto [m, c] = app::update(std::move(m0), Msg{OpenModels{}});
     apply_fx(c);
-    // Give OpenRouter the same id.
+    // 给OpenRouter同样的id.
     FusedCatalogLoaded fl;
     fl.provider_id = "openrouter";
     fl.models = {mi("acme-twin-model", "openrouter")};
@@ -1230,7 +1230,7 @@ TEST_CASE("same model id on two providers: ^F and ^E touch only the highlighted 
     REQUIRE(row_of(m1, "groq") >= 0);
     REQUIRE(row_of(m1, "openrouter") >= 0);
 
-    // Highlight OpenRouter's copy and star + force reasoning on it.
+    // 突出OpenRouter的复制品和明星+在上面的力推理.
     m1.ui.panel.get<pn::Models>()->index = row_of(m1, "openrouter");
     auto [m2, c2] = app::update(std::move(m1), Msg{ModelsToggleFavorite{}});
     apply_fx(c2);
@@ -1245,8 +1245,8 @@ TEST_CASE("same model id on two providers: ^F and ^E touch only the highlighted 
     CHECK(agentty::reasoning_override_for("acme-twin-model", "openrouter") == 1);
     CHECK(agentty::reasoning_override_for("acme-twin-model", "groq") == -1);
 
-    // Enter on OpenRouter's copy switches to OpenRouter, not to Groq's
-    // model of the same name.
+    // Enter 打开 OpenRouter 复制开关到 OpenRouter
+    // 而不是格罗克的同名模特
     m3.ui.panel.get<pn::Models>()->index = row_of(m3, "openrouter");
     auto [m4, c4] = app::update(std::move(m3), Msg{ModelsSelect{}});
     apply_fx(c4);
@@ -1255,8 +1255,8 @@ TEST_CASE("same model id on two providers: ^F and ^E touch only the highlighted 
     agentty::clear_reasoning_overrides();
 }
 
-// Leaving a provider whose model list failed must not carry its error onto
-// the next one.
+// 将模型列表失败的提供者留下, 绝不能将错误带入下
+// 一个列表。
 TEST_CASE("provider switch drops the old provider's fetch error") {
     using namespace agentty::msg;
     install_stub_deps();
@@ -1271,8 +1271,8 @@ TEST_CASE("provider switch drops the old provider's fetch error") {
     CHECK(m.s.models_error.empty());
 }
 
-// A custom host written into settings by hand (never added through ^P) has
-// no saved entry, so it read as signed out and missed from the picker.
+// 手写到设置中的自定义主机( 从未通过 ^P )没有
+// 已保存 条目,所以它读作签名 并错过了 选择面板.
 TEST_CASE("a settings-only custom host gets a saved row once it answers") {
     using namespace agentty::msg;
     install_stub_deps();
@@ -1307,7 +1307,7 @@ TEST_CASE("no model yet: the default pick is a usable chat model, not the first 
         x.context_window = ctx;
         return x;
     };
-    // SovereignEG's real order: a 4k toy model and embedders sort first.
+    // SovereignEG的真令:先排序4k玩具模型和嵌入器.
     ml.models = {row("Qwen/Qwen3-0.6B", 4096), row("all-MiniLM-L6-v2", 512),
                  row("BAAI/bge-reranker-base", 512),
                  row("SovereignEG/Qwen3.8-27B-FP8", 131072)};
@@ -1330,19 +1330,19 @@ TEST_CASE("sending with no model after a failed list says why") {
     m.ui.composer.cursor = 2;
     auto [m1, c1] = app::update(std::move(m), Msg{ComposerEnter{}});
     CHECK(m1.s.status.find("HTTP 401: Invalid API key") != std::string::npos);
-    CHECK(m1.ui.composer.text == "Hi");   // nothing lost
+    CHECK(m1.ui.composer.text == "Hi");   // 什么都没有丢失
     CHECK(m1.s.is_idle());
 }
 
-// OpenModels refreshes the ACTIVE provider immediately and defers the
-// OTHER providers (FusedRefreshOthers) so the active result isn't queued
-// behind slower providers. The deferred pass marks the others Loading.
+// OpenModels 刷新该 活动 提供者立即推迟 OTHER
+// 提供者( FusedRefreshOthers ) 因此,
+// 活动结果不会排在较慢的提供者后面。延迟的通过标志着其他的加载。
 TEST_CASE("fused open prioritizes active provider, defers others") {
     using namespace agentty::msg;
     install_stub_deps();
     g_settings = store::Settings{};
     g_settings.provider_keys["anthropic"] = "sk-a";
-    g_settings.provider_keys["openai"]    = "sk-o";   // a second authed provider
+    g_settings.provider_keys["openai"]    = "sk-o";   // 第二个被认证的提供者
     provider::select(::agentty::IoAccess::grant(), provider::parse_selection("anthropic"));
 
     Model m = seeded_model();
@@ -1351,12 +1351,12 @@ TEST_CASE("fused open prioritizes active provider, defers others") {
     auto [m1, c1] = app::update(std::move(m), Msg{OpenModels{}});
     apply_fx(c1);
 
-    // On open the non-active provider is NOT yet Loading (deferred).
+    // 打开非 -active 提供者为 不 却在装入( 延迟)。
     for (const auto& c : m1.d.provider_catalogs)
         if (c.provider_id == "openai")
             CHECK(c.state != ProviderCatalog::State::Loading);
 
-    // The deferred wave marks the OTHER providers Loading, not the active one.
+    // 延时波标志着OTHER供应商加载,而不是活动波.
     auto [m2, c2] = app::update(std::move(m1), Msg{FusedRefreshOthers{}});
     apply_fx(c2);
     for (const auto& c : m2.d.provider_catalogs) {
@@ -1365,13 +1365,13 @@ TEST_CASE("fused open prioritizes active provider, defers others") {
     }
 }
 
-// The fused list stays CURRENT: a provider catalog older than the TTL (or
-// Failed) is refetched on the next open; a freshly-loaded one is left alone so
-// rapid re-opens don't re-hammer providers. This is the "always updated but
-// fast" contract.
+// 保险单上留下 当前 : 提供者 目录 年龄大于 TTL (或失败)在下次打开
+// 时被重新调试; 重新调试 -loaded 一个人一个人 如此迅速 -opens 别
+// 乱来 -hammer 提供者。这是 "always updated but fast"
+// 合同。
 TEST_CASE("fused refetches stale/failed catalogs, skips fresh") {
     using namespace agentty::msg;
-    maya::testing::freeze_anim_clock(1'000'000);   // non-zero base (0 = "never loaded")
+    maya::testing::freeze_anim_clock(1'000'000);   // 无 -zero 基数(0=) "never loaded")
     install_stub_deps();
     g_settings = store::Settings{};
     g_settings.provider_keys["anthropic"] = "sk-a";
@@ -1383,7 +1383,7 @@ TEST_CASE("fused refetches stale/failed catalogs, skips fresh") {
     m.d.available_models = {mi("claude-sonnet-4-5", "anthropic")};
     auto [m1, c1] = app::update(std::move(m), Msg{OpenModels{}});
     apply_fx(c1);
-    // openai loads live now (t=0).
+    // openai 加载 现时已存在(t=0).
     FusedCatalogLoaded oa; oa.provider_id = "openai";
     oa.models = {mi("gpt-5", "openai")}; oa.ok = true;
     auto [m2, c2] = app::update(std::move(m1), Msg{std::move(oa)});
@@ -1396,22 +1396,22 @@ TEST_CASE("fused refetches stale/failed catalogs, skips fresh") {
     };
     CHECK(openai_state(m2) == ProviderCatalog::State::Ready);
 
-    // FRESH (just loaded): the deferred wave must NOT refetch it.
+    // FRESH (刚刚) 已加载 : 推迟波不得 调换一下
     auto [m3, c3] = app::update(std::move(m2), Msg{FusedRefreshOthers{}});
     apply_fx(c3);
-    CHECK(openai_state(m3) == ProviderCatalog::State::Ready);   // not Loading
+    CHECK(openai_state(m3) == ProviderCatalog::State::Ready);   // 不装入
 
-    // Advance past the TTL → now STALE → the deferred wave refetches it.
+    // 过往 TTL 现在 STALE 延迟波浪会把它反射出来
     maya::testing::advance_anim_clock_ms(61'000);
     auto [m4, c4] = app::update(std::move(m3), Msg{FusedRefreshOthers{}});
     apply_fx(c4);
-    CHECK(openai_state(m4) == ProviderCatalog::State::Loading);  // refetching
+    CHECK(openai_state(m4) == ProviderCatalog::State::Loading);  // 补丁
 
     maya::testing::unfreeze_anim_clock();
 }
 
-// ^L (ModelsRefresh) forces a full live refresh regardless of TTL: it
-// resets every catalog's freshness and refetches the non-active providers now.
+// ^L (ModelsRefresh 强制进行全程直播,
+// 无论 TTL : 它重排每个 目录 新鲜度和反射非 -active 现在就提供
 TEST_CASE("fused ^L forces a full refresh") {
     using namespace agentty::msg;
     maya::testing::freeze_anim_clock(1'000'000);
@@ -1436,26 +1436,26 @@ TEST_CASE("fused ^L forces a full refresh") {
             if (c.provider_id == "openai") return c.state;
         return ProviderCatalog::State::Idle;
     };
-    REQUIRE(openai_state(m2) == ProviderCatalog::State::Ready);   // fresh
+    REQUIRE(openai_state(m2) == ProviderCatalog::State::Ready);   // 新鲜
 
-    // ^L refetches even a FRESH catalog (no TTL wait).
+    // ^L 连一个都无法回溯 FRESH 目录 (无) TTL 等一等).
     auto [m3, c3] = app::update(std::move(m2), Msg{ModelsRefresh{}});
     apply_fx(c3);
     CHECK(openai_state(m3) == ProviderCatalog::State::Loading);
     for (const auto& c : m3.d.provider_catalogs)
-        CHECK(c.loaded_at_ms == 0);   // freshness reset for all
+        CHECK(c.loaded_at_ms == 0);   // 全部重置新内容
 
     maya::testing::unfreeze_anim_clock();
 }
 
-// Sign-in offers are QUERY-GATED in the fused picker: un-authed providers
-// are seeded as offers (so a query naming one can surface it — no dead end)
-// but the BROWSE view (empty query) renders none of them.
+// 签名 -in 提议 QUERY-GATED 装在保险丝上的 选择面板 备忘
+// -authed 供应商作为报价(因此一个查询可以显示一个命名的报价——没有死角)
+// 进行播种,但 BROWSE 视图( 空查询) 渲染 没有一个
 TEST_CASE("fused browse view hides sign-in offers; query surfaces them") {
     using namespace agentty::msg;
     install_stub_deps();
     g_settings = store::Settings{};
-    g_settings.provider_keys["anthropic"] = "sk-a";   // only ONE provider authed
+    g_settings.provider_keys["anthropic"] = "sk-a";   // 只有 一个 供应商被认证
     provider::select(::agentty::IoAccess::grant(), provider::parse_selection("anthropic"));
 
     Model m = seeded_model();
@@ -1464,11 +1464,11 @@ TEST_CASE("fused browse view hides sign-in offers; query surfaces them") {
     auto [m1, c1] = app::update(std::move(m), Msg{OpenModels{}});
     apply_fx(c1);
 
-    CHECK(!m1.d.fused_offers.empty());  // un-authed providers ARE seeded…
+    CHECK(!m1.d.fused_offers.empty());  // 取消对 -authed 提供者 ARE 种子...
     for (const auto& r : m1.d.fused_rows)
-        CHECK(!r.is_signin_offer());    // …but browsing renders none
+        CHECK(!r.is_signin_offer());    // ...但浏览 渲染 无
 
-    // Typing an un-authed provider's name surfaces exactly its offer row.
+    // 打字一个un-authed的提供者的名字 完全暴露出它的报价行。
     Model m2 = std::move(m1);
     for (char ch : std::string{"mistral"}) {
         auto [mm, cc] = app::update(std::move(m2),
@@ -1483,8 +1483,8 @@ TEST_CASE("fused browse view hides sign-in offers; query surfaces them") {
     CHECK(offer_shown);
 }
 
-// Signing out of a provider while the fused picker is open prunes its catalog,
-// so its models stop appearing (no stale rows until restart).
+// 引信安装时从供应商中签名 选择面板 打开的笔划 目录 ,
+// 因此其模型停止出现(没有) 过期 列直到重新启动为止。
 TEST_CASE("fused prunes a signed-out provider's catalog") {
     using namespace agentty::msg;
     install_stub_deps();
@@ -1507,56 +1507,56 @@ TEST_CASE("fused prunes a signed-out provider's catalog") {
         if (c.provider_id == "openai") had_openai = true;
     CHECK(had_openai);
 
-    // Sign out of openai, then rebuild the sources (as any refresh would).
+    // 以Openai方式签字,然后重建源头(如任何更新).
     //
-    // Through the RECORD, which is what the real sign-out paths mutate
-    // (login.cpp's sign_out and providers.cpp's ^D both erase from
-    // m.d.persisted.provider_keys, then save it). Erasing only from the stub
-    // store would test a state the app can't reach — the record is what
-    // refresh_fused_sources reads.
+    // 通过 RECORD ,这就是真正的标志 -out 路径变异( E) login.cpp's
+    // sign_out 财务报告和已审计财务报表 providers.cpp's
+    // ^D 两者均从 m.d.persisted.provider_keys ,
+    // 则 保存 只能从树枝店中清除,才能测试应用无法达到的状态——记录是什么?
+    // refresh_fused_sources 读。
     g_settings.provider_keys.erase("openai");
     m2.d.persisted.provider_keys.erase("openai");
     auto [m3, c3] = app::update(std::move(m2), Msg{OpenModels{}});
-    apply_fx(c3);  // re-open re-syncs
+    apply_fx(c3);  // 内容 -open 内容 -syncs
     for (const auto& c : m3.d.provider_catalogs)
-        CHECK(c.provider_id != "openai");            // catalog pruned
+        CHECK(c.provider_id != "openai");            // 目录 已刷新( P)
     for (const auto& r : m3.d.fused_rows)
-        CHECK(r.provider_id != "openai");            // no stale rows
+        CHECK(r.provider_id != "openai");            // 无 过期 行数
 }
 
-// ^Tab skips a dead MRU entry (provider signed out, or model delisted) rather
-// than switching to an id that would 400 on the next request.
+// ^Tab 跳过一个死 MRU 条目(供应商签署或从清单中删除模型),
+// 而不是转换到在下次请求时会达到400的ID。
 TEST_CASE("^Tab skips a dead MRU entry") {
     using namespace agentty::msg;
     install_stub_deps();
     g_settings = store::Settings{};
-    g_settings.provider_keys["anthropic"] = "sk-a";   // xai NOT authed
+    g_settings.provider_keys["anthropic"] = "sk-a";   // xai 不 已认证
     provider::select(::agentty::IoAccess::grant(), provider::parse_selection("anthropic"));
 
     Model m = seeded_model();
     m.d.model_id = ModelId{"claude-a"};
     m.d.available_models = {mi("claude-a", "anthropic"),
                             mi("claude-c", "anthropic")};
-    // Ring: active claude-a, then a DEAD xai entry (not authed), then claude-c.
+    // 环: 活动阴极 -a ,然后是 DEAD xai 条目( 未认证), 然后是 claude -c.
     m.d.recent_models = {ModelRef{"anthropic", "claude-a"},
-                         ModelRef{"xai", "grok-4"},          // dead
+                         ModelRef{"xai", "grok-4"},          // 已死亡
                          ModelRef{"anthropic", "claude-c"}};
 
     auto [m1, c1] = app::update(std::move(m), Msg{SwitchToPreviousModel{}});
     apply_fx(c1);
-    // Must skip the dead xai entry and land on claude-c.
+    // 一定要跳过死Xai进入和降落在Claude上 -c.
     CHECK(m1.d.model_id.value == "claude-c");
 }
 
-// The provider picker's ^D (Mac-reachable stand-in for forward-Delete)
-// signs out of a preset that has a saved key: first ^D arms, second commits
-// (clears the key). openrouter is the reported case.
+// 提供商选择面板的^D(Mac-reachable为-in,
+// 用于前方-Delete)在预设有已保存键的标志:第一是^D武器,
+// 第二是犯罪(清除钥匙),报告案件是开路器。
 TEST_CASE("provider picker: ^D signs out of a keyed preset (two-press)") {
     using namespace agentty::msg;
     install_stub_deps();
     g_settings = store::Settings{};
     g_settings.provider_keys["anthropic"]  = "sk-a";
-    g_settings.provider_keys["openrouter"] = "sk-or";   // keyed preset
+    g_settings.provider_keys["openrouter"] = "sk-or";   // 键入预设
     provider::select(::agentty::IoAccess::grant(), provider::parse_selection("anthropic"));
 
     Model m = seeded_model();
@@ -1564,9 +1564,9 @@ TEST_CASE("provider picker: ^D signs out of a keyed preset (two-press)") {
     auto [m1, c1] = app::update(std::move(m), Msg{OpenProviders{}});
     apply_fx(c1);
 
-    // Point the cursor at the openrouter row deterministically by locating
-    // it in the built row list, then set the picker index. Must use the SAME
-    // builder the reducer does, or the index means a different row.
+    // 将光标指向开路特行,确定它位于已建行列表中,
+    // 然后设置 选择面板 索引。必须使用 相同 构建者
+    // 状态更新函数 已,或索引表示不同的行。
     auto* p = m1.ui.panel.get<pn::Providers>();
     REQUIRE(p != nullptr);
     const auto sectioned = ui::build_sectioned_provider_rows(
@@ -1581,21 +1581,21 @@ TEST_CASE("provider picker: ^D signs out of a keyed preset (two-press)") {
     p->query.clear();
     Model m2 = std::move(m1);
 
-    // First ^D arms the sign-out; the key is still present.
+    // 第一届 ^D 手持标志 -out ; 键仍然存在。
     auto [m3, c3] = app::update(std::move(m2), Msg{ProvidersDelete{}});
     apply_fx(c3);
     CHECK(g_settings.provider_keys.count("openrouter") == 1);
 
-    // Second ^D on the same row commits the sign-out.
+    // 第二届 ^D 在同一行上输入标志 -out.
     auto [m4, c4] = app::update(std::move(m3), Msg{ProvidersDelete{}});
     apply_fx(c4);
-    CHECK(g_settings.provider_keys.count("openrouter") == 0);  // signed out
-    CHECK(g_settings.provider_keys.count("anthropic") == 1);   // others intact
+    CHECK(g_settings.provider_keys.count("openrouter") == 0);  // 签名退出
+    CHECK(g_settings.provider_keys.count("anthropic") == 1);   // 其它的没有受伤
 }
 
-// ^D on the ACTIVE provider's row must also zero the live auth header —
-// otherwise the session keeps streaming with a credential the user just
-// revoked, and the "signed out" toast lies.
+// ACTIVE供应商行上的^D也必须0 有效方位头
+// 文件——否则会话保留流式传输,用户刚刚撤销的凭据,
+// "signed out"土司谎言.
 TEST_CASE("provider picker: ^D on the ACTIVE provider zeroes live auth") {
     using namespace agentty::msg;
     install_stub_deps();
@@ -1625,13 +1625,13 @@ TEST_CASE("provider picker: ^D on the ACTIVE provider zeroes live auth") {
     auto [m3, c3] = app::update(std::move(m2), Msg{ProvidersDelete{}});
     apply_fx(c3);
     CHECK(g_settings.provider_keys.count("openrouter") == 0);
-    // The live header was zeroed — the next turn cannot reuse the dead key.
+    // 活的头文件被零化了——下一个转弯不能再使用死钥匙.
     CHECK(agentty::auth::is_empty(app::live_auth()));
 }
 
-// Enter on an ACCOUNT-CAPABLE provider that is already active opens its
-// accounts drill-down (Esc from there closes the whole picker — handled by
-// login_back → close_login for AccountList). Non-account providers switch.
+// Enter 打开一个 ACCOUNT-CAPABLE 已经激活的提供者打开其账户操作
+// -down (Esc 从那里关闭整个 选择面板 ——处理者. login_back →
+// close_login 费用 AccountList。无 -account 供应商切换。
 TEST_CASE("provider picker: Enter opens accounts on active OAuth provider") {
     using namespace agentty::msg;
     install_stub_deps();
@@ -1644,7 +1644,7 @@ TEST_CASE("provider picker: Enter opens accounts on active OAuth provider") {
     auto [m1, c1] = app::update(std::move(m), Msg{OpenProviders{}});
     apply_fx(c1);
 
-    // Land the cursor on the (active) anthropic row.
+    // 将光标降落在(活跃的)人类行上。
     auto* p = m1.ui.panel.get<pn::Providers>();
     REQUIRE(p != nullptr);
     const auto rows = ui::build_provider_rows(
@@ -1656,29 +1656,29 @@ TEST_CASE("provider picker: Enter opens accounts on active OAuth provider") {
     REQUIRE(a_idx >= 0);
     p->index = a_idx;
 
-    // Enter opens the accounts list (and closes the provider picker).
+    // Enter 打开账户列表( 关闭提供者) 选择面板).
     auto [m2, c2] = app::update(std::move(m1), Msg{ProvidersSelect{}});
     apply_fx(c2);
     CHECK(std::holds_alternative<ui::login::AccountList>(m2.ui.login));
-    CHECK(!m2.ui.panel.get<pn::Providers>());  // picker closed
+    CHECK(!m2.ui.panel.get<pn::Providers>());  // 选择面板 关闭
 
-    // Esc from the accounts list steps BACK to the provider picker (not a
-    // full close), keeping the hierarchy accounts → providers → chat.
+    // Esc 从账户列表步骤中 BACK 向提供者提供 选择面板
+    // (不是完全接近),保持等级账户 ~ 提供者 ~ 聊天.
     auto [m3, c3] = app::update(std::move(m2), Msg{LoginBack{}});
     apply_fx(c3);
-    CHECK(std::holds_alternative<ui::login::Closed>(m3.ui.login));  // accounts gone
-    CHECK(m3.ui.panel.get<pn::Providers>());                 // back at providers
+    CHECK(std::holds_alternative<ui::login::Closed>(m3.ui.login));  // 账户已丢失
+    CHECK(m3.ui.panel.get<pn::Providers>());                 // 回到提供者处
 }
 
-// A custom host can hold MULTIPLE saved keys (accounts): the accounts layer
-// keys on the endpoint spec, storing each key as the account secret. Snapshot
-// then activate must round-trip the bearer key through provider_keys[spec].
+// 自定义主机可以持有 MULTIPLE 已保存 密钥(账户):端点
+// 光谱上的账户层密钥,将每个密钥存储为账户密钥. 快照 然后激活必须绕
+// -trip 将无记名密钥通过 provider_keys [标].
 TEST_CASE("custom host supports multiple accounts") {
     using namespace agentty::msg;
     namespace acc = agentty::auth::accounts;
-    // account_switch reads/writes the REAL settings + accounts.json (via
-    // config_dir()/data_dir() → home_dir()), not the deps stub. Point HOME at
-    // a throwaway dir so this test never touches the user's real config.
+    // account_switch reads/writes 编号 真实 设置 + accounts.json
+    // (通过) config_dir()/data_dir() → home_dir (),
+    // 而不是道具的支点。 HOME 在一个丢弃目录中,所以这个测试永远不会触及用户的真实配置.
     const auto tmp = std::filesystem::temp_directory_path()
                    / ("agentty_acct_test_" + std::to_string(::getpid()));
     std::filesystem::remove_all(tmp);
@@ -1687,7 +1687,7 @@ TEST_CASE("custom host supports multiple accounts") {
     ::setenv("HOME", tmp.c_str(), 1);
 
     install_stub_deps();
-    const std::string spec = "my-host:8080/v1";   // not a preset ⇒ custom host
+    const std::string spec = "my-host:8080/v1";   // 不是预设的QQ自定义主机
 
     auto set_key = [&](const std::string& k) {
         auto s = agentty::persistence::load_settings(::agentty::IoAccess::grant());
@@ -1698,26 +1698,26 @@ TEST_CASE("custom host supports multiple accounts") {
         return agentty::persistence::load_settings(::agentty::IoAccess::grant()).provider_keys[spec];
     };
 
-    // Account A active: snapshot it into the registry.
+    // 账户 A 活动 : 快照 进入了 注册表.
     set_key("sk-aaaa1111");
     CHECK(acc::snapshot_active(::agentty::IoAccess::grant(), agtest::cap(), spec, "A"));
 
-    // Switch the active key to B and snapshot that too.
+    // 将活动键切换到 B 和 快照。
     set_key("sk-bbbb2222");
     CHECK(acc::snapshot_active(::agentty::IoAccess::grant(), agtest::cap(), spec, "B"));
 
-    // Both accounts are listed for this host.
+    // 这两家账户都为这个主机列出.
     CHECK(acc::list_for(::agentty::IoAccess::grant(), spec).size() == 2);
 
-    // Activating A restores its key into provider_keys[spec]; then B.
+    // 激活 A 将键恢复为 provider_keys[scee]; 然后是 B.
     CHECK(acc::activate(::agentty::IoAccess::grant(), agtest::cap(), spec, "A"));
     CHECK(get_key() == "sk-aaaa1111");
     CHECK(acc::activate(::agentty::IoAccess::grant(), agtest::cap(), spec, "B"));
     CHECK(get_key() == "sk-bbbb2222");
 
-    // Two keys that SHARE the same last-4 still derive DISTINCT labels (the
-    // label mixes a prefix + suffix + length, not just the suffix) — so a
-    // second key can't collide with / overwrite the first in the registry.
+    // 两把钥匙 SHARE 同样的最后4 仍然从 DISTINCT
+    // 标签(标签混合了前缀+后缀+长度,而不仅仅是后缀)—
+    // —因此第二个键不能与/覆盖首键在后缀中相撞. 注册表.
     set_key("sk-prefix1-SAME9999");
     const std::string l1 = acc::derive_current_label(::agentty::IoAccess::grant(), spec);
     set_key("sk-prefix2-SAME9999");
@@ -1729,8 +1729,8 @@ TEST_CASE("custom host supports multiple accounts") {
     std::filesystem::remove_all(tmp);
 }
 
-// The fused picker tunes reasoning effort (←/→) on the highlighted model,
-// ported from the old model picker so the fused surface is complete.
+// 保险丝 选择面板 调谐在突出显示的模型上的推理努力(QQ/ ),
+// 从旧模型中移植 选择面板 引信表面已经完全覆盖
 TEST_CASE("fused picker cycles reasoning effort") {
     using namespace agentty::msg;
     install_stub_deps();
@@ -1739,31 +1739,31 @@ TEST_CASE("fused picker cycles reasoning effort") {
     provider::select(::agentty::IoAccess::grant(), provider::parse_selection("anthropic"));
 
     Model m = seeded_model();
-    // An effort-capable model (Claude Opus supports the reasoning ladder).
+    // 努力的尝试 -capable 模型( 4) Claude Opus支持推理阶梯).
     m.d.model_id = ModelId{"claude-opus-4-5"};
     m.d.effort = Effort::None;
     m.d.available_models = {mi("claude-opus-4-5", "anthropic")};
 
     auto [m1, c1] = app::update(std::move(m), Msg{OpenModels{}});
     apply_fx(c1);
-    // Cursor on the active (only) model row.
+    // 活动( 只) 模版行上的光标。
     if (auto* cur = m1.ui.panel.get<pn::Models>()) cur->index = 0;
     const Effort before = m1.d.effort;
     auto [m2, c2] = app::update(std::move(m1), Msg{ModelsCycleEffort{+1}});
     apply_fx(c2);
-    // ←/→ mutates the GLOBAL m.d.effort LIVE — identical to the classic model
-    // picker, so the two surfaces share one state and can't disagree.
+    // ⁇ /  ⁇   ⁇  变种 GLOBAL m.d.effort LIVE ——
+    // 与经典型号完全相同. 选择面板 ,因此两个表面共享一个状态,不能有异议.
     CHECK(m2.d.effort != before);
     CHECK(m2.ui.effort_dirty);
     const Effort after = m2.d.effort;
 
-    // The change is already global; select just persists + switches.
+    // 变化已经是全球性的;选择只持续 + 开关。
     auto [m3, c3] = app::update(std::move(m2), Msg{ModelsSelect{}});
     apply_fx(c3);
     CHECK(m3.d.effort == after);
-    CHECK(!m3.ui.panel.get<pn::Models>());  // picker closed on select
+    CHECK(!m3.ui.panel.get<pn::Models>());  // 选中的选择面板 关闭
 
-    // Closing flushes a dirty effort edit (parity with the classic picker).
+    // 关闭冲洗脏工作编辑(与经典的选择面板相等)。
     auto [m4, c4] = app::update(std::move(m3), Msg{OpenModels{}});
     apply_fx(c4);
     if (auto* cur = m4.ui.panel.get<pn::Models>()) cur->index = 0;
@@ -1771,15 +1771,15 @@ TEST_CASE("fused picker cycles reasoning effort") {
     apply_fx(c5);
     auto [m6, c6] = app::update(std::move(m5), Msg{CloseModels{}});
     apply_fx(c6);
-    CHECK(!m6.ui.effort_dirty);            // persisted on close
+    CHECK(!m6.ui.effort_dirty);            // 持续关闭
 }
 
-// ^/ toggles between the fused (all-providers) picker and the classic
-// single-provider picker: opening one tears the other down cleanly.
-// There is ONE model picker: re-issuing OpenModels must re-open it
-// cleanly (fresh query, reseeded rows) rather than stacking a second overlay
-// or leaving the previous one's cache behind. This used to be a toggle
-// between the fused and the classic picker; the classic one is gone.
+// ^/ 切换 介于保险(all-providers) 选择面板 和经典单机
+// -provider 选择面板之间: 打开一个泪水,另一个泪水清净地流下.
+// Τ 一个 模型 选择面板 : 关于 -issuing
+// OpenModels 必须重新 -open 干净( 重新查询、
+// 重播行) 而不是堆叠秒 覆盖面板 或者离开前一个 缓存 后面,
+// 这曾经是 切换 介于引信和经典之间 选择面板 经典的不见了
 TEST_CASE("the model picker re-opens cleanly, never stacks") {
     using namespace agentty::msg;
     install_stub_deps();
@@ -1795,8 +1795,8 @@ TEST_CASE("the model picker re-opens cleanly, never stacks") {
     apply_fx(c1);
     CHECK(m1.ui.panel.is<pn::Models>(), "^/ opens the picker");
     REQUIRE(!m1.d.fused_rows.empty());
-    // Type a query, then re-open: the overlay is replaced, not stacked, and
-    // the stale query does not survive.
+    // 键入查询,然后重新 -open : 数据 覆盖面板 替换,
+    // 而不是堆叠,并 过期 查询无法幸存。
     if (auto* c = m1.ui.panel.get<pn::Models>()) c->query = "zzz";
     auto [m2, c2] = app::update(std::move(m1), Msg{OpenModels{}});
     apply_fx(c2);
@@ -1805,15 +1805,15 @@ TEST_CASE("the model picker re-opens cleanly, never stacks") {
         CHECK(c->query.empty(), "re-open resets the filter");
     CHECK(!m2.d.fused_rows.empty(), "rows reseeded on re-open");
 
-    // Esc closes it and releases the row cache.
+    // Esc 关闭并释放行 缓存.
     auto [m3, c3] = app::update(std::move(m2), Msg{CloseModels{}});
     apply_fx(c3);
     CHECK(!m3.ui.panel.is<pn::Models>(), "Esc closes the picker");
     CHECK(m3.d.fused_rows.empty(), "closing releases the row cache");
 }
 
-// Signing out of ONE provider when others are still authed should fall back
-// to a still-authed provider — not strand the user at the sign-in modal.
+// 签名退出 一个 提供者当其他人仍然被认可时,应该退到静态
+// -authed 提供者 – 不将用户拖到标志上 -in 弹出面板.
 TEST_CASE("SignOut falls back to another authed provider") {
     using namespace agentty::msg;
     install_stub_deps();
@@ -1823,23 +1823,23 @@ TEST_CASE("SignOut falls back to another authed provider") {
     provider::select(::agentty::IoAccess::grant(), provider::parse_selection("openrouter"));
 
     Model m = seeded_model();
-    m.d.recent_models = { ModelRef{"groq", "llama-3.3-70b"} };  // MRU fallback
+    m.d.recent_models = { ModelRef{"groq", "llama-3.3-70b"} };  // MRU 回退 国 务 院
     auto [m1, c1] = app::update(std::move(m), Msg{LoginMsg{SignOut{}}});
     apply_fx(c1);
 
-    // openrouter's key was dropped…
+    // 打开路由器的密钥被丢弃...
     CHECK(g_settings.provider_keys.count("openrouter") == 0);
-    // …and we did NOT strand the user at the sign-in modal.
+    // ...我们做到了 不 将用户绑在标志上 -in 弹出面板.
     CHECK(!std::holds_alternative<agentty::ui::login::Picking>(m1.ui.login));
-    // The switch targeted the still-authed fallback (groq).
+    // 开关瞄准静电 -authed 回退 (groq) (英语).
     CHECK(provider::active().openai_endpoint.label == "groq");
 }
 
-// Signing out of the ONLY authed provider opens the sign-in modal. (When the
-// machine running the test happens to have real on-disk Anthropic creds, the
-// fallback correctly finds them instead — so assert the CONTRACT: either the
-// modal opened, or we switched to a genuinely-authed different provider, but
-// NEVER left openrouter's dropped key as the active credential.)
+// 签名出局 仅 认证提供者打开标志 -in 弹出面板 .
+// (当运行测试的机器恰好有真实的 -disk Anthropic 证明,
+// 回退 正确找到他们,因此, CONTRACT : 要么 弹出
+// 面板 打开,或者我们换成真正的 -authed 不同的供应商,
+// 但是 绝不 左开路器的键被丢弃作为活动 凭据.)
 TEST_CASE("SignOut with no saved fallback opens sign-in") {
     using namespace agentty::msg;
     install_stub_deps();
@@ -1858,24 +1858,24 @@ TEST_CASE("SignOut with no saved fallback opens sign-in") {
     CHECK((opened_signin || switched_away));
 }
 
-// ── Regression: custom-host models in the fused picker ───────────────────────
-// cb5847aa retired the classic per-provider model picker (which read the
-// active provider's list straight out of available_models) and made the
-// fused cross-provider picker the ONLY models menu. But the fused picker
-// reads provider_catalogs, and refresh_fused_sources enumerated ONLY
-// registry presets — a saved custom host never got a catalog, so its live
-// /v1/models fetch landed in available_models and the menu still showed
-// nothing. These cases pin the restored behaviour through the REAL reducer:
-// the active custom host's catalog mirrors available_models (rows appear),
-// and a non-active saved custom host gets a catalog that a FusedCatalogLoaded
-// can merge into.
+// ── 退航: 装配型号为选择面板的自定义-host型号 ───────────────────────
+// cb5847aa 退休的经典的每 -provider 模型 选择面板 (它直接
+// 读取了活动提供者列表) available_models 并做了保险丝十字架
+// -provider 选择面板 编号 仅 模型菜单,但引信 选择面板 读取
+// provider_catalogs ,和 refresh_fused_sources
+// 列出 仅 注册表 预设——a 已保存 自定义主机从未获得过 目录 ,
+// 所以它的活 / i v1/models 获取降落在 available_models
+// 菜单上没有显示任何内容。这些案例将恢复的行为贯穿于 真实 状态更新函数:
+// ,活动自定义主机的目录镜像available_models(rows出现),
+// 一个非-active 已保存自定义主機得到一个目录,一个FusedCatalogLoaded
+// 可以合并成.
 TEST_CASE("fused picker shows an active custom host's models") {
     using namespace agentty::msg;
     install_stub_deps();
     g_settings = store::Settings{};
-    // A saved custom host (provider_keys key that is not a registry preset)
-    // is the ACTIVE provider, with a live catalog already in hand.
-    g_settings.provider_keys["my-box.lan:8080"] = "";   // keyless local host
+    // A 已保存 自定义主机( O) provider_keys 键不是一个
+    // 注册表 预设)是 活动 提供商,有活的 目录 已经掌握在手了
+    g_settings.provider_keys["my-box.lan:8080"] = "";   // 无密钥本地主机
     provider::select(::agentty::IoAccess::grant(), provider::parse_selection("my-box.lan:8080"));
 
     Model m = seeded_model();
@@ -1887,9 +1887,9 @@ TEST_CASE("fused picker shows an active custom host's models") {
     apply_fx(c1);
     CHECK(m1.ui.panel.is<pn::Models>());
 
-    // The custom host has a catalog, it is the ACTIVE one, and it mirrors
-    // the live list (Ready, non-empty) — the exact seeding contract the
-    // presets get on open.
+    // 自定义主机有一个 目录 ,这是 活动 一张,
+    // 它反映了活列表(Ready, no -empty )——预设的
+    // 种子合同准确性打开.
     bool host_ready = false;
     for (const auto& c : m1.d.provider_catalogs) {
         if (c.provider_id == "my-box.lan:8080") {
@@ -1899,7 +1899,7 @@ TEST_CASE("fused picker shows an active custom host's models") {
     }
     CHECK(host_ready, "active custom host catalog mirrors available_models");
 
-    // …and therefore ROWS: the models menu actually lists the host's models.
+    // ...因此,ROWS:模型菜单实际上列出了主机的模型.
     CHECK(!m1.d.fused_rows.empty());
     bool saw_qwen = false, saw_llama = false;
     for (const auto& r : m1.d.fused_rows) {
@@ -1916,9 +1916,9 @@ TEST_CASE("fused picker gives a non-active saved custom host a mergeable catalog
     using namespace agentty::msg;
     install_stub_deps();
     g_settings = store::Settings{};
-    // Anthropic active; the custom host is saved but NOT active. provider_keys
-    // membership is the auth test for a custom host, so it must appear as a
-    // source — Idle, empty, ready for cmd::fetch_models_for to fill.
+    // Anthropic 活动; 自定义主机是 已保存 不过 不 活动。
+    // provider_keys 成员身份是自定义主机的认证测试,所以它必须作为一个源
+    // 出现——空的,准备 cmd::fetch_models_for 以充满.
     g_settings.provider_keys["anthropic"]     = "sk-test";
     g_settings.provider_keys["api.my-gw.com"] = "sk-gw";
     provider::select(::agentty::IoAccess::grant(), provider::parse_selection("anthropic"));
@@ -1937,7 +1937,7 @@ TEST_CASE("fused picker gives a non-active saved custom host a mergeable catalog
     }
     CHECK(gw_idle, "saved non-active custom host has an Idle catalog");
 
-    // The deferred wave's fetch lands: merge by provider_id, then rows show.
+    // 延波采地:由provider_id合并,再排成行显示.
     FusedCatalogLoaded gw;
     gw.provider_id = "api.my-gw.com";
     gw.models = {mi("some-model-x", "api.my-gw.com")};
@@ -1957,26 +1957,26 @@ TEST_CASE("fused picker gives a non-active saved custom host a mergeable catalog
     CHECK(saw_gw_model, "merged custom-host catalog yields rows");
 }
 
-// ── One enumeration: adoption cannot produce a duplicate ─────────────────
-// "api.githubcopilot.com" is a provider_keys entry with no preset SPEC, but
-// parse_selection() adopts it onto the copilot ROW so the Copilot endpoint
-// and auth apply. saved_custom_hosts() used to test the raw spec, so the
-// host came back as "custom" AS WELL AS being a preset — and every consumer
-// listed it twice. The provider picker showed two "GitHub Copilot" rows, and
-// once the fused picker gained custom-host catalogs it grew a second catalog
-// and duplicate models with it.
+// ── 列举:收养不能产生重复 ─────────────────
+// "api.githubcopilot.com" 是一个 provider_keys
+// 没有预设的条目 SPEC ,不过 parse_selection () 将其
+// 提交副驾驶 ROW 故可适用副驾驶端点和认证. saved_custom_hosts
+// ()用来测试原始的谱,所以宿主回来作为 "custom" AS WELL
+// AS 是一个预设——每个消费者都列出两次。 选择面板 显示两个
+// "GitHub Copilot" 排,一旦引信 选择面板 已获取自定义 -host 目录
+// 长了一秒钟 目录 并复制模型与之。
 //
-// The test is on the RESOLVED id now. These pin that, at both consumers.
+// 测试在 RESOLVED ID,这些针头,在两个消费者身上。
 TEST_CASE("an adopted host is not also a custom host") {
     store::Settings s;
     s.provider_keys["api.githubcopilot.com"] = "tok";
-    s.provider_keys["api.my-gw.com"]         = "k";   // genuinely custom
+    s.provider_keys["api.my-gw.com"]         = "k";   // 真实习惯
 
     const auto hosts = provider::saved_custom_hosts(s.provider_keys);
     CHECK(hosts.size() == 1, "only the genuine custom host is 'custom'");
     CHECK(hosts.front() == "api.my-gw.com");
 
-    // The provider picker lists it once, as the preset it resolves to.
+    // 提供商选择面板将其列出一次,作为它决心的预设.
     const auto rows = ui::build_provider_rows(hosts, "");
     int copilot_rows = 0, gw_rows = 0;
     for (const auto& r : rows) {
@@ -1992,17 +1992,17 @@ TEST_CASE("an adopted host is not also a custom host") {
     CHECK(gw_rows == 1, "the genuine custom host still gets its row");
 }
 
-// The catalog enumeration is the SAME list, so it cannot disagree with the
-// picker about which backends exist. This is the property that makes
-// "we forgot to enumerate X" unrepresentable rather than merely fixed.
+// 电话 目录 计数是 相同 列表,因此它不能与 选择面板 是
+// 关于哪个后端的。 这是属性。
+// "we forgot to enumerate X" 无法形容,而不是只是固定的。
 TEST_CASE("catalog_sources enumerates presets and custom hosts, once each") {
     store::Settings s;
-    s.provider_keys["api.githubcopilot.com"] = "tok";   // adopted → copilot
-    s.provider_keys["api.my-gw.com"]         = "k";     // genuine custom
-    s.provider_keys["localhost:11434"]       = "x";     // local endpoint
-    // Regression (issue #30): a FULL-URL custom host with a multi-segment
-    // path (z.ai's GLM Coding Plan) must be its own catalog source — it is
-    // not a preset and does not adopt onto one, so the picker showed nothing.
+    s.provider_keys["api.githubcopilot.com"] = "tok";   // + 副驾驶
+    s.provider_keys["api.my-gw.com"]         = "k";     // 真习惯
+    s.provider_keys["localhost:11434"]       = "x";     // 本地终点
+    // 退步(问题30):a 完整-URL 带有多功能的自定义主机 -segment
+    // 路径( 选项) z.ai's GLM 编码计划)必须是自己的 目录 源
+    // —— 这不是一个预设, 也不被采纳到一个, 所以 选择面板 什么都没有显示。
     s.provider_keys["https://api.z.ai/api/coding/paas/v4"] = "zkey";
 
     const auto srcs = provider::catalog_sources(s, agentty::auth::AuthView{});
@@ -2019,23 +2019,23 @@ TEST_CASE("catalog_sources enumerates presets and custom hosts, once each") {
     CHECK(count_id("https://api.z.ai/api/coding/paas/v4") == 1,
           "a full-URL custom host is a source");
 
-    // Every id is unique — the property a per-caller enumeration kept losing.
+    // 每一ID都是独特的——财产为每 -caller 点数一直输掉
     std::set<std::string> ids;
     for (const auto& c : srcs) {
         CHECK(ids.insert(c.id).second, "catalog source ids are unique");
         CHECK(!c.label.empty(), "every source has a label to render");
     }
-    // Presets are still all present (the enumeration didn't drop the easy half).
+    // 预设仍然全部存在(计数没有降低简单的一半).
     for (const auto& p : provider::providers())
         CHECK(count_id(p.id) == 1);
-    // Custom hosts are never sign-in offers: holding a saved key IS auth.
+    // 自定义主机从不签名 -in 提供: 持有 已保存 键 IS 认证。
     for (const auto& c : srcs)
         if (!c.is_preset) CHECK(!c.needs_signin);
 }
 
-// Credentials are host effects now: a switch says WHICH provider's header to
-// install and the host resolves it; sign-out says to clear it. The reducer
-// never reads a credential file itself.
+// 凭据现在是副作用的主机:一个开关说WHICH供应商的头
+// 文件安装,主机解决;标志-out说清除.
+// 状态更新函数从来没有读过凭据文件本身.
 TEST_CASE("provider switch and sign-out return InstallAuth, not a resolved header") {
     using namespace agentty::msg;
     install_stub_deps();
@@ -2048,8 +2048,8 @@ TEST_CASE("provider switch and sign-out return InstallAuth, not a resolved heade
     m.d.recent_models = { ModelRef{"groq", "llama-3.3-70b"} };
     auto [m1, c1] = app::update(std::move(m), Msg{LoginMsg{SignOut{}}});
 
-    // Sign-out clears the provider it left, then the fallback switch
-    // installs groq's header.
+    // 签名 -out 清除它留下的供货商,然后 回退 切换安装
+    // groq 的 头文件.
     bool cleared = false, installed_groq = false;
     agtest::fx::for_each(c1, [&](const auto& e) {
         if constexpr (std::same_as<std::remove_cvref_t<decltype(e)>,
@@ -2069,7 +2069,7 @@ TEST_CASE("OAuth login: the PKCE pair is minted by a Cmd, and a stale mint is dr
     Model m = seeded_model();
     m.ui.login = ui::login::Picking{};
 
-    // The reply moves to OAuthCode with the minted verifier.
+    // 回复随薄荷验证器移动到 OAuthCode。
     auth::PkceVerifier v{"verifier"};
     auth::OAuthState   st{"state"};
     auto [m1, c1] = app::update(std::move(m), Msg{LoginMsg{LoginOAuthMinted{
@@ -2079,7 +2079,7 @@ TEST_CASE("OAuth login: the PKCE pair is minted by a Cmd, and a stale mint is dr
     CHECK(oc->verifier.value == "verifier");
     CHECK(oc->authorize_url == "https://claude.ai/oauth/authorize?x");
 
-    // The user already closed the modal: a late mint changes nothing.
+    // 用户已经关闭 弹出面板: 晚期薄荷会改变什么.
     m1.ui.login = ui::login::Closed{};
     auto [m2, c2] = app::update(std::move(m1), Msg{LoginMsg{LoginOAuthMinted{
         v, st, "https://late", {}}}});
@@ -2087,8 +2087,8 @@ TEST_CASE("OAuth login: the PKCE pair is minted by a Cmd, and a stale mint is dr
     CHECK(c2.is_none());
 }
 
-// The account list and its edits work off the Model's AuthView; the registry
-// writes are AccountOp effects and the view comes back as AuthViewLoaded.
+// 该账号列表及其编辑工作与Model的AuthView无关;注册表的写法为
+// AccountOp 副作用,视图回溯为AuthViewLoaded.
 TEST_CASE("accounts: list from the view, removal promotes the newest other") {
     using namespace agentty::msg;
     install_stub_deps();
@@ -2107,7 +2107,7 @@ TEST_CASE("accounts: list from the view, removal promotes the newest other") {
     CHECK(al->rows[0].active);
     CHECK(al->cursor == 0);
 
-    // Remove the active one: two presses, then Remove + Activate("home").
+    // 删除活动 : 2 个按键, 然后删除 + 激活( "home")。
     auto [m2, c2] = app::update(std::move(m1), Msg{LoginMsg{AccountRemove{}}});
     auto [m3, c3] = app::update(std::move(m2), Msg{LoginMsg{AccountRemove{}}});
     bool removed = false, promoted = false, reload = false;
@@ -2126,7 +2126,7 @@ TEST_CASE("accounts: list from the view, removal promotes the newest other") {
     CHECK(promoted);
     CHECK(reload);
 
-    // The view coming back rebuilds the open list.
+    // 回来的视图重建了开放列表.
     agentty::auth::AuthView v;
     v.loaded = true;
     v.providers["anthropic"] = agentty::auth::ProviderAuth{
@@ -2140,13 +2140,13 @@ TEST_CASE("accounts: list from the view, removal promotes the newest other") {
     CHECK(al4->rows[0].active);
 }
 
-// Recalls are saved under the canonical id; a legacy spec must still find them.
+// 回顾 已保存 在一个古老的标志下 仍然必须找到它们
 TEST_CASE("model recall: legacy provider spellings find the saved model") {
     agentty::store::Settings s;
     s.provider_models["openai"] = "gpt-5.4";
     CHECK(app::detail::model_for_provider(s, "openai") == "gpt-5.4");
     CHECK(app::detail::model_for_provider(s, "codex") == "gpt-5.4");
-    // An entry an older build saved under the raw spec still counts.
+    // 旧建筑的条目 已保存 原始的光谱仍然算数
     agentty::store::Settings old;
     old.provider_models["codex"] = "gpt-5.4-mini";
     CHECK(app::detail::model_for_provider(old, "codex") == "gpt-5.4-mini");

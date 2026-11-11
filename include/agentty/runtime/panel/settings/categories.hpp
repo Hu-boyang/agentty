@@ -1,22 +1,22 @@
 #pragma once
-// settings_categories — the config concerns surfaced as Ctrl+K rows, each
-// opening the shared settings-list picker. Just the enum + labels; the row
-// data lives in settings_items.hpp, the UI state in settings_list.hpp.
+// settings_categories-配置问题表现为Ctrl+K行，
+// 每行打开共享设置-list 选择面板。只是 枚举 + 标签；行数据位于
+// settings_items.hpp，UI 状态位于 settings_list.hpp。
 
 #include <cstdint>
 
 namespace agentty::settings {
 
-// Each value is one list in the shared settings picker. General is the root
-// ("Settings"): a few values plus a door row to every other pane and list.
-// Form panes (Appearance, Sandbox, Smart Mode, ...) are not categories, they
-// are only ever reached through a General door.
+// 每个值是共享设置选择面板中的一个列表。
+// 一般是根（"Settings"）：几个值加上门行到每隔一个面板和列表。
+// 表格面板 (外观、沙箱、智能模式……)不是类别，
+// 它们只能通过普通门到达。
 enum class Category : std::uint8_t {
-    General,   // the Settings hub
-    Plugins,   // MCP servers (mcp.json): list + remove
-    Commands,  // slash commands: discovered list (read-only)
-    Agents,    // user subagents: discovered list (read-only)
-    Hooks,     // lifecycle hooks: file + approval state + approve action
+    General,   // 设置中心
+    Plugins,   // MCP服务器(mcp.json):列出+删除
+    Commands,  // 斜线命令：发现列表(read-only)
+    Agents,    // 用户子代理:发现列表(read-only)
+    Hooks,     // 生命周期挂钩：文件+批准状态+批准动作
 };
 
 [[nodiscard]] constexpr const char* label(Category c) noexcept {
@@ -24,16 +24,16 @@ enum class Category : std::uint8_t {
         case Category::General:  return "Settings";
         case Category::Plugins:  return "Plugins";
         case Category::Commands: return "Commands";
-        // "Subagents", not "Agents", to disambiguate from the AGENTS.md project-
-        // guidance standard (agents.md). These are the task tool's delegate
-        // PERSONAS (.agentty/agents/*.md); AGENTS.md is a project doc.
+        // "Subagents"，而不是 "Agents"，以消除与 AGENTS.md 项目指导
+        // 标准 (agents.md) 的歧义。这些是任务工具的委托 PERSONAS
+        // (.agentty/agents/*.md)； AGENTS.md 是一个项目文档。
         case Category::Agents:   return "Subagents";
         case Category::Hooks:    return "Hooks";
     }
     return "?";
 }
 
-// A one-line subtitle for each picker (shown under the title).
+// 每个选择面板有一个-line副标题（显示在标题下）。
 [[nodiscard]] constexpr const char* subtitle(Category c) noexcept {
     switch (c) {
         case Category::General:  return "behaviour, look, safety and extensions";

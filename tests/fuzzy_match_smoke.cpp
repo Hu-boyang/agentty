@@ -1,10 +1,10 @@
-// Smoke test for the line-DP fuzzy matcher. Builds against the mcp-cpp
-// fuzzy_match TU directly (no GoogleTest dependency). That TU is the SINGLE
-// source of truth for the edit tool's matcher — the agentty-local fork was
-// removed; the `edit` tool (third_party/mcp-cpp/src/tools/fs_edit.cpp) uses this one.
+// 线路的烟雾测试 -DP 模糊的对决者, 构建在反面 mcp-cpp fuzzy_match
+// TU 直接( 无) GoogleTest 依赖性。 TU 是那个 唯一 编辑工具匹配器的
+// 真伪源 – e. agentty-local 叉子被移除; 键 `edit` 工具(
+// 选项) third_party/mcp-cpp/src/tools/fs_edit.cpp )用此经.
 //
-// Cases mirror Zed's StreamingFuzzyMatcher test suite — they're the
-// regressions we want to keep passing.
+// 案例镜像Zed的StreamingFuzzyMatcher测试套
+// 件——它们是我们希望不断通过的回归.
 
 #include "agtest.hpp"
 
@@ -25,7 +25,7 @@ void expect(const char* name, bool cond, std::string_view detail = {}) {
     CHECK_MESSAGE(cond, m);
 }
 
-}  // namespace (helper)
+}  // 名称空间 (帮助)
 
 TEST_CASE("exact unique") {
     std::string_view file = "alpha\nbeta\ngamma\n";
@@ -44,7 +44,7 @@ TEST_CASE("exact ambiguous no hint") {
 
 TEST_CASE("exact ambiguous with hint") {
     std::string_view file = "fn first(){}\nfn second(){}\nfn third(){}\n";
-    auto r = fuzzy_find(file, "fn second(){}", "", 1u /* 0-based line of `fn second` */);
+    auto r = fuzzy_find(file, "fn second(){}", "", 1u /* 0-based 线条 `fn second` */);
     expect("ambiguous resolved by hint",
           r.ok && r.pos == 13 && r.len == 13,
           "expected pos=13 len=13");
@@ -59,7 +59,7 @@ TEST_CASE("typo tolerated") {
         "fn foo2(b: usize) -> usize {\n"
         "    42\n"
         "}\n";
-    // Needle has a typo: u32 instead of usize.
+    // 针头有一种类型:u32而不是用益.
     std::string_view needle = "fn foo1(a: usize) -> u32 {\n40\n}";
     auto r = fuzzy_find(file, needle);
     expect("typo in keyword tolerated",
@@ -74,14 +74,14 @@ TEST_CASE("indent drift") {
         "        return 1;\n"
         "    }\n"
         "}\n";
-    // Needle is outdented (model emitted method body without class indent).
+    // 针头是外向的(模式排放方法正文不设类缩进)。
     std::string_view needle = "fn m() {\n    return 1;\n}";
     std::string_view new_t  = "fn m() {\n    return 2;\n}";
     auto r = fuzzy_find(file, needle, new_t);
     expect("indent drift detected",
           r.ok,
           "expected fuzzy match");
-    // Indent-fixup should have prepended 4 spaces to each non-blank line.
+    // 缩进 -fixup 应为每个非空格预留4个空格 -blank 线条。
     bool reindented = !r.adjusted_new_text.empty()
         && r.adjusted_new_text.find("    fn m() {") != std::string::npos
         && r.adjusted_new_text.find("        return 2;") != std::string::npos;
@@ -97,12 +97,12 @@ TEST_CASE("no match") {
 }
 
 TEST_CASE("trailing whitespace drift") {
-    // File has trailing spaces on each line.
+    // 文件在每个行上都有后缀空格。
     std::string_view file =
         "fn first() {    \n"
         "    body();    \n"
         "}    \n";
-    // Needle is the clean version.
+    // 针是清净的版本.
     std::string_view needle = "fn first() {\n    body();\n}";
     auto r = fuzzy_find(file, needle);
     expect("trailing-ws drift matched",
@@ -117,8 +117,8 @@ TEST_CASE("crlf") {
 }
 
 TEST_CASE("crlf multiline dp") {
-    // File has CRLF line endings, needle has LF only.
-    // The DP should still match because trimmed_of strips \r.
+    // 文件有 CRLF 线尾,针头有 LF 仅此而已。
+    // 电话 DP 仍然应该匹配,因为 trimmed_of 条条\r。
     std::string_view file =
         "fn first() {\r\n"
         "    return 1;\r\n"
@@ -136,9 +136,9 @@ TEST_CASE("crlf multiline dp") {
 }
 
 TEST_CASE("smart quotes") {
-    // U+2018 / U+2019 are 3-byte UTF-8 curly single quotes.
-    // With smart-quote normalization in fuzzy_eq, these are converted to
-    // ASCII ' before Levenshtein comparison, so the lines match exactly.
+    // U+2018 / U+2019是3-byte UTF-8卷曲单引文.
+    // 聪明 -quote 实现正常化 fuzzy_eq ,
+    // 这些转换为 ASCII 在列文斯提因比较之前,所以线路完全吻合.
     std::string_view file = "print(\xe2\x80\x98hello\xe2\x80\x99)\n";
     auto r = fuzzy_find(file, "print('hello')");
     expect("smart-quotes normalized", r.ok,
@@ -146,8 +146,8 @@ TEST_CASE("smart quotes") {
 }
 
 TEST_CASE("class methods") {
-    // Zed's test_resolve_location_class_methods — the needle skips a line
-    // (three() returns 333) so it must use INSERTION_COST.
+    // 赛德的 test_resolve_location_class_methods ——针跳过一条线(" ⁇ "字).
+    // three() 返回 333),因此必须使用 INSERTION_COST.
     std::string_view file =
         "class Something {\n"
         "    one() { return 1; }\n"

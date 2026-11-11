@@ -1,7 +1,7 @@
-// wire_audit.cpp — see wire_audit.hpp for why this exists.
+// wire_audit.cpp - 看见了 wire_audit.hpp 为什么会有这种东西?
 //
-// One pass over the wire messages, collecting every defect that has ever
-// produced a 400 we had to diagnose from a body dump.
+// 一个通过 传输 收集我们从一个
+// 正文 垃圾 垃圾 废物 垃圾
 
 #include "agentty/runtime/app/wire_audit.hpp"
 
@@ -14,13 +14,13 @@ WireAudit audit_wire(const std::vector<Message>& wire) {
     a.message_count = wire.size();
     if (!wire.empty()) a.last_role = wire.back().role;
 
-    // Pass 1 — shape counts, plus the defects a single message can be
-    // judged on alone.
+    // 传1——形状计数,加上缺陷,单条消息可以
+    // 单独判断.
     //
-    // Tool-call/result PAIRING needs both ends, so it waits for pass 2.
-    // Everything here is local: a name is empty or it is not.
-    std::unordered_set<std::string> call_ids;     // ids the assistant asked for
-    std::unordered_set<std::string> answered;     // ids that carry a result
+    // Tool-call/result PAIRING 需要两端,所以它等待2号通道。
+    // 这里的一切都是本地的:一个名字是空的还是没有.
+    std::unordered_set<std::string> call_ids;     // 助理要求的编号
+    std::unordered_set<std::string> answered;     // 带有结果的IDs
 
     for (std::size_t i = 0; i < wire.size(); ++i) {
         const auto& m = wire[i];
@@ -32,21 +32,21 @@ WireAudit audit_wire(const std::vector<Message>& wire) {
             }
         }
 
-        // An entirely contentless message.
+        // 一个完全没有内容的信息。
         //
-        // EXCEPT the last one. Every turn appends the assistant message
-        // the model is ABOUT to fill before the request goes out, so the
-        // final slot is legitimately empty at audit time — by
-        // construction, on every healthy turn.
+        // EXCEPT 最后一个。每个转弯后,
+        // 助理消息就是 ABOUT 因此,在审计时,
+        // 最后的空位是正当的——通过建筑,
+        // 在每个健康转折时。
         //
-        // This fired on real traffic immediately: a 928-message thread
-        // reported `defects=1` on every single turn, always at index
-        // 927. A warning that fires on every healthy turn is worse than
-        // no warning, because it trains the reader to skip the channel
-        // the real defects arrive on — the exact failure the
-        // "checker that cries wolf gets muted" note in the pending-call
-        // arm below was written about. I wrote that note and then shipped
-        // the same mistake one arm up.
+        // 这火速攻击了真正的交通: 928路 -message
+        // 线程 报告 `defects=1` 每一转,总是在指数
+        // 927. 警告说,在健康转弯处开火比在外开枪更糟糕。
+        // 因为它训练读者跳过频道 真正的缺陷到达了——
+        // 准确的失败
+        // 反复误报的检查器最终会被忽略。
+        // 附注 待处理-call 手放在下面,我写了那张纸条
+        // 然后把同样的错误 抬起来
         const bool has_text  = !m.text.empty() || !m.streaming_text.empty()
                             || !m.pending_stream.empty();
         const bool is_last   = (i + 1 == wire.size());
@@ -59,16 +59,16 @@ WireAudit audit_wire(const std::vector<Message>& wire) {
             ++a.tool_call_count;
             call_ids.insert(tc.id.value);
 
-            // THE one. A tool call the server cannot route, which comes
-            // back as a 400 naming an index rather than a cause.
+            // 该 一. 工具 调用 服务器不能路径,
+            // 它作为400个命名索引而不是一个原因而出现。
             if (tc.name.value.empty()) {
                 a.defects.push_back({Defect::Kind::NamelessToolCall, i,
                                      tc.id.value});
             }
 
-            // A call in a TERMINAL state carries its result on the wire;
-            // one still pending does not, and that is correct mid-turn.
-            // Only a terminal call counts as answered.
+            // A 调用 在一个 TERMINAL 状态将结果带入 传输 ;
+            // 还有一个 待处理 而不是,这是正确的中期 -turn.
+            // 仅a 终端 调用 计数为答案。
             if (tc.is_terminal()) {
                 ++a.tool_result_count;
                 answered.insert(tc.id.value);
@@ -85,12 +85,12 @@ WireAudit audit_wire(const std::vector<Message>& wire) {
         }
     }
 
-    // Pass 2 — pairing.
+    // 传2——对联.
     //
-    // A result with no call is always wrong. A call with no result is only
-    // wrong once the turn has moved on: the LAST message is allowed to
-    // hold calls still awaiting execution, which is the normal mid-turn
-    // state and not a defect.
+    // 结果是没有 调用 总是错的 A 调用 只有在
+    // 转弯之后, 最后 允许信件保存 调用 仍在
+    // 等待处决,这是正常的中点 -turn 州
+    // 而不是一个缺陷。
     for (std::size_t i = 0; i < wire.size(); ++i) {
         const auto& m = wire[i];
         const bool is_last = (i + 1 == wire.size());
@@ -102,12 +102,12 @@ WireAudit audit_wire(const std::vector<Message>& wire) {
         }
     }
 
-    // An orphan result cannot be detected from ToolUse alone — a terminal
-    // call is its own result in this model, so the id is always paired by
-    // construction. The kind stays in the enum because the ACP and
-    // subagent paths assemble tool results independently and can produce
-    // one; leaving a hole in the taxonomy would just move the diagnosis
-    // back to reading a body dump.
+    // 无法从中检测到孤儿结果 ToolUse 单独——a
+    // 终端 调用 i)是它自己在这个模型中的结果,
+    // 因此ID总是由构造来配对。 枚举 因为 ACP
+    // 和子剂路径独立组装工具结果,并可以生成一个结果;
+    // 在分类学中留下一个漏洞,将诊断结果重新转到读取一个 正文
+    // 垃圾 垃圾 废物 垃圾
     (void)call_ids;
     (void)answered;
 

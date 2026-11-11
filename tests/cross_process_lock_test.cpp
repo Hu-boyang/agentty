@@ -1,15 +1,15 @@
-// cross_process_lock_test — a shared-file section excludes a second agentty
-// PROCESS, waits for it with a bound, and is legal inside a lock body.
+// cross_process_lock_test ——共享的 -file 节不包括第二节
+// agentty PROCESS 等待它与束缚, 并且是合法的在 锁 正文.
 //
-// Three properties, each one a bug that shipped:
-//   1. a second process blocks until the holder leaves the section
-//   2. a holder that keeps it (stopped with ^Z, hung NFS) doesn't freeze the
-//      waiter forever: it goes on after kSharedFileWait with cross_process=false
-//   3. the wait is legal while this thread holds a lower-ranked guarded lock
-//      (the credential refresh path: auth_refresh lane, then the file). jaal
-//      aborts a delay_for there, which is what took CI down.
+// 三个属性,每个属性一个发运的bug:
+//   1. 持有者离开该区段之前的第二个流程块
+//   2. 持枪者(用^Z停止,挂NFS)不冻结
+//      服务员永远: 与 kSharedFile 等待 cross_process = 虚假
+//   3. 等候是合法的,而这个线程持有一个下-ranked 守卫的锁
+//      (无) 凭据 刷新路径 : auth_refresh ),然后是文件。 jaal 中止
+//      a delay_for 就是这样,这就是我们所付出的 CI 下来。
 //
-// Fork, not threads: a second thread is the lane's job, not the file lock's.
+// 叉子,别 线程 : 秒数 线程 是车道的工作,不是文件 锁's.
 #include "agentty/io/shared_file.hpp"
 #include "agentty/util/lock_levels.hpp"
 #include "agtest_cap.hpp"
@@ -33,7 +33,7 @@ namespace sf  = agentty::persistence;
 namespace lv  = agentty::lock_levels;
 using clock_t_ = std::chrono::steady_clock;
 
-namespace {  // fold: TU-local (bundled into agentty_standalone_tests)
+namespace {  // 归并: TU-local (捆绑成 agentty_standalone_tests)
 int g_fail = 0;
 #define CHECK(cond, msg)                                                       \
     do {                                                                       \
@@ -46,7 +46,7 @@ long long ms_since(clock_t_::time_point t0) {
 }
 
 #if HAVE_FORK
-// A child that holds `target`'s section for `hold`, telling us once it has it.
+// 一个孩子,拥有 `target` 用于 `hold` 告诉我们一旦它有了它。
 pid_t hold_in_child(const fs::path& target, std::chrono::milliseconds hold) {
     int fds[2];
     if (::pipe(fds) != 0) return -1;
@@ -70,7 +70,7 @@ pid_t hold_in_child(const fs::path& target, std::chrono::milliseconds hold) {
     return c == 'y' ? pid : -1;
 }
 #endif
-}  // namespace (fold)
+}  // 名称空间( 归并)
 
 int main() {
     std::printf("[cross_process_lock]\n");
@@ -78,8 +78,8 @@ int main() {
         ("agentty_xplock_" + std::to_string(::getpid()) + ".json");
 
 #if HAVE_FORK
-    // 1 + 3: a child holds the credential file's section for 300 ms. We wait
-    // for it from INSIDE the refresh lane, as the provider refresh does.
+    // 1+3: 儿童持有 凭据 文档的章节300毫秒。
+    // 内部 刷新车道, 和供应商刷新一样。
     {
         const pid_t pid = hold_in_child(target, std::chrono::milliseconds{300});
         CHECK(pid > 0, "child entered the section");
@@ -103,8 +103,8 @@ int main() {
         ::waitpid(pid, &st, 0);
     }
 
-    // 2: a child that never lets go. The section must give up at its bound
-    // and run anyway, without the cross-process guarantee.
+    // 2:一个从不放手的孩子,这个部门必须放弃束缚,不管怎样,
+    // 要跑,不要十字架 -process 保证。
     {
         const pid_t pid = hold_in_child(target, std::chrono::seconds{60});
         CHECK(pid > 0, "child entered the section (and will keep it)");

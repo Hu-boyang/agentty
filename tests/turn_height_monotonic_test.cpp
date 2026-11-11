@@ -1,24 +1,24 @@
-// turn_height_monotonic_test — a live turn's height only ever grows.
+// turn_height_monotonic_test ——活转弯的高度只会不断增大.
 //
-// The thread is printed ABOVE the composer, so a frame that is shorter than
-// the one before it drags the composer and status bar up under the user's
-// cursor; and once a row has scrolled past the viewport top it belongs to
-// the terminal's own scrollback, where no repaint can reach it. A shrink
-// there is not a wobble, it is corruption.
+// 电话 线程 已打印 上方 作曲家,
+// 所以一个 帧 将作曲和状态栏拖到用户光标下;
+// 可视区域 上面是属于 终端 属于自己的
+// 回滚缓冲区 ,在无 重绘 心理医生
+// 不会摇摆不定,而是腐败
 //
-// Every widget in a turn has its own reason to be monotonic and they are
-// each tested where they live (md_shape_sweep for the markdown shapes,
-// reasoning_ticker_height_test for the thought ticker's row window, the
-// tool bodies' row bounds in their own tests). This test is the one that
-// asks the question the user actually experiences: drive ONE turn through
-// the real reducers and the real ui::view the way a provider does —
-// reasoning, then a tool call with streaming output, then prose, with
-// animation frames in between — and watch the painted height.
+// 每一个部件都有理由转弯 单调递增的 他们每逢是被考验的,
+// 是他们所居住的地方。 md_shape_sweep 以倾斜
+// 的形状发誓, reasoning_ticker_height_test
+// 用于思维勾选器的行窗口,工具 正文 '行界限在他们自己的测试中。
+// 此测试是询问用户实际体验的问题: 驱动 一个 转身
+// 状态更新函数 和真实的 ui::view 提供商的
+// 做法——推理,然后是工具 调用 与 流式传输 输出,
+// 然后是动画 帧 在那之间,你们应当观察所画的高度。
 //
-// A failure prints the step where the height dropped and by how much.
-// Two probes for when it does: TRACE_ROWS=1 logs every height change with
-// its step name, DUMP_STEP=<prefix> prints the whole painted frame at the
-// matching steps. Both found real bugs here.
+// 失败会显示高度下降的步数和多少。
+// 两次探测器,当它发现时: TRACE_ROWS =1 记录每个高度变化
+// 及其阶下名称, DUMP_STEP=<prefix> 打印整个涂鸦 帧
+// 相匹配的阶梯上, 都在这里找到真正的错误。
 
 #include "agtest.hpp"
 
@@ -61,7 +61,7 @@ A::Model apply_tool(A::Model m, A::msg::ToolMsg event) {
     return std::move(next);
 }
 
-// Paint the REAL view and report the rows it occupies.
+// 绘制 真实 视图并报告其占用的行。
 int view_rows(const A::Model& m) {
     maya::RenderContext ctx{kWidth, kTermH, maya::render_generation(),
                             /*auto_height=*/true};
@@ -88,11 +88,11 @@ struct Watch {
     int   drops = 0;
     int   worst = 0;
     std::string worst_step;
-    // A dip that lasts: rows below the running peak for more than a frame or
-    // two. maya's inline renderer bridges a TRANSIENT 1-2 row seam dip (the
-    // activity-indicator → first-revealed-char handoff) with a running-max
-    // hold, so that class is invisible in the app. Nothing bridges a bigger
-    // or a longer one, and those are the shrinks the user sees.
+    // 持续时间的滑动: 运行高峰以下行超过一个 帧 或两只。 maya
+    // 内含 渲染器 桥a TRANSIENT 1-2行 接口边界 粘贴
+    // ( 活动) -indicator ——第一个 -revealed-char
+    // 交接),并有运行 -max 抓住,所以类在应用中是隐形的。
+    // 没有比较大的或更长的,而这些都是用户看到的收缩。
     int   peak = 0;
     int   below_peak_frames = 0;
     int   worst_run = 0;
@@ -128,10 +128,10 @@ struct Watch {
     }
 };
 
-// Reasoning the way a provider delivers it: a few sentences per delta, with
-// paragraph breaks. Long enough to slide the live window past its cap, and
-// shaped to include the case that collapsed a node-counted window — a SHORT
-// paragraph becoming the newest node after a long one.
+// 提供商提供它的原因: 每三角洲几句, 段落中断。
+// 足够长的时间滑过窗口的封顶, 并形状包括一个节点
+// 崩溃的大小写 -counted 窗口—— a
+// SHORT 段落在长节后成为最新的节点。
 const std::vector<std::string>& reasoning_deltas() {
     static const std::vector<std::string> d = {
         "Let me look at what the user is asking for here, because there are "
@@ -162,18 +162,18 @@ const std::vector<std::string>& reasoning_deltas() {
     return d;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 static void sweep_one_turn(A::ui_prefs::Thinking thinking, const std::string& label) {
     maya::testing::freeze_anim_clock(0);
 
     A::Model m;
     m.d.current.id = A::ThreadId{"monotonic"};
-    m.d.persisted.ui.thinking = thinking;   // view() publishes this
+    m.d.persisted.ui.thinking = thinking;   // view() 发布此选项
     D::clear_frozen(m);
 
-    // A settled user turn above the stream, so the live content has a
-    // committed prefix the way it does in production.
+    // 一个定居的用户转过数据流,
+    // 所以直播内容有它制作方式的强制前缀.
     {
         A::Message u;
         u.role = A::Role::User;
@@ -189,16 +189,16 @@ static void sweep_one_turn(A::ui_prefs::Thinking thinking, const std::string& la
     Watch w{m};
     w.frame("open");
 
-    // ── 1. Reasoning ────────────────────────────────────────────────────
+    // ── 1. 理由 ────────────────────────────────────────────────────
     for (std::size_t i = 0; i < reasoning_deltas().size(); ++i) {
         m = apply(std::move(m), A::StreamThinkingDelta{reasoning_deltas()[i]});
         w.tick("reasoning" + std::to_string(i));
-        // Animation frames with no new bytes: the reveal moves the live edge
-        // on its own clock, and that must not change the height either.
+        // 动画 帧 没有新内容 字节 : 数据 逐步显示
+        // 移动它自己的时钟上的活边,这也不能改变高度。
         for (int f = 0; f < 3; ++f) w.tick("reasoning" + std::to_string(i) + "-anim");
     }
 
-    // ── 2. A tool call, with output arriving in fragments ───────────────
+    // ── 2. 工具调用,产出成片 ───────────────
     m = apply(std::move(m), A::StreamToolUseStart{A::ToolCallId{"call-1"},
                                                   A::ToolName{"shell"}});
     w.tick("tool-start");
@@ -208,10 +208,10 @@ static void sweep_one_turn(A::ui_prefs::Thinking thinking, const std::string& la
     m = apply(std::move(m), A::StreamToolUseEnd{A::ToolCallId{"call-1"}});
     w.tick("tool-end");
 
-    // Running, as the executor would leave it, so the progress snapshots
-    // below go through the real reducer. The PHASE moves too: a tool is
-    // executing, which is not phase::Streaming — and the view reads the
-    // phase to decide what the reasoning block is.
+    // 运行,因为执行者会离开它, 所以进步 快照 下方是真实
+    // 的 状态更新函数。该词 PHASE 动作也: 工具正在执行,
+    // 而不是 phase::Streaming ——而
+    // 观点读取阶段来决定推理块是什么.
     {
         auto& calls = m.d.current.messages.back().tool_calls;
         REQUIRE(!calls.empty());
@@ -221,11 +221,11 @@ static void sweep_one_turn(A::ui_prefs::Thinking thinking, const std::string& la
     m.s.phase = A::phase::ExecutingTool{A::phase::Active{}};
     w.tick("tool-running");
 
-    // Output the way a build actually arrives: many lines, alternating long
-    // (wraps at this width) and short. A LINE-counted window over text that
-    // WRAPS dips exactly like the node window did, so the window has to
-    // slide for the check to mean anything. The wire sends a SNAPSHOT each
-    // time, not a delta.
+    // 输出一个建筑实际到达的方式:许多线条,交替长(宽度为这个宽度
+    // 的包)和短线。 LINE-counted 窗口在文本中
+    // WRAPS 和节点窗口一样的滑动, 所以窗口必须滑动,
+    // 检查才意味着什么。 Name 传输 发送一个 SNAPSHOT 每次,
+    // 不是三角洲。
     std::vector<std::string> out;
     for (int i = 1; i <= 24; ++i) {
         if (i % 3 == 0) {
@@ -247,9 +247,9 @@ static void sweep_one_turn(A::ui_prefs::Thinking thinking, const std::string& la
         w.tick("tool-output" + std::to_string(i) + "-anim");
     }
 
-    // The tool FINISHES. The card stops rendering live progress and starts
-    // rendering its result, and those are two different renderers with two
-    // different row policies — the handover must not lose rows.
+    // 工具( E) FINISHES。卡片停止了。
+    // 渲染 生活进步与开始 渲染 以及这两个不同的渲染器,
+    // 有两个不同的行政策—— 移交不能失去行。
     {
         A::ToolExecOutput done{A::ToolCallId{"call-1"}, snapshot};
         done.exec_seq = kExecSeq;
@@ -257,16 +257,16 @@ static void sweep_one_turn(A::ui_prefs::Thinking thinking, const std::string& la
     }
     for (int f = 0; f < 4; ++f) w.tick("tool-done");
 
-    // The result goes back to the model and the next request opens.
+    // 其结果回到模型,然后下一个请求打开.
     m.s.phase = A::phase::Streaming{A::phase::Active{}};
     for (int f = 0; f < 4; ++f) w.tick("sub-turn-2-open");
 
-    // ── 2b. More reasoning, AFTER the tool result ──────────────────────
-    // Interleaved thinking and multi-item Responses streams deliver more
-    // reasoning once a sub-turn has acted, and that is the normal shape of
-    // an agentic turn. The quiet frames between bursts are the point: the
-    // reveal goes idle there, and anything that keys the block's shape off
-    // "is the typewriter animating" changes shape in the gap.
+    // ── 2b. 更多的推理,工具结果 之后 ──────────────────────
+    // 互换思维和多种 -item 答复 数据流 一次子程序时
+    // 提供更多推理 -turn 已经行动,而这是正常的 代理转动形状。
+    // 帧 中间的闪烁是: 逐步显示 闲在那里, 和任何键
+    // 街区的形状关闭 "is the typewriter animating"
+    // 变化间隙中的形状。
     for (std::size_t i = 0; i < 4; ++i) {
         m = apply(std::move(m), A::StreamThinkingDelta{
             i == 0 ? "\n\nThe build came back green, so the next thing to "
@@ -278,12 +278,12 @@ static void sweep_one_turn(A::ui_prefs::Thinking thinking, const std::string& la
                                "reveal go idle and then fed it more bytes."
                              : "\n\nChecking now."))});
         w.tick("reasoning2-" + std::to_string(i));
-        // The stall: no new bytes for a while, frames still painting.
+        // 摊位:没有新货 字节 暂时, 帧 还在画画
         for (int f = 0; f < 25; ++f)
             w.tick("reasoning2-" + std::to_string(i) + "-quiet");
     }
 
-    // ── 3. The answer ──────────────────────────────────────────────────
+    // ── 3. 答 问 ──────────────────────────────────────────────────
     const char* prose[] = {
         "The build is green.",
         " The turn renders top to bottom: the reasoning block first, then a "
@@ -299,7 +299,7 @@ static void sweep_one_turn(A::ui_prefs::Thinking thinking, const std::string& la
         for (int f = 0; f < 3; ++f) w.tick("prose" + std::to_string(i) + "-anim");
     }
 
-    // ── 4. Settle ──────────────────────────────────────────────────────
+    // ── 4. 解决 ──────────────────────────────────────────────────────
     {
         auto& b = m.d.current.messages.back();
         b.text += b.streaming_text;
@@ -314,31 +314,31 @@ static void sweep_one_turn(A::ui_prefs::Thinking thinking, const std::string& la
     INFO(label, ": ", w.drops, " dips, worst -", w.worst,
          " rows at '", w.worst_step, "'; longest below-peak run ",
          w.worst_run, " frames at '", w.worst_run_step, "'");
-    // The contract: no dip deeper than the 2-row seam handoff maya's hold
-    // bridges, and none that LASTS — a real shrink (the window releasing
-    // mid-turn was 13 to 32 rows, and it stayed) fails both ways.
+    // 合同:没有比2更深的浸泡 -row 接口边界 交接
+    // maya 桥上没有 LASTS 真正的心理医生(窗口释放
+    // 中点) -turn 13到32行,但两者都失败了。
     CHECK(w.worst <= 2);
     CHECK(w.worst_run <= 2);
 
-    // Not vacuous: the turn really did render, and all three lanes are in
-    // the frame. A view that drew nothing would sail through the check above.
+    // 不空虚:转弯真的 渲染 ,所有三条车道都在 帧。
+    // 一个没有画画的视图会通过上面的支票。
     const std::string frame = view_text(m);
     INFO(label, " final frame:\n", frame);
     CHECK(w.prev > 20);
-    CHECK(frame.find("Short.") != std::string::npos);          // answer prose
-    CHECK(frame.find("row bound") != std::string::npos);       // answer list
-    CHECK(frame.find("cmake --build") != std::string::npos);   // the tool card
+    CHECK(frame.find("Short.") != std::string::npos);          // 回答流言
+    CHECK(frame.find("row bound") != std::string::npos);       // 答题列表
+    CHECK(frame.find("cmake --build") != std::string::npos);   // 工具卡
 }
 
 TEST_CASE("turn: a live turn's height never shrinks, from reasoning to prose") {
-    // Thinking::Collapsed is the default: the reasoning block is a row
-    // window that grows to its cap and then holds.
+    // Thinking::Collapsed是默认:推理块是一个
+    // 排行窗口,它会成长到它的盖子,然后保持.
     sweep_one_turn(A::ui_prefs::Thinking::Collapsed, "collapsed");
 }
 
 TEST_CASE("turn: the same holds with reasoning shown in full") {
-    // Thinking::Shown has no window at all, so the block keeps growing --
-    // the other way to be monotonic, and the one that stresses the markdown
-    // underneath instead of the window.
+    // Thinking::Shown 根本没有窗口,
+    // 所以这个街区 继续增长 -- 另一条路是 单调递增的 ,
+    // 而那个强调下方的标记而不是窗口。
     sweep_one_turn(A::ui_prefs::Thinking::Shown, "shown");
 }

@@ -1,4 +1,4 @@
-// web_search_form.cpp — Settings → Web Search row model.
+// web_search_form.cpp — 设置 ~ Web 搜索行模式.
 
 #include "agentty/runtime/panel/web_search_form.hpp"
 
@@ -45,8 +45,8 @@ std::string trim(std::string_view s) {
     return std::string{s.substr(b, s.find_last_not_of(kSpace) - b + 1)};
 }
 
-// Whether `value` may be stored for the text dial `key` ("<service>.<dial>"):
-// mcp-cpp's own rule, so the pane never saves what a search would drop.
+// 是否可存储`value`,以便拨`key`("<service>.<dial>"):
+// mcp-cpp 自己的规则,所以 面板 永远 保存 搜索会减少的
 bool text_dial_ok(std::string_view key, std::string_view value) {
     const auto dot = key.find('.');
     if (dot == std::string_view::npos) return false;
@@ -57,7 +57,7 @@ bool text_dial_ok(std::string_view key, std::string_view value) {
     return false;
 }
 
-// "Brave Free \xe2\x86\x92 DuckDuckGo Free \xe2\x86\x92 Tavily Free" for the subtitle.
+// 副标题为"Brave Free \xe2\x86\x92 DuckDuckGo Free \xe2\x86\x92 Tavily Free".
 std::string chain_text(const web_search_cfg::Config& c) {
     std::string out;
     for (const std::string* id : {&c.primary, &c.secondary, &c.fallback}) {
@@ -69,9 +69,9 @@ std::string chain_text(const web_search_cfg::Config& c) {
     return out.empty() ? std::string{"Brave Free"} : out;
 }
 
-// The catalogue's labels on a slot row. add_row builds a Choice whose labels
-// are the raw ids ("brave-free"); the ids stay what is stored, the labels
-// become what a person reads.
+// 片段行上的目录标签. add_row 构建一个标签为原始 ID 的
+// 选择( Q) "brave-free" ); IDs 保留所储存的,
+// 标签成为一个人所读的.
 void label_slot_choice(form::Field& row) {
     auto* ch = std::get_if<form::field::Choice>(&row.value);
     if (!ch) return;
@@ -86,7 +86,7 @@ void label_slot_choice(form::Field& row) {
     }
 }
 
-// The rows that hang under one slot: the service's dials, then its key.
+// 悬挂在一个插槽下的行:服务拨号,然后是它的键.
 void add_service_rows(form::Builder& b, const web_search_cfg::Config& c,
                       const ::mcp::tools::WebSearchService& svc,
                       const KeyOrigin& key_origin) {
@@ -113,7 +113,7 @@ void add_service_rows(form::Builder& b, const web_search_cfg::Config& c,
     const bool from_env = origin.rfind("env: ", 0) == 0;
     const std::string env_var = from_env ? origin.substr(5) : std::string{};
 
-    // The help line is what explains a locked row, so it names the way out.
+    // 帮助线是解释一个锁上行,所以它命名了出路.
     std::string help = svc.label + " \xc2\xb7 ";
     if (stored)
         help += "key saved, stored encrypted \xc2\xb7 Remove key below to replace it";
@@ -124,28 +124,28 @@ void add_service_rows(form::Builder& b, const web_search_cfg::Config& c,
                 "settings.json \xc2\xb7 " + svc.signup;
     b.secret(std::string{kKeyPrefix} + svc.id, "  API key", "", std::move(help));
 
-    // What the row says is ONE phrase in the value column (the Secret's
-    // placeholder), never repeated in the origin column. The wording and
-    // glyphs are the Providers panel's: a key we hold reads
-    // "\xe2\x9c\x93 key saved", one from the environment "\xe2\x97\x8f key from VAR"
-    // (it is not saved, and there is no Remove row for it). No key: the
-    // widget's own "not set". Before the first read answers, "checking...",
-    // so the row claims neither way.
+    // 排行说 一个 语句和格言是提供者的面板:我们
+    // 持有的密钥读取了 "\xe2\x9c\x93 key saved" ,
+    // 来自环境的1
+    // "\xe2\x97\x8f key from VAR"
+    // (不是这样) 已保存 键:部件本身 "not set"。
+    // 在第一个答案之前, "checking..."
+    // 所以这行都说不出
     if (stored)               b.placeholder("\xe2\x9c\x93 key saved");
     else if (from_env)        b.placeholder("\xe2\x97\x8f key from " + env_var);
     else if (!origin.empty()) b.placeholder(origin);
-    // A held key locks its row: a stored one is changed by removing it first
-    // (Remove key, below), and an env key is not ours to change at all. The
-    // reason is left empty -- the value column already says it.
+    // 被持有的 锁 键它的行: 存储的键通过先移除它而更改
+    // ( 移出键, 下面), 而一个嵌入键则根本不是我们
+    // 要更改的。 原因留空了 — 值列已经说了。
     if (stored || from_env) b.lock("");
-    // Only a key we hold can be removed. One from the environment is not ours
-    // to delete, and the row above is locked for the same reason.
+    // 只有我们持有的密钥才能被移除。 环境中的一款不是我们的,
+    // 上面的一行是锁的, 原因是一样的。
     if (stored)
         b.action(std::string{kKeyClearPrefix} + svc.id, "  Remove key",
                  "forget the stored " + svc.label + " key", "press Enter");
 }
 
-} // namespace
+} // 命名空间结束。
 
 std::string_view key_row_service(std::string_view row_id) noexcept {
     if (row_id.rfind(kKeyPrefix, 0) == 0) return row_id.substr(kKeyPrefix.size());
@@ -160,7 +160,7 @@ std::string_view key_clear_service(std::string_view row_id) noexcept {
 form::Form build_form(const web_search_cfg::Config& c, const reg::EnvSnapshot& env,
                       const KeyOrigin& key_origin) {
     form::Builder b{" Web Search "};
-    // Say what the setting governs: the chain in force, by name.
+    // 说说环境的规范: 有效的链条,按名称排列。
     switch (web_search_cfg::mode(c)) {
         case web_search_cfg::Mode::On:
             b.subtitle("web_search \xc2\xb7 your counts apply \xc2\xb7 " + chain_text(c));
@@ -175,11 +175,11 @@ form::Form build_form(const web_search_cfg::Config& c, const reg::EnvSnapshot& e
 
     bool first = true;
     auto last_group = reg::Group::WebSearch;
-    std::vector<std::string> shown;   // services whose rows are already out
-    // Every search row is Basic: each one answers a question a user can
-    // actually have ("why so few results?", "why did it not search?"). Walked
-    // here rather than through add_rows only so a slot's dials and key can be
-    // placed directly under it.
+    std::vector<std::string> shown;   // 已退出的服务
+    // 每行搜索都是Basic:每个都回答一个用户实际上可以拥有的问题(
+    // 为什么结果很少？为什么没有执行搜索？
+    // 步行到这里而不是通过add_rows,只好让一个位位的拨号和
+    // 按键直接放在它下面.
     for (const auto& d : reg::kSettings) {
         if (d.owner() != reg::Owner::WebSearch) continue;
         if (first || d.group != last_group) {
@@ -200,14 +200,14 @@ form::Form build_form(const web_search_cfg::Config& c, const reg::EnvSnapshot& e
     for (auto& row : f.fields)
         if (is_slot_row(row.id)) label_slot_choice(row);
 
-    // Rows that do nothing in the current mode are locked, with a reason, and
-    // still shown so the user can see what they hold. apply_form skips locked
-    // rows, so their stored values survive a switch to a mode that uses them.
-    //   auto: the model sets the count, so the two count rows are inert.
-    //   off:  nothing is searched, so every row but the switch is inert.
-    // An env lock is left alone: its reason (the variable) is the truer one.
-    // A held key's lock has no reason of its own (its value says it), so it
-    // takes the mode's.
+    // 在当前模式下无所作为的行被锁定,有原因,仍然显示,
+    // 这样用户就可以看到自己持有的. apply_form跳过被
+    // 锁定的行,因此其存储的值在切换到使用它们的模式后幸存下来.
+    //   自动:模型设置计数,因此两行计数是惰性的。
+    //   关闭: 什么都没有被搜索, 所以每行除了开关都是惰性的。
+    // 一个env 锁被单独留下:它的原因(变量)是更真实的.
+    // 持有的按键的锁没有它自己的理由(其值表示它),
+    // 所以它取模式的.
     auto lock = [](form::Field& row, const char* why) {
         if (row.locked && !row.locked_reason.empty()) return;
         row.locked = true;
@@ -236,11 +236,11 @@ form::Form build_form(const web_search_cfg::Config& c, const reg::EnvSnapshot& e
 
 void apply_form(const form::Form& f, web_search_cfg::Config& c) {
     reg::read_rows(c, f, reg::Owner::WebSearch);
-    // Dial rows. They are not registry rows (which dials exist depends on the
-    // services chosen), so they are found by their id prefix. A dial set back
-    // to the service's own default (or a text row emptied) is erased, not
-    // stored as "". Typed text mcp-cpp would not send is not stored either:
-    // the rebuild then shows the row with what was on record.
+    // 拨号行。 它们不是注册表行( 拨号的存在取决于所选服务),
+    // 因此它们是由其id前缀找到的。 拨号被放回服务本身的
+    // 默认值( 或文本行空) 会被擦除, 而不是存储为""。
+    // 带类型的 文本 mcp-cpp 也不会被存储 :
+    // 然后重建显示记录中的行。
     for (const auto& row : f.fields) {
         if (row.locked || row.id.rfind(kDialPrefix, 0) != 0) continue;
         const std::string key = row.id.substr(kDialPrefix.size());

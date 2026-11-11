@@ -1,5 +1,5 @@
-// agentty run: the CLI side. Reads the prompt, runs it, turns signals into a
-// clean cancel, and prints the answer the way a script wants it.
+// agentty运行:CLI侧. 读提示词,运行它,
+// 将信号转换成干净的取消,并按剧本所希望的打印答案.
 
 #include "agentty/runtime/run_cli.hpp"
 #include "agentty/domain/catalog.hpp"
@@ -36,7 +36,7 @@ int exit_code_for(Status s, std::optional<maya::sig> got) {
         case Status::TurnLimit:     return 1;
         case Status::Unavailable:   return 3;
         case Status::ProviderError: return 3;
-        case Status::Timeout:       return 124;   // same as timeout(1)
+        case Status::Timeout:       return 124;   // 同超时(1)
         case Status::NotFound:      return 4;
         case Status::ContextFull:   return 5;
         case Status::Cancelled:
@@ -84,34 +84,34 @@ tools::OneShotOptions to_one_shot(const Options& o, std::stop_token cancel) {
     return t;
 }
 
-// The run's --output file: replaced whole, so a reader polling it sees the
-// last result or this one, never a half-written mix. The user's file, so its
-// mode is kept.
+// 跑步的车 --output 文件: 全部被替换, 所以读者投票 它看到最后
+// 的结果 或这个结果, 从来没有半 -written 混合。用户的文件,
+// 所以其模式保持不变。
 bool write_file(const std::string& path, std::string body) {
     if (!body.empty() && body.back() != '\n') body += '\n';
     return persistence::detail::write_in_section(path, body,
         {.durability = persistence::Durability::Atomic, .keep_mode = true});
 }
 
-// What the run and its watcher share: stop flags, the deadline result and
-// the signal that came in. Every field is Sync (const or atomic), so both
-// threads use it at once without a lock. request_stop() is non-const in the
-// standard (only libstdc++ marks it const; MSVC rejects the call), so the
-// sources are stopped through a copy, which shares their stop state.
+// 跑步和看门人分享的是什么: 停止 标志 ,最后结果和输入的信号。每个字段都是
+// 同步(Const或原子),所以两者都 线程 一次使用,没有 锁.
+// request_stop ( ) 否 ; ( ) 非 ; ( 非) 非、 或 非、
+// 非、 无 -const 在标准中(只有libstdc++标记其康斯特;
+// MSVC 拒绝 调用 ),所以通过一份副本阻止了来源,该副本分享了它们的停止状态.
 struct Watch {
-    const std::stop_source       cancel;      // stop the agent run
-    const std::stop_source       done;        // stop the watcher
+    const std::stop_source       cancel;      // 停止代理运行
+    const std::stop_source       done;        // 停止监视器
     std::atomic<bool>            timed_out{false};
-    std::atomic<int>             got{-1};     // the first maya::sig, -1 = none
+    std::atomic<int>             got{-1};     // 首个maya::sig, -1 = 无
     std::atomic<bool>            ready{false};
     std::atomic<bool>            failed{false};
 };
 
-// The watcher: owns its reactor and signal source (both stay on this one
-// thread), waits for Ctrl-C / SIGTERM / SIGHUP and the deadline, and stops
-// the run through `w`. It checks `done` every 20 ms instead of taking a
-// waker from the owner: the reactor (and its wake fd) dies with this thread,
-// so a wake sent after it returns could land on a recycled fd.
+// 监视器:拥有反应堆和信号源(都留在这台上) 线程 ),
+// 等待着 Ctrl-C / SIGTERM / SIGHUP 和期限,
+// 并停止运行 `w` 检查 `done` 每20米而不是
+// 从主人那里取一个醒号: 反应堆(和它的醒号)用这个死去 线程 ,
+// 所以一个醒 返回后可以降落在回收的叶片上。
 void watch_signals(std::stop_token, maya::co_owned<Watch> w,
                    std::optional<std::chrono::steady_clock::time_point> deadline) {
     using clock = std::chrono::steady_clock;
@@ -151,10 +151,10 @@ void watch_signals(std::stop_token, maya::co_owned<Watch> w,
     (void)reg;
 }
 
-// Runs the agent on this thread while a helper waits for Ctrl-C, SIGTERM or
-// SIGHUP, and for --timeout. The loop only checks its clock between turns, so
-// the helper cancels a long tool or a stuck stream when time is up. A second
-// Ctrl-C while the run unwinds exits at once.
+// 运行此代理 线程 援助者等待的时候, Ctrl-C, SIGTERM
+// 或 或 时 间 SIGHUP ,用于 --timeout。循环只检查其
+// 转弯之间的时钟,所以帮助者取消了一个长的工具或卡住了 数据流 等时间到了,
+// 再等一会 Ctrl-C 运行时会立即退出。
 tools::OneShotResult run_with_signals(const maya::unlocked& cap, const Options& o,
                                       std::optional<maya::sig>& got) {
     using clock = std::chrono::steady_clock;
@@ -163,16 +163,16 @@ tools::OneShotResult run_with_signals(const maya::unlocked& cap, const Options& 
     auto w = maya::co_owned<Watch>::make();
     tools::OneShotResult result = maya::scope(cap, [&](maya::nursery& n) {
         auto watcher = n.spawn(watch_signals, w, deadline);
-        maya::atomic_wait(cap, w->ready, false);   // signals are installed before the run
+        maya::atomic_wait(cap, w->ready, false);   // 运行前已安装信号
         if (w->failed) return tools::run_one_shot(cap, to_one_shot(o, {}));
-        struct Stop {   // the watcher stops however the run ends
+        struct Stop {   // 监视器停止运行,但运行结束
             const Watch& w;
             ~Stop() { std::stop_source(w.done).request_stop(); }
         } stop{*w};
         return tools::run_one_shot(cap, to_one_shot(o, w->cancel.get_token()));
     });
     if (const int g = w->got.load(); g >= 0) got = static_cast<maya::sig>(g);
-    // Our own deadline cancel is a timeout, unless a signal came first.
+    // 我们的最后期限 取消 是一个 超时 除非先有信号发出
     if (w->timed_out && !got && result.status == Status::Cancelled) {
         result.status = Status::Timeout;
         result.error  = "hit the time limit before finishing";
@@ -180,7 +180,7 @@ tools::OneShotResult run_with_signals(const maya::unlocked& cap, const Options& 
     return result;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 std::optional<int> parse_count(std::string_view s) {
     int n = 0;
@@ -224,8 +224,8 @@ int run(const maya::unlocked& cap, const Options& o) {
     const tools::OneShotResult r = run_with_signals(cap, o, got);
     const int code = exit_code_for(r.status, got);
 
-    // Fields a host refused during this run (the transport learned and
-    // resent): keep them so the next run doesn't hit the same 400.
+    // 本次比赛中,一个东道主拒绝(传输层得知并怨恨):保持他们,
+    // 这样下一场比赛就不会打到相同的400.
     if (const auto now = rejected_fields_snapshot(); now != rejected_before) {
         try {
             auto s = persistence::load_settings(IoAccess::grant());
@@ -247,8 +247,8 @@ int run(const maya::unlocked& cap, const Options& o) {
             return code == 0 ? 1 : code;
         }
     } else if (o.json || r.ok() || !r.text.empty()) {
-        // Partial text still goes to stdout on failure; the exit code says
-        // it isn't a finished answer.
+        // 部分文本在失败时仍然会转到 stdout;
+        // 退出代码称它不是一个完成的答案.
         std::fputs(body.c_str(), stdout);
         if (!body.empty() && body.back() != '\n') std::fputc('\n', stdout);
         std::fflush(stdout);

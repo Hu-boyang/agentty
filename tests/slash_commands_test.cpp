@@ -1,10 +1,10 @@
-// slash_commands_test.cpp — the user-authored slash-command engine
-// (tools::commands): discovery across the six roots with shadowing,
-// namespaced subdirectory names, lenient frontmatter, and the
-// $ARGUMENTS / $1..$9 / $$ substitution contract.
+// slash_commands_test.cpp ——用户 -authored
+// 斜线 -command 发动机( 4) tools::commands
+// :发现六根有阴影,命名空格的子目录名称,宽大前题,
+// 以及 $ARGUMENTS / 1.9美元/美元替代合同。
 //
-// Runs in a temp sandbox CWD + HOME so the real user's commands never
-// leak in. Pure filesystem + string logic — no Model, no network.
+// 运行在 titor 沙箱 CWD + HOME 中,所以真实用户的命令不会漏出.
+// 纯文件系统 + 字符串逻辑 — no Model, no network.
 
 #include "agtest.hpp"
 
@@ -35,10 +35,10 @@ void write_file(const fs::path& p, const std::string& body) {
     f << body;
 }
 
-// Each test mutates the sandbox then invalidates the cache; the mtime
-// signature would usually catch it anyway, but same-second writes on a
-// coarse-mtime filesystem could alias — the explicit invalidate makes
-// the tests deterministic.
+// 每一个测试都使 沙箱 然后取消 缓存 ;
+// 时间签名通常会捕捉到它, 但是一样的 -second
+// 写在粗体上 -mtime 文件系统可能别名——明确的无效性
+// 使得测试具有决定性。
 void rescan() { cmds::invalidate_cache(); }
 
 void discovery_and_shadowing(const fs::path& sandbox, const fs::path& home) {
@@ -137,19 +137,19 @@ void try_expand_shapes(const fs::path& sandbox) {
     std::println("PASS\n");
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("slash commands") {
     agtest::ScopedEnvSandbox _env_guard;
-    // Sandbox CWD + HOME.
+    // 沙箱 CWD + HOME. 互联网档案馆的存檔,存档日期2013-09-02.
     const fs::path sandbox =
         fs::temp_directory_path() / ("agentty_cmds_test_" +
                                      std::to_string(::getpid()));
     const fs::path home = sandbox / "home";
     fs::create_directories(home);
     fs::current_path(sandbox);
-    // home_dir() reads $HOME first, then $USERPROFILE: set both so an
-    // inherited $HOME (MSYS2/Git Bash) can't win, and clear AGENTTY_HOME.
+    // home_dir () 读作: $HOME 先说,然后说 $USERPROFILE : 设置
+    // 两个都如此继承 $HOME (MSYS2/Git 赢不了,而且要清空 AGENTTY_HOME.
     ::setenv("HOME", home.string().c_str(), 1);
 #ifdef _WIN32
     _putenv_s("USERPROFILE", home.string().c_str());

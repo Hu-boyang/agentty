@@ -1,4 +1,4 @@
-// web_search_plan.cpp — see the header.
+// web_search_plan.cpp - 看见了 头文件.
 
 #include "agentty/tool/web_search_plan.hpp"
 
@@ -13,7 +13,7 @@ namespace agentty::tools::web_search_plan {
 mcp::tools::WebSearchPlan build_plan(const web_search_cfg::Config& c,
                                   const KeyLookup& key_of) {
     ::mcp::tools::WebSearchPlan plan;
-    // Two lower-case letters or nothing: the value ends up in a request.
+    // 两个下-case字母或无:值最终是请求.
     if (c.language.size() == 2 && c.language[0] >= 'a' && c.language[0] <= 'z'
         && c.language[1] >= 'a' && c.language[1] <= 'z')
         plan.language = c.language;
@@ -35,8 +35,8 @@ mcp::tools::WebSearchPlan build_plan(const web_search_cfg::Config& c,
                 slot.dials.emplace_back(k.substr(prefix.size()), v);
         plan.slots.push_back(std::move(slot));
     }
-    // Nothing usable (all three unset or unknown): fall back to the key-less
-    // default rather than leave web_search with no way to answer.
+    // 无可用(所有三个未确定或未知): 回到密钥上 -less
+    // 默认而非离开 web_search 无法回答。
     if (plan.slots.empty()) {
         auto d = ::mcp::tools::default_web_search_plan();
         d.language = plan.language;
@@ -51,12 +51,12 @@ struct LiveSource final : ::mcp::tools::WebSearchPlanSource {
     ::mcp::tools::WebSearchPlan plan() const override {
         auto p = build_plan(web_search_policy::current(),
                             [](std::string_view s) { return web_search_secret::load(s); });
-        p.now = std::chrono::system_clock::now();   // mcp-cpp reads no clock
+        p.now = std::chrono::system_clock::now();   // mcp-cpp 读作无时钟
         return p;
     }
 };
 
-} // namespace
+} // 命名空间结束。
 
 std::shared_ptr<::mcp::tools::WebSearchPlanSource> make_plan_source() {
     return std::make_shared<LiveSource>();

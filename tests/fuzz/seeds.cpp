@@ -1,6 +1,6 @@
-// Writes seed inputs for the fuzz harnesses: real, well-formed examples of
-// each format, so the fuzzer mutates from deep inside the parsers instead of
-// rediscovering the syntax. Run by tests/fuzz/run.sh.
+// 为模糊的绳子写种子输入:真实的,好的 -formed 中,
+// 每个格式的示例,因此模糊的变异从深处 解析器 而不是重新发现语法。
+// 运行于 tests/fuzz/run.sh.
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -24,7 +24,7 @@ int main(int argc, char** argv) {
     fs::create_directories(rp_dir);
     fs::create_directories(tx_dir);
 
-    // A text item, an image and a file, as armor and as wire bytes.
+    // 文本项目、图像和文件,作为装甲和 传输 字节.
     rp::Item text_item = rp::Text::repair("hello, clipboard");
     rp::Item png_item = rp::Image{rp::Mime::parse("image/png").value(),
                                   rp::to_bytes(std::string_view{"\x89PNG\r\n\x1a\n0000IHDR"})};
@@ -40,14 +40,14 @@ int main(int argc, char** argv) {
     const auto err = rp::wire::encode_error("clipboard is empty", rp::Code::empty);
     put(rp_dir, "wire_err", 1, std::string_view{reinterpret_cast<const char*>(err.data()), err.size()});
 
-    // OSC 5522 packets, with and without ESC.
+    // OSC 5522包,有和无 ESC.
     const std::string data = rp::base64_encode(rp::to_bytes(std::string_view{"abc"}));
     put(rp_dir, "osc_data", 2, "type=read:status=DATA:mime=" + rp::base64_encode(rp::to_bytes(std::string_view{"image/png"})) + ";" + data);
     put(rp_dir, "osc_ok", 2, "type=read:status=OK");
     put(rp_dir, "stripped", 3, "]5522;type=read:status=OK\\]5522;type=read:status=DATA:mime=aW1hZ2UvcG5n;"
                                 + data + "\\]5522;type=read:status=DONE\\");
 
-    // A 2x1 24-bit BMP.
+    // A 2x1 24-bit BMP. 互联网档案馆的存檔,存档日期2013-12-21.
     const unsigned char bmp[] = {
         'B','M', 62,0,0,0, 0,0,0,0, 54,0,0,0,
         40,0,0,0, 2,0,0,0, 1,0,0,0, 1,0, 24,0, 0,0,0,0, 8,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,
@@ -56,7 +56,7 @@ int main(int argc, char** argv) {
     put(rp_dir, "uris", 6, "file:///tmp/a%20b.png\r\nfile:///home/x/y.txt\r\n");
     put(rp_dir, "mimes", 7, "image/png\ntext/plain;charset=utf-8\ntext/uri-list");
 
-    // fuzz_text: tool-call JSON as it streams, model ids, terminal output.
+    // fuzz_text : 工具 -call JSON 随它 数据流 模具身份证明 终端 输出。
     put(tx_dir, "json", 1, "{\"path\":\"a.txt\",\"content\":\"line\\none \\\"q\\\" \\u00e9\"}");
     put(tx_dir, "json_cut", 2, "{\"path\":\"a.txt\",\"content\":\"half a li");
     put(tx_dir, "model", 18, "claude-sonnet-4-5-20250929Claude Sonnet 4.5");

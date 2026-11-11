@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Drive agentty in a pty, feed keys, and print the rendered screen.
+"""在 PTY 中驱动 agentty，发送按键并输出渲染后的屏幕。
 
-Usage: agentty_screen_probe.py BINARY STEP...
-A step is a literal string to type, a key name (ENTER ESC UP DOWN TAB
-BS CTRLV), PASTEFILE=path (bracketed paste of that file), or WAITn.n.
-The screen after the last step is printed as text.
-Needs pyte (pip install pyte).
+用法：agentty_screen_probe.py BINARY STEP...
+每一步可以是要输入的文本、按键名称（ENTER ESC UP DOWN TAB
+BS CTRLV）、PASTEFILE=path（用括号粘贴发送文件），或 WAITn.n。
+最后一步之后以文本输出屏幕。
+依赖 pyte，可通过 pip install pyte 安装。
 """
 import fcntl, os, pty, select, struct, sys, termios, time
 
@@ -48,13 +48,13 @@ for s in steps:
         pump(float(s[4:]))
         continue
     if s.startswith("PASTEFILE="):
-        # Bracketed paste of a file's contents.
+        # 文件内容的碎贴面。
         with open(s[len("PASTEFILE="):], "rb") as f:
             os.write(fd, b"\x1b[200~" + f.read() + b"\x1b[201~")
         pump(1.0)
         continue
     if s.startswith("PASTECHUNKS="):
-        # The same, delivered in 4 KB pieces like a real terminal over ssh.
+        # 同样的,4号交付 KB 碎片像真的一样 终端 过Ssh。
         with open(s[len("PASTECHUNKS="):], "rb") as f:
             data = b"\x1b[200~" + f.read() + b"\x1b[201~"
         for i in range(0, len(data), 4096):
@@ -63,7 +63,7 @@ for s in steps:
         pump(1.0)
         continue
     if s.startswith("RAWFILE="):
-        # Exactly these bytes, in 4 KB writes (a capture of what a terminal sent).
+        # 确切地说,这些字节在4KB中写道(对终端所寄的一则内容的总结)。
         with open(s[len("RAWFILE="):], "rb") as f:
             data = f.read()
         for i in range(0, len(data), 4096):
@@ -76,7 +76,7 @@ for s in steps:
         pump(0.01)
         continue
     if s.startswith("SLOWFILE="):
-        # These bytes at ~64 KB/s, like a paste crossing ssh from a laptop.
+        # 这些 字节 ~64时 KB/s 像是笔记本电脑上的贴纸十字架
         with open(s[len("SLOWFILE="):], "rb") as f:
             data = f.read()
         for i in range(0, len(data), 1024):
@@ -85,7 +85,7 @@ for s in steps:
         pump(1.0)
         continue
     if s.startswith("TYPEFILE="):
-        # No bracketed paste at all: the bytes arrive as if typed.
+        # 完全没有括号内的糊: 字节 来得好像 带类型的.
         with open(s[len("TYPEFILE="):], "rb") as f:
             data = f.read()
         for i in range(0, len(data), 4096):

@@ -1,9 +1,9 @@
-// agentty::acp::AgentServer — implementation. See server.hpp for the design.
+// agentty::acp::AgentServer-实施。设计见 server.hpp。
 //
-// Headless analogue of the TUI turn loop (src/runtime/app/cmd_factory.cpp).
-// Reuses the SAME provider, tools, wire shaping, and permission policy, driven
-// synchronously on a worker thread and sent to the client as session/update
-// notifications over an rpc::Peer.
+// TUI转向环（src/runtime/app/cmd_factory.cpp)的无头模拟。
+// 重用SAME提供者、工具、传输整形和权限策略，在工作线程 线程
+// 上同步驱动并通过rpc::Peer作为session/update
+// 通知发送到客户端。
 
 #include "agentty/acp/server.hpp"
 #include "agentty/version.hpp"
@@ -53,10 +53,10 @@
 #include "agentty/tool/tool_loading.hpp"
 #include "agentty/tool/tool_plan.hpp"
 #include "agentty/runtime/app/update/stream_args.hpp"  // canonify_tool_args (`cmd`→`command`)
-#include "agentty/runtime/app/cmd_factory.hpp"        // wire_messages_for, compaction prompts
+#include "agentty/runtime/app/cmd_factory.hpp"        // wire_messages_for，压实提示词
 #include "agentty/tool/commands.hpp"
 #include "agentty/tool/skills.hpp"
-#include "agentty/runtime/slash.hpp"   // one resolver for /name
+#include "agentty/runtime/slash.hpp"   // /name 的一个解析器
 #include "agentty/tool/spec.hpp"
 #include "agentty/tool/tool.hpp"
 #include "agentty/tool/util/fs_helpers.hpp"
@@ -76,7 +76,7 @@ namespace {
 using nlohmann::json;
 namespace a = ::acp;
 
-// A call to the client that throws its RpcError, for the try/catch paths.
+// 向客户端抛出其RpcError的调用，用于try/catch路径。
 template <jsonrpc::IsMethod M>
 typename M::result call(const maya::unlocked& cap, rpc::Peer& peer, const typename M::params& p) {
     auto r = peer.call<M>(cap, p);
@@ -84,9 +84,9 @@ typename M::result call(const maya::unlocked& cap, rpc::Peer& peer, const typena
     return std::move(*r);
 }
 
-// The editor's additionalDirectories, checked: each must be absolute and an
-// existing directory (the spec requires absolute; a missing one is an error
-// the user should see, not a root that silently grants nothing).
+// 编辑器的additionalDirectories，已检查：每个
+// 都必须是绝对目录并且是现有目录（规范要求绝对目录；缺少一个是用户
+// 应该看到的错误，而不是默默地授权什么都没有的根目录）。
 std::vector<std::string> extra_roots_of(const a::Maybe<a::List<std::string>>& dirs) {
     std::vector<std::string> out;
     if (!dirs) return out;
@@ -104,11 +104,11 @@ std::vector<std::string> extra_roots_of(const a::Maybe<a::List<std::string>>& di
     return out;
 }
 
-// Unix seconds as an ISO 8601 UTC timestamp, the format SessionInfo.updatedAt wants.
-// Not std::format("{:%FT%TZ}"): chrono formatting pulls libstdc++'s locale
-// encoding conversion, which needs iconv, and the static-libstdc++ macOS
-// release link has no iconv (libSystem doesn't export it) -- it broke the
-// 0.9.20 mac builds. gmtime + strftime is locale-free and identical here.
+// Unix秒作为ISO 8601 UTC时间戳，格式为SessionInfo.updatedAt想要的。
+// 不是 std::format("{:%FT%TZ}")：chrono 格式化会拉动 libstdc
+// ++ 的语言环境编码转换，这需要 iconv，而 static-libstdc++ macOS
+// 版本 链接 没有 iconv（libSystem 不导出它）——它破坏了 0.9.20 mac 版本。
+// gmtime + strftime 是 locale-free 并且与这里相同。
 std::string iso8601(std::int64_t unix_s) {
     const std::time_t t = static_cast<std::time_t>(unix_s);
     std::tm tm{};
@@ -122,15 +122,15 @@ std::string iso8601(std::int64_t unix_s) {
     return std::string(buf, n);
 }
 
-// One exact git-style patch for a change, for JetBrains AIR's diffPatch.
-// nullopt when it can't be exact (a CR byte, no hunks), so the caller sends
-// the plain diff instead, as the AIR contract asks.
+// 一个确切的 git-style 补丁 用于更改，用于 JetBrains AIR 的 diffPatch。
+// 当无法精确时（CR 字节，没有差异块），则 nullopt，
+// 因此调用者按照 AIR 合约的要求发送普通 diff。
 std::optional<std::string> air_git_patch(const FileChange& ch) {
     if (ch.hunks.empty()) return std::nullopt;
     if (ch.original_contents.find('\r') != std::string::npos ||
         ch.new_contents.find('\r') != std::string::npos)
         return std::nullopt;
-    // Path: no leading slash, forward slashes, git's default quoting.
+    // 路径：无前导斜杠、正斜杠、git的默认引用。
     std::string rel = ch.path;
     std::replace(rel.begin(), rel.end(), '\\', '/');
     while (!rel.empty() && rel.front() == '/') rel.erase(rel.begin());
@@ -161,11 +161,11 @@ std::optional<std::string> air_git_patch(const FileChange& ch) {
     out += "+++ " + b + tab + "\n";
     const bool old_nl = ch.original_contents.empty() || ch.original_contents.back() == '\n';
     const bool new_nl = ch.new_contents.empty() || ch.new_contents.back() == '\n';
-    // A missing final newline needs a "\ No newline" marker placed exactly;
-    // rather than risk a wrong patch, send the plain diff (AIR's fallback).
+    // 缺失的最后换行符需要准确放置"\ No newline"标记；
+    // 与其冒着错误 补丁 的风险，不如发送简单的 diff（AIR 的 回退）。
     if (!old_nl || !new_nl) return std::nullopt;
-    // Git-exact lines: content ends in '\n', so drop the empty piece after
-    // it (the display diff keeps it as a phantom line).
+    // Git-exact 行：内容以 '\n' 结尾，
+    // 因此将其后面的空部分删除（显示差异将其保留为虚线）。
     auto lines = [](const std::string& s) {
         std::vector<std::string> out;
         std::size_t pos = 0;
@@ -180,7 +180,7 @@ std::optional<std::string> air_git_patch(const FileChange& ch) {
     const auto a_lines = lines(ch.original_contents);
     const auto b_lines = lines(ch.new_contents);
     for (const auto& h : fc.hunks) {
-        // Rebuild each hunk's body from its ranges, clamped to real lines.
+        // 从其范围重建每个差异块的正文，夹紧到真实线。
         std::string body;
         int old_len = 0, new_len = 0;
         std::istringstream in(h.patch);
@@ -193,10 +193,10 @@ std::optional<std::string> air_git_patch(const FileChange& ch) {
                 if (ai >= static_cast<int>(a_lines.size()) || bi >= static_cast<int>(b_lines.size())) break;
                 body += " " + a_lines[ai++] + "\n"; ++bi; ++old_len; ++new_len;
             } else if (tag == '-') {
-                if (ai >= static_cast<int>(a_lines.size())) continue;   // the phantom line
+                if (ai >= static_cast<int>(a_lines.size())) continue;   // 幻影线
                 body += "-" + a_lines[ai++] + "\n"; ++old_len;
             } else if (tag == '+') {
-                if (bi >= static_cast<int>(b_lines.size())) continue;   // the phantom line
+                if (bi >= static_cast<int>(b_lines.size())) continue;   // 幻影线
                 body += "+" + b_lines[bi++] + "\n"; ++new_len;
             }
         }
@@ -212,20 +212,20 @@ std::optional<std::string> air_git_patch(const FileChange& ch) {
 }
 
 
-// Construct a text ContentBlock.
+// 构建文本ContentBlock。
 a::ContentBlock text_block(std::string s) {
     return a::ContentBlock{a::TextContent{std::move(s), a::Nothing, json::object()}};
 }
 
-// The first line of `s`, trailing CR stripped — for one-line card titles
-// built from a possibly-multiline command/body.
+// `s`的第一行，尾随CR被剥离——对于从可能-multiline
+// command/body.构建的一个-line卡标题
 std::string first_line(std::string s) {
     if (auto nl = s.find('\n'); nl != std::string::npos) s.resize(nl);
     if (!s.empty() && s.back() == '\r') s.pop_back();
     return s;
 }
 
-// agentty spec::Kind → acp::ToolKind.
+// agentty spec::Kind→acp::ToolKind。
 a::ToolKind acp_tool_kind(std::string_view tool_name) {
     namespace sp = tools::spec;
     const auto* s = sp::lookup(tool_name);
@@ -268,17 +268,17 @@ a::ToolKind acp_tool_kind(std::string_view tool_name) {
         case sp::Kind::Task:           return a::ToolKind::Think;
         case sp::Kind::Skill:          return a::ToolKind::Read;
     }
-    // No default:/fall-through return — the switch is exhaustive over Kind, so
-    // adding a new tool Kind re-triggers -Wswitch here (build error under
-    // -Werror) instead of silently mapping to Other. This is the DESIGN.md
-    // "sum type gains an arm → build error, not runtime ghost" rule.
-    return a::ToolKind::Other;   // unreachable
+    // 无默认值：/fall-through返回——切换对于Kind来说是详尽的，因此在此处添加新
+    // 工具Kind re-triggers -Wswitch（在-Werror下构建错误）而不是
+    // 默默地映射到其他。这就是 DESIGN.md
+    // "sum type gains an arm → build error, not runtime ghost" 规则。
+    return a::ToolKind::Other;   // 无法接通
 }
 
-// Present `path` relative to the session's workspace root when it lives
-// under it — Zed shows project-relative paths in tool cards, and absolute
-// paths are noise. Mirrors claude-code-acp's toDisplayPath, but we key off
-// the session cwd the client actually opened rather than process().cwd.
+// 当前 `path` 相对于会话的 工作区 根（当会话位于其下时）-
+// Zed 在工具卡中显示项目-relative 路径，绝对路径是噪音。
+// 镜像claude-code-acp的toDisplayPath，
+// 但是我们关闭客户端实际打开的会话cwd而不是process().cwd。
 std::string display_path(std::string_view path, std::string_view cwd) {
     if (path.empty() || cwd.empty()) return std::string{path};
     std::string_view c = cwd;
@@ -289,10 +289,10 @@ std::string display_path(std::string_view path, std::string_view cwd) {
     return std::string{path};
 }
 
-// Reconstruct a ripgrep-style command line from a grep call so the card reads
-// like what claude-code-acp shows: `grep -i --include="*.cpp" "pattern" path`.
-// Flags first, then --include for the glob, then the quoted pattern, then the
-// path — the exact order and quoting claude-code-acp's Grep case emits.
+// 从 grep 调用 重建 ripgrep-style 命令行，使得卡读起来像 claude-code-acp
+// 显示的那样：`grep -i --include="*.cpp" "pattern" path`。
+// 首先是 标志，然后是 glob 的 --include，然后是引用的模式，
+// 然后是路径——确切的顺序并引用 claude-code-acp 的 Grep 案例发出。
 std::string grep_command(const json& args) {
     auto s = [&](const char* k) -> std::string {
         return (args.contains(k) && args[k].is_string()) ? args[k].get<std::string>() : std::string{};
@@ -301,9 +301,9 @@ std::string grep_command(const json& args) {
         return args.contains(k) && args[k].is_boolean() && args[k].get<bool>();
     };
     std::string cmd = "grep";
-    // Case-insensitive is the default; claude-code-acp only ever appends `-i`
-    // (for its case_insensitive flag) — there is no `-s` arm. agentty's flag is
-    // case_sensitive, so emit `-i` only when NOT case-sensitive.
+    // Case-insensitive为默认； claude-code-acp 仅附加 `-i`（对于
+    // 其 case_insensitive 标志）——没有 `-s` 臂。 agentty的标志是
+    // case_sensitive，因此仅当NOT情况-sensitive时才发出`-i`。
     if (!b("case_sensitive")) cmd += " -i";
     const std::string glob = s("glob");
     if (!glob.empty()) cmd += " --include=\"" + glob + "\"";
@@ -314,9 +314,9 @@ std::string grep_command(const json& args) {
     return cmd;
 }
 
-// One-line human title for a tool call card. `cwd` (may be empty) lets file
-// paths render project-relative. Dispatch on the typed spec::Kind so a new
-// tool arm forces a decision here rather than silently falling to bare name.
+// One-line工具调用卡的人类标题。 `cwd`（可能为空）让文件路径
+// 渲染项目-relative。 分派 在 带类型的 spec::Kind 上，
+// 因此新的工具臂迫使我们在这里做出决定，而不是默默地落入赤裸裸的名字。
 std::string tool_title(const ToolUse& tc, std::string_view cwd = {}) {
     namespace sp = tools::spec;
     const auto& args = tc.args;
@@ -350,8 +350,8 @@ std::string tool_title(const ToolUse& tc, std::string_view cwd = {}) {
     switch (kind) {
         case sp::Kind::Read: {
             std::string p = path_arg();
-            // claude-code-acp uses "File" as the no-path fallback, and formats
-            // the range as " (offset - offset+limit-1)" / " (from line N)".
+            // claude-code-acp使用"File"作为no-path 回退，并将范围格式化为
+            // " (offset - offset+limit-1)"/" (from line N)"。
             auto off = num("offset"); if (!off) off = num("start_line");
             auto lim = num("limit");
             auto end = num("end_line");
@@ -385,11 +385,11 @@ std::string tool_title(const ToolUse& tc, std::string_view cwd = {}) {
         case sp::Kind::Diagnostics:
         case sp::Kind::Test:
         case sp::Kind::ProcessStart: {
-            // Match claude-code-acp: the command itself IS the title, shown
-            // in full (the client single-line-clamps for display, and the
-            // whole command also rides in the card's content block via
-            // command_content). Only the first line — a heredoc/multiline
-            // body would otherwise blow up the one-line card. No 96-char clip.
+            // 匹配claude-code-acp:命令本身IS标题，
+            // 完整显示(客户端single-line-clamps用于显示，
+            // 整个命令也通过command_content位于卡的内容块中)。
+            // 只有第一行 - heredoc/multiline 正文
+            // 会炸毁 one-line 卡。没有 96-char 夹子。
             std::string c = first_line(str("command"));
             if (!c.empty()) return c;
             std::string d = str("display_description");
@@ -495,12 +495,12 @@ std::string tool_title(const ToolUse& tc, std::string_view cwd = {}) {
         case sp::Kind::Forget:   return "Forget";
         case sp::Kind::Wipe:     return "Wipe memory";
     }
-    return n;   // unreachable; switch is exhaustive over Kind
+    return n;   // 不可达； switch 比 Kind 更详尽
 }
 
-// File locations a tool call touches, for Zed's follow-along. Emits the
-// primary path with a line anchor when the call names one (Read offset,
-// grep/find line hints), so Zed can jump the editor to the right spot.
+// 工具调用触及的文件位置，用于Zed的follow-along。
+// 当 调用 命名一个（读取偏移量、grep/find 行提示）时，
+// 会发出带有行锚点的主路径，以便 Zed 可以将编辑器跳转到正确的位置。
 a::List<a::ToolCallLocation> tool_locations(const ToolUse& tc, std::string_view cwd = {}) {
     a::List<a::ToolCallLocation> locs;
     const auto& args = tc.args;
@@ -509,21 +509,21 @@ a::List<a::ToolCallLocation> tool_locations(const ToolUse& tc, std::string_view 
             return args[k].get<std::int64_t>();
         return std::nullopt;
     };
-    // claude-code-acp emits the RAW (absolute) path in locations — only the
-    // card *title* is display-pathed. Zed uses locations to open the file in
-    // the editor, which needs the real on-disk path, not a project-relative
-    // one.
+    // claude-code-acp在位置中发出RAW（绝对）路径——仅卡*
+    // 标题*是display-pathed。 Zed 使用位置在编辑器中打开文件，
+    // 这需要真正的 on-disk 路径，而不是项目-relative
+    // 路径。
     //
-    // And it must be ABSOLUTE, not merely raw. Zed's resolve_location
-    // (acp_thread.rs) tries project_path_for_absolute_path, then falls back
-    // to open_local_buffer only `if is_absolute(path)` — a relative path
-    // matches neither and returns None, so the location is silently dropped
-    // and follow-along stops moving. Nothing errors; the feature just
-    // quietly stops working.
+    // 并且它必须是ABSOLUTE，而不仅仅是原始的。 Zed 的
+    // resolve_location (acp_thread.rs) 尝试
+    // project_path_for_absolute_path，
+    // 然后仅 `if is_absolute(path)` 回退到 open_local_buffer — 相对
+    // 路径都不匹配并返回 None，因此该位置会默默地被删除，并且 follow-along 停止移动。
+    // 没有任何错误；该功能会悄悄停止工作。
     //
-    // A tool arg is whatever the model typed, which for `read` is very often
-    // "src/main.cpp". So resolve against the session cwd here rather than
-    // trusting it.
+    // 工具arg是型号带类型的的任何东西，对于`read`来说，
+    // 其通常是"src/main.cpp"。因此，请坚决反对此处的会话 cwd，
+    // 而不是信任它。
     auto absolutise = [&](std::string p) -> std::string {
         if (p.empty() || cwd.empty()) return p;
         namespace fs = std::filesystem;
@@ -531,9 +531,9 @@ a::List<a::ToolCallLocation> tool_locations(const ToolUse& tc, std::string_view 
         fs::path fp{p};
         if (fp.is_absolute()) return p;
         auto joined = fs::path{cwd} / fp;
-        // lexically_normal, not canonical: the file may not exist yet (a
-        // `write` to a new path still wants a location), and canonical would
-        // throw or return empty for it.
+        // lexically_normal，不规范：文件可能尚
+        // 不存在（新路径的 `write` 仍然需要一个位置），
+        // 并且规范将为其抛出或返回空。
         return joined.lexically_normal().string();
     };
     auto add = [&](std::initializer_list<const char*> keys, bool default_line_one = false) {
@@ -544,8 +544,8 @@ a::List<a::ToolCallLocation> tool_locations(const ToolUse& tc, std::string_view 
                 a::ToolCallLocation loc;
                 loc.path = absolutise(std::move(p));
                 auto ln = num("line"); if (!ln) ln = num("offset"); if (!ln) ln = num("start_line");
-                // claude-code-acp's Read emits `line: input.offset ?? 1`, so a
-                // Read with no offset still anchors the editor at line 1.
+                // claude-code-acp 的 Read 发出 `line: input.offset ?? 1`，
+                // 因此没有偏移的 Read 仍然将编辑器锚定在第 1 行。
                 if (!ln && default_line_one) ln = 1;
                 if (ln) loc.line = a::Just<std::int64_t>(*ln);
                 locs.push_back(std::move(loc));
@@ -574,15 +574,15 @@ a::List<a::ToolCallLocation> tool_locations(const ToolUse& tc, std::string_view 
     return locs;
 }
 
-// Build the prompt text from acp ContentBlock[].
-// One prompt's content blocks, split into what the model takes.
+// 从 acp ContentBlock[] 构建 提示词 文本。
+// 一个提示词的内容块，被分割成模型所采取的内容。
 //
-// Images used to be dropped on the floor here — the visitor had an empty
-// arm for ImageContent and the function returned only text. So pasting a
-// screenshot into Zed's agent panel silently sent the words and discarded
-// the picture, on a build whose TUI has had vision for months. Nothing
-// reported it, because a dropped block looks exactly like a model that
-// ignored the image.
+// 图像曾经被扔到这里的地板上——访客对于 ImageContent
+// 来说是空着手臂，并且该函数仅返回文本。因此，
+// 将屏幕截图粘贴到 Zed 的代理面板中，默默地发送了
+// 这些文字并丢弃了图片，该构建的 TUI 已经有几个月的愿景了。
+// 没有任何报告，因为掉落的方块看起来与忽略图像的
+// 模型一模一样。
 struct PromptParts {
     std::string               text;
     std::vector<ImageContent> images;
@@ -603,41 +603,41 @@ struct PromptParts {
                     [&](const a::BlobResource&)    {});
             },
             [&](const a::ImageContent& img) {
-                // ACP sends base64 + mimeType; our ImageContent holds raw
-                // bytes + media_type. Decode once here so every provider's
-                // image path sees the same shape it does from the TUI.
+                // ACP发送base64+mimeType；
+                // 我们的 ImageContent 持有原始 字节 + media_type。
+                // 在此解码一次，以便每个提供商的图像路径看到与 TUI 相同的形状。
                 //
-                // A block that fails to decode is SKIPPED rather than
-                // aborting the turn: one bad attachment must not lose the
-                // prompt it arrived with.
+                // 未能解码的块是SKIPPED而不是
+                // 中止回合：一个坏附件一定不能丢失它所
+                // 到达的提示词。
                 auto bytes = util::base64_decode(img.data);
                 if (bytes.empty()) return;
                 out.images.emplace_back(
                     img.mimeType.empty() ? std::string{"image/png"} : img.mimeType,
                     std::move(bytes));
             },
-            // Audio has no path into a prompt yet — no provider we ship
-            // accepts it, and silently transcoding is worse than declining
-            // the capability (which we do, so a client should not send it).
+            // 音频还没有进入 提示词 的路径——我们提供的
+            // 提供商都没有接受它，并且默默地转码比拒绝该功能
+            // 更糟糕（我们这样做，所以客户端不应该发送它）。
             [&](const a::AudioContent&) {});
     }
     return out;
 }
 
-// agentty StopReason → acp::StopReason.
+// agentty StopReason→acp::StopReason。
 a::StopReason acp_stop_reason(StopReason r, bool cancelled, bool errored) {
     if (cancelled) return a::StopReason::Cancelled;
     if (errored)   return a::StopReason::Refusal;
     switch (r) {
-        // ACP has a native Refusal, so a decline keeps its identity across the
-        // bridge instead of arriving in Zed as a normal end_turn.
+        // ACP具有本机拒绝，因此拒绝在桥上保持其身份，
+        // 而不是像正常的end_turn一样到达Zed。
         case StopReason::Refusal:      return a::StopReason::Refusal;
-        // Truncation is truncation to a client: both leave the answer cut
-        // off mid-thought, and MaxTokens is the signal ACP has for it. The
-        // CAUSE differs (request cap vs model window) and that distinction
-        // matters for what the user should do about it, but ACP has no
-        // separate value, and silently calling a truncated turn EndTurn
-        // would tell the client the answer is complete.
+        // 截断是对客户端的截断：两者都将答案截断在-thought中，
+        // 并且MaxTokens是ACP对其具有的信号。
+        // CAUSE 有所不同（请求上限与模型窗口），
+        // 这种区别对于用户应该做什么很重要，但 ACP
+        // 没有单独的值，并且默默地调用截断的转弯
+        // EndTurn 会告诉客户端答案已完成。
         case StopReason::ContextExceeded:
         case StopReason::MaxTokens:    return a::StopReason::MaxTokens;
         case StopReason::EndTurn:
@@ -648,11 +648,11 @@ a::StopReason acp_stop_reason(StopReason r, bool cancelled, bool errored) {
     return a::StopReason::EndTurn;
 }
 
-// A speculative diff-content block from an edit/write call's own args, shown
-// the moment the call is announced so Zed renders the diff card before the
-// tool runs (claude-code-acp does the same for FileEdit/FileWrite). The
-// authoritative diff — computed from the real on-disk before/after — replaces
-// this in the completion update.
+// 来自 edit/write 调用 自己的参数的推测性 diff-content 块，
+// 在宣布 调用 时显示，因此在工具运行之前 Zed 渲染 是 diff 卡（
+// claude-code-acp 对 FileEdit/FileWrite
+// 执行相同操作）。权威差异——根据真实的 on-disk before/after
+// 计算——在完成更新中替换了它。
 std::optional<a::ToolCallContent> announce_diff(const ToolUse& tc, std::string_view cwd) {
     namespace sp = tools::spec;
     const auto* spec = sp::lookup(tc.name.value);
@@ -664,17 +664,17 @@ std::optional<a::ToolCallContent> announce_diff(const ToolUse& tc, std::string_v
     std::string path = s("path"); if (path.empty()) path = s("file_path");
     if (path.empty()) return std::nullopt;
     a::TCC_Diff diff;
-    // Raw absolute path: Zed applies the diff to this exact on-disk file.
-    // claude-code-acp passes input.file_path unmodified here. (void)cwd.
+    // 原始绝对路径：Zed将差异应用到这个确切的on-disk文件。
+    // claude-code-acp在此未经修改地传递input.file_path。 （无效）cwd。
     (void)cwd;
     diff.path = path;
     if (spec->kind == sp::Kind::Write) {
-        // A Write replaces the whole file. Announce oldText as an empty string
-        // (not null) so Zed renders it as a normal diff card — the same widget
-        // shape as Edit — rather than a special "new file" affordance that
-        // looks different from an edit. The completion update carries the
-        // authoritative on-disk before/after (which fills in real prior text
-        // when the file already existed).
+        // Write 替换整个文件。将 oldText 宣布为空字符
+        // 串（非空），因此 Zed 渲染 将其视为普通的差异卡（与
+        // 编辑相同的小部件形状），而不是看起来与编辑不同的特殊
+        // "new file" 可供性。完成更新带有权威的on
+        // -disk before/after（当文件已经存在时，
+        // 它会填充真实的先前文本）。
         diff.oldText = a::Just<std::string>(std::string{});
         diff.newText = s("content");
         return a::ToolCallContent{std::move(diff)};
@@ -689,22 +689,22 @@ std::optional<a::ToolCallContent> announce_diff(const ToolUse& tc, std::string_v
     return std::nullopt;
 }
 
-// The FULL command text for a terminal-kind tool call, wrapped as a fenced
-// code block so Zed renders it verbatim in the (expandable) card body. The
-// card *title* is deliberately clipped to one short line (tool_title →
-// clip(...96)), and Zed further single-line-clamps long titles — so without
-// this the full `command` only lived in rawInput, which Zed doesn't surface
-// in the card. Emitting it as content means the untruncated command is always
-// visible. Only for command-carrying kinds; nullopt otherwise.
+// 终端-kind工具调用的FULL命令文本，被包装为隔离代码块，
+// 因此Zed 渲染将其逐字记录在(可扩展)卡正文中。卡片 *标题* 被
+// 故意剪裁为一小行（tool_title → 剪辑（...96）），
+// 并且 Zed 进一步使用单个 -line-clamps 长标题 - 因此，
+// 如果没有这个，完整的 `command` 只能存在于 rawInput 中，
+// 而 Zed 不会在卡片中出现。将其作为内容发出意味着未截断的命令始终可见。
+// 仅适用于命令-carrying种类；否则无效。
 std::optional<a::ToolCallContent> command_content(const ToolUse& tc) {
     namespace sp = tools::spec;
     const auto* spec = sp::lookup(tc.name.value);
     const auto& args = tc.args;
 
-    // Unknown / MCP tools: claude-code-acp's `Other` case pretty-prints the raw
-    // input as a ```json block so EVERY tool card has a legible body instead of
-    // an empty one. Do the same so an MCP tool surfaced to Zed shows its
-    // arguments rather than a bare title.
+    // 未知/MCP工具：claude-code-acp的`Other`案例pretty-prints原始
+    // 把输入放入 ```json 块，让每张工具卡片都有可读正文，避免
+    // 一个空的。执行相同的操作，以便 Zed 上出现的 MCP
+    // 工具显示其参数，而不是裸露的标题。
     if (!spec) {
         if (args.is_null()) return std::nullopt;
         std::string dump = args.dump(2);
@@ -726,9 +726,9 @@ std::optional<a::ToolCallContent> command_content(const ToolUse& tc) {
             return a::ToolCallContent{a::TCC_Content{text_block(std::move(md)), json::object()}};
         }
         case sp::Kind::WebFetch: {
-            // claude-code-acp attaches WebFetch's `prompt` as body content (the
-            // url is already in the title). Mirror it so the fetch intent shows
-            // in the card.
+            // claude-code-acp将WebFetch的`prompt`
+            // 附加为正文内容（url已经在标题中）。对其进行镜像，以便获取意图
+            // 显示在卡中。
             if (!args.contains("prompt") || !args["prompt"].is_string())
                 return std::nullopt;
             std::string body = args["prompt"].get<std::string>();
@@ -740,11 +740,11 @@ std::optional<a::ToolCallContent> command_content(const ToolUse& tc) {
     }
 }
 
-// A plain-text content block for the Task tool, whose defining input is the
-// sub-agent prompt (prose, not a command or diff). claude-code-acp attaches
-// the sub-agent prompt as a content block so the full text is visible in the
-// card body even though the title is clipped. (WebFetch's input is a bare
-// `url` already shown in the title, so it needs no extra block.)
+// 任务工具的普通-text内容块，其定义输入是sub-agent
+// 提示词（散文，不是命令或差异）。 claude-code-acp
+// 将 sub-agent 提示词 作为内容块附加，因此即使标题被剪裁，
+// 全文也可以在卡片 正文 中看到。 （WebFetch 的输入
+// 是标题中已显示的裸 `url`，因此不需要额外的块。）
 std::optional<a::ToolCallContent> prompt_content(const ToolUse& tc) {
     namespace sp = tools::spec;
     const auto* spec = sp::lookup(tc.name.value);
@@ -756,10 +756,10 @@ std::optional<a::ToolCallContent> prompt_content(const ToolUse& tc) {
     return a::ToolCallContent{a::TCC_Content{text_block(std::move(body)), json::object()}};
 }
 
-// Escape the markdown metacharacters Zed's card renderer would otherwise
-// interpret, so raw file/grep text with `*`, backticks, `#`, `_`, `[`, `<`
-// renders literally instead of turning into bold/headers/links/HTML. Mirrors
-// claude-code-acp's markdownEscape() applied to tool-result text.
+// 转义Markdown元字符Zed的卡渲染器否则会解释，因此原始file/grep文本带有`*`、
+// 反引号、`#`、`_`、`[`、`<` 渲染字面意思而不是变成bold/headers/links/HTML.
+// Mirrors claude-code-acp的markdownEscape
+// ()应用到 tool-result 文本。
 std::string markdown_escape(std::string_view s) {
     std::string out;
     out.reserve(s.size() + s.size() / 8);
@@ -777,31 +777,31 @@ std::string markdown_escape(std::string_view s) {
     return out;
 }
 
-// Render a completed tool's result text into the ACP content block Zed shows
-// in the card body, matching claude-code-acp's per-tool result shaping:
+// 渲染将完成的工具的结果文本插入到ACP内容块中，Zed在卡片正文中显示，
+// 匹配claude-code-acp的per-tool结果整形：
 //
-//   • Read → rebuild a line-numbered view (`<n>\t<line>`) starting at the
-//     read's offset, so Zed renders a clean gutter-numbered excerpt instead of
-//     a raw blob. The body is fenced as a plain code block so the tab-numbered
-//     lines and any markdown metacharacters in the file render verbatim.
-//   • Everything else → the text as-is, but markdown-escaped so stray `*`/`#`/
-//     backticks in output don't get parsed as formatting.
+//   ·读取→重建从以下位置开始的行-numbered视图(`<n>\t<line>`)
+//     读取的偏移量，因此 Zed 渲染 是干净的 gutter-numbered 摘录，
+//     而不是原始斑点。 正文 被隔离为纯代码块，因此文件 渲染 中的 tab
+//     -numbered 行和任何 Markdown 元字符都是逐字记录的。
+//   • 其他所有→文本为-is，但markdown-escaped所以偏离`*`/`#`/
+//     输出中的反引号不会被解析为格式。
 //
-// Returns a TCC_Content ready to push onto the completion update. `text` is the
-// tool's model-facing output; `tc` supplies the tool identity + args (offset).
+// 返回准备好推送完成更新的TCC_Content。 `text`是工具的
+// 型号-facing输出； `tc` 提供工具标识 + args（偏移量）。
 a::ToolCallContent result_content_block(const ToolUse& tc, const std::string& text) {
     namespace sp = tools::spec;
     const auto* spec = sp::lookup(tc.name.value);
     const sp::Kind kind = spec ? spec->kind : sp::Kind::Read;
 
     if (kind == sp::Kind::Read && !text.empty()) {
-        // Starting line = the read's offset (1-based), matching claude-code-acp
-        // (`structuredRead.file.startLine ?? input.offset ?? 1`). agentty's
-        // read tool prepends an optional `display_description` line and appends
-        // a trailing `[showing lines X-Y of N]` hint; both are model-facing
-        // scaffolding, not file bytes, so strip a leading description line and
-        // a trailing bracket hint before numbering so the gutter stays aligned
-        // with real file lines.
+        // 起始行=读取的偏移量(1-based)，匹配claude-code-acp(
+        // `structuredRead.file.startLine ?? input.offset ?? 1`)。
+        // agentty 的读取工具会在前面添加一个可选的 `display_description` 行，
+        // 并在后面附加一个 `[showing lines X-Y of N]` 提示；
+        // 两者都是 model-facing 脚手架，而不是文件 字节，
+        // 因此在编号之前去掉前导描述行和尾随括号提示，以便装订线与
+        // 实际文件行保持对齐。
         std::int64_t start = 1;
         const auto& args = tc.args;
         for (const char* k : {"offset", "start_line"}) {
@@ -813,15 +813,15 @@ a::ToolCallContent result_content_block(const ToolUse& tc, const std::string& te
         if (start < 1) start = 1;
 
         std::string_view body{text};
-        // Drop the trailing "\n[showing lines ...]" hint if present.
+        // 删除尾随的"\n[showing lines ...]"提示（如果存在）。
         if (auto hint = body.rfind("\n[showing lines ");
             hint != std::string_view::npos)
             body = body.substr(0, hint);
 
         std::string numbered;
         numbered.reserve(body.size() + body.size() / 8);
-        // read numbers its own lines now ("%6d\t"); only number old,
-        // unnumbered results here.
+        // 现在读取自己的行号（"%6d\t");这里只对旧的、
+        // 未编号的结果进行编号。
         auto already_numbered = [](std::string_view s) {
             std::size_t k = 0;
             while (k < s.size() && s[k] == ' ') ++k;
@@ -848,15 +848,15 @@ a::ToolCallContent result_content_block(const ToolUse& tc, const std::string& te
             if (nl == std::string_view::npos) break;
             pos = nl + 1;
         }
-        // Fence so the tab layout and any markdown chars render verbatim.
+        // 逐字栅栏选项卡布局和任何降价字符渲染。
         std::string md = "```\n" + numbered + "```";
         return a::ToolCallContent{a::TCC_Content{text_block(std::move(md)), json::object()}};
     }
 
-    // Command output (bash/test/diagnostics/process/git): fence as a code
-    // block so terminal output renders as a monospace log — exactly what a Zed
-    // user expects from a shell card — instead of markdown-escaped prose. This
-    // is the static fallback for when the live-terminal path isn't taken.
+    // 命令输出（bash/test/diagnostics/process/git)：
+    // fence作为代码块，因此终端将渲染输出为等宽日志——正是Zed
+    // 用户对shell卡的期望——而不是markdown-escaped散文。
+    // 这是未采用 live-terminal 路径时的静态 回退。
     if ((kind == sp::Kind::Bash || kind == sp::Kind::Test
          || kind == sp::Kind::Diagnostics || kind == sp::Kind::ProcessStart
          || kind == sp::Kind::ProcessPoll || kind == sp::Kind::ProcessStop
@@ -869,14 +869,14 @@ a::ToolCallContent result_content_block(const ToolUse& tc, const std::string& te
         return a::ToolCallContent{a::TCC_Content{text_block(std::move(md)), json::object()}};
     }
 
-    // Non-Read results: escape markdown so raw output renders literally.
+    // Non-Read结果：转义markdown，因此原始输出字面上的渲染。
     return a::ToolCallContent{
         a::TCC_Content{text_block(markdown_escape(text)), json::object()}};
 }
 
-// An ACP plan (Zed's checklist widget) built from the `todo` tool's args.
-// the native plan UI instead of an opaque "Update TODOs" tool card. Returns
-// nullopt when the call isn't a todo write or carries no usable list.
+// 从 `todo` 工具的参数构建的 ACP 计划（Zed 的清单小部件）。
+// 本机计划UI代替不透明的"Update TODOs"工具卡。
+// 当 调用 不是待办事项写入或不携带可用列表时，返回 nullopt。
 std::optional<a::SU_Plan> plan_from_todos(const ToolUse& tc) {
     namespace sp = tools::spec;
     const auto* spec = sp::lookup(tc.name.value);
@@ -897,7 +897,7 @@ std::optional<a::SU_Plan> plan_from_todos(const ToolUse& tc) {
         if (content.empty()) continue;
         a::PlanEntry e;
         e.content  = std::move(content);
-        e.priority = a::PlanEntryPriority::Medium;   // agentty todos carry no priority
+        e.priority = a::PlanEntryPriority::Medium;   // agentty待办事项没有优先级
         e.status   = status_of(t.value("status", std::string{"pending"}));
         plan.entries.push_back(std::move(e));
     }
@@ -905,16 +905,16 @@ std::optional<a::SU_Plan> plan_from_todos(const ToolUse& tc) {
     return plan;
 }
 
-// Helper: a ToolCall (announcement) from a pending ToolUse.
+// 助手：来自 待处理 ToolUse 的 ToolCall (通知）。
 a::ToolCall make_tool_call(const ToolUse& tc, a::ToolCallStatus status,
                            std::string_view cwd = {}) {
     a::ToolCall out;
     out.toolCallId = a::ToolCallId{tc.id.value};
     out.title      = tool_title(tc, cwd);
-    // The PROGRAMMATIC name, alongside the human title. Stabilised in spec
-    // 1.8.0 and optional, but a client that wants to group, filter or icon
-    // by tool identity cannot parse it back out of "Reading src/main.cpp" —
-    // so omitting it just makes that impossible.
+    // PROGRAMMATIC 名字，旁边是人类头衔。
+    // 在规范 1.8.0 中稳定且可选，但想要按工具标识进行分组、
+    // 过滤或图标的客户端无法将 解析 退出 "Reading src/main.cpp"
+    // — 因此省略它只会使这变得不可能。
     out.name       = a::Just<std::string>(tc.name.value);
     out.kind       = acp_tool_kind(tc.name.value);
     out.status     = status;
@@ -928,11 +928,11 @@ a::ToolCall make_tool_call(const ToolUse& tc, a::ToolCallStatus status,
     return out;
 }
 
-// ── Shell parity with Zed's native agent ────────────────────────────────────
-// The slash-command menu Zed renders in its composer. claude-code-acp exposes
-// its own set here; agentty exposes the ones that map to real turn actions plus
-// every installed, model-invocable skill as `/<name>`. Sent on session new/load
-// so Zed's `/` menu is populated the same way it is for the native agent.
+// ── 贝壳与Zed的本地代理对等 ────────────────────────────────────
+// 斜杠-command菜单Zed 渲染在其编辑器中。 claude-code-acp
+// 在这里公开了自己的集合； agentty 公开了映射到真实回合动作的技能以及每个
+// 已安装的型号 -invocable 技能，如 `/<name>`。
+// 在会话 new/load 上发送，因此 Zed 的 `/` 菜单的填充方式与本机代理相同。
 a::List<a::AvailableCommand> available_commands(Io io, bool air = false) {
     a::List<a::AvailableCommand> cmds;
     auto add = [&](std::string name, std::string desc, const char* hint) {
@@ -946,31 +946,31 @@ a::List<a::AvailableCommand> available_commands(Io io, bool air = false) {
     };
     add("compact", "Summarize the conversation to reclaim context window", nullptr);
     add("new",     "Start a fresh conversation, clearing prior context", nullptr);
-    // Zed groups and runs these as agent actions, not prompts it echoes.
+    // Zed 将这些分组并作为代理操作运行，而不是它回显的 提示词。
     for (auto& c : cmds) c.meta = json{{"command_category", "native"}};
     std::set<std::string> seen{"compact", "new"};
-    // The user's own slash commands (.agentty/.claude/commands/*.md), with
-    // their argument hint, the same set the TUI's `/` picker shows.
+    // 用户自己的斜杠命令(.agentty/.claude/commands/*.md)，
+    // 及其参数提示，与TUI的`/`、选择面板显示的相同。
     for (const auto& c : tools::commands::all(io)) {
         if (c.name.empty() || !seen.insert(c.name).second) continue;
         add(c.name, c.description.empty() ? "Run /" + c.name : c.description,
             c.argument_hint.empty() ? nullptr : c.argument_hint.c_str());
     }
-    // Every installed skill. user_only ones are exactly the ones meant to be
-    // run by hand, so they are listed too; the model just never sees them.
+    // 每个已安装的技能。 user_only 正是需要手动运行的，
+    // 所以它们也被列出来；模型只是从来没有看到它们。
     for (const auto& sk : tools::skills::all(io)) {
         if (sk.name.empty() || !seen.insert(sk.name).second) continue;
         add(sk.name,
             sk.description.empty() ? std::string{"Run the "} + sk.name + " skill"
                                    : sk.description,
             "optional arguments");
-        // AIR shows skills as skills, with the file behind them.
+        // AIR将技能显示为技能，其后面带有文件。
         if (air)
             cmds.back().meta = json{{"jetbrains", {{"air", {{"version", 1}, {"kind", "skill"},
                 {"skillPath", (sk.dir / "SKILL.md").string()}}}}}};
     }
 #if AGENTTY_MCP
-    // MCP server prompts. Zed groups commands tagged "mcp".
+    // MCP服务器提示词。 Zed 对标记为 "mcp" 的命令进行分组。
     try {
         for (const auto& pr : ::agentty::mcp::mcp_prompts()) {
             if (pr.name.empty() || !seen.insert(pr.name).second) continue;
@@ -990,24 +990,24 @@ a::List<a::AvailableCommand> available_commands(Io io, bool air = false) {
     return cmds;
 }
 
-// The `model` config option Zed renders as a dropdown, populated with the
-// provider's model catalog. `current` is the session's active model id. When
-// `auth` has no credentials we still emit the static seed list so the dropdown
-// isn't empty before sign-in. Mirrors how the native agent advertises its
-// model picker. Kept off the hot path (built on session new/load only).
-// A model choice's wire value: "<provider>\t<model>", the same composite key
-// the TUI's recent-models list uses, so two providers serving the same model
-// id stay distinct.
+// `model`配置选项Zed 渲染作为下拉列表，填充有提供商的
+// 型号目录。 `current` 是会话的活动模型 ID。
+// 当 `auth` 没有 凭据 时，我们仍然发出静态种子列表，
+// 因此在 Sign-in 之前下拉列表不为空。镜像本机代理如何宣传其
+// 型号 选择面板。关闭 高频路径（仅在会话 new/load 上构建）。
+// 模型选择的传输值："<provider>\t<model>"，
+// 与TUI的最近-models列表使用相同的组合键，因此服务相同模型id的两
+// 个提供者保持不同。
 std::string choice_value(std::string_view provider, std::string_view model) {
     return std::string{provider} + '\t' + std::string{model};
 }
 std::pair<std::string, std::string> split_choice(std::string_view v) {
     const auto tab = v.find('\t');
-    if (tab == std::string_view::npos) return {"", std::string{v}};   // bare model id
+    if (tab == std::string_view::npos) return {"", std::string{v}};   // 裸机型号id
     return {std::string{v.substr(0, tab)}, std::string{v.substr(tab + 1)}};
 }
 
-// The effort levels a model accepts, low to high, as wire strings.
+// 模型接受的工作量等级，从低到高，如 传输 字符串。
 std::vector<Effort> effort_ladder(const std::string& model, const std::string& provider) {
     const auto caps = resolved_caps(model, provider);
     const std::uint8_t set = effort_set_of(caps);
@@ -1018,8 +1018,8 @@ std::vector<Effort> effort_ladder(const std::string& model, const std::string& p
     return out;
 }
 
-// "" (default) | "none" | a wire level, clamped to what the model takes.
-// Returns the value to show in the dropdown.
+// ""（默认）| "none" | 传输级别，固定到模型所采用的水平。
+// 返回要在下拉列表中显示的值。
 std::string effective_effort(const std::string& want, const std::vector<Effort>& ladder) {
     if (ladder.empty()) return "none";
     if (want == "none") return "none";
@@ -1029,11 +1029,11 @@ std::string effective_effort(const std::string& want, const std::vector<Effort>&
     return "auto";
 }
 
-// The permission profile (Ask / Write / Minimal) as a config option,
-// category "mode". Sent on every connection next to the legacy `modes`
-// field: Zed's profile picker is the first `select` option with category
-// "mode", and once configOptions are present Zed ignores `modes`. Same
-// three ids as mode_state()/mode_id_for().
+// 权限配置文件（Ask/Write/Minimal)作为配置选项，类别"mode"。
+// 在旧 `modes` 字段旁边的每个连接上发送：Zed 的配置文件 选择面板
+// 是类别 "mode" 的第一个 `select` 选项，一旦出现 configOptions，
+// Zed 就会忽略 `modes`。与 mode_state()/
+// mode_id_for() 相同的三个 id。
 [[nodiscard]] a::ConfigOption mode_config_option(const char* current_mode_id) {
     auto mk = [](const char* value, const char* name, const char* desc) {
         a::ConfigSelectOption o;
@@ -1062,7 +1062,7 @@ std::string effective_effort(const std::string& want, const std::vector<Effort>&
     return opt;
 }
 
-} // namespace
+} // 命名空间结束。
 
 AgentServer::AgentServer(rpc::Channel      channel,
                          StreamFn          stream,
@@ -1078,29 +1078,29 @@ AgentServer::AgentServer(rpc::Channel      channel,
       profile_(profile),
       auth_(std::move(auth)),
       reauth_(std::move(extras.reauth)) {
-    // A dead client must not wedge a worker forever: our calls to it
-    // (permission, terminal/*) fail with Timeout after this. 5 min is
-    // generous for a human reading a permission dialog.
+    // 失效的客户端不能永远楔入工作线程：我们的调用（权限，
+    // terminal/*）在此之后失败，并出现超时。
+    // 对于阅读 权限 对话的人来说，5 分钟已经足够了。
     peer_->set_default_timeout(std::chrono::minutes(5));
 }
 
 AgentServer::~AgentServer() {
     if (client_elicit_url_.load(std::memory_order_relaxed))
         ::agentty::mcp::set_url_elicitation({});
-    // peer_ is destroyed with the members: ~Peer stops and joins its
-    // reader/writer (Peer is joins_on_destroy, so no lock can own it, and
-    // this destructor never runs inside a lock body).
+    // peer_与成员一起被销毁：〜对端停止并加入其reader/writer
+    // （对端是joins_on_destroy，因此没有锁可以拥有它，
+    // 并且该析构函数永远不会在锁 正文内运行）。
 }
 
 AgentServer::Router AgentServer::make_router() {
     namespace m = a::to_agent;
     Router r;
-    // Every handler gets the reader thread's capability through Ctx.
+    // 每个处理函数通过Ctx获取阅读器线程的能力。
     r.on<m::Initialize>([](Ctx& c, const a::InitializeParams& p) { return c.self.on_initialize(c.cap, p); });
     r.on<m::SessionNew>([](Ctx& c, const a::NewSessionParams& p) { return c.self.on_new_session(c.cap, p); });
     r.on<m::SessionCancel>([](Ctx& c, const a::CancelParams& p) { c.self.on_cancel(c.cap, p); });
     r.on<a::CancelRequest>([](Ctx& c, const a::CancelRequestParams& p) { c.self.on_cancel_request(c.cap, p.id); });
-    // session/prompt is answered in on_call, before the router.
+    // session/prompt在路由器之前的on_call中得到应答。
     r.defer<m::SessionPrompt>();
     r.on<m::SessionLoad>([](Ctx& c, const a::LoadSessionParams& p) {
         return c.self.on_load_session(c.cap, p);
@@ -1134,8 +1134,8 @@ rpc::Dispatch AgentServer::make_dispatch() {
     d.on_notification = [this](const maya::unlocked& cap, const a::Notification& n) {
         on_notification(cap, n);
     };
-    // Every frame lands on the `acp` channel of the structured log, captured
-    // by default in a non-release build or via AGENTTY_LOG=acp=trace.
+    // 每个帧落在结构化日志的`acp`通道上，默认情况下在非
+    // -release构建中或通过AGENTTY_LOG=acp=trace捕获。
     if (logx::enabled(logx::Channel::Acp, logx::Level::Trace))
         d.trace = [](bool inbound, std::string_view line) {
             AGT_LOG(Acp, Trace, "acp.frame", "dir={} raw={}", inbound ? "in" : "out", line);
@@ -1164,19 +1164,19 @@ void AgentServer::on_notification(const Cap& cap, const a::Notification& n) {
 
 int AgentServer::serve(const Cap& cap) {
     peer_->start();
-    peer_->wait_closed(cap);   // EOF on stdin
+    peer_->wait_closed(cap);   // 标准输入上的 EOF
     return 0;
 }
 
 void AgentServer::persist(const Cap& cap, const std::string& id) {
-    // Copy the thread out under the lock, write it outside.
+    // 将线程复制到锁下，写在外面。
     if (auto snapshot = with_session(cap, id, [](Session& s) { return s.thread; }))
         persistence::save_thread(IoAccess::grant(), cap, *snapshot);
 }
 
-// The editor's MCP servers (session/new, load, resume, fork), turned into
-// mcp.json entries and handed to the MCP bridge. The bridge reconnects only
-// when the set changed, so sending the same list each session is free.
+// 编辑器的MCP服务器(session/new、加载、简历、
+// 分叉)，变成mcp.json条目并交给MCP桥。仅当设置更改时，
+// 网桥才会重新连接，因此每个会话发送相同的列表是免费的。
 void AgentServer::adopt_client_mcp(const Cap&, const a::List<a::McpServer>& servers) {
 #if AGENTTY_MCP
     json out = json::object();
@@ -1200,8 +1200,8 @@ void AgentServer::adopt_client_mcp(const Cap&, const a::List<a::McpServer>& serv
                 out[v.name] = json{{"type", "sse"}, {"url", v.url}, {"headers", std::move(h)}};
             });
     }
-    // Connecting can take seconds; don't hold up session/new for it. When it
-    // lands, re-send every live session's / menu so the servers' prompts show.
+    // 连接可能需要几秒钟；不要为此等待 session/new。
+    // 当它登陆时，重新-send每个实时会话的/菜单，以便服务器的提示词显示。
     util::run_isolated_detached("acp.mcp_servers",
         [](const maya::unlocked& cap, std::stop_token, json servers, maya::co_owned<AgentServer> self) {
             ::agentty::mcp::set_client_servers(servers);
@@ -1213,8 +1213,8 @@ void AgentServer::adopt_client_mcp(const Cap&, const a::List<a::McpServer>& serv
 #endif
 }
 
-// The / menu changed under every session (an MCP server connected and
-// brought prompts): send each live session the new list.
+// /菜单在每个会话下改变（MCP服务器连接并带来
+// 提示词）：向每个实时会话发送新列表。
 void AgentServer::refresh_command_menus(const Cap& cap) {
     const auto ids = sessions_.read(cap, [](const Sessions& ss) {
         std::vector<std::string> out;
@@ -1256,8 +1256,8 @@ json AgentServer::air_meta(json payload) const {
     return json{{"jetbrains", {{"air", std::move(payload)}}}};
 }
 
-// AIR's per-tool hints: a command's own description as the card title, the
-// task tool marked as a subagent, a skill load named. Empty for other tools.
+// AIR的per-tool提示：命令自身描述为卡标题，
+// 任务工具标记为子代理，技能加载命名。其他工具为空。
 json AgentServer::air_tool_meta(const ToolUse& tc) const {
     if (!air_.load(std::memory_order_relaxed) || !tc.args.is_object()) return json::object();
     json p = json::object();
@@ -1278,16 +1278,16 @@ json AgentServer::air_tool_meta(const ToolUse& tc) const {
     return p.empty() ? json::object() : air_meta(std::move(p));
 }
 
-// Merge `extra` into `meta`, keeping other namespaces.
+// 将`extra`合并到`meta`中，保留其他命名空间。
 static void merge_meta(json& meta, const json& extra) {
     if (!extra.is_object() || extra.empty()) return;
     if (!meta.is_object()) meta = json::object();
     meta.merge_patch(extra);
 }
 
-// Relay an MCP server's elicitation/create (form mode) to the editor. The two
-// share the restricted JSON Schema, so the form passes through; ACP adds the
-// session and tool call scope. Anything we can't relay is declined.
+// 将MCP服务器的elicitation/create(表单模式)中继到编辑器。
+// 两者共享受限制的JSON 模式定义，因此表格通过； ACP 添加
+// 会话和工具 调用 范围。任何我们无法转发的内容都会被拒绝。
 json AgentServer::elicit_via_client(const Cap& cap, const std::string& session_id,
                                     const std::string& tool_id, const json& mcp,
                                     std::stop_token cancel) {
@@ -1296,7 +1296,7 @@ json AgentServer::elicit_via_client(const Cap& cap, const std::string& session_i
     const std::string mode = mcp.value("mode", std::string{"form"});
     json req;
     if (mode == "url" && client_elicit_url_.load(std::memory_order_relaxed)) {
-        // The editor shows the URL and opens it only with the user's consent.
+        // 编辑器显示URL并且仅在用户同意的情况下才将其打开。
         if (!mcp.contains("url") || !mcp["url"].is_string()
             || !mcp.contains("elicitationId") || !mcp["elicitationId"].is_string())
             return decline;
@@ -1316,7 +1316,7 @@ json AgentServer::elicit_via_client(const Cap& cap, const std::string& session_i
     } else {
         return decline;
     }
-    // A cancelled turn withdraws the form ($/cancel_request) and declines.
+    // 已取消 回合撤回表格 ($/cancel_request) 并拒绝。
     rpc::CallOptions o;
     o.cancel      = cancel;
     o.notify_peer = true;
@@ -1337,17 +1337,17 @@ void AgentServer::send_terminal_output(const maya::below<maya::leaf>& cap,
                                        const std::string& tool_id, std::string_view data) {
     a::ToolCallUpdate u;
     u.toolCallId = a::ToolCallId{tool_id};
-    // Zed replaces with terminal_output chunks; clients that ask for
-    // terminal_output_delta append. Same payload either way.
+    // Zed替换为terminal_output块；
+    // 要求附加 terminal_output_delta 的客户。无论哪种方式都相同 载荷。
     const char* key = client_terminal_delta_.load(std::memory_order_relaxed)
                     ? "terminal_output_delta" : "terminal_output";
-    // progress text is already valid UTF-8 (exec converts it).
+    // 进度文本已经有效 UTF-8（exec 对其进行转换）。
     u.meta = json{{key, {{"terminal_id", tool_id}, {"data", std::string{data}}}}};
     send_update(cap, session_id, a::SU_ToolCallUpdate{std::move(u)});
 }
 
-// _meta.terminal_exit for a finished command. The shell tool's result says
-// "failed with exit code N" on a failure and nothing on success.
+// _meta.terminal_exit 表示已完成的命令。 shell 工具的结果显示
+// "failed with exit code N" 表示失败，而没有显示成功。
 json AgentServer::terminal_exit_meta(const std::string& tool_id, std::string_view text,
                                      bool failed) {
     json code = failed ? json(1) : json(0);
@@ -1360,7 +1360,7 @@ json AgentServer::terminal_exit_meta(const std::string& tool_id, std::string_vie
         while (p < end && *p >= '0' && *p <= '9') { n = ::agentty::util::push_digit(n, *p); ++p; any = true; }
         if (any) code = n;
     } else if (text.find("timed out after") != std::string_view::npos) {
-        code = nullptr;   // killed, no exit status
+        code = nullptr;   // 被杀，无退出状态
     }
     return json{{"terminal_exit", {{"terminal_id", tool_id}, {"exit_code", code},
                                     {"signal", nullptr}}}};
@@ -1368,42 +1368,42 @@ json AgentServer::terminal_exit_meta(const std::string& tool_id, std::string_vie
 
 void AgentServer::emit_session_config(const Cap& cap, const std::string& session_id,
                                       const std::string& model_id) {
-    // Slash-command menu (Zed's `/` composer menu).
+    // Slash-command菜单(Zed的`/`作曲家菜单)。
     {
         a::SU_AvailableCommands ac;
-        ac.availableCommands = available_commands(IoAccess::grant(),   // ACP handler: not a reducer
+        ac.availableCommands = available_commands(IoAccess::grant(),   // ACP 处理函数:不是状态更新函数
                                                   air_.load(std::memory_order_relaxed));
         if (!ac.availableCommands.empty())
             send_update(cap, session_id, std::move(ac));
     }
-    // Session config options, emitted as ONE complete-state notification (the
-    // v2 contract: a SU_ConfigOptions carries the FULL set, not a delta). We
-    // advertise the permission MODE and, when a catalog is available, the
-    // MODEL. A config-option-aware client renders these as native selectors
-    // (Zed's per-session dropdowns); it can flip them live via
-    // session/set_config_option with no restart. The permission mode is ALSO
-    // carried by the legacy `modes` field on the session result for v1
-    // clients — dual-surface, no gap either way.
+    // 会话配置选项，作为 一个 完成 -state 通知 发出（v2 合约：
+    // SU_ConfigOptions 携带 完整 集，而不是增量）。
+    // 我们宣传 权限 MODE，当 目录 可用时，我们宣传 MODEL。
+    // config-option-aware 客户端 渲染 作为本机选择器（Zed
+    // 的 per-session 下拉列表）；它可以通过
+    // session/set_config_option 实时翻转它们，而无需重新启动。
+    // 权限 模式是 ALSO，由 v1 客户端的会话结果上的旧 `modes` 字段
+    // 携带 - 双-surface，两种方式都没有间隙。
     emit_config_state(cap, session_id, model_id);
 }
 
-// The current, COMPLETE config-option state for a session as a single
-// SU_ConfigOptions notification. Single source of truth for both the initial
-// advertisement (emit_session_config) and every post-change echo
-// (on_set_config_option) — the v2 spec requires each SU_ConfigOptions to carry
-// the full set so dependent options stay consistent. Reads live session state
-// (profile + model) so the echoed `currentValue`s always match reality.
+// 当前，会话的COMPLETE配置-option状态为单个SU_ConfigOptions 通知。
+// 初始广告 (emit_session_config) 和每个 post
+// -change 回声 (on_set_config_option)
+// 的单一事实来源 - v2 规范要求每个 SU_ConfigOptions
+// 携带全套，以便相关选项保持一致。读取实时会话状态（配置文件 + 模型），
+// 因此回显的 `currentValue` 始终与现实相符。
 void AgentServer::emit_config_state(const Cap& cap, const std::string& session_id,
                                     const std::string& fallback_model) {
     a::SU_ConfigOptions co;
     co.configOptions = config_options(cap, session_id, fallback_model);
-    if (co.configOptions.empty()) return;   // nothing to advertise
+    if (co.configOptions.empty()) return;   // 没什么可做广告的
     send_update(cap, session_id, std::move(co));
 }
 
-// The complete config state for a session. Returned in every session/new,
-// load, resume and set_config_option result (clients that only read results,
-// like JetBrains, need it there) and echoed as config_option_update.
+// 会话的完整配置状态。在每个 session/new、加载、
+// 简历和 set_config_option 结果中返回（仅读取结果的客户端，
+// 如 JetBrains，需要它）并回显为 config_option_update。
 a::List<a::ConfigOption> AgentServer::config_options(const Cap& cap,
                                                      const std::string& session_id,
                                                      const std::string& fallback_model) {
@@ -1416,10 +1416,10 @@ a::List<a::ConfigOption> AgentServer::config_options(const Cap& cap,
         if (c.model.empty()) c.model = fallback_model;
     }
     a::List<a::ConfigOption> out;
-    // The permission mode is always a config option. A client that gets
-    // configOptions builds its selectors from them alone (Zed drops `modes`
-    // as soon as configOptions is present, on v1 too), so leaving it out
-    // meant no profile picker at all.
+    // 权限模式始终是配置选项。获得 configOptions 的客户端
+    // 会单独从它们构建选择器（一旦 configOptions 存在，
+    // Zed 就会删除 `modes`，在 v1 上也是如此），因此将其排除
+    // 意味着根本没有配置文件 选择面板。
     {
         auto opt = mode_config_option(mode_id_for(c.prof));
         if (auto* u = std::get_if<a::CSO_Ungrouped>(&opt.options))
@@ -1432,10 +1432,10 @@ a::List<a::ConfigOption> AgentServer::config_options(const Cap& cap,
     return out;
 }
 
-// Every model on every provider the user is signed into, grouped by
-// provider, the same set the TUI's fused picker (ctrl+/) shows. Without a
-// stream_to_ the server can only reach the active provider, so only its
-// models are offered.
+// 用户登录的每个提供者上的每个模型，按提供者分组，
+// 与TUI的融合选择面板 (ctrl+/)显示的集合相同。
+// 如果没有 stream_to_，服务器只能到达活动提供商，
+// 因此仅提供其型号。
 std::vector<AgentServer::ModelChoice> AgentServer::model_choices(const Cap& cap) {
     if (auto have = model_choices_.current(); have && !have->empty())
         return *have;
@@ -1454,7 +1454,7 @@ std::vector<AgentServer::ModelChoice> AgentServer::model_choices(const Cap& cap)
                            pid, label});
     };
 
-    // The active provider first: its models are what most users pick from.
+    // 主动提供者优先：其模型是大多数用户选择的。
     add_provider(active_id, provider::provider_display_name(active), active, auth());
     if (stream_to_) {
         try {
@@ -1467,15 +1467,15 @@ std::vector<AgentServer::ModelChoice> AgentServer::model_choices(const Cap& cap)
                 add_provider(src.id, src.label, sel,
                              provider::credentials::resolve(io, src.id));
             }
-        } catch (...) { /* the active provider's models still stand */ }
+        } catch (...) { /* 活跃提供商的模型仍然有效 */ }
     }
     model_choices_.publish(std::make_shared<const std::vector<ModelChoice>>(out));
     return out;
 }
 
-// Model, then the knobs that depend on it: reasoning effort (only for a
-// model that has one) and whether to show its thinking. Rebuilt on every
-// change, since the effort ladder depends on the model.
+// Model，然后是依赖于它的旋钮：推理努力（仅
+// 适用于有推理努力的模型）以及是否显示其思考。
+// 每次更改都要重建，因为工作量阶梯取决于模型。
 a::List<a::ConfigOption> AgentServer::model_options(const Cap& cap,
                                                     const std::string& provider,
                                                     const std::string& model,
@@ -1489,8 +1489,8 @@ a::List<a::ConfigOption> AgentServer::model_options(const Cap& cap,
     if (!choices.empty()) {
         const std::string current = choice_value(pid, model);
         bool present = false;
-        // Group by provider when there is more than one, so the dropdown
-        // reads "Anthropic › Claude Opus" the way the TUI picker does.
+        // 当存在多个提供者时按提供者分组，因此下拉菜单以 TUI 选择面板
+        // 的方式读取 "Anthropic › Claude Opus"。
         std::vector<std::string> order;
         std::map<std::string, a::ConfigSelectGroup> groups;
         for (const auto& c : choices) {
@@ -1509,8 +1509,8 @@ a::List<a::ConfigOption> AgentServer::model_options(const Cap& cap,
         opt.category = a::Just<std::string>("model");
         opt.type     = "select";
         if (!present) {
-            // A model not in any catalog (-m, a fine-tune): list it so the
-            // dropdown shows what is actually running.
+            // 不在任何目录（-m、细-tune）中的模型：将其列出，
+            // 以便下拉列表显示实际运行的内容。
             a::ConfigSelectGroup& g = groups[pid];
             if (g.group.empty()) { g.group = pid; g.name = pid; order.push_back(pid); }
             g.options.insert(g.options.begin(),
@@ -1527,7 +1527,7 @@ a::List<a::ConfigOption> AgentServer::model_options(const Cap& cap,
         out.push_back(std::move(opt));
     }
 
-    // Reasoning effort, the model's own ladder plus auto and off.
+    // 推理功夫，模型自带梯子加自动和关。
     if (const auto ladder = effort_ladder(model, pid); !ladder.empty()) {
         a::List<a::ConfigSelectOption> opts;
         opts.push_back({"auto", "Auto", a::Just<std::string>("agentty picks per turn"), json::object()});
@@ -1548,7 +1548,7 @@ a::List<a::ConfigOption> AgentServer::model_options(const Cap& cap,
         opt.options      = a::ConfigSelectOptions{a::CSO_Ungrouped{std::move(opts)}};
         out.push_back(std::move(opt));
 
-        // Show thinking: a boolean, so only for clients that render them.
+        // 显示思维：一个布尔值，因此只适用于渲染的客户。
         if (client_bool_config_.load(std::memory_order_relaxed)) {
             a::ConfigOption b;
             b.id          = "show_thinking";
@@ -1565,13 +1565,13 @@ a::List<a::ConfigOption> AgentServer::model_options(const Cap& cap,
 
 void AgentServer::replay_history(const Cap& cap, const std::string& session_id,
                                  const Thread& thread) {
-    // Project-relative display paths in replayed tool cards, matching a live
-    // turn. The session cwd is already set by the time replay runs.
+    // Project-relative在重放的工具卡中显示路径，
+    // 匹配实时回合。会话 cwd 已在重播运行时设置。
     const std::string scwd =
         with_session(cap, session_id, [](Session& s) { return s.cwd; }).value_or(std::string{});
 
-    // Send the whole replay as one write: replay emits many session/update
-    // notifications back-to-back on the reader thread.
+    // 将整个重放作为一次写入来发送：重放在读取器线程上发出许多session/update
+    // 通知回-to-back。
     peer_->batch(cap, [&] {
         replay_history_body(cap, session_id, thread, scwd);
     });
@@ -1580,20 +1580,20 @@ void AgentServer::replay_history(const Cap& cap, const std::string& session_id,
 void AgentServer::replay_history_body(const Cap& cap, const std::string& session_id,
                                       const Thread& thread, const std::string& scwd) {
 
-    // Replay is a synchronous fan-out to the wire on the reader thread (one
-    // blocking write per message + per tool call), so an arbitrarily large
-    // on-disk thread would block every other request for the whole replay.
-    // Bound it: restore only the most recent kReplayMax messages (the rest
-    // stay in thread.messages and are still sent to the model on the next
-    // prompt — this only limits what's re-rendered in the client), and cap
-    // the tool calls emitted per assistant message.
+    // 重放是读取器线程上的传输的同步风扇-out(每个
+    // 消息+每个工具调用一个阻塞写入)，因此任意大的
+    // on-disk 线程将阻塞整个重放的所有其他请求。
+    // 绑定它：仅恢复最近的kReplayMax消息（其余的保留在
+    // thread.messages中，并且仍然在下一个提示词
+    // 上发送到模型——这仅限制客户端中的re-rendered），
+    // 并且限制每个助手消息发出的工具调用。
     constexpr std::size_t kReplayMax          = 200;
     constexpr std::size_t kReplayToolsPerMsg  = 100;
     const std::size_t total = thread.messages.size();
     const std::size_t start = total > kReplayMax ? total - kReplayMax : 0;
     const bool entity = client_compaction_.load(std::memory_order_relaxed);
-    // Each compaction is shown where it happened: just before the first
-    // message after its boundary.
+    // 显示每次压缩发生的位置：就在其边界之后的
+    // 第一条消息之前。
     std::size_t next_cmp = 0;
     auto replay_compactions_before = [&](std::size_t mi) {
         while (entity && next_cmp < thread.compactions.size() &&
@@ -1640,9 +1640,9 @@ void AgentServer::replay_history_body(const Cap& cap, const std::string& session
                 const std::string out = tc.output();
                 if (!out.empty()) {
                     a::List<a::ToolCallContent> content;
-                    // Match the live path's per-tool result shaping (Read →
-                    // line-numbered; others markdown-escaped) so a replayed
-                    // session's cards look identical to when they first ran.
+                    // 匹配实时路径的per-tool结果整形（读取→line
+                    // -numbered；其他markdown-escaped），
+                    // 因此重放会话的卡看起来与它们第一次运行时相同。
                     if (status == a::ToolCallStatus::Failed) {
                         std::string shown = out.find("```") == std::string::npos
                                           ? "```\n" + out + "\n```" : out;
@@ -1663,13 +1663,13 @@ void AgentServer::replay_history_body(const Cap& cap, const std::string& session
 
 a::InitializeResult AgentServer::on_initialize(const Cap&, const a::InitializeParams& p) {
     a::InitializeResult r;
-    // Remember whether the client can host terminals for us. Zed advertises
-    // this; a bare/test client may not. Gates the live-terminal execution of
-    // `bash` in run_tools (see client_supports_terminal_).
+    // 记住客户端是否可以为我们托管终端。 Zed 对此做了广告； bare/test 客户端
+    // 可能不会。门控 run_tools 中 `bash` 的 live-terminal
+    // 执行（参见 client_supports_terminal_）。
     client_supports_terminal_.store(p.clientCapabilities.terminal,
                                     std::memory_order_relaxed);
-    // v1.11 session surfaces: notices, compaction entities and boolean config
-    // options may only be sent to a client that said it renders them.
+    // v1.11 会话表面：通知、压缩实体和布尔
+    // 配置选项只能发送到表示 渲染 的客户端。
     client_notices_.store(p.clientCapabilities.session.notices, std::memory_order_relaxed);
     client_compaction_.store(p.clientCapabilities.session.compaction,
                              std::memory_order_relaxed);
@@ -1677,15 +1677,15 @@ a::InitializeResult AgentServer::on_initialize(const Cap&, const a::InitializePa
                               std::memory_order_relaxed);
     client_elicit_form_.store(p.clientCapabilities.elicitForm, std::memory_order_relaxed);
     client_elicit_url_.store(p.clientCapabilities.elicitUrl, std::memory_order_relaxed);
-    // URL mode: MCP servers may ask for it, and their "done" goes to the editor.
+    // URL模式：MCP服务器可能会要求它，并且它们的"done"转到编辑器。
     if (p.clientCapabilities.elicitUrl)
-        // Weak: the callback is a process-wide slot, and a server reader can
-        // take a copy of it just before ~AgentServer clears it.
+        // 弱：回调是进程-wide槽，并且服务器读取器可以在〜
+        // AgentServer清除它之前获取它的副本。
         ::agentty::mcp::set_url_elicitation([weak = weak_from_this()](const std::string& id) {
-            // Called by the MCP bridge from a server's reader thread when a
-            // URL elicitation completes. That thread holds no agentty lock
-            // (it is mcp-cpp's transport loop), so the notify re-states it
-            // here -- a reviewed root (tests/lint/allowlist.txt).
+            // 当 URL 引出完成时，由 MCP 桥从服务器的读取器 线程 调用。
+            // 线程 不包含 agentty 锁（它是 mcp-cpp 的 传输
+            // 层 循环），因此通知 re-states 在这里 - 已审查的根
+            // （tests/lint/allowlist.txt）。
             auto self = weak.lock();
             if (!self) return;
             try {
@@ -1694,10 +1694,10 @@ a::InitializeResult AgentServer::on_initialize(const Cap&, const a::InitializePa
                 });
             } catch (...) {}
         });
-    // Zed's terminal channel: a command tool call carries _meta.terminal_info,
-    // its output streams as _meta.terminal_output and ends with terminal_exit,
-    // and the editor renders a real terminal in the card. Works with our own
-    // sandboxed execution, unlike client-hosted terminal/create.
+    // Zed的终端通道：命令工具调用携带_meta.terminal_info，
+    // 其输出数据流为_meta.terminal_output，以terminal_exit结尾，
+    // 编辑器渲染为卡内真实的终端。与我们自己的沙盒执行一起工作，
+    // 与 client-hosted terminal/create. 不同
     {
         const json& cm = p.clientCapabilities.meta;
         const auto flag = [&](const char* k) {
@@ -1707,8 +1707,8 @@ a::InitializeResult AgentServer::on_initialize(const Cap&, const a::InitializePa
                                     std::memory_order_relaxed);
         client_terminal_delta_.store(flag("terminal_output_delta"), std::memory_order_relaxed);
         client_terminal_auth_.store(flag("terminal-auth"), std::memory_order_relaxed);
-        // JetBrains AIR declares {jetbrains:{air:{version>=1, capabilities:[...]}}}.
-        // A malformed declaration enables nothing.
+        // JetBrains AIR 声明 {jetbrains:{air:{version>=1,capability:[...]}}}。
+        // 格式错误的声明没有任何作用。
         if (cm.is_object() && cm.contains("jetbrains") && cm["jetbrains"].is_object()) {
             const json& air = cm["jetbrains"].value("air", json{});
             const bool ok = air.is_object() && air.contains("version")
@@ -1721,12 +1721,12 @@ a::InitializeResult AgentServer::on_initialize(const Cap&, const a::InitializePa
             }
         }
     }
-    // Negotiate to min(what we support, what the client offered). We advertise
-    // up to kMaxProtocolVersion (v1 by default; v2 only if the acp-cpp build
-    // opted into the Draft via -DACP_ENABLE_V2_DRAFT). A v1-only client still
-    // lands on v1; a v2 client lands on v2 only when we were built for it.
+    // 协商最小（我们支持什么，客户提供什么）。我们最多发布 kMaxProtocolVersion
+    // （默认为 v1；仅当 acp-cpp 版本通过 -DACP_ENABLE_V2_DRAFT
+    // 选择加入草案时才会发布 v2）。 v1-only 客户端仍然登陆 v1；
+    // 仅当我们为其构建时，v2 客户端才会登陆 v2。
     r.protocolVersion = a::negotiate_version(a::kMaxProtocolVersion, p.protocolVersion);
-    // Latch the agreed version for the clean-cut config-surface gate (v2_config).
+    // 锁存clean-cut config-surface门(v2_config)的商定版本。
     negotiated_version_.store(r.protocolVersion, std::memory_order_relaxed);
 
     r.agentInfo = a::Just<a::ImplementationInfo>(
@@ -1735,50 +1735,50 @@ a::InitializeResult AgentServer::on_initialize(const Cap&, const a::InitializePa
     auto& caps = r.agentCapabilities;
     caps.loadSession = true;
     caps.promptCapabilities.embeddedContext = true;
-    // Images in prompts. Declared because the blocks are now DECODED into
-    // the user message (prompt_parts_from_blocks) rather than dropped —
-    // claiming this while discarding them would be worse than not claiming
-    // it, since the client would show the attachment as sent.
+    // 提示词中的图像。声明是因为这些块现在是 DECODED
+    // 到用户消息 (prompt_parts_from_blocks)
+    // 中而不是被删除 - 在丢弃它们的同时声明这一点比不
+    // 声明它更糟糕，因为客户端会显示附件已发送。
     //
-    // Whether the selected MODEL can see them is a separate question the
-    // provider layer already answers (supports_vision / the org-policy
-    // entitlement), and it degrades by withholding the image rather than
-    // failing the turn. Audio stays undeclared: no provider we ship takes
-    // it, and transcoding silently would be a lie about what was sent.
+    // 所选择的MODEL是否可以看到它们是提供商层已经
+    // 回答的单独问题（supports_vision/org-policy权利），
+    // 并且它通过保留图像而不是失败来降级。
+    // 音频保持未声明状态：我们提供的任何提供商都不会接受它，
+    // 并且静默转码将是关于发送内容的谎言。
     caps.promptCapabilities.image = true;
     caps.auth.logout = a::Just(a::Unit{});
     caps.sessionCapabilities.list      = a::Just(a::Unit{});
     caps.sessionCapabilities.resume    = a::Just(a::Unit{});
     caps.sessionCapabilities.close     = a::Just(a::Unit{});
-    caps.sessionCapabilities.fork      = a::Just(a::Unit{});   // unstable, used by Zed
+    caps.sessionCapabilities.fork      = a::Just(a::Unit{});   // 不稳定，由Zed使用
     caps.sessionCapabilities.additionalDirectories = a::Just(a::Unit{});
-    // JetBrains AIR: say which of its extensions we speak. Only to AIR.
+    // JetBrains AIR:说出我们所说的它的哪个扩展。仅限AIR。
     if (air_.load(std::memory_order_relaxed))
         r.meta = json{{"jetbrains", {{"air", {{"version", 1},
                        {"capabilities", json::array({"diffPatch"})}}}}}};
 #if AGENTTY_MCP
-    // The MCP bridge speaks stdio, Streamable HTTP and SSE, so the editor's
-    // servers of every kind can be handed over.
+    // MCP桥讲stdio、Streamable HTTP和SSE，
+    // 因此可以移交编辑器的各种服务器。
     caps.mcpCapabilities.http = true;
     caps.mcpCapabilities.sse  = true;
 #endif
     caps.sessionCapabilities.deleteCap = a::Just(a::Unit{});
-    // Advertise generic JSON-RPC request cancellation ($/cancel_request,
-    // stabilized 2026-06-29) via _meta — the spec carries extension
-    // capabilities there. A client that sees this may cancel an in-flight
-    // request by its id; we honour it for session/prompt requests.
+    // 通过 _meta 通告通用 JSON-RPC 请求 取消 ($/
+    // cancel_request，2026-06-29 稳定) — 该
+    // 规范在那里携带扩展功能。看到此信息的客户端可能会通过其 id 取消 发出 in
+    // -flight 请求；我们尊重 session/prompt 请求。
     caps.meta["cancelRequest"] = true;
 
-    // Advertise how to sign in when we have no credentials, so Zed renders a
-    // proper "Sign in" affordance in the panel instead of erroring on the
-    // first prompt. The method is informational — agentty's real login runs
-    // out-of-band (`agentty login`) — but surfacing it matches the native
-    // agent's sign-in UX. When already authenticated we advertise nothing, so
-    // Zed shows the agent as ready.
+    // 宣传当我们没有 凭据 时如何登录，因此 Zed 渲染 在面板中具有适当的
+    // "Sign in" 可供性，而不是在第一个 提示词 上出错。
+    // 该方法仅供参考 — agentty 的真实登录时间为 -of-band
+    // (`agentty login`) — 但表面显示与本机代理的标志
+    // -in UX 相匹配。当已经通过身份验证时，我们不会发布任何广告，
+    // 因此 Zed 会显示代理已准备就绪。
     if (auth::is_empty(auth())) {
-        // A terminal method lets the editor run `agentty login` in its own
-        // terminal and then call authenticate, which re-reads what it saved.
-        // Zed advertises it as auth.terminal (standard) or _meta.terminal-auth.
+        // 终端方法让编辑器在其自己的终端中运行`agentty login`，
+        // 然后对调用进行验证，这与-reads和已保存有关。
+        // Zed 将其宣传为 auth.terminal (标准) 或 _meta.terminal-auth。
         if (p.clientCapabilities.authTerminal) {
             a::AuthMethod m;
             m.id          = "agentty-login";
@@ -1812,7 +1812,7 @@ a::InitializeResult AgentServer::on_initialize(const Cap&, const a::InitializePa
 }
 
 a::NewSessionResult AgentServer::on_new_session(const Cap& cap, const a::NewSessionParams& p) {
-    auto extra = extra_roots_of(p.additionalDirectories);   // throws on a bad path
+    auto extra = extra_roots_of(p.additionalDirectories);   // 走上坏路
     adopt_client_mcp(cap, p.mcpServers);
     ThreadId tid = persistence::new_id();
     const std::string sid = tid.value;
@@ -1837,24 +1837,24 @@ a::NewSessionResult AgentServer::on_new_session(const Cap& cap, const a::NewSess
 
     a::NewSessionResult r;
     r.sessionId = a::SessionId{sid};
-    // v1 clients also get the mode as SessionModeState. The `mode` config
-    // option below is sent on every connection, since Zed only reads modes
-    // when no configOptions are present.
+    // v1客户端也获得模式为SessionModeState。
+    // 下面的 `mode` 配置选项在每个连接上发送，因为 Zed 仅在不存在
+    // configOptions 时读取模式。
     if (!v2_config())
         r.modes = a::Just(modes_for_client(session_profile));
-    // The selectors ride on the result too: JetBrains builds its model
-    // dropdown from it and never looks at the update that follows.
+    // 选择器也依赖于结果：JetBrains从中构
+    // 建其模型下拉列表并且从不查看随后的更新。
     if (auto opts = config_options(cap, sid, model_id_); !opts.empty())
         r.configOptions = a::Just(std::move(opts));
-    // Slash-command menu, and the same config as an update for clients that
-    // only watch notifications.
+    // Slash-command菜单，以及与仅观看通知的客户
+    // 端的更新相同的配置。
     emit_session_config(cap, sid, model_id_);
     return r;
 }
 
-// session/fork: a new session whose history is a copy of another's, the
-// editor's "fork from here". The source can be live or only on disk; the
-// copy keeps its model, thinking and mode, and gets a fresh id and title.
+// session/fork：一个新会话，其历史记录是另一个会话、
+// 编辑者的"fork from here"的副本。源可以是实时的，
+// 也可以仅在磁盘上；文案保留了它的模型、思维和模式，并获得了新的ID和标题。
 a::NewSessionResult AgentServer::on_fork_session(const Cap& cap, const a::ForkSessionParams& p) {
     auto extra = extra_roots_of(p.additionalDirectories);
     adopt_client_mcp(cap, p.mcpServers);
@@ -1917,12 +1917,12 @@ a::LoadSessionResult AgentServer::on_load_session(const Cap& cap, const a::LoadS
     adopt_client_mcp(cap, p.mcpServers);
     std::string sid = p.sessionId.value;
     std::string cwd = p.cwd;
-    // InvalidParams, not InternalError. Zed's client branches on the code
-    // (agent_servers/src/acp.rs): AuthRequired opens the sign-in flow, any
-    // other non-InternalError is surfaced to the user as-is, and
-    // InternalError is treated as "the agent broke" — so reporting a client
-    // mistake as InternalError blames us for their bad request and loses
-    // the actionable message.
+    // InvalidParams，不是InternalError。 Zed 的客户端在代码
+    // (agent_servers/src/acp.rs) 上分支：AuthRequired
+    // 打开 Sign-in 流程，任何其他非 -InternalError 都会
+    // 以 -is 的形式向用户显示，而 InternalError 则被视为 "the agent broke"
+    // — 因此将客户端错误报告为 InternalError 会指责我们的错误
+    // 请求并丢失可操作的消息。
     if (sid.empty())
         throw a::RpcError(a::errc::InvalidParams, "session/load: missing sessionId");
 
@@ -1931,7 +1931,7 @@ a::LoadSessionResult AgentServer::on_load_session(const Cap& cap, const a::LoadS
     Profile profile = profile_;
 
     auto extra = extra_roots_of(p.additionalDirectories);
-    // Live session: adopt the new cwd and roots, and copy the thread out.
+    // Live会话：采用新的cwd和root，并将线程复制出来。
     if (auto live = with_session(cap, sid, [](Session& s, std::string new_cwd,
                                          std::vector<std::string> roots) {
             if (!new_cwd.empty()) s.cwd = std::move(new_cwd);
@@ -1944,11 +1944,11 @@ a::LoadSessionResult AgentServer::on_load_session(const Cap& cap, const a::LoadS
     }
 
     if (!from_memory) {
-        // load_thread_by_id reads either on-disk format (the append log or
-        // the legacy single document); a bare <id>.json read misses a thread
-        // saved as a log.
+        // load_thread_by_id读取on-disk格式（追加
+        // 日志或遗留单个文档）；裸 <id>.JSON 读取会错过 线程 已
+        // 保存 作为日志。
         auto loaded = persistence::load_thread_by_id(IoAccess::grant(), ThreadId{sid});
-        // A subagent run, opened from its parent's card.
+        // 子代理运行，从其父卡打开。
         if (!loaded) loaded = persistence::load_subagent_thread(IoAccess::grant(), ThreadId{sid});
         if (!loaded)
             throw a::RpcError(a::errc::InvalidParams,
@@ -1959,8 +1959,8 @@ a::LoadSessionResult AgentServer::on_load_session(const Cap& cap, const a::LoadS
         Session s;
         s.id = sid; s.cwd = cwd; s.profile = profile; s.thread = thread;
         s.extra_roots = std::move(extra);
-        // try_emplace: a concurrent load of the same id may have made it live
-        // since the check above (and queued a turn on it). Keep that one.
+        // try_emplace：自上述检查以来，
+        // 相同id的并发加载可能已使其存活（并对其进行排队）。保留那个。
         sessions_.with(cap, [](Sessions& ss, Session v) {
             std::string k = v.id;
             ss.by_id.try_emplace(std::move(k), std::move(v));
@@ -1968,8 +1968,8 @@ a::LoadSessionResult AgentServer::on_load_session(const Cap& cap, const a::LoadS
     }
 
     replay_history(cap, sid, thread);
-    // A fork made in the TUI points at its parent's transcript outside the
-    // workspace; let the read tools reach exactly that file (#83).
+    // 在 TUI 中产生的分叉指向 工作区 之外的其父代转录本；
+    // 让读取工具准确到达该文件（#83）。
     {
         std::vector<std::string> transcripts;
         for (const auto& msg : thread.messages)
@@ -1979,9 +1979,9 @@ a::LoadSessionResult AgentServer::on_load_session(const Cap& cap, const a::LoadS
             tools::util::allow_fork_transcripts(IoAccess::grant(), persistence::threads_dir(),
                                                 transcripts);
     }
-    // Re-advertise the slash-command menu + model picker for the restored
-    // session, and push its title so Zed's sidebar entry is populated the same
-    // as the native agent.
+    // Re-advertise 恢复会话的斜杠-command菜单
+    // +模型选择面板，并推送其标题，以便Zed的侧边栏条目填充为
+    // 与本机代理相同。
     emit_session_config(cap, sid, model_id_);
     if (!thread.title.empty())
         send_update(cap, sid, a::SU_SessionInfo{
@@ -1996,8 +1996,8 @@ a::LoadSessionResult AgentServer::on_load_session(const Cap& cap, const a::LoadS
 }
 
 void AgentServer::on_cancel(const Cap& cap, const a::CancelParams& p) {
-    // Cancels the running turn and every prompt queued behind it. A prompt
-    // sent after this notification is not affected.
+    // 取消正在运行的转弯以及在其后面排队的每个提示词。
+    // 在该 通知 之后发送的 提示词 不受影响。
     auto toks = with_session(cap, p.sessionId.value, [](Session& s) {
         std::vector<http::CancelTokenPtr> out;
         for (const auto& [rid, tok] : s.queued) out.push_back(tok);
@@ -2008,7 +2008,7 @@ void AgentServer::on_cancel(const Cap& cap, const a::CancelParams& p) {
 
 void AgentServer::cancel_tokens(const maya::below<maya::leaf>& cap, std::vector<http::CancelTokenPtr> toks) {
     for (auto& t : toks) if (t) t->cancel();
-    // Wake prompts waiting in acquire_turn so a cancelled one leaves the line.
+    // 唤醒在 acquire_turn 中等待的 提示词，以便 已取消 离开队列。
     sessions_.with(cap, [](Sessions&) {});
 }
 
@@ -2042,7 +2042,7 @@ AgentServer::acquire_turn(const Cap& cap, const std::string& sid, const std::str
             auto me = std::ranges::find(s.queued, r,
                                         &std::pair<std::string, http::CancelTokenPtr>::first);
             if (me == s.queued.end()) return std::nullopt;
-            if (me->second->is_cancelled()) {   // gave up while waiting
+            if (me->second->is_cancelled()) {   // 等待时放弃
                 s.queued.erase(me);
                 ss.reqid_to_session.erase(r);
                 return std::nullopt;
@@ -2075,12 +2075,12 @@ void AgentServer::release_turn(const maya::below<maya::leaf>& cap, const std::st
 }
 
 void AgentServer::on_cancel_request(const Cap& cap, const a::RpcId& id) {
-    // Generic JSON-RPC $/cancel_request: the client wants to cancel the
-    // request with this id. We only track in-flight session/prompt requests
-    // (the only long-running ones), so map the id back to its session and
-    // cancel that turn — identical effect to a session/cancel, just addressed
-    // by request id instead of sessionId. Unknown ids (already-settled turns,
-    // or non-prompt requests) are a no-op, which is spec-legal.
+    // 通用JSON-RPC$/cancel_request：客户端想要取消具有
+    // 该id的请求。我们只跟踪 -flight session/prompt 请求
+    // （唯一的 long-running 请求），因此将 id 映射回其会话和
+    // 取消 — 与 副作用 到 session/cancel 相同，只是通过请求
+    // id 而不是 sessionId 进行寻址。未知的ID（已经-settled轮次，
+    // 或非-prompt请求）是no-op，即spec-legal。
     auto tok = sessions_.with(cap, [](Sessions& ss, std::string rid) -> http::CancelTokenPtr {
         auto mit = ss.reqid_to_session.find(rid);
         if (mit == ss.reqid_to_session.end()) return nullptr;
@@ -2092,7 +2092,7 @@ void AgentServer::on_cancel_request(const Cap& cap, const a::RpcId& id) {
     if (tok) cancel_tokens(cap, std::vector<std::shared_ptr<http::CancelToken>>{tok});
 }
 
-// ── Session modes ───────────────────────────────────────────────────────────
+// ── 会话模式 ───────────────────────────────────────────────────────────
 const char* AgentServer::mode_id_for(Profile p) {
     switch (p) {
         case Profile::Ask:     return "ask";
@@ -2123,8 +2123,8 @@ a::SessionModeState AgentServer::mode_state(Profile current) {
     return st;
 }
 
-// mode_state plus AIR's mode kind: Write still asks for risky ops, so it is
-// auto_review; the others ask first.
+// mode_state加上AIR的模式种类：Write仍然要求有风险的操作，
+// 所以是auto_review；其他人先问。
 a::SessionModeState AgentServer::modes_for_client(Profile current) const {
     auto st = mode_state(current);
     for (auto& m : st.availableModes)
@@ -2143,7 +2143,7 @@ void AgentServer::on_set_mode(const Cap& cap, const a::SetModeParams& p) {
                           json{{"sessionId", p.sessionId.value}});
     send_update(cap, p.sessionId.value,
         a::SU_CurrentMode{a::SessionModeId{mode_id_for(*applied)}, json::object()});
-    // Keep the `mode` config option in step for clients that render that.
+    // 为 渲染 的客户端保留 `mode` 配置选项。
     emit_config_state(cap, p.sessionId.value, model_id_);
 }
 
@@ -2167,8 +2167,8 @@ a::SetConfigOptionResult AgentServer::on_set_config_option(const Cap& cap, const
     const std::string value = p.value_string();
 
     if (p.configId == "model") {
-        // A value from our list is "<provider>\t<model>"; a bare id (an older
-        // client, or a hand-written one) means a model on the active provider.
+        // 我们的列表中的值是"<provider>\t<model>"；裸 ID（较
+        // 旧的客户端或 hand-written 客户端）表示活动提供程序上的模型。
         auto [prov, model] = split_choice(value);
         if (model.empty()) throw bad("empty model");
         const auto choices = model_choices(cap);
@@ -2210,9 +2210,9 @@ a::SetConfigOptionResult AgentServer::on_set_config_option(const Cap& cap, const
             return true;
         }, p.value_bool());
     } else if (p.configId == "mode") {
-        // Permission profile, shared with the legacy session/set_mode path.
-        // Validate against the known ids so a bad value is an error, not a
-        // silent Ask fallback that looks like success.
+        // 权限配置文件，与旧的session/set_mode路径共享。
+        // 针对已知的 ID 进行验证，因此错误的值是错误，
+        // 而不是看起来成功的静默 Ask 回退。
         if (value != "ask" && value != "write" && value != "minimal")
             throw bad("mode must be ask|write|minimal",
                       json::array({"ask", "write", "minimal"}));
@@ -2222,28 +2222,28 @@ a::SetConfigOptionResult AgentServer::on_set_config_option(const Cap& cap, const
         }, value);
         if (!got) throw unknown();
         const Profile applied = *got;
-        // v2 clients see the change in the config echo below; a v1 client
-        // also keeps a SessionModeState, so update that too.
+        // v2客户端在下面的配置回显中看到变化； v1 客户端还保留
+        // SessionModeState，因此也更新它。
         if (!v2_config())
             send_update(cap, p.sessionId.value,
                 a::SU_CurrentMode{a::SessionModeId{mode_id_for(applied)}, json::object()});
     } else {
-        // An unknown config id is an error, not a no-op that looks like success.
+        // 未知的配置ID是错误，而不是看起来成功的no-op。
         throw bad("unknown configId '" + p.configId + "'",
                   json::array({"mode", "model", "effort", "show_thinking"}));
     }
 
-    // Echo the COMPLETE new config state, in the result (the spec requires
-    // it; Zed and JetBrains reconcile their selectors from it) and as an
-    // update for clients that only watch notifications.
+    // 在结果中回显 COMPLETE 新配置状态（规范要求它；
+    // Zed 和 JetBrains 从中协调他们的选择
+    // 器）并作为仅观看 通知 的客户端的更新。
     a::SetConfigOptionResult r{config_options(cap, p.sessionId.value, model_id_), json::object()};
     emit_config_state(cap, p.sessionId.value, model_id_);
     return r;
 }
 
-// The editor calls this after running our terminal login method (or any time
-// it wants to check). Re-read the credential store: the login just wrote it
-// from another process, and our copy is from startup.
+// 编辑器调用在运行我们的终端登录方法之后(或任何它想要检查
+// 的时间)。 Re-read 凭据 存储：登录只是从另一个
+// 进程写入的，我们的副本是从启动开始的。
 void AgentServer::on_authenticate(const a::AuthenticateParams& p) {
     if (p.methodId != "agentty-login")
         throw a::RpcError(a::errc::InvalidParams,
@@ -2251,7 +2251,7 @@ void AgentServer::on_authenticate(const a::AuthenticateParams& p) {
     if (auth::is_empty(auth()) && reauth_) {
         auth::AuthHeader fresh = reauth_();
         auth_.store(fresh);
-        // The model list depends on which providers are signed in.
+        // 模型列表取决于登录的提供商。
         model_choices_.publish(nullptr);
     }
     if (auth::is_empty(auth()))
@@ -2260,14 +2260,14 @@ void AgentServer::on_authenticate(const a::AuthenticateParams& p) {
 }
 
 void AgentServer::on_logout(const Cap&) {
-    auth::clear_credentials(IoAccess::grant());   // ACP handler, not a reducer
+    auth::clear_credentials(IoAccess::grant());   // ACP 处理函数，不是 状态更新函数
     auth_.store(auth::AuthHeader{auth::ApiKeyHeader{""}});
 }
 
-// ── Session lifecycle: list / resume / close / delete ────────────────────────
-// acp_sessions.json is read-modify-written by every ACP instance (one per
-// editor window), so it goes through with_shared_file like the thread index:
-// the in-process lane plus the cross-process file lock.
+// ── 会话生命周期: 列表 / 恢复 / 关闭 / 删除 ────────────────────────
+// acp_sessions.json被每个ACP实例（每个编辑器窗口一个）读取
+// -modify-written，因此它像线程索引一样经历with_shared_file：
+// in-process车道加cross-process文件锁。
 namespace {
 std::filesystem::path session_index_path() {
     return persistence::threads_dir() / "acp_sessions.json";
@@ -2285,13 +2285,13 @@ json read_session_index(const char* where) {
     return json::object();
 }
 void write_session_index(const json& j) {
-    // A session title/cwd derived from an untrusted ACP `cwd` can contain
-    // invalid UTF-8; the default dump() throws type_error(316) on that.
-    // Substitute U+FFFD instead so indexing can never crash the worker.
+    // 从不可信的ACP `cwd`导出的会话title/cwd可以包含无效的UTF-8；
+    // 默认的 dump() 会抛出 type_error(316)。
+    // 代之以U+FFFD，因此索引永远不会使工作线程崩溃。
     (void)persistence::write_json_atomic(IoAccess::grant(), 
         session_index_path(), j.dump(-1, ' ', false, json::error_handler_t::replace));
 }
-}  // namespace
+}  // 命名空间结束。
 
 json AgentServer::load_session_index(const Cap& cap) {
     return persistence::with_shared_file(cap, session_index_lane(), session_index_path(),
@@ -2331,7 +2331,7 @@ a::ListSessionsResult AgentServer::on_list_sessions(const Cap& cap, const a::Lis
     std::string filter_cwd = p.cwd.value_or("");
     json index = load_session_index(cap);
 
-    // Live sessions not yet in the on-disk index (cwd, title).
+    // 现场会话尚未在 on-disk 索引中（cwd，标题）。
     const auto live = sessions_.read(cap, [](const Sessions& ss) {
         std::vector<std::array<std::string, 3>> out;
         for (const auto& [id, s] : ss.by_id) out.push_back({id, s.cwd, s.thread.title});
@@ -2355,12 +2355,12 @@ a::ListSessionsResult AgentServer::on_list_sessions(const Cap& cap, const a::Lis
                         t != meta.end() && t->is_string() ? t->get<std::string>() : "",
                         u != meta.end() && u->is_number_integer() ? u->get<std::int64_t>() : 0});
     }
-    // Newest first: editors show this as "recent chats".
+    // 最新的在前：编辑器将其显示为"recent chats"。
     std::ranges::sort(rows, [](const Row& x, const Row& y) {
         return x.at != y.at ? x.at > y.at : x.id < y.id;
     });
 
-    // Opaque cursor = offset into that order. Pages of 100.
+    // 不透明光标＝偏移到该顺序中。 100 页。
     constexpr std::size_t kPage = 100;
     std::size_t from = 0;
     if (p.cursor) {
@@ -2384,13 +2384,13 @@ a::ListSessionsResult AgentServer::on_list_sessions(const Cap& cap, const a::Lis
 }
 
 a::ResumeSessionResult AgentServer::on_resume_session(const Cap& cap, const a::ResumeSessionParams& p) {
-    return on_load_session(cap, p);   // restore + replay; same result shape
+    return on_load_session(cap, p);   // 恢复+重播；相同的结果形状
 }
 
-// Drop a session and cancel every turn it owns (the running one and any
-// queued behind it). Erasing it alone left a running turn streaming and
-// running tools until its next step boundary noticed the session was gone,
-// and session/delete's file removal then raced that turn's saves.
+// 丢弃会话和它所拥有的每一回合的取消（正在运行的会话和在其后面
+// 排队的任何会话）。单独擦除它会留下一个正在运行的回合 流式
+// 传输 并运行工具，直到其下一步边界注意到会话消失，
+// 然后 session/delete 的文件删除会与该回合的 保存 竞争。
 void AgentServer::drop_session(const Cap& cap, const std::string& sid) {
     auto toks = sessions_.with(cap, [](Sessions& ss, std::string id) {
         std::vector<std::shared_ptr<http::CancelToken>> out;
@@ -2413,16 +2413,16 @@ void AgentServer::on_delete_session(const Cap& cap, const a::DeleteSessionParams
     unindex_session(cap, p.sessionId.value);
 }
 
-// ── Prompt + turn loop ───────────────────────────────────────────────────────
+// ── 提示词 + 转圈 ───────────────────────────────────────────────────────
 void AgentServer::on_prompt(const Cap& cap, const a::PromptParams& p, Responder resp) {
     std::string sid  = p.sessionId.value;
     auto parts = prompt_parts_from_blocks(p.prompt);
     std::string text = std::move(parts.text);
-    const std::string typed_raw = text;   // before any /command expansion
+    const std::string typed_raw = text;   // 在任何 /command 扩展之前
 
-    // Local OpenAI-compatible backends (Ollama, llama.cpp) need no key, so
-    // an empty auth is legitimate for them. Only demand credentials for a
-    // hosted (TLS) endpoint or the Anthropic path.
+    // 本地OpenAI-compatible后端(Ollama、
+    // llama.cpp)不需要密钥，因此空认证对它们来说是合法的。仅要求托管 (
+    // TLS) 端点或 Anthropic 路径的 凭据。
     {
         const auto& sel = provider::active();
         const bool keyless_local =
@@ -2439,14 +2439,14 @@ void AgentServer::on_prompt(const Cap& cap, const a::PromptParams& p, Responder 
         }
     }
 
-    // Slash commands from the menu we advertise. These are actions, not
-    // prompts: sending "/compact" to the model would just get a chat reply.
+    // 来自我们广告的菜单的斜线命令。这些是操作，而不是 提示
+    // 词：将 "/compact" 发送给模型只会得到聊天回复。
     {
         std::string_view t = text;
         while (!t.empty() && std::isspace(static_cast<unsigned char>(t.front()))) t.remove_prefix(1);
         while (!t.empty() && std::isspace(static_cast<unsigned char>(t.back())))  t.remove_suffix(1);
         if (t == "/new") {
-            // A fresh context in the same session: the client keeps its tab.
+            // 同一会话中的新上下文：客户端保留其选项卡。
             with_session(cap, sid, [](Session& s) {
                 s.thread.messages.clear();
                 s.thread.compactions.clear();
@@ -2472,9 +2472,9 @@ void AgentServer::on_prompt(const Cap& cap, const a::PromptParams& p, Responder 
                 std::move(resp));
             return;
         }
-        // A user slash command expands into its prompt template; a skill
-        // splices in its instructions; an MCP prompt renders. One resolver
-        // (runtime/slash.hpp) decides which, the same one the TUI uses.
+        // 用户斜杠命令扩展为其提示词模板；技能指令中的拼接；
+        // MCP 提示词 渲染。一个解析器 (runtime/slash.hpp)
+        // 决定使用哪一个，与 TUI 使用的解析器相同。
         if (t.starts_with('/')) {
             const Io io = IoAccess::grant();
             const slash::Catalog cat = slash::discover(io);
@@ -2487,9 +2487,9 @@ void AgentServer::on_prompt(const Cap& cap, const a::PromptParams& p, Responder 
                 active = tools::skills::is_active_in(hit.entry->name, ::agentty::visible_text(snap));
             }
             if (auto out = slash::expand_checked(io, t, cat, active)) {
-                // A prompt missing a required argument: tell the user what to
-                // type and end the turn. Sent to the model, the note would be
-                // answered as if it were a question.
+                // 提示词缺少必需的参数：告诉用户要输入
+                // 什么并结束回合。发送到模型后，
+                // 该注释将像问题一样得到回答。
                 if (out->usage) {
                     send_update(cap, sid, a::SU_AgentMessageChunk{text_block(std::move(out->text)), a::Nothing});
                     resp.ok(cap, a::PromptResult{a::StopReason::EndTurn, json::object()});
@@ -2499,23 +2499,23 @@ void AgentServer::on_prompt(const Cap& cap, const a::PromptParams& p, Responder 
             }
         }
     }
-    // Title from what the user typed ("/review src"), not the expanded template.
+    // 标题来自于用户带类型的("/review src")，而不是扩展模板。
     std::string typed = typed_raw;
     Message um;
     um.role   = Role::User;
     um.text   = std::move(text);
     um.images = std::move(parts.images);
 
-    // Get in line now, so a session/cancel or $/cancel_request that arrives
-    // before the worker starts still finds this prompt. The message joins the
-    // thread when its turn comes, so a queued prompt never lands mid-turn.
+    // 现在就排队，这样在 工作线程 开始之前到达的 session/cancel
+    // 或 $/cancel_request 仍然会找到这个 提示词。
+    // 该消息在轮到时加入 线程，因此排队的 提示词 永远不会到达中间 -turn。
     std::string req_id_dump = jsonrpc::to_json(resp.id()).dump();
     register_prompt(cap, sid, req_id_dump);
 
-    // Run the whole turn off the reader thread; the engine stays free to
-    // deliver our outbound permission responses. The Responder resolves the
-    // deferred session/prompt when the turn settles. The job co-owns the
-    // server, so a turn still running at exit can't outlive it.
+    // 运行全程关闭读写器线程;引擎保持空闲状态以传送我们的
+    // 出站 权限 响应。当回合结束时，响应者解决延迟的
+    // session/prompt。作业 co-owns 服务器，
+    // 因此在退出时仍在运行的轮次不能比它长。
     util::run_isolated_detached("acp.turn_worker",
         [](const maya::unlocked& cap, std::stop_token, maya::co_owned<AgentServer> self,
            std::string sid, std::string rid, Responder r, Message m, std::string typed) {
@@ -2526,17 +2526,17 @@ void AgentServer::on_prompt(const Cap& cap, const a::PromptParams& p, Responder 
 }
 
 namespace {
-// A call a weak local model leaked as text, salvaged into a tool call.
+// 调用是作为文本泄露的弱本地模型，被挽救到工具调用中。
 bool is_salvaged_id(const std::string& id) {
     return std::string_view{id}.starts_with("call_salvaged_");
 }
 constexpr std::string_view kMemoryToolNames[] = {"remember", "forget", "wipe_memory"};
-}  // namespace
+}  // 命名空间结束。
 
-// /compact: summarise the thread so far and record it, so later turns send
-// the summary instead of the full history. The transcript itself is kept
-// (the client still shows it), same as the TUI. Reported as a v1.11
-// compaction entity when the client renders those, as plain text otherwise.
+// /compact:总结到目前为止的线程并记录它，
+// 以便稍后轮流发送摘要而不是完整的历史记录。记录本身被保留
+// （客户端仍然显示它），与 TUI 相同。
+// 当客户端 渲染 时，报告为 v1.11 压缩实体，否则报告为纯文本。
 void AgentServer::run_compact(Io, const Cap& cap, std::string sid, std::string rid, Responder resp) {
   struct Release {
       AgentServer& s; const Cap& c; const std::string& sid; const std::string& rid;
@@ -2573,7 +2573,7 @@ void AgentServer::run_compact(Io, const Cap& cap, std::string sid, std::string r
     const bool entity = client_compaction_.load(std::memory_order_relaxed);
     const std::string cid = "cmp_" + sid + "_" + std::to_string(snap->thread.compactions.size() + 1);
     const auto started = std::chrono::steady_clock::now();
-    // AIR's compaction facts, sent with each status.
+    // AIR的压缩事实，与每个状态一起发送。
     const auto facts = [&](json extra) {
         extra["trigger"] = "manual";
         extra["durationMs"] = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -2586,7 +2586,7 @@ void AgentServer::run_compact(Io, const Cap& cap, std::string sid, std::string r
     provider::Request req;
     req.model      = snap->model.empty() ? model_id_ : snap->model;
     req.max_tokens = max_output_tokens_for(req.model);
-    // Same conversation identity as the turns (#118).
+    // 与回合相同的对话身份（#118)。
     req.session_key = snap->thread.id.value;
     req.cancel     = snap->cancel;
     req.auth       = auth();
@@ -2631,8 +2631,8 @@ void AgentServer::run_compact(Io, const Cap& cap, std::string sid, std::string r
         return;
     }
 
-    // Record it. Messages that arrived while summarising are past up_to and
-    // stay on the wire verbatim.
+    // 记录下来。汇总时到达的消息已超过 up_to，
+    // 并逐字保留在 传输 上。
     const auto before_after = with_session(cap, sid, [](Session& s, std::size_t upto, std::string text) {
         Thread::CompactionRecord rec;
         rec.up_to_index = std::min(upto, s.thread.messages.size());
@@ -2649,8 +2649,8 @@ void AgentServer::run_compact(Io, const Cap& cap, std::string sid, std::string r
     index_session(cap, sid);
 
     if (entity) {
-        // The streamed chunks were the raw reply; this replaces them with the
-        // clean summary (the spec's authoritative replacement).
+        // 流式传输的块是原始答复；这会将它们替换为
+        // 干净的摘要（规范的权威替换）。
         a::List<a::ContentBlock> clean;
         clean.push_back(text_block(summary));
         json f{{"version", 1}};
@@ -2677,22 +2677,22 @@ void AgentServer::run_compact(Io, const Cap& cap, std::string sid, std::string r
 
 void AgentServer::run_turn(Io io, const Cap& cap, std::string session_id, std::string req_id_dump,
                            Responder resp, Message user_msg, std::string typed) {
-  // Hand the session to the next queued prompt however this one ends.
+  // 将会话移交给下一个排队的提示词，但是本会话结束。
   struct Release {
       AgentServer& s; const Cap& c; const std::string& sid; const std::string& rid;
       ~Release() { s.release_turn(c, sid, rid); }
   } release{*this, cap, session_id, req_id_dump};
-  // This runs on a DETACHED worker thread, entirely outside acp-cpp's
-  // handle_request try/catch. An uncaught throw here would call
-  // std::terminate() and kill every session in the process; and a return
-  // without resolving `resp` leaves the client's session/prompt future
-  // hanging forever (the Responder destructor does not auto-reply). So the
-  // whole body is guarded: any escape resolves the deferred prompt with an
-  // InternalError. The ok/error done-latch makes the trailing resp.ok(cap, ...)
-  // a no-op if we already errored, so exactly one reply is sent.
+  // 这在 DETACHED 工作线程 线程 上运行，完全在 acp-cpp 的
+  // handle_request try/catch. 之外，
+  // 此处未捕获的抛出将 调用 std::terminate() 并终止进程中的每个会话；
+  // 如果不解析 `resp` 就返回，则客户端的 session/prompt
+  // 未来永远悬而未决（响应程序析构函数不会 auto-reply）。因此，
+  // 整个 正文 都受到保护：任何转义都会用 InternalError 解析延迟的 提示词。
+  // 如果我们已经出错，则 ok/error did-latch 会使尾随的 resp.ok
+  // (cap, ...) 成为 no-op，因此只发送了一个回复。
   try {
-    // Wait for any turn already running in this session, then add our
-    // message. Cancelled while queued: answer cancelled, never run.
+    // 等待该会话中已经运行的任何回合，然后添加我们的消息。
+    // 排队时 已取消：回答 已取消，从不运行。
     auto got = acquire_turn(cap, session_id, req_id_dump, std::move(user_msg), std::move(typed));
     if (!got) {
         if (with_session(cap, session_id, [](Session&) { return true; }))
@@ -2710,17 +2710,17 @@ void AgentServer::run_turn(Io io, const Cap& cap, std::string session_id, std::s
     std::string error_msg;
     StopReason last_stop = StopReason::EndTurn;
 
-    // Doom-loop guard for weak local models: count salvaged (leaked-JSON)
-    // tool rounds across the turn. After kMaxSalvaged of them — or any
-    // salvaged memory-tool call — force the turn to finish in plain text
-    // instead of looping (the TUI's dedup_releaked_salvage_calls analog).
+    // Doom-loop保护弱本地模型：计算整个回合中回收的(泄露的
+    // -JSON)工具轮数。在 kMaxSalvged 后（或任何回收的
+    // 内存-tool 调用），强制转弯以纯文本而不是循环完成（TUI 的
+    // dedup_releaked_salvage_calls 类似物）。
     constexpr int kMaxSalvaged = 3;
     int salvaged_rounds = 0;
-    bool force_text_retry = false;   // next sub-turn: re-prompt with NO tools
-    bool budget_done = false;        // the one final tool-free retry has fired
+    bool force_text_retry = false;   // 下一个子-turn:用NO工具re-prompt
+    bool budget_done = false;        // 最后一个工具-free 重试已发射
 
     for (int turn = 0; turn < 64; ++turn) {
-        // A concurrent session/close|delete ends the turn at the next step.
+        // 并发的session/close|删除在下一步结束回合。
         if (!with_session(cap, session_id, [](Session&) { return true; })) {
             errored = true; error_msg = "session vanished"; break;
         }
@@ -2733,17 +2733,17 @@ void AgentServer::run_turn(Io io, const Cap& cap, std::string session_id, std::s
         if (cancelled) break;
         if (stop != StopReason::ToolUse) break;
 
-        // Inspect the just-streamed assistant message's tool calls. A leaked
-        // call from a weak local model carries the call_salvaged_ id. Memory
-        // tools (remember/forget/wipe) leaked on a non-explicit turn are junk,
-        // and once the salvage budget is spent it's a doom loop. In both cases
-        // we FAIL the leaked calls without running them, feed that failure
-        // back as a tool result (so the wire tool_use↔result pairing stays
-        // valid), and let the model take ONE more sub-turn to answer in plain
-        // text — instead of returning a blank bubble.
+        // 检查just-streamed辅助消息的工具调用。从弱本地模型
+        // 泄露的 调用 带有 call_salvaged_ id。
+        // 在非 -explicit 回合中泄露的 内存 工具 (
+        // remember/forget/wipe) 都是垃圾，一旦花费了抢救预算，
+        // 就会陷入恶性循环。在这两种情况下，我们 FAIL 泄漏的 调用
+        // 而不运行它们，将该失败作为工具结果反馈（因此 传输 tool_use
+        // ↔ 结果配对保持有效），并让模型采用 一个 更多 sub-turn
+        // 以纯文本回答 - 而不是返回空白气泡。
         {
-            // Fail leaked calls in the live session under the lock, and
-            // report which ones so the client cards follow, unlocked.
+            // 在锁下的实时会话中失败泄露调用，
+            // 并报告哪些，以便客户端卡跟随、解锁。
             struct Salvage { bool any = false, mem_leak = false;
                              std::vector<std::string> failed; };
             const auto sv = with_session(cap, session_id,
@@ -2778,9 +2778,9 @@ void AgentServer::run_turn(Io io, const Cap& cap, std::string session_id, std::s
                         u.status     = a::Just(a::ToolCallStatus::Failed);
                         send_update(cap, session_id, a::SU_ToolCallUpdate{std::move(u)});
                     }
-                    // Over budget: one final tool-free retry so the model
-                    // answers in plain text instead of an empty bubble. The
-                    // budget_done latch makes it fire exactly once.
+                    // 超出预算：一个最终工具-free 重试，
+                    // 因此模型以纯文本而不是空气泡回答。
+                    // budget_done 闩锁使其只触发一次。
                     if (budget_blown) {
                         if (budget_done) { last_stop = StopReason::EndTurn; break; }
                         budget_done = true;
@@ -2796,13 +2796,13 @@ void AgentServer::run_turn(Io io, const Cap& cap, std::string session_id, std::s
         if (cancelled || !ran) break;
     }
 
-    // Persist if the session still exists. The cancel handle and the reqid
-    // mapping go when the turn is released.
+    // 如果会话仍然存在则持续。当回合被释放时，
+    // 取消 句柄和 reqid 映射将继续。
     const bool alive = with_session(cap, session_id, [](Session&) { return true; }).value_or(false);
     if (alive) {
         persist(cap, session_id);
         index_session(cap, session_id);
-        // Bump the sidebar's "last active" for this chat.
+        // 为该聊天突出侧边栏的"last active"。
         const auto now_s = std::chrono::duration_cast<std::chrono::seconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
         send_update(cap, session_id, a::SU_SessionInfo{
@@ -2811,9 +2811,9 @@ void AgentServer::run_turn(Io io, const Cap& cap, std::string session_id, std::s
 
     a::PromptResult result;
     result.stopReason = acp_stop_reason(last_stop, cancelled, errored);
-    // A failed turn is an error with its reason, not a stop reason: `refusal`
-    // would tell the client the model declined and hide why. Cancellation
-    // still wins, as the spec requires.
+    // 失败的转向是其原因的错误，而不是停止原因：
+    // `refusal`将告诉客户模型拒绝并隐藏原因。
+    // 根据规范要求，取消 仍然获胜。
     if (errored && !cancelled) {
         resp.error(cap, a::errc::InternalError,
                    error_msg.empty() ? std::string{"turn failed"} : error_msg);
@@ -2835,8 +2835,8 @@ StopReason AgentServer::stream_completion(Io io, const Cap& cap, const std::stri
                                           std::string& out_error,
                                           bool suppress_tools) {
     provider::Request req;
-    // Snapshot what the request needs ONCE. A model change mid-turn applies
-    // to the NEXT turn; the stream itself runs with no lock held.
+    // 快照请求需要ONCE。型号变更 mid-turn 适用于 下一个 转弯；
+    // 数据流 本身在没有持有 锁 的情况下运行。
     struct Snap {
         std::string model, cwd, provider, effort, thread_id;
         bool show_reasoning;
@@ -2844,19 +2844,19 @@ StopReason AgentServer::stream_completion(Io io, const Cap& cap, const std::stri
         std::vector<Message> messages;
     };
     auto snap = with_session(cap, session_id, [](Session& s) {
-        // The wire view: after /compact the summary replaces the prefix.
+        // 传输视图：在/compact之后，摘要替换了前缀。
         return Snap{s.model, s.cwd, s.provider, s.effort, s.thread.id.value,
                     s.show_reasoning, s.cancel, app::cmd::wire_messages_for(s.thread)};
     });
     if (!snap) { out_error = "session vanished"; return StopReason::Unspecified; }
     const std::string sess_model = snap->model;
     req.model         = sess_model.empty() ? model_id_ : sess_model;
-    // The persisted thread id, stable across reloads: prompt-cache routing
-    // and the gateway session id (#118), as in the TUI.
+    // 持久的 线程 id，在重新加载后保持稳定：提示词-cache 路由和
+    // 网关会话 id (#118)，如 TUI 中一样。
     req.session_key   = snap->thread_id;
     {
-        // Reasoning effort: the session's choice, clamped to the model.
-        // Unset means auto, the same per-model default the TUI uses.
+        // 推理努力：会话的选择，受限于模型。
+        // 取消设置意味着自动，与TUI使用的每个-model默认值相同。
         const auto caps = resolved_caps(req.model, snap->provider);
         const Effort e = snap->effort == "none" ? Effort::None
                        : snap->effort.empty()   ? Effort::Auto
@@ -2866,27 +2866,27 @@ StopReason AgentServer::stream_completion(Io io, const Cap& cap, const std::stri
         req.no_reasoning   = e == Effort::None;
         req.reasoning_off  = caps.reasoning_off;
     }
-    // Per-model output-token ceiling (mirrors cmd_factory::launch_stream).
-    // Without this the default 16384 is shared across reasoning + tool JSON
-    // and a large `edit` truncates mid-input_json. context_window is left 0
-    // here (no per-session /api/show probe on the ACP path); the Ollama
-    // transport then applies its safe agent-sized num_ctx default, still 4x
-    // Ollama's truncating floor.
+    // Per-model输出-token天花板(镜子cmd_factory::launch_stream)。
+    // 如果没有这个，则默认的16384在推理+工具JSON之间共享，并且大的`edit`
+    // 会截断mid-input_json。 context_window 此处留为 0（
+    // ACP 路径上没有 per-session /api/show 探测）；
+    // 然后 Ollama 传输层 应用其安全代理 -sized num_ctx 默认值，
+    // 仍然是 4x Ollama 的截断下限。
     req.max_tokens    = max_output_tokens_for(req.model);
-    // A small served window (vLLM 4096) 400s a request whose max_tokens
-    // alone fills it; the catalog knows the window when /v1/models said it.
+    // 小服务窗口（vLLM 4096) 400s一个仅由max_tokens
+    // 填充的请求；当 /v1/models 说出时，目录 知道窗口。
     if (const int win = catalog_context_window_for(req.model); win > 0)
         req.max_tokens = std::min(req.max_tokens, std::max(256, win / 4));
-    // Product-level prompt policy is shared with the TUI request builder:
-    // hosted models get the complete agent/tool/RAG contract, while constrained
-    // local endpoints get the compact profile.
+    // Product-level 提示词 策略与 TUI 请求构建器共享：
+    // 托管模型获得完整的agent/tool/RAG合同，
+    // 而受约束的本地端点获得紧凑的简档。
     {
         const auto sel = provider::active();
         req.system_prompt = provider::system_prompt_for(io, sel);
-        // First-class weak-model support (agent-zero style): weak models on
-        // the Ollama native endpoint use the JSON-protocol path (inline tool
-        // catalog, single {tool_name,tool_args} object) instead of the native
-        // tools array. Mirrors cmd_factory's launch_stream.
+        // First-classweak-model支持（agent-zero样式）：
+        // Ollama本机端点上的弱模型使用JSON-protocol路径（内联工具目录，
+        // 单个{tool_name，tool_args}对象）而不是本机工具阵列。
+        // 镜像 cmd_factory 的 launch_stream。
         req.json_protocol = is_weak_model(req.model)
             && sel.kind == provider::Kind::OpenAI
             && sel.openai_endpoint.native_api;
@@ -2894,20 +2894,20 @@ StopReason AgentServer::stream_completion(Io io, const Cap& cap, const std::stri
     req.cancel        = snap->cancel;
     req.auth          = auth();
     req.messages      = std::move(snap->messages);
-    // suppress_tools: a weak local model that just leaked a junk tool call
-    // gets a tool-free retry. With no tools advertised it cannot leak another
-    // and answers the user in plain text (proven: qwen2.5-coder:7b greets
-    // cleanly only when no tools are on the wire).
+    // suppress_tools:刚刚泄露垃圾工具调用的弱本地模型获得
+    // 工具-free 重试。由于没有宣传任何工具，它不会泄漏另一个工具，
+    // 并以纯文本形式回答用户（已证明：qwen2.5-coder:7b
+    // 仅当 传输 上没有工具时才会干净地打招呼）。
     if (!suppress_tools) {
-        // Weak local models hallucinate `skill` and the memory tools on
-        // greetings/small talk — don't advertise them (mirrors cmd_factory).
+        // 弱本地模型在 greetings/small 谈话中产生 `skill`
+        // 和 内存 工具的幻觉——不要为它们做广告（镜像 cmd_factory）。
         const bool weak = is_weak_model(req.model);
         auto weak_hidden = [](std::string_view n) {
             return n == "skill" || n == "remember"
                 || n == "forget" || n == "wipe_memory";
         };
-        // Same plan as the TUI (#98): every enabled tool callable, the plan
-        // decides what rides the wire, tool_search finds the rest.
+        // 与 TUI (#98) 相同的计划：每个启用的可调用工具，
+        // 该计划决定什么乘坐 传输，tool_search 找到其余的。
         const tools::Catalog cat = tools::wire_tools();
         tools::tool_loading::Request tr;
         for (const auto& t : *cat) {
@@ -2928,16 +2928,16 @@ StopReason AgentServer::stream_completion(Io io, const Cap& cap, const std::stri
     assistant.role = Role::Assistant;
 
     StopReason stop = StopReason::Unspecified;
-    // Argument JSON per tool call, keyed by id. A provider may interleave
-    // several calls' deltas and send every End at the end of the turn
-    // (OpenAI chat does), so one shared buffer gave every call but the last
-    // empty args (#116).
+    // 每个工具 调用 的参数 JSON，由 id 键入。提供者可能会交错
+    // 几个 调用' 增量，并在回合结束时发送每个 End（OpenAI
+    // 聊天会这样做），因此一个共享的 缓冲区 给出了每个 调用，但最后一个空
+    // 参数（#116）。
     std::unordered_map<std::string, std::string> tool_json;
     auto find_call = [&](const ToolCallId& id) -> ToolUse* {
         for (auto it = assistant.tool_calls.rbegin(); it != assistant.tool_calls.rend(); ++it)
             if (it->id == id) return &*it;
-        // An id-less event (a provider that never names calls) means the
-        // latest call, which was the old behaviour.
+        // id-less 事件（从未命名调用的提供商）
+        // 表示最新的调用，这是旧的行为。
         if (id.value.empty() && !assistant.tool_calls.empty())
             return &assistant.tool_calls.back();
         return nullptr;
@@ -2962,14 +2962,14 @@ StopReason AgentServer::stream_completion(Io io, const Cap& cap, const std::stri
                         send_update(cap, sid, a::SU_AgentMessageChunk{
                             text_block(ev.text), a::Just(a::MessageId{msg_id})});
                     } else if constexpr (std::is_same_v<E, StreamThinkingDelta>) {
-                        // Adaptive/extended thinking (effort on): forward the
-                        // visible summary text as an ACP thought chunk so Zed
-                        // renders its collapsible "Thinking" section, matching
-                        // claude-code-acp. The opaque signature stays internal
-                        // (replayed to the provider, never shown to the client).
-                        // Signed blocks are kept verbatim per block, the same
-                        // as the TUI: Anthropic rejects a tool turn whose
-                        // thinking block was dropped or merged.
+                        // Adaptive/extended思维（
+                        // 努力）：将可见摘要文本转发为ACP思维块，
+                        // 以便Zed 渲染其可折叠"Thinking"部分，
+                        // 匹配claude-code-acp。
+                        // 不透明签名保留在内部（重播给提供者，从未向客户端显示）。
+                        // 签名的块按块逐字保存，
+                        // 与TUI相同：Anthropic拒绝其
+                        // 思考块被丢弃或合并的工具转动。
                         auto open_block = [&]() -> Message::ThinkingBlock& {
                             if (assistant.thinking_blocks.empty())
                                 assistant.thinking_blocks.emplace_back();
@@ -2990,13 +2990,13 @@ StopReason AgentServer::stream_completion(Io io, const Cap& cap, const std::stri
                         }
                         if (!ev.text.empty()) {
                             open_block().text += ev.text;
-                            assistant.thinking += ev.text;   // replayed on load
+                            assistant.thinking += ev.text;   // 加载重播
                             send_update(cap, sid, a::SU_AgentThoughtChunk{
                                 text_block(ev.text), a::Just(a::MessageId{msg_id})});
                         }
                     } else if constexpr (std::is_same_v<E, StreamReasoning>) {
-                        // Codex/Responses encrypted reasoning: replayed on the
-                        // next request, tagged with the site that minted it.
+                        // Codex/Responses加密推理：
+                        // 在下一个请求时重放，标记为创建它的站点。
                         if (!ev.encrypted.empty()) {
                             assistant.reasoning_site = ev.site;
                             if (!assistant.reasoning_encrypted.empty())
@@ -3010,16 +3010,16 @@ StopReason AgentServer::stream_completion(Io io, const Cap& cap, const std::stri
                         tool_json[ev.id.value].clear();
                         a::ToolCall call;
                         call.toolCallId = a::ToolCallId{ev.id.value};
-                        // Args haven't streamed yet, so this is the kind-based
-                        // fallback ("Read", "Write", "Terminal", …) — never the
-                        // bare lowercase tool name. The SU_ToolCallUpdate on
-                        // StreamToolUseEnd refines it with the arg detail.
+                        // Args 尚未流式传输，因此这是一种 -based 回退 ("Read"、
+                        // "Write"、"Terminal"，…) — 绝不是裸露的小写工具名称。
+                        // StreamToolUseEnd 上的
+                        // SU_ToolCallUpdate 通过 arg 细节对其进行了改进。
                         call.title      = tool_title(assistant.tool_calls.back(), scwd);
                         call.name       = a::Just<std::string>(ev.name.value);
                         call.kind       = acp_tool_kind(ev.name.value);
                         call.status     = a::ToolCallStatus::Pending;
-                        // Zed creates the terminal from the FIRST tool_call;
-                        // output and exit then stream on later updates.
+                        // Zed从FIRST tool_call创建终端；
+                        // 输出并退出，然后在以后的更新中退出 数据流。
                         if (is_command_tool(ev.name.value) && terminal_channel())
                             call.meta = json{{"terminal_info",
                                               {{"terminal_id", ev.id.value}, {"cwd", scwd}}}};
@@ -3027,10 +3027,10 @@ StopReason AgentServer::stream_completion(Io io, const Cap& cap, const std::stri
                     } else if constexpr (std::is_same_v<E, StreamToolUseDelta>) {
                         if (ToolUse* tcp = find_call(ev.id)) tool_json[tcp->id.value] += ev.partial_json;
                     } else if constexpr (std::is_same_v<E, StreamToolUseSnapshot>) {
-                        if (ToolUse* tcp = find_call(ev.id)) tool_json[tcp->id.value] = ev.json;   // replaces
+                        if (ToolUse* tcp = find_call(ev.id)) tool_json[tcp->id.value] = ev.json;   // 取代
                     } else if constexpr (std::is_same_v<E, StreamObservedToolResult>) {
-                        // An external agent already ran it; run_tools skips
-                        // terminal calls so it isn't run twice.
+                        // 外部代理已经运行它； run_tools 会跳
+                        // 过 终端 调用，因此不会运行两次。
                         if (ToolUse* tcp = find_call(ev.id)) {
                             const auto now = std::chrono::steady_clock::now();
                             std::string out = ev.output;
@@ -3047,10 +3047,10 @@ StopReason AgentServer::stream_completion(Io io, const Cap& cap, const std::stri
                             try {
                                 tc.args = raw.empty()
                                     ? json::object() : json::parse(raw);
-                                // `cmd` → `command` etc. so the ACP card
-                                // title/content (tool_title, command_content)
-                                // read the canonical key — the client only
-                                // sees tc.args, never the raw stream JSON.
+                                // `cmd`→`command`等，
+                                // 因此ACP卡title/content (tool_title，
+                                // command_content)读取规范密钥——客户端
+                                // 仅看到tc.args，而从未看到原始数据流 JSON。
                                 (void)::agentty::app::detail::canonify_tool_args(
                                     tc.name.value, tc.args);
                             } catch (const std::exception& e) {
@@ -3065,11 +3065,11 @@ StopReason AgentServer::stream_completion(Io io, const Cap& cap, const std::stri
                             upd.title      = a::Just(tool_title(tc, scwd));
                             upd.rawInput   = a::Just<json>(tc.args);
                             upd.locations  = a::Just(tool_locations(tc, scwd));
-                            // Now that args have fully streamed in, an
-                            // edit/write can show a speculative diff card
-                            // immediately (before permission/execution), and a
-                            // terminal call can show its FULL command (the
-                            // title is clipped to one line).
+                            // 现在args已经完全流入，
+                            // edit/write可以立即显示推测的差异卡
+                            // (在permission/execution之前)，
+                            // 并且终端 调用可以显示其FULL
+                            // 命令(标题被剪辑为一行)。
                             a::List<a::ToolCallContent> c;
                             if (auto d = announce_diff(tc, scwd)) c.push_back(std::move(*d));
                             if (auto cc = command_content(tc))    c.push_back(std::move(*cc));
@@ -3078,10 +3078,10 @@ StopReason AgentServer::stream_completion(Io io, const Cap& cap, const std::stri
                             merge_meta(upd.meta, air_tool_meta(tc));
                             send_update(cap, sid, a::SU_ToolCallUpdate{std::move(upd)});
 
-                            // A `todo` write drives Zed's native plan/checklist
-                            // widget (claude-code-acp parity) — emit the plan the
-                            // moment the list is known, in addition to the tool
-                            // card above.
+                            // `todo`写入驱动Zed的本机plan/checklist小部件
+                            // （claude-code-acp奇偶校验）
+                            // ——除了上面的工具卡之外，在列表已知时
+                            // 发出计划。
                             if (auto plan = plan_from_todos(tc))
                                 send_update(cap, sid, std::move(*plan));
                         }
@@ -3100,10 +3100,10 @@ StopReason AgentServer::stream_completion(Io io, const Cap& cap, const std::stri
         }, m);
     };
 
-    // Retry a request that failed before anything reached the editor, when
-    // the failure is the kind that passes (overload, rate limit, a dropped
-    // connection) and resending can't duplicate work. Same rule as the TUI:
-    // once text or a tool call streamed, the turn is the user's to retry.
+    // 重试 在任何内容到达编辑器之前失败的请求，
+    // 当失败是通过的类型（过载、速率限制、
+    // 连接断开）并且重新发送不能重复工作时。与 TUI 相同的规则：
+    // 一旦文本或工具调用流式传输，轮到用户的是重试。
     constexpr int kMaxAttempts = 4;
     for (int attempt = 1;; ++attempt) {
         provider::Request this_req = req;
@@ -3131,7 +3131,7 @@ StopReason AgentServer::stream_completion(Io io, const Cap& cap, const std::stri
                                                       : "Provider error, retrying",
                out_error + " (attempt " + std::to_string(attempt + 1) + " of " +
                    std::to_string(kMaxAttempts) + " in " + std::to_string(wait.count()) + "s)");
-        // Wait on the cancel itself: a stop ends the wait at once.
+        // 等待取消本身：停止立即结束等待。
         if (maya::delay_for(cap, snap->cancel ? snap->cancel->token() : std::stop_token{}, wait))
             break;
         out_error.clear();
@@ -3151,8 +3151,8 @@ StopReason AgentServer::stream_completion(Io io, const Cap& cap, const std::stri
         a::SU_Usage u;
         u.used = used < 0 ? 0 : used;
         u.size = static_cast<std::int64_t>(ui::context_max_for_model(model));
-        // Warn once per session as the window passes 85%: the next turns are
-        // where answers get cut off.
+        // 当窗口超过 85% 时，每个会话警告一次：接下来的回合
+        // 是答案被切断的地方。
         if (u.size > 0 && u.used * 100 >= u.size * 85) {
             const bool first = with_session(cap, session_id, [](Session& s) {
                 return !std::exchange(s.warned_context, true);
@@ -3167,11 +3167,11 @@ StopReason AgentServer::stream_completion(Io io, const Cap& cap, const std::stri
     if (!out_error.empty() && !out_cancelled)
         notice(cap, sid, "error", "The model request failed", out_error);
 
-    // Structural mutation of the shared messages vector — lock the
-    // per-session thread mutex so a concurrent reader-thread snapshot
-    // (session/load|resume replay, persist) can't observe a half-grown
-    // vector or race the reallocation. Held only for the push, not the
-    // stream above.
+    // 共享消息向量的结构突变——锁每-session 线
+    // 程 互斥量，因此并发读取器-thread 快照 (
+    // session/load|恢复重播，持续）无法观察半
+    // -grown向量或竞态重新分配。仅用于推送，
+    // 而不是上面的数据流。
     with_session(cap, session_id,
                  [](Session& s, Message m) { s.thread.messages.push_back(std::move(m)); return true; },
                  std::move(assistant));
@@ -3185,8 +3185,8 @@ void AgentServer::settle_tool(const Cap& cap, const TurnCtx& ctx, ToolUse& tc, T
         if (auto* f = std::get_if<ToolUse::Failed>(&st)) f->executing_since = executing_since;
     }
     tc.status = st;
-    // Write it back by (message id, tool id): a session closed mid-turn, or a
-    // message that moved, just means nothing to update.
+    // Write它由(消息id，工具id)返回：会话在-turn中关闭，
+    // 或移动的消息，仅意味着没有任何更新。
     with_session(cap, ctx.id, [](Session& s, std::string mid, std::string tid, ToolUse::Status v) {
         for (auto it = s.thread.messages.rbegin(); it != s.thread.messages.rend(); ++it) {
             if (it->id.value != mid) continue;
@@ -3199,10 +3199,10 @@ void AgentServer::settle_tool(const Cap& cap, const TurnCtx& ctx, ToolUse& tc, T
 }
 
 bool AgentServer::run_tools(const Cap& cap, const std::string& session_id, bool& out_cancelled) {
-    // Copy out the batch and what the gate needs, once. The profile is one
-    // stable value for the whole batch; a mode change mid-turn takes effect
-    // next turn. Tools run on the copies with no lock held, and each settled
-    // status is written back through settle_tool.
+    // 一次性复制出批次和门需要的内容。该轮廓是整个批次的一个稳定值；
+    // 模式更改 mid-turn 需要 副作用 下一回合。
+    // 工具在没有保留 锁 的副本上运行，并且每个已确定的状态都
+    // 通过 settle_tool 写回。
     struct Batch {
         TurnCtx ctx;
         Profile profile = Profile::Ask;
@@ -3222,30 +3222,30 @@ bool AgentServer::run_tools(const Cap& cap, const std::string& session_id, bool&
     const Profile profile = (*batch)->profile;
     auto& grants = (*batch)->grants;
 
-    // Tool-scheduling note: unlike the TUI path (cmd_factory), which uses
-    // effects::is_parallel_safe(active, want) to fan out compose-safe tools
-    // (Pure/ReadFs/Net) and serialise exclusive ones (WriteFs/Exec), the ACP
-    // path runs every tool call STRICTLY SERIALLY in emission order. Serial
-    // execution is a subset of the parallel-safety rule, so it can never
-    // violate the exclusivity the effect set demands; it just forgoes the
-    // latency win of overlapping independent reads. Results land in emission
-    // order for the wire tool_use/result pairing, and Zed renders the cards
-    // sequentially anyway.
+    // Tool-scheduling 注意：与 TUI 路径 (cmd_factory)
+    // 使用 effects::is_parallel_safe(active,
+    // want) 扇出 compose-safe 工具 (Pure/ReadFs/Net)
+    // 并序列化独占工具 (WriteFs/Exec) 不同，ACP 路径按发射
+    // 顺序运行每个工具 调用 STRICTLY SERIALLY。
+    // 串行执行是parallel-safety规则的子集，因此它永远不会违反
+    // 副作用集要求的排他性；它只是放弃了重叠独立读取的延迟优势。结果按 传输
+    // tool_use/result 配对的发射顺序排列，而 Zed 渲染 无论如何
+    // 都是按顺序排列卡片的。
     auto set_status = [&](ToolUse& tc, ToolUse::Status st) { settle_tool(cap, ctx, tc, std::move(st)); };
 
     for (auto& tc : (*batch)->calls) {
         if (ctx.cancelled()) { out_cancelled = true; return false; }
-        if (tc.is_terminal()) continue;   // settled by an external agent
+        if (tc.is_terminal()) continue;   // 由外部代理结算
 
-        // Resolve the tool ONCE so the permission gate and the execution run
-        // against the same definition (an mcp/tools/list_changed mid-turn can
-        // otherwise re-resolve the name to a ToolDef with different effects).
+        // 解析工具ONCE，使得权限门和执行针对相同的定义运行（
+        // mcp/tools/list_changed mid
+        // -turn可以另外将-resolve名称重新命名为具有不同副作用的ToolDef）。
         const tools::Found td = tool::DynamicDispatch::resolve(tc.name.value);
 
         bool needs_perm =
             tool::DynamicDispatch::needs_permission_with(td, profile)
             && !grants.contains(tc.name.value);
-        // "Always reject" from earlier this session: refused without asking.
+        // 本次会议早些时候的"Always reject"：未经询问就拒绝。
         const bool denied_always = needs_perm && with_session(cap, ctx.id, [](Session& s, std::string n) {
             return s.denials.contains(n);
         }, tc.name.value).value_or(false);
@@ -3283,41 +3283,41 @@ bool AgentServer::run_tools(const Cap& cap, const std::string& session_id, bool&
         running.status     = a::Just(a::ToolCallStatus::InProgress);
         send_update(cap, ctx.id, a::SU_ToolCallUpdate{std::move(running)});
 
-        // Live-terminal fast path: when the client hosts terminals and our
-        // sandbox isn't wrapping commands, run `bash` through the client's ACP
-        // terminal so Zed streams stdout into its native terminal widget (the
-        // claude-code-acp UX) instead of us capturing static text. Emits its
-        // own completion update + sets tc.status; nullopt means "not eligible,
-        // use internal execution below".
+        // Live-terminal 快速路径：当客户端托管 终端 并且我们的 沙箱
+        // 没有包装命令时，通过客户端的 ACP 终端 运行 `bash`，以便 Zed
+        // 数据流 标准输出到其本机 终端 小部件（claude-code-acp UX）中，
+        // 而不是我们捕获静态文本。发出自己的完成更新+设置tc.status；
+        // nullopt 表示
+        // 不满足条件，改用下方内部执行路径。
         if (auto tr = run_bash_via_terminal(cap, ctx, tc)) {
             if (tr->cancelled) { out_cancelled = true; return false; }
             continue;
         }
 
-        // Run the tool on a worker so a session/cancel that lands mid-tool
-        // (on the engine's reader thread) makes THIS turn loop return
-        // promptly instead of blocking until a long bash/web_fetch finishes.
-        // The tool itself isn't interruptible (its interface is synchronous),
-        // so on cancel we drop its result — the same "discard the late
-        // output" contract the TUI path uses via its idempotent tool-output
-        // guard.
+        // 在工作线程上运行该工具，使得落在-tool中部（在引擎的读取
+        // 器线程上）的session/cancel使得THIS转弯循环迅速返回而不是阻塞，
+        // 直到长bash/web_fetch完成。
+        // 工具本身是不可中断的（其接口是同步的），因此在 取消 上，
+        // 我们丢弃其结果——TUI 路径通过其 幂等 工具-output
+        // 防护使用相同的 "discard the late output"
+        // 合约。
         //
-        // pool.submit_isolated, not the standard async helper: that helper's
-        // future joins in its destructor, so abandoning a cancelled tool used
-        // to need a detached "tool_reaper" thread just to hold the future
-        // somewhere it could afford to block. The pool's future drops
-        // cleanly, and the job stays owned (waited for at teardown).
+        // pool.submit_isolated，不是标准的异步
+        // 帮助器：该帮助器的未来加入到其析构函数中，因此放弃用于
+        // 需要分离的 "tool_reaper" 线程 的 已取消 工具，
+        // 只是为了将未来保留在它可以阻止的地方。
+        // 池 的未来彻底消失，工作仍然拥有（在拆卸时等待）。
         //
-        // `wake` is the one thing this loop waits on. Two sources stop it:
-        // the tool finishing (the job requests it on the way out) and the
-        // session's cancel (a stop_callback bridges it). Both are events, so
-        // the wait below wakes the instant either happens — it used to poll
-        // the future every 50 ms.
+        // `wake`是该循环等待的一件事。有两个来源阻止了它：
+        // 工具完成（作业在出去时请求它）和会话的取消（
+        // stop_callback桥接它）。两者都是 事件，
+        // 因此下面的等待会在发生任何一种情况时立即唤醒 - 它过去每
+        // 50 毫秒轮询一次未来。
         std::stop_source wake;
-        // The skills the model can already see, derived from this session's
-        // visible transcript (copied out under the sessions lock),
-        // then handed to the job — the `skill` tool runs there and has no
-        // Thread. Only the skill tool reads it, so only it pays to derive.
+        // 模型已经可以看到的技能，源自该会话的可见记录（
+        // 在会话 锁 下复制），然后交给作业 —
+        // `skill` 工具在那里运行并且没有 线程。
+        // 只有技能工具才能读取它，因此只有派生才值得。
         std::vector<std::string> active_skills;
         if (tc.name.value == "skill") {
             active_skills = with_session(cap, ctx.id, [](Session& s) {
@@ -3327,38 +3327,38 @@ bool AgentServer::run_tools(const Cap& cap, const std::string& session_id, bool&
         tools::CallContext call_ctx;
         call_ctx.active_skills = std::move(active_skills);
         call_ctx.conversation  = ctx.thread_id;
-        // The session's cancel reaches the running tool itself (a shell is
-        // stopped), not only this wait.
+        // 会话的取消到达运行工具本身（shell被停止），
+        // 而不仅仅是这个等待。
         if (ctx.cancel) call_ctx.cancel.push_back(ctx.cancel->token());
-        // This session's folders: relative paths and shells start in its cwd,
-        // and it may reach its cwd plus the editor's extra roots, even when
-        // the agent process was started somewhere else.
+        // 该会话的文件夹：相对路径和外壳在其cwd中开始，
+        // 并且即使当代理进程在其他地方启动时，
+        // 它也可以到达其cwd加上编辑器的额外根。
         if (!ctx.cwd.empty()) {
             call_ctx.project = ctx.cwd;
             if (!tools::util::is_within_workspace(ctx.cwd))
                 call_ctx.extra_roots.push_back(ctx.cwd);
         }
         for (const auto& r : ctx.extra_roots) call_ctx.extra_roots.push_back(r);
-        // The callbacks below co-own the server, not borrow it: a tool that is
-        // cancelled or times out is abandoned on the pool and can still call
-        // them after this turn (and its handle) are gone.
+        // co-own服务器下面的回调，不可借用：已
+        // 取消或超时的工具被废弃在池上，并且在本轮（
+        // 及其句柄）消失后仍然可以调用它们。
         const auto self = maya::co_owned<AgentServer>::of(*this);
-        // An MCP server asking the user something mid-call goes to the
-        // editor's form UI, tied to this session and tool card.
+        // MCP服务器向用户询问一些信息，
+        // mid-call转到编辑器的表格UI，与该会话和工具卡相关联。
         if (client_elicit_form_.load(std::memory_order_relaxed)
             || client_elicit_url_.load(std::memory_order_relaxed))
             call_ctx.elicit = [self, sid = ctx.id, tid = tc.id.value,
                                tok = ctx.cancel ? ctx.cancel->token() : std::stop_token{}](const json& mcp) {
-                // Called by the MCP bridge on the tool's call thread (an MCP
-                // server's request, relayed synchronously), which holds no
+                // 由工具的调用 线程（MCP服务器的请求，同步中继）上的
+                // MCP桥调用，其不持有agentty 锁：已审查的根
                 // agentty lock: a reviewed root (tests/lint/allowlist.txt).
                 return maya::thread_root([&](const maya::unlocked& c) {
                     return self->elicit_via_client(c, sid, tid, mcp, tok);
                 });
             };
-        // A subagent run is kept as its own session so Zed can show it
-        // nested under this card (_meta.subagent_session_info). Set once by
-        // the subagent's completion, read after the tool returns: a snapshot.
+        // 子代理运行被保留为它自己的会话，因此Zed可以显示它嵌
+        // 套在这张卡(_meta.subagent_session_info)下。
+        // 由子代理完成设置一次，工具返回后读取：a 快照。
         auto sub_sid = std::make_shared<maya::snapshot<std::string>>();
         if (tc.name.value == "task")
             call_ctx.on_subagent_done = [sub_sid, parent = ctx.id](const Thread& t) {
@@ -3369,15 +3369,15 @@ bool AgentServer::run_tools(const Cap& cap, const std::string& session_id, bool&
                 if (persistence::save_subagent_thread(IoAccess::grant(), copy))
                     sub_sid->store(copy.id.value);
             };
-        // Zed's terminal channel: a shell command's output streams into a real
-        // terminal in the card while it runs. progress hands us the whole
-        // buffer each time; we send what's new.
+        // Zed的终端通道：shell命令在运行时将数据流
+        // 输出到卡中真实的终端中。每次进步都会给我们带来
+        // 整个缓冲区；我们发送新内容。
         const bool term = is_command_tool(tc.name.value) && terminal_channel();
         if (term) {
             auto sent = std::make_shared<std::size_t>(0);
-            // Progress is reported from the tool's worker thread, which holds
-            // no agentty lock; the notify (a leaf: the peer's outbox) re-states
-            // it at this one callback (tests/lint/allowlist.txt).
+            // 从该工具的工作线程 线程报告进度，该工具不持有agentty 锁；
+            // 通知（叶子：对端的发件箱）re-states它在这个回调（
+            // tests/lint/allowlist.txt）。
             call_ctx.progress = [self, sid = ctx.id, tid = tc.id.value, sent](std::string_view all) {
                 if (all.size() <= *sent) return;
                 maya::thread_root([&](const maya::unlocked& c) {
@@ -3386,10 +3386,10 @@ bool AgentServer::run_tools(const Cap& cap, const std::string& session_id, bool&
                 *sent = all.size();
             };
         } else {
-            // Any other tool that reports progress (a subagent's live log, a
-            // test run, a shell in an editor without terminals): show the
-            // latest snapshot in the card while it runs. At most ~6 updates a
-            // second; the final result replaces it when the tool settles.
+            // 报告进度的任何其他工具（子代理的实时日志、
+            // 测试运行、没有终端的编辑器中的外壳）：在其
+            // 运行时在卡中显示最新的快照。每秒最多约 6 次更新；
+            // 当工具稳定后，最终结果将取代它。
             struct Throttle { std::chrono::steady_clock::time_point last{}; std::size_t sent = 0; };
             auto th = std::make_shared<Throttle>();
             call_ctx.progress = [self, sid = ctx.id, tid = tc.id.value, th](std::string_view all) {
@@ -3397,8 +3397,8 @@ bool AgentServer::run_tools(const Cap& cap, const std::string& session_id, bool&
                 if (all.size() == th->sent || now - th->last < std::chrono::milliseconds(150)) return;
                 th->last = now;
                 th->sent = all.size();
-                // Tail only: a card is not a log viewer, and a 1 MB snapshot
-                // per update would swamp the pipe.
+                // 仅限末尾：卡不是日志查看器，并且每次更新1
+                // 个MB 快照会淹没管道。
                 constexpr std::size_t kTail = 8 * 1024;
                 std::string_view tail = all.size() > kTail ? all.substr(all.size() - kTail) : all;
                 a::ToolCallUpdate u;
@@ -3408,17 +3408,17 @@ bool AgentServer::run_tools(const Cap& cap, const std::string& session_id, bool&
                 c.push_back(a::ToolCallContent{a::TCC_Content{
                     text_block("```\n" + tools::util::sanitize_utf8(tail) + "\n```"), json::object()}});
                 u.content = a::Just(std::move(c));
-                maya::thread_root([&](const maya::unlocked& rc) {   // tool worker: no lock held
+                maya::thread_root([&](const maya::unlocked& rc) {   // 工具工作线程:未持有锁
                     self->send_update(rc, sid, a::SU_ToolCallUpdate{std::move(u)});
                 });
             };
         }
-        // The job gets its own copy of the definition it was gated against.
-        // `abandon` stops the tool itself when this loop gives up on it at
-        // the deadline. Without it a timed-out shell/process kept running
-        // after its result was thrown away, and since ACP runs tools in
-        // order, the NEXT tool (an edit, another shell) ran concurrently with
-        // it on the same files, against the strictly-serial contract below.
+        // 作业获得其所针对的定义的其自己的副本。
+        // 当该循环在最后期限放弃工具时，`abandon`停止工具本身。
+        // 如果没有它，timed-out shell/process
+        // 在其结果被丢弃后会继续运行，并且由于 ACP 按顺序运行工具，
+        // 因此 下一个 工具（一个编辑，另一个 shell）与它在相同
+        // 的文件上同时运行，这违反了下面严格的 -serial 合同。
         std::stop_source abandon;
         call_ctx.cancel.push_back(abandon.get_token());
         auto fut = util::background_pool().submit_isolated(
@@ -3430,7 +3430,7 @@ bool AgentServer::run_tools(const Cap& cap, const std::string& session_id, bool&
                     std::stop_source& s;
                     ~Signal() { s.request_stop(); }
                 } on_exit{wake};
-                // Process teardown stops the pool: the tool must see it too.
+                // 进程拆卸停止池：工具也必须看到它。
                 call_ctx.cancel.push_back(std::move(pool_stop));
                 return tool::DynamicDispatch::execute_with(job_cap, def, name, args, call_ctx);
             },
@@ -3442,28 +3442,28 @@ bool AgentServer::run_tools(const Cap& cap, const std::string& session_id, bool&
                                   wake.request_stop();
                               }});
 
-        // Belt-and-suspenders wall-clock ceiling: a tool that hangs forever
-        // (e.g. a stalled network read with no internal timeout) plus a
-        // client that never sends session/cancel would otherwise pin this
-        // worker — and the session/prompt future — permanently. On the
-        // deadline we fail the tool and move on.
+        // Belt-and-suspenders wall-clock上限：
+        // 一种永远挂起的工具（e.g。没有内部超时的停滞网络读取）
+        // 加上从不发送session/cancel的客户端否则将永久固定该工作线程
+        // ——以及session/prompt未来。在截止日期前，
+        // 我们无法使用该工具并继续前进。
         constexpr auto kToolDeadline = std::chrono::minutes(10);
         const auto tool_start = std::chrono::steady_clock::now();
         const bool woke = maya::delay_for(cap, wake.get_token(), kToolDeadline);
         on_cancel.reset();
 
-        // Finished beats cancelled: a tool that completed in the same instant
-        // the user cancelled has a real result, and reporting it is honest.
+        // 完成节拍已取消：在用户已取消的同一瞬间
+        // 完成的工具具有真实结果，并且报告是诚实的。
         const bool finished = fut.ready();
         const bool tool_cancelled =
             !finished && woke && ctx.cancelled();
         const bool tool_timed_out = !finished && !woke;
 
         if (tool_cancelled || tool_timed_out) {
-            // Drop the future, but stop the tool first: the job keeps running
-            // on the pool until it notices (a shell is killed, a fetch
-            // aborted), is waited for at teardown, and its late result is
-            // discarded. A cancel already reached it via ctx.cancel.
+            // 放弃未来，但首先停止工具：作业在池上保持运行，
+            // 直到它注意到（外壳被终止、获取中止）、
+            // 在拆卸时等待，并且其后期结果被丢弃。
+            // 取消 已经通过 ctx.cancel 到达了它。
             abandon.request_stop();
             const char* why = tool_timed_out ? "timed out" : "cancelled";
             if (tool_timed_out) util::dbglog("acp.run_tools.timeout", tc.name.value);
@@ -3473,13 +3473,13 @@ bool AgentServer::run_tools(const Cap& cap, const std::string& session_id, bool&
             c.status     = a::Just(a::ToolCallStatus::Failed);
             send_update(cap, ctx.id, a::SU_ToolCallUpdate{std::move(c)});
             if (tool_cancelled) { out_cancelled = true; return false; }
-            // A timeout fails just this tool; continue the turn so the model
-            // can react to the failure result.
+            // 超时仅此工具失败；继续转弯，以便模型可以
+            // 对失败结果做出反应。
             continue;
         }
 
-        // A pool that is already stopping (process teardown) never runs the
-        // job and breaks the promise. Fail this tool rather than the turn.
+        // 已经停止（进程拆卸）的池永远不会运行
+        // 作业并违背承诺。失败这个工具而不是回合。
         std::optional<tool::ExecResult> got;
         try {
             got = fut.get(cap);
@@ -3502,16 +3502,16 @@ bool AgentServer::run_tools(const Cap& cap, const std::string& session_id, bool&
             if (result->change) {
                 const auto& ch = *result->change;
                 a::TCC_Diff diff;
-                // Raw absolute path — must match the announce diff's path so Zed
-                // associates the completion with the same card (claude-code-acp
-                // keys diffs by the raw file_path in both phases). The
-                // authoritative diff is the real on-disk before/after.
+                // 原始绝对路径——必须匹配宣告差异的路径，以便Zed将完成与
+                // 同一张卡相关联（claude-code-acp在两个阶段中通过原始file_path键差异）。
+                // 权威diff才是真正的on-disk
+                // before/after.
                 diff.path    = ch.path;
                 diff.newText = ch.new_contents;
                 if (!ch.original_contents.empty())
                     diff.oldText = a::Just<std::string>(ch.original_contents);
-                // AIR clients that asked for it get one exact git patch; the
-                // text fields become the placeholders its contract specifies.
+                // 请求它的AIR客户得到一个精确的git 补丁；
+                // 文本字段成为其合同指定的占位符。
                 if (air_diff_patch_.load(std::memory_order_relaxed)) {
                     if (auto patch = air_git_patch(ch)) {
                         diff.oldText = a::Nothing;
@@ -3523,9 +3523,9 @@ bool AgentServer::run_tools(const Cap& cap, const std::string& session_id, bool&
                 }
                 content.push_back(a::ToolCallContent{std::move(diff)});
 
-                // Anchor the card at the first changed line so Zed can jump to
-                // it (per-hunk line numbers, like claude-code-acp's
-                // structuredPatch locations).
+                // 将卡锚定在第一个改变的行处，以便Zed可以跳转到它（每-hunk行号，
+                // 如claude
+                // -code-acp的structuredPatch位置）。
                 a::List<a::ToolCallLocation> locs;
                 for (const auto& h : ch.hunks) {
                     a::ToolCallLocation loc;
@@ -3540,10 +3540,10 @@ bool AgentServer::run_tools(const Cap& cap, const std::string& session_id, bool&
                 }
                 upd.locations = a::Just(std::move(locs));
             }
-            // When a diff card is shown, the diff IS the result — don't also
-            // repeat the "Edited (3+ 1-)" summary as a text block (that's noise
-            // in Zed; claude-code-acp returns no extra content for Edit/Write).
-            // The summary still rides in rawOutput for the model.
+            // 当显示差异卡时，差异IS结果——也不要将"Edited (3+ 1-)"
+            // 摘要作为文本块重复（这是Zed中的噪音；
+            // claude-code-acp不返回Edit/Write的额外内容）。
+            // 对于该模型，摘要仍然采用rawOutput。
             if (!result->change && !result->text.empty())
                 content.push_back(result_content_block(tc, result->text));
 
@@ -3554,20 +3554,20 @@ bool AgentServer::run_tools(const Cap& cap, const std::string& session_id, bool&
             if (auto s = sub_sid->get(); !s.empty())
                 merge_meta(upd.meta, json{{"subagent_session_info",
                                            {{"session_id", s}, {"message_start_index", 0}}}});
-            // tool_start, NOT tc.executing_since(). ACP never moves a tool
-            // into Running, so executing_since() has nothing recorded to read
-            // and ALWAYS returns its liveness fallback, card birth -- which
-            // here includes the session/request_permission round trip to the
-            // client. tool_start is stamped above at the pool submit that is
-            // this path's actual dispatch, and the timeout branch already
-            // uses it. The two terminal paths now agree.
+            // tool_start、不、tc.executing_since()。
+            // ACP 永远不会将工具移至运行状态，因此 executing_since
+            // () 没有任何记录可供读取，并且 始终 返回其活跃度 回退，
+            // 卡诞生 - 这里包括到客户端的
+            // session/request_permission 往返行程。
+            // tool_start 在 池 提交上被标记为该路径的实际 分派，
+            // 并且 超时 分支已使用它。现在两条 终端 路径一致。
             settle_tool(cap, ctx, tc, ToolUse::Done{{}, {}, result->text}, tool_start);
         } else {
             std::string detail = result.error().render();
             a::List<a::ToolCallContent> content;
-            // Fence the error so Zed renders it as a distinct code block rather
-            // than blending it into prose (claude-code-acp does the same for
-            // error results). Skip the fence if the detail already looks fenced.
+            // 隔离错误，以便 Zed 渲染 将其作为不同的代码块，
+            // 而不是将其混合到散文中（claude-code-acp 对错误
+            // 结果执行相同的操作）。如果细节看起来已经被围起来了，就跳过围墙。
             std::string shown = detail.find("```") == std::string::npos
                               ? "```\n" + detail + "\n```"
                               : detail;
@@ -3577,7 +3577,7 @@ bool AgentServer::run_tools(const Cap& cap, const std::string& session_id, bool&
             upd.content   = a::Just(std::move(content));
             upd.rawOutput = a::Just<json>(json{{"text", detail}, {"error", true}});
             if (term) upd.meta = terminal_exit_meta(tc.id.value, detail, true);
-            // Same as the Done branch: tool_start is the dispatch stamp.
+            // 与完成分支相同：tool_start 是 分派 标记。
             settle_tool(cap, ctx, tc, ToolUse::Failed{{}, {}, detail}, tool_start);
         }
 
@@ -3587,16 +3587,16 @@ bool AgentServer::run_tools(const Cap& cap, const std::string& session_id, bool&
     return true;
 }
 
-// Live-terminal execution of a `bash` call. See header for the contract.
+// Live-terminal执行`bash` 调用。合同见头文件。
 std::optional<AgentServer::TerminalRun>
 AgentServer::run_bash_via_terminal(const Cap& cap, const TurnCtx& ctx, ToolUse& tc) {
     namespace sp = tools::spec;
 
-    // Eligibility: the `bash` tool only; the client must host terminals; and
-    // our sandbox must NOT be wrapping commands (a wrapped command must run
-    // through agentty's own bwrap/sandbox-exec, which the client terminal
-    // knows nothing about). When any of these fail we return nullopt so the
-    // caller falls back to internal execution.
+    // 资格：仅限`bash`工具；客户端必须托管终端；
+    // 而我们的沙箱一定是NOT是包装命令（
+    // 包装命令必须通过agentty自己的bwrap/sandbox-exec运行，
+    // 而客户端终端对此一无所知）。当其中任何一个失败时，我们返回 nullopt，
+    // 以便调用者回退到内部执行。
     const auto* spec = sp::lookup(tc.name.value);
     if (!spec || spec->kind != sp::Kind::Bash) return std::nullopt;
     if (!client_supports_terminal_.load(std::memory_order_relaxed)) return std::nullopt;
@@ -3609,11 +3609,11 @@ AgentServer::run_bash_via_terminal(const Cap& cap, const TurnCtx& ctx, ToolUse& 
     std::string command = str("command");
     if (command.empty()) command = str("cmd");
     if (command.empty()) command = str("shell_command");
-    if (command.empty()) return std::nullopt;   // nothing to run; let internal path report the error
+    if (command.empty()) return std::nullopt;   // 没有什么可运行的；让内部路径报错
 
-    // Resolve the working directory the same way the bash tool would: an
-    // explicit `cd`/alias, else the session cwd. Passed to the client so its
-    // terminal starts where the user expects.
+    // 以与bash工具相同的方式解析工作目录：显式的
+    // `cd`/别名，否则会话cwd。传递给客户端，
+    // 以便其 终端 从用户期望的位置开始。
     std::string cd = str("cd");
     if (cd.empty()) cd = str("cwd");
     if (cd.empty()) cd = str("workdir");
@@ -3624,9 +3624,9 @@ AgentServer::run_bash_via_terminal(const Cap& cap, const TurnCtx& ctx, ToolUse& 
                           std::chrono::steady_clock::time_point since = {}) {
         settle_tool(cap, ctx, tc, std::move(st), since);
     };
-    // Execution starts HERE (the terminal create is the dispatch), not at
-    // the card's birth — mirror the local bash tool's convention so the
-    // stats panel's tool-time slice measures running, not queueing.
+    // 执行开始于HERE（终端创建是分派），
+    // 而不是在卡诞生时——镜像本地bash工具的约定，
+    // 因此统计面板的工具-time切片测量正在运行，而不是排队。
     const auto exec_started = std::chrono::steady_clock::now();
     auto fail = [&](const std::string& detail) -> TerminalRun {
         set_status(ToolUse::Failed{{}, {}, detail}, exec_started);
@@ -3640,10 +3640,10 @@ AgentServer::run_bash_via_terminal(const Cap& cap, const TurnCtx& ctx, ToolUse& 
         return TerminalRun{false, false, detail};
     };
 
-    // 1) Ask the client to spawn the process in its own terminal.
+    // 1) Ask客户端在其自己的终端中催生进程。
     a::CreateTerminalParams cp;
     cp.sessionId = a::SessionId{ctx.id};
-    // Run through a shell so pipes/redirects/globs behave like the bash tool.
+    // 通过 shell 运行，因此 pipes/redirects/globs 的行为类似于 bash 工具。
 #ifdef _WIN32
     cp.command = "cmd.exe";
     cp.args    = {"/S", "/C", command};
@@ -3652,22 +3652,22 @@ AgentServer::run_bash_via_terminal(const Cap& cap, const TurnCtx& ctx, ToolUse& 
     cp.args    = {"-c", command};
 #endif
     if (!run_cwd.empty()) cp.cwd = a::Just<std::string>(run_cwd);
-    // Cap captured output to the bash tool's wire budget so the model sees a
-    // comparable amount of text regardless of execution path.
+    // 将捕获的输出限制为 bash 工具的 传输 预算，
+    // 因此无论执行路径如何，模型都会看到相当数量的文本。
     cp.outputByteLimit = a::Just<std::int64_t>(static_cast<std::int64_t>(spec->max_output_chars));
 
     std::string terminal_id;
     try {
         terminal_id = call<a::to_client::TerminalCreate>(cap, *peer_, cp).terminalId;
     } catch (const std::exception& e) {
-        // Client couldn't create the terminal after advertising the cap: fall
-        // back to internal execution rather than failing the tool.
+        // 客户端在通告上限之后无法创建终端：回
+        // 退到内部执行而不是使工具失败。
         util::dbglog("acp.terminal.create", e.what());
         return std::nullopt;
     }
     if (terminal_id.empty()) return std::nullopt;
 
-    // Ensure the terminal is always released, even on an early return/throw.
+    // 确保 终端 始终被释放，即使是在早期的 return/throw. 上
     struct Releaser {
         AgentServer* self; const Cap& cap; std::string sid, tid; bool armed = true;
         void disarm() { armed = false; }
@@ -3676,14 +3676,14 @@ AgentServer::run_bash_via_terminal(const Cap& cap, const TurnCtx& ctx, ToolUse& 
             try {
                 a::TerminalRef r; r.sessionId = a::SessionId{sid}; r.terminalId = tid;
                 (void)call<a::to_client::TerminalRelease>(cap, *self->peer_, r);
-            } catch (...) { /* client gone; nothing to clean up */ }
+            } catch (...) { /* 客户走了；没有什么需要清理的 */ }
         }
     } releaser{this, cap, ctx.id, terminal_id};
 
     a::TerminalRef ref; ref.sessionId = a::SessionId{ctx.id}; ref.terminalId = terminal_id;
 
-    // 2) Show the live terminal in the tool card. Zed renders the streaming
-    //    output itself from this content block keyed to the terminal id.
+    // 2)显示工具卡中的现场终端。泽德 渲染 流式传输
+    //    从该内容块输出其自身，该内容块被键入终端 id。
     {
         a::ToolCallUpdate u;
         u.toolCallId = a::ToolCallId{tc.id.value};
@@ -3693,12 +3693,12 @@ AgentServer::run_bash_via_terminal(const Cap& cap, const TurnCtx& ctx, ToolUse& 
         send_update(cap, ctx.id, a::SU_ToolCallUpdate{std::move(u)});
     }
 
-    // 3) Wait for the process to exit. A session cancel cuts the wait short,
-    //    then terminal/kill stops the process.
+    // 3)等待进程退出。会话 取消 缩短了等待时间，
+    //    然后terminal/kill停止该过程。
     a::TerminalExitStatus exit{};
     {
         rpc::CallOptions o;
-        o.timeout = std::chrono::milliseconds{0};   // a build can run for an hour; cancel is the way out
+        o.timeout = std::chrono::milliseconds{0};   // 一次构建可以运行一个小时； 取消是出路
         if (ctx.cancel) o.cancel = ctx.cancel->token();
         auto waited = peer_->call<a::to_client::TerminalWaitForExit>(cap, ref, std::move(o));
         if (waited) {
@@ -3714,9 +3714,9 @@ AgentServer::run_bash_via_terminal(const Cap& cap, const TurnCtx& ctx, ToolUse& 
             a::ToolCallUpdate c;
             c.toolCallId = a::ToolCallId{tc.id.value};
             c.status     = a::Just(a::ToolCallStatus::Failed);
-            // Replace the live terminal block with static text: the releaser
-            // frees the terminal as we return, and Zed renders a released
-            // terminal's block as empty or broken.
+            // 用静态文本替换活动的 终端 块：当我们返回时，
+            // 释放者释放 终端，并且 Zed 渲染 将已释放
+            // 的 终端 的块视为空或损坏。
             a::List<a::ToolCallContent> cc;
             cc.push_back(a::ToolCallContent{
                 a::TCC_Content{text_block("(cancelled)"), json::object()}});
@@ -3726,7 +3726,7 @@ AgentServer::run_bash_via_terminal(const Cap& cap, const TurnCtx& ctx, ToolUse& 
         }
     }
 
-    // 4) Pull the final captured output.
+    // 4)拉取最终捕获的输出。
     std::string output;
     bool truncated = false;
     try {
@@ -3741,8 +3741,8 @@ AgentServer::run_bash_via_terminal(const Cap& cap, const TurnCtx& ctx, ToolUse& 
     const std::int64_t code = exit.exitCode.has_value() ? *exit.exitCode : 0;
     const bool ok = !exit.signal.has_value() && code == 0;
 
-    // Build the model-visible result text, mirroring the bash tool's shape:
-    // the captured output, plus an exit annotation on non-zero/ signal.
+    // 构建 model-visible 结果文本，镜像 bash 工具的形状：
+    // 捕获的输出，加上non-zero/信号上的退出注释。
     std::string model_text = output;
     if (truncated) model_text += "\n[output truncated]";
     if (exit.signal.has_value())
@@ -3750,20 +3750,20 @@ AgentServer::run_bash_via_terminal(const Cap& cap, const TurnCtx& ctx, ToolUse& 
     else if (code != 0)
         model_text += "\n[exit code " + std::to_string(code) + "]";
 
-    // 5) Final card update: keep the terminal content block (Zed keeps the
-    //    scrollback), attach rawOutput for the model, set terminal status.
+    // 5)最终卡更新：保留终端内容块（Zed保留
+    //    回滚缓冲区)，为型号附加rawOutput，设置终端状态。
     a::ToolCallUpdate upd;
     upd.toolCallId = a::ToolCallId{tc.id.value};
     upd.status     = a::Just(ok ? a::ToolCallStatus::Completed : a::ToolCallStatus::Failed);
     a::List<a::ToolCallContent> content;
     content.push_back(a::ToolCallContent{a::TCC_Terminal{terminal_id, json::object()}});
-    // ALSO attach the captured output as a fenced text block. The terminal is
-    // released the moment this function returns (the Releaser), and Zed drops a
-    // released terminal's live widget — so without a static text copy the
-    // completed card would show NOTHING. The fenced block is the durable
-    // scrollback the user (and a reopened session) always sees. Empty output
-    // (e.g. a silent successful command) still gets a minimal note so the card
-    // isn't blank.
+    // ALSO将捕获的输出附加为受围栏文本块。 终端 在该函数
+    // 返回（释放者）时被释放，并且 Zed 会丢弃已释放的
+    // 终端 的实时小部件 - 因此，如果没有静态文本副本，
+    // 完整的卡片将显示 无内容。受隔离的块是用户（以及重新
+    // 打开的会话）始终看到的持久 回滚缓冲区。空输出（e.g。
+    // 无提示的成功命令）仍然会得到一个最小的注释，
+    // 因此该卡不是空白的。
     {
         std::string shown = model_text.empty() ? std::string{"(no output)"} : model_text;
         std::string md = shown.find("```") == std::string::npos
@@ -3778,9 +3778,9 @@ AgentServer::run_bash_via_terminal(const Cap& cap, const TurnCtx& ctx, ToolUse& 
                                        {"truncated", truncated}});
     send_update(cap, ctx.id, a::SU_ToolCallUpdate{std::move(upd)});
 
-    // Execution began at the terminal create (the dispatch), not the card's
-    // birth — stamp that onto the settled state so the stats fold measures
-    // running time, not queueing.
+    // 执行开始于终端创建(分派)，而不是卡的诞生——
+    // 将其标记到已确定状态，因此统计数据归并测量运行时间，
+    // 而不是排队。
     if (ok) set_status(ToolUse::Done{{}, {}, model_text}, exec_started);
     else    set_status(ToolUse::Failed{{}, {}, model_text}, exec_started);
 
@@ -3794,7 +3794,7 @@ AgentServer::ask_permission(const Cap& cap, const std::string& session_id, const
         with_session(cap, session_id, [](Session& s) { return s.cwd; }).value_or(std::string{});
     a::RequestPermissionParams req;
     req.sessionId = a::SessionId{session_id};
-    // ToolCallUpdate carries the tool card for the permission dialog.
+    // ToolCallUpdate携带用于权限对话框的工具卡。
     req.toolCall.toolCallId = a::ToolCallId{tc.id.value};
     req.toolCall.title      = a::Just(tool_title(tc, cwd));
     req.toolCall.kind       = a::Just(acp_tool_kind(tc.name.value));
@@ -3805,8 +3805,8 @@ AgentServer::ask_permission(const Cap& cap, const std::string& session_id, const
     if (auto cc = command_content(tc))    c.push_back(std::move(*cc));
     if (auto pc = prompt_content(tc))     c.push_back(std::move(*pc));
     if (!c.empty()) req.toolCall.content = a::Just(std::move(c));
-    // Labels name the tool, so "always" says what it covers: this tool, for
-    // the rest of this session.
+    // 标签命名该工具，因此"always"表示其涵盖的内容：该工具，
+    // 用于本次会议的其余部分。
     const std::string tool = tc.name.value;
     req.options = {
         a::PermissionOption{"allow_once",    "Allow",                        a::PermissionOptionKind::AllowOnce,    json::object()},
@@ -3814,7 +3814,7 @@ AgentServer::ask_permission(const Cap& cap, const std::string& session_id, const
         a::PermissionOption{"reject_once",   "Reject",                       a::PermissionOptionKind::RejectOnce,   json::object()},
         a::PermissionOption{"reject_always", "Always reject " + tool,        a::PermissionOptionKind::RejectAlways, json::object()},
     };
-    // AIR's approval heading: the card title, plus the command's own summary.
+    // AIR的批准标题：卡片标题，加上命令本身的摘要。
     if (air_.load(std::memory_order_relaxed)) {
         json perm{{"version", 1}, {"title", tool_title(tc, cwd)}};
         if (tc.args.is_object())
@@ -3825,13 +3825,13 @@ AgentServer::ask_permission(const Cap& cap, const std::string& session_id, const
         merge_meta(req.toolCall.meta, air_tool_meta(tc));
     }
 
-    // session/cancel withdraws the open dialog with $/cancel_request, as the
-    // spec's cancel cascade asks; the call then settles as Deny.
+    // session/cancel撤回与$/cancel_request的
+    // 打开对话框，如规范的取消级联要求；然后 调用 确定为拒绝。
     rpc::CallOptions o;
     o.cancel      = cancel;
     o.notify_peer = true;
     try {
-        auto r = peer_->call<a::to_client::RequestPermission>(cap, req, std::move(o));   // blocks worker, not reader
+        auto r = peer_->call<a::to_client::RequestPermission>(cap, req, std::move(o));   // 块 工作线程，不是读卡器
         if (!r) return PermissionOutcome::Deny;
         auto outcome = std::move(*r);
         return a::match(outcome.outcome,
@@ -3843,7 +3843,7 @@ AgentServer::ask_permission(const Cap& cap, const std::string& session_id, const
                 return PermissionOutcome::Deny;
             });
     } catch (const std::exception&) {
-        return PermissionOutcome::Deny;   // client disconnected/errored
+        return PermissionOutcome::Deny;   // 客户端disconnected/errored
     }
 }
 

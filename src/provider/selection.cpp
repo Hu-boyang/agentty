@@ -1,4 +1,4 @@
-// agentty::provider — active-provider selection (process-global).
+// agentty::provider-活动-provider选择(过程-global)。
 
 #include "agentty/provider/selection.hpp"
 
@@ -27,21 +27,21 @@
 namespace agentty::provider {
 
 namespace {
-// Read by the UI thread (views, reducers) and by workers, replaced wholesale
-// by select(): a published immutable value, so active() needs no capability.
+// 由UI 线程 (浏览量、状态更新函数)和工作线程读取，
+// 由select()批量替换：已发布的不可变值，因此active()不需要能力。
 maya::published<const Selection>& g_active() {
     static maya::published<const Selection> s;
     return s;
 }
 
-// --auth-header override, "" = Bearer. Written once at startup.
+// --auth-header覆盖，""=承载。启动时写一次。
 maya::snapshot<std::string>& g_auth_header() { static maya::snapshot<std::string> h; return h; }
 
-// Persist-on-success: the CLI custom-host spec awaiting proof (empty spec =
-// none). Written once at startup, consumed on the UI thread by the
-// ModelsLoaded reducer.
+// Persist-on-success:CLI custom-host规格等待证明(空
+// 规格=无)。在启动时写入一次，由 ModelsLoaded 状态更新函数
+// 在 UI 线程 上消耗。
 struct Unproven { std::string spec; std::string model; };
-// take() swaps it out atomically, so exactly one consumer gets it.
+// take()自动地交换它，因此恰好有一个消费者得到它。
 maya::published<const Unproven>& g_unproven() {
     static maya::published<const Unproven> u;
     return u;
@@ -53,19 +53,19 @@ std::string env_or_empty(std::string_view name) {
     return (v && *v) ? std::string{v} : std::string{};
 }
 
-// Small per-provider seed catalog used ONLY when the live /models fetch comes
-// back empty (no API key set yet, network down, or a provider that gates its
-// list behind auth). Lets a freshly selected hosted provider show sensible
-// models in the picker immediately; the real catalog supersedes it the moment
-// the account is reachable. Keyed on the registry `id` (== endpoint label).
-// Deliberately short — a couple of current, agent-capable ids per provider,
-// newest first (front() becomes the default when the user gives no -m).
+// 当实时/模型获取返回为空时（还没有设置 API 密钥、网络关闭、
+// 或者在身份验证之后门控其列表的提供者），
+// 小 per-provider 种子 目录 使用 仅。
+// 让新选择的托管提供商立即在 选择面板 中展示合理的模型；当帐户可访问时，
+// 真正的 目录 就会取代它。键入 注册表 `id`（== 端点标签）。
+// 故意简短——每个提供者有几个当前的agent-capable ID，
+// 最新的在前（当用户没有给出-m时，front()成为默认值）。
 std::vector<ModelInfo> bundled_models_for(std::string_view label) {
-    // Delegates to the single bundled catalog (catalog::bundled) so every
-    // provider's offline floor lives in ONE place — no per-site drift.
+    // 代表到单个捆绑的 目录 (catalog::bundled)，
+    // 因此每个提供商的离线楼层都位于 一个 位置 — 没有 per-site 漂移。
     return catalog::bundled(label);
 }
-} // namespace
+} // 命名空间结束。
 
 void set_unproven_spec(Io, std::string spec, std::string model_recall) {
     g_unproven().publish(std::make_shared<const Unproven>(
@@ -88,33 +88,33 @@ std::string custom_auth_header() {
 
 Selection parse_selection(std::string_view spec) {
     Selection s;
-    // Registry-driven: an empty spec or any preset whose kind is Anthropic
-    // routes to the Anthropic transport. Everything else (OpenAI-family
-    // presets AND raw "host[:port]" custom endpoints) goes through the
-    // OpenAI-compatible transport with the matching Endpoint.
+    // 注册表-driven：空规范或类型为 Anthropic 的任何预设路由到
+    // Anthropic 传输层。其他所有内容（OpenAI-family
+    // 预设 和 原始 "host[:port]" 自定义端点）都会通过
+    // OpenAI-compatible 传输层 以及匹配的端点。
     const ProviderPreset* p = spec.empty() ? preset_for(default_provider_id())
                                             : preset_for(spec);
-    // Bind the row ONCE, here, on every path out of this function. Downstream
-    // predicates then read identity off the row instead of re-deriving it from
-    // `openai_endpoint.label` — a display string the custom-host flow
-    // overwrites, which is how a Copilot-backed custom provider used to lose
-    // its identity and fall through to the generic /v1/models fetch.
+    // 绑定行ONCE，在这里，在该函数的每条路径上。然后下游谓词从行
+    // 中读取标识而不是重新读取-deriving它来自
+    // `openai_endpoint.label`— 自定义的
+    // 显示字符串-host流程覆盖，
+    // 这就是副驾驶的方式-backed自定义提供程序过去常常失去其身份并落入通用/v1/models拿来。
     s.row = p;
     if (p && p->kind() == Kind::Anthropic) {
         s.kind = Kind::Anthropic;
         return s;
     }
-    // External ACP agent: only an explicitly configured launchable id routes
-    // here. There are no privileged built-ins.
+    // 外部ACP代理：此处仅显式配置的可启动id路由。
+    // 没有特权内置-ins。
     if ((p && p->kind() == Kind::ExternalAcp)
         || (!p && !spec.empty() && is_acp_agent_id(spec))) {
         s.kind         = Kind::ExternalAcp;
         s.acp_agent_id = std::string{spec};
         return s;
     }
-    // A removed/stale ACP selection must not fall through to Endpoint::from_spec
-    // and be interpreted as an OpenAI hostname. Fall back to the native default
-    // until the user explicitly configures that agent again.
+    // removed/stale
+    // ACP选择不得落入Endpoint::from_spec并被解释为OpenAI主机名。
+    // 回退到本机默认设置，直到用户再次显式配置该代理。
     if (!p && spec.ends_with("-acp")) {
         s.kind = Kind::Anthropic;
         return s;
@@ -123,35 +123,35 @@ Selection parse_selection(std::string_view spec) {
     s.openai_endpoint = openai::Endpoint::from_spec(
         spec.empty() ? default_provider_id() : spec);
 
-    // A CUSTOM HOST that happens to name a provider we know is that provider.
+    // CUSTOM HOST恰好命名了我们知道的提供者就是该提供者。
     //
-    // "Custom host" specs (raw `host[:port]`, or a full URL) have no registry
-    // row — preset_for() only matches canonical ids. So a user who added
-    // `api.githubcopilot.com` as a custom provider got the GENERIC OpenAI
-    // defaults: /v1/models instead of Copilot's /models, and none of the
-    // OAuth session handling. The picker showed no models at all, with no
-    // error, because an empty catalog and a failed fetch look identical.
+    // "Custom host" 规范（原始 `host[:port]` 或完整的 URL）
+    // 没有 注册表 行 — preset_for() 仅匹配规范 ID。因此，
+    // 将 `api.githubcopilot.com` 添加为自定义提供程序的用户会
+    // 获得 GENERIC OpenAI 默认值：/v1/models 而不是
+    // Copilot 的 /models，并且没有任何 OAuth 会话处理。
+    // 选择面板 根本没有显示任何模型，也没有错误，因为空的 目录 和失败的获取看起来是相同的。
     //
-    // Match on HOST, which is the one part of a custom spec that is not a
-    // display string the user can rename. Only adopt rows for hosts we
-    // actually special-case (oauth_native backends); a generic hosted
-    // provider gains nothing from adoption and keeps the user's endpoint
-    // exactly as typed.
+    // 在 HOST 上匹配，这是自定义规范的一部分，
+    // 其不是用户可以重命名的显示字符串。仅采用我们实际特殊的
+    // 主机-case（oauth_native后端）的行；
+    // 通用托管提供商不会从采用中获得任何好处，并且使用户的端点与 带
+    // 类型的 完全相同。
     if (!p && !s.openai_endpoint.host.empty()) {
         for (const auto& row : kProviders) {
             if (!row.oauth_native) continue;
             if (row.host != s.openai_endpoint.host) continue;
-            // Adopt the row's identity AND its endpoint columns — the paths
-            // are part of what makes it that provider.
+            // 采用行的身份AND其端点列——路径是
+            // 使其成为提供者的一部分。
             s.row = &row;
             s.openai_endpoint = openai::Endpoint::from_spec(row.id);
             break;
         }
     }
 
-    // Stamp the session's --auth-header override onto every OpenAI-family
-    // endpoint, here rather than at the call sites so live provider switches
-    // (picker / login reducers) keep it without knowing it exists.
+    // 将会话的 --auth-header 覆盖标记到每个 OpenAI
+    // -family 端点上，在这里而不是在 调用 站点上，以便实时提供者交换机
+    // （选择面板/登录 状态更新函数）在不知道它存在的情况下保留它。
     s.openai_endpoint.auth_header_name = custom_auth_header();
     return s;
 }
@@ -163,19 +163,19 @@ auth::AuthHeader resolve_auth_for(std::string_view spec,
     const ProviderPreset* p = spec.empty() ? preset_for(default_provider_id())
                                             : preset_for(spec);
 
-    // Anthropic (or an unknown spec that parsed to Anthropic): use the creds
-    // resolved from `agentty login`.
+    // Anthropic（或解析为 Anthropic 的未知规范）：使用从
+    // `agentty login` 解析的信用。
     if ((p && p->kind() == Kind::Anthropic)
         || (!p && parse_selection(spec).kind == Kind::Anthropic)) {
         return anthropic_creds;
     }
 
-    // Local backends need no key.
+    // 本地后端不需要密钥。
     if (p && p->auth == AuthStyle::None)
         return auth::AuthHeader{auth::ApiKeyHeader{std::string{}}};
 
-    // OpenAI-family (preset or custom host): bearer key, precedence
-    //   --key  >  saved key (in-app paste)  >  env-var chain  >  OPENAI_API_KEY.
+    // OpenAI-family（预设或自定义主机）：承载密钥，
+    //   优先级--key>已保存密钥（在-app粘贴）>env-var链>OPENAI_API_KEY。
     std::string key{cli_key};
     if (key.empty()) key = std::string{saved_key};
     if (key.empty() && p) {
@@ -190,34 +190,34 @@ auth::AuthHeader resolve_auth_for(std::string_view spec,
 }
 
 void select(Io, Selection s) {
-    // Publish the provider id as the capability-key scope BEFORE swapping the
-    // selection in, so a resolved_caps() racing the switch sees, at worst,
-    // the OLD scope with the OLD selection — never a mismatched pair.
+    // 将提供者ID发布为能力-key范围BEFORE交换选择，
+    // 因此resolved_caps()在最坏的情况下切换切换
+    // 看到OLD范围与OLD选择——绝不会是不匹配的对。
     //
-    // The value MUST match what the rest of the tree calls the provider id
-    // (modal.cpp's active_provider_id(), which every catalog/recents/fused
-    // row is keyed by): OpenAI-family → the endpoint label, external ACP →
-    // the agent id, everything else → the default id. Collapsing ACP onto
-    // the default id (as this did) filed its capability facts under
-    // "anthropic/..." while every lookup asked for "<agent-id>/...", so an
-    // ACP agent's learned effort ladder could never be found again.
+    // 值 必须 与 源码树 调用 的其余部分匹配提供者 ID（modal.cpp
+    // 的 active_provider_id()，
+    // 每个 catalog/recents/fused 行由其键入）：OpenAI
+    // -family → 端点标签，外部 ACP → 代理 ID，其他所有内容
+    // → 默认 ID。将 ACP 折叠到默认 ID（就像这样）会在
+    // "anthropic/..." 下归档其能力事实，而每次查找都要求
+    // "<agent-id>/..."，因此 ACP 代理的学习努力阶梯永远不会再找到。
     set_caps_provider_scope(
         s.kind == Kind::OpenAI      ? s.openai_endpoint.label
       : s.kind == Kind::ExternalAcp ? s.acp_agent_id
                                     : std::string{default_provider_id()});
-    // Record WHICH backend every subsequent turn will use. select() is the one
-    // seam both the startup path and every later provider switch pass through,
-    // so one line here means a log can always answer "which provider/endpoint
-    // was active when this broke" — the question that cost the most time on
-    // the custom-host and Copilot reports, because the answer was invisible.
-    // Endpoint columns are meaningful ONLY for the OpenAI-family wire —
-    // Anthropic and ACP leave openai_endpoint at its struct defaults, and
-    // printing those (host=api.openai.com for an Anthropic turn) actively
-    // misleads whoever reads the log.
+    // 记录后续每个回合将使用的WHICH后端。 select() 是启动路径和
+    // 每个后续提供商切换都经过的 接口边界，因此这里的一行意味着日志始终可以
+    // 回答 "which provider/endpoint was active when this broke"
+    // — 这是在 custom-host 和 Copilot
+    // 报告上花费最多时间的问题，因为答案是不可见的。
+    // 端点列对于 OpenAI-family 传输 来说是有意义的 仅 —
+    // Anthropic 和 ACP 将 openai_endpoint 保留在其结构默认值，
+    // 并且打印这些（主机 = api.openai.com 对于 Anthropic
+    // 轮次）会主动误导读取日志的人。
     const bool http_wire = s.kind == Kind::OpenAI;
-    // Warn for the same retention reason as the startup banner: "which
-    // provider/endpoint was active" is the second question on every report,
-    // and a handful of lines per session is a fair price for always having it.
+    // 警告与启动横幅相同的保留原因：
+    // 此前处于活动状态的提供方或端点。
+    // 是每个报告上的第二个问题，并且每个会话几行是始终拥有它的公平价格。
     AGT_LOG(Wire, Warn, "provider.select",
             "provider={} kind={} endpoint={} agent={}",
             s.provider_id().empty()
@@ -235,7 +235,7 @@ void select(Io, Selection s) {
 }
 
 Selection active() {
-    // Snapshot copy; see header for the race it closes.
+    // 快照副本；请参阅 头文件 了解它关闭的 竞态。
     const std::shared_ptr<const Selection> a = g_active().current();
     return a ? *a : Selection{};
 }
@@ -249,36 +249,36 @@ std::string Selection::catalog_id() const {
 std::string provider_display_name(const Selection& s) {
     if (s.kind == Kind::Anthropic) return "Anthropic";
     if (s.kind == Kind::ExternalAcp) {
-        // No hardcoded registry rows for ACP agents (Zed-style: config-driven),
-        // so the display name is just the agent id the user selected.
+        // ACP 代理没有硬编码 注册表 行（Zed-style：config
+        // -driven），因此显示名称只是用户选择的代理 ID。
         return s.acp_agent_id.empty() ? std::string{"ACP agent"} : s.acp_agent_id;
     }
-    // OpenAI-family: map the endpoint label ("groq", "ollama", …) to its
-    // registry display name; fall back to the raw label for a custom host.
+    // OpenAI-family：将端点标签（"groq"、"ollama"、
+    // ……）映射到其注册表显示名称；回退到自定义主机的原始标签。
     const std::string& lbl = s.openai_endpoint.label;
     if (const auto* p = preset_for(lbl)) return std::string{p->label};
     if (lbl.empty()) return std::string{"OpenAI"};
-    // URL-form custom hosts (https://host/path, http://host:port/path) carry
-    // the full spec as their label (see Endpoint::from_spec). The badge and
-    // the switch toast should show host[:port], not the long URL. ep.label itself
-    // is untouched — preset lookup and the openai_transport_test label
-    // round-trip assertion still see the full spec.
+    // URL-form 自定义主机（https://host/path,
+    // http://host:port/path) 带有完整规范作为其标签（参见
+    // Endpoint::from_spec）。徽章和交换机 toast 应显示主机[:端口]，而不是长 URL。
+    // ep.label 本身未受影响 - 预设查找和 openai_transport_test
+    // 标签 round-trip 断言仍然可以看到完整规范。
     if (lbl.starts_with("https://") || lbl.starts_with("http://")) {
         const bool tls = lbl.starts_with("https://");
         std::string_view auth = lbl;
-        auth.remove_prefix(tls ? 8 : 7);   // "https://" = 8, "http://" = 7
-        // Strip path at first '/' (everything after the authority).
+        auth.remove_prefix(tls ? 8 : 7);   // "https://"=8，"http://"=7
+        // 剥离路径首先为'/'(权限后的所有内容)。
         if (auto slash = auth.find('/'); slash != std::string_view::npos)
             auth = auth.substr(0, slash);
         std::string out;
         std::uint16_t port = tls ? 443 : 80;
-        // IPv6 literals are bracketed ("[::1]" / "[::1]:8080") — the port colon
-        // is the one after "]", and the brackets are kept in the label so it
-        // round-trips as a valid authority.
+        // IPv6文字被括起来("[::1]"/"[::1]:8080")
+        // ——端口冒号是"]"之后的冒号，并且括号被保留在标签中，
+        // 因此它围绕-trips作为有效权限。
         if (!auth.empty() && auth.front() == '[') {
             auto close = auth.find(']');
             if (close != std::string_view::npos) {
-                out = std::string{auth.substr(0, close + 1)};   // keep [ ... ]
+                out = std::string{auth.substr(0, close + 1)};   // 保持[...]
                 auto rest = auth.substr(close + 1);
                 if (rest.size() > 1 && rest.front() == ':') {
                     try {
@@ -298,7 +298,7 @@ std::string provider_display_name(const Selection& s) {
         } else {
             out = std::string{auth};
         }
-        // Omit the port when it's the scheme default.
+        // 当端口是方案默认值时，省略该端口。
         if (port != (tls ? 443 : 80)) out += ":" + std::to_string(port);
         return out;
     }
@@ -306,15 +306,15 @@ std::string provider_display_name(const Selection& s) {
 }
 
 PrewarmTarget prewarm_target(const Selection& s) {
-    // ACP subprocess: no HTTP layer to warm.
+    // ACP子进程：没有HTTP层要预热。
     if (s.kind == Kind::ExternalAcp) return {};
 
-    // Registry-driven fixed host. The two backends that don't dial their
-    // Endpoint carry a `prewarm_host` on their preset row: Anthropic
-    // (transport hardcodes api.anthropic.com) and ChatGPT (talks to
-    // chatgpt.com while its Endpoint port is the 0 sentinel). We look the row
-    // up by the id the Selection resolves to — "anthropic" for the Anthropic
-    // kind, else the OpenAI endpoint label ("chatgpt", "groq", …).
+    // 注册表-driven固定主机。不拨打端点的两个后端在其预设行上带有
+    // `prewarm_host`：Anthropic（传输层 硬编码
+    // api.anthropic.com）和 ChatGPT（与
+    // chatgpt.com 通信，而其端点端口是 0 标记）。我们按选择解析的 id
+    // 查找该行 — "anthropic" 代表 Anthropic 类型，
+    // 否则为 OpenAI 端点标签（"chatgpt"、"groq"，...）。
     const std::string_view id =
         s.kind == Kind::Anthropic ? std::string_view{"anthropic"}
                                   : std::string_view{s.openai_endpoint.label};
@@ -322,9 +322,9 @@ PrewarmTarget prewarm_target(const Selection& s) {
         PrewarmTarget t;
         t.host = std::string{p->prewarm_host};
         t.port = 443;
-        // Anthropic honours the AGENTTY_API_HOST dial so the warm socket
-        // targets the real upstream (kept out of the registry: it's a
-        // per-run env override, not a static provider fact).
+        // Anthropic 尊重 AGENTTY_API_HOST 拨号盘，
+        // 因此热套接字以真正的 上游 为目标（排除在 注册表 之外：它是
+        // per-run 环境覆盖，而不是静态提供者事实）。
         if (s.kind == Kind::Anthropic) {
             const auto& ov = http::agentty_api_host_override();
             if (ov.active()) {
@@ -335,9 +335,9 @@ PrewarmTarget prewarm_target(const Selection& s) {
         return t;
     }
 
-    // Every other OpenAI-compat backend: warm its own Endpoint host. Skip
-    // locals — no TLS handshake to amortise, and the port may be 0 (a
-    // sentinel) or a local dev server that isn't up yet.
+    // 每个其他OpenAI-compat后端：预热其自己的端点主机。
+    // 跳过本地 - 没有 TLS 握手需要摊销，
+    // 并且端口可能是 0（哨兵）或尚未启动的本地开发服务器。
     const auto& ep = s.openai_endpoint;
     if (!ep.use_tls || ep.host.empty() || ep.host == "localhost"
         || ep.host == "127.0.0.1" || ep.port == 0)
@@ -349,48 +349,48 @@ PrewarmTarget prewarm_target(const Selection& s) {
 }
 
 void prewarm_active_provider(Io io) {
-    // Uniform across native backends: resolve the warm target from the active
-    // selection (pure, registry-driven — see prewarm_target) and open the
-    // socket. No provider is privileged; the routing table lives in one
-    // testable function, not this side-effecting wrapper.
+    // 跨本机后端统一：从活动选择中解析热目标（纯的，注册表-driven
+    // —参见 prewarm_target）并打开套接字。
+    // 没有任何提供商享有特权；路由表存在于一个可测试函数中，
+    // 而不是这个 side-effecting 包装器中。
     const PrewarmTarget t = prewarm_target(active());
     if (!t.should_warm()) return;
-    // Cheap now: the client no longer builds its TLS context up front; the
-    // dial (a pool job) builds it off the launch path.
+    // 现在便宜：客户端不再预先构建其TLS上下文；
+    // 表盘（池 作业）将其构建为启动路径。
     http::default_client(io).prewarm(t.host, t.port, t.override_host,
                                    t.override_port);
 }
 
 namespace {
-// One body for both overloads. `error` receives the OpenAI-compat fetch's
-// reason when it failed; the other backends either throw or have no failure
-// mode worth naming, so for them it stays empty.
+// 一个正文用于两个过载。 `error` 收到 OpenAI
+// -compat 获取失败的原因；其他后端要么抛出异常，要么没有值得
+// 命名的故障模式，因此对它们来说它保持为空。
 std::vector<ModelInfo> list_models_impl(Io io, const maya::unlocked& cap, const Selection& sel,
                                         const auth::AuthHeader& auth, std::string& error) {
     error.clear();
-    // Dispatch on the CARRIED provider id, not on a re-derived label. The
-    // three OAuth-native backends fetch their own catalogs because their
-    // endpoints expose metadata the generic parser discards (Copilot's
-    // policy/tier, ChatGPT's account line-up, Kimi's coding models).
+    // 分派在CARRIED提供商ID上，而不在re-derived标签上。
+    // 三个 OAuth-native 后端获取自己的 目录，因为它们的端点
+    // 公开了通用 解析器 丢弃的元数据（Copilot 的 policy/tier、
+    // ChatGPT 的帐户行-up、Kimi 的编码模型）。
     //
-    // This used to compare `openai_endpoint.label`, which the custom-host flow
-    // overwrites — so a Copilot-backed custom host matched nothing, fell
-    // through to the generic /v1/models GET (Copilot serves /models), and the
-    // picker came up empty with no error.
-    if (sel.kind == Kind::ExternalAcp) return {};   // the agent picks its own
+    // 这个用来比较`openai_endpoint.label`，
+    // 其中定制-host流程覆盖——所以副驾驶-backed自定义主机不匹配任何内容，
+    // 落入通用/v1/models GET（副驾驶服务/模型），
+    // 并且选择器空空如也，没有错误。
+    if (sel.kind == Kind::ExternalAcp) return {};   // 代理自行挑选
     if (sel.is_copilot()) return copilot::list_models(io, cap);
     if (sel.is_kimi())    return kimi::list_models(io, cap);
     if (sel.is_chatgpt()) return chatgpt::list_models(io, cap);
     if (sel.kind == Kind::Anthropic) return anthropic::list_models(io, auth);
 
     auto models = openai::list_models(io, auth, sel.openai_endpoint, false, error);
-    // Hosted providers return nothing before a key is set (or when the fetch
-    // fails). Seed from the bundled catalog so the picker is never stranded
-    // empty; custom hosts have no seed and legitimately stay empty.
+    // 托管提供者在设置密钥之前（或者当获取失败时）不返回任何内容。
+    // 来自捆绑的 目录 的种子，因此 选择面板 永远不会空着；
+    // 自定义主机没有种子并且合法地保持为空。
     if (models.empty()) return bundled_models_for(sel.openai_endpoint.label);
     return models;
 }
-}  // namespace
+}  // 命名空间结束。
 
 std::vector<ModelInfo> list_models_for(Io io, const maya::unlocked& cap, const Selection& sel,
                                        const auth::AuthHeader& auth) {
@@ -412,9 +412,9 @@ std::vector<int> filter_provider_indices(std::string_view query) {
         for (int i = 0; i < n; ++i) out.push_back(i);
         return out;
     }
-    // Fuzzy-score against id, label, and blurb; keep the best of the three so
-    // "kimi" matches the id, "grok" matches the label, "wafer" matches the
-    // Cerebras blurb. Rank by score (stable, so ties keep registry order).
+    // Fuzzy-score针对id、标签和简介；保留三者中最好的，
+    // 以便 "kimi" 与 id 匹配，"grok" 与标签匹配，"wafer" 与
+    // Cerebras 简介匹配。按分数排名（稳定，因此平局保持 注册表 顺序）。
     struct Scored { int idx; int score; };
     std::vector<Scored> scored;
     scored.reserve(static_cast<std::size_t>(n));
@@ -439,10 +439,10 @@ FilteredProviders filter_provider_indices(std::string_view query,
     const auto ps = providers();
     FilteredProviders out;
 
-    // A typed query searches the WHOLE registry: the same ranking as the
-    // query-only overload, unchanged. Configured rows still lead, so when you
-    // search "o" your own backends sort above ones you'd have to sign into,
-    // but every vendor stays reachable by name.
+    // 带类型的查询搜索WHOLE 注册表：与查询-only重载相同的排名，
+    // 未改变。配置的行仍然领先，因此当您搜索 "o" 时，
+    // 您自己的后端会排在您必须登录的后端之上，
+    // 但每个供应商仍然可以通过名称进行访问。
     if (!query.empty()) {
         auto ranked = filter_provider_indices(query);
         std::vector<int> mine, rest;
@@ -457,9 +457,9 @@ FilteredProviders filter_provider_indices(std::string_view query,
         return out;
     }
 
-    // Empty query = the ADMIN view: only what you've configured. The rest of
-    // the registry isn't gone, it's one keystroke away -- the caller renders
-    // n_hidden as a "N more providers, type to search" line.
+    // 空查询=ADMIN视图：仅您已配置的内容。 注册表 的其余部分并没有消失，
+    // 只需按一下按键即可 - 呼叫者 渲染 n_hidden 作为
+    // "N more providers, type to search" 行。
     for (int i = 0; i < static_cast<int>(ps.size()); ++i) {
         const auto& p = ps[static_cast<std::size_t>(i)];
         if (auth_source(p, settings, view) != AuthSource::None)

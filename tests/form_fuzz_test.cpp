@@ -1,23 +1,23 @@
-// form_fuzz_test — random keystrokes against every field kind, with the
-// form's invariants checked after EVERY key.
+// form_fuzz_test 随机键盘对准每个字段,
+// 与表单的 不变量 检查后 每个 键。
 //
-// Unit tests pin the bugs we already know (#97, the deaf 0-8 row, the
-// swallowed letter). This hunts the ones we don't: thousands of random
-// sessions mixing navigation, typing, deletion, caret moves, paste, ^U and
-// dropdowns over a form with one row of each kind. After every key:
+// 单元测试 将我们已知的bugs(# 97, 聋0-8 列,
+// 吞吞字母) 标上。 这捕捉到我们所不熟悉的:
+// 成千上万个随机会话混合导航、 输入、 删除、 光标 移动,
+// 粘贴, ^U 并按每样一行的表格。每根键后,
 //
-//   1. text-like values are valid UTF-8 and the caret sits on a code-point
-//      boundary inside the value (no split characters, no out-of-range caret);
-//   2. no control characters ever land in a single-line value;
-//   3. a Number row's committed value is inside [min, max], its draft is
-//      digits only, and the draft is live exactly while the row is edited;
-//   4. Editing focus only ever sits on a text-like, editable row;
-//   5. a dropdown is only open on a Choice row, with its highlight in range;
-//   6. the cursor is in range and never parked on a header;
-//   7. a slider is inside [min, max] and a choice index inside its labels;
-//   8. caret_offset() points inside the rendered text.
+//   1. 文本-like值为UTF-8有效值,光标值为代码-point.
+//      值内边界( 无分割字符, 无退出) -of-range 光标);
+//   2. 从未有控制角色在单一的 -line 值; 数值;
+//   3. a 数字行承诺值在[min, 最大]内,其草案为:
+//      仅数位,而草案在编辑行时是准确的;
+//   4. 编辑焦点只放在可编辑的-like文本上;
+//   5. 降水只在选择行上开放,其亮度在幅度内;
+//   6. 光标在射程内,从未停在头文件上;
+//   7. 滑动器在[min, 最大]内,其标签内有选择索引;
+//   8. 已提供文本中的caret_offset()点。
 //
-// A failure prints the seed and the key history so it reproduces exactly.
+// 失败会打印种子和关键历史 从而准确复制
 
 #include "agtest.hpp"
 
@@ -67,7 +67,7 @@ bool valid_utf8(const std::string& s) {
             if ((cc & 0xC0) != 0x80) return false;
             cp = (cp << 6) | (cc & 0x3F);
         }
-        // Overlong, surrogate and out-of-range code points are invalid.
+        // 超长,代位和出-of-range代码点无效.
         if ((n == 2 && cp < 0x80) || (n == 3 && cp < 0x800) || (n == 4 && cp < 0x10000)) return false;
         if (cp >= 0xD800 && cp <= 0xDFFF) return false;
         if (cp > 0x10FFFF) return false;
@@ -95,7 +95,7 @@ maya::KeyEvent chr(char32_t c, bool ctrl = false) {
 
 struct Step { std::string what; };
 
-// Check every invariant; on failure returns a description.
+// 请检查每个 不变量; 失败时返回描述。
 std::string check(const Form& f) {
     const int n = static_cast<int>(f.fields.size());
     if (n > 0 && (f.cursor < 0 || f.cursor >= n)) return "cursor out of range";
@@ -151,7 +151,7 @@ std::string check(const Form& f) {
     return {};
 }
 
-// A random key, weighted toward what users actually press.
+// 随机键,加权于用户实际按的键.
 maya::KeyEvent random_key(std::mt19937& rng, std::string& label) {
     using S = maya::SpecialKey;
     static const S specials[] = {S::Up, S::Down, S::Left, S::Right, S::Enter, S::Escape,
@@ -161,7 +161,7 @@ maya::KeyEvent random_key(std::mt19937& rng, std::string& label) {
         U'0', U'1', U'5', U'9', U'a', U'Z', U' ', U'-', U'/', U'.',
         U'\u00e9', U'\u6f22', U'\U0001F600',            // 2, 3, 4-byte UTF-8
         0x7F, 0x08, 0x09, 0x0A, 0x0D, 0x1B, 0x00,       // DEL, BS, TAB, LF, CR, ESC, NUL
-        0xD800, 0xDFFF, 0x110000, 0xFFFF, 0x200B};      // surrogates, out of range
+        0xD800, 0xDFFF, 0x110000, 0xFFFF, 0x200B};      // 替代, 范围以外
     std::uniform_int_distribution<int> kind(0, 9);
     const int k = kind(rng);
     if (k < 4) {
@@ -192,10 +192,10 @@ std::string random_paste(std::mt19937& rng) {
     return s;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("form fuzz: random sessions keep every invariant") {
-    // FORM_FUZZ_SESSIONS / FORM_FUZZ_KEYS scale it up for a deep run.
+    // FORM_FUZZ_SESSIONS / FORM_FUZZ_KEYS 放大它进行深层运行。
     const auto env_int = [](const char* k, int d) {
         const char* v = std::getenv(k);
         return v ? std::max(1, std::atoi(v)) : d;
@@ -206,7 +206,7 @@ TEST_CASE("form fuzz: random sessions keep every invariant") {
     for (int seed = 1; seed <= kSessions && failures < 5; ++seed) {
         std::mt19937 rng(static_cast<std::uint32_t>(seed));
         Form f = all_kinds();
-        f.cursor = 1;   // first real row
+        f.cursor = 1;   // 第一行真实
         std::vector<std::string> history;
         for (int step = 0; step < kKeys; ++step) {
             std::string label;
@@ -234,12 +234,12 @@ TEST_CASE("form fuzz: random sessions keep every invariant") {
     CHECK(failures == 0);
 }
 
-// ── The same, through every real settings pane ──────────────────────────────
+// ── 同样的,通过每个真实设置 面板 ──────────────────────────────
 //
-// Keys go the way the app sends them (on_key -> update), so pane code runs
-// too: rebuilds, saves, pickers, the sandbox list editor, Esc back out. The
-// form invariants are checked on whichever form is open after every key, and
-// the app must never crash or leave a pane holding a stale edit.
+// 钥匙走的 应用程序发送的方式( ) on_key - > 更新),
+// 所以 面板 代码运行也: 重建, 保存, 选择面板 ,
+// 则 沙箱 列表编辑器, Esc 退后,表单 不变量 检查每根键后打开的窗体,
+// 应用程序绝不可能崩溃或留下一个 面板 持有 过期 编辑。
 
 #include "agentty/runtime/app/deps.hpp"
 #include "agentty/runtime/app/subscribe.hpp"
@@ -269,7 +269,7 @@ void fuzz_stub_deps() {
     });
 }
 
-// The form of whatever settings pane is on top, if any.
+// 任何设置的形态 面板 都位于顶端,如果有的话.
 const Form* open_form(const Model& m) {
     if (auto* o = m.ui.panel.get<pn::Rag>())         return &o->embed.form;
     if (auto* o = m.ui.panel.get<pn::SmartMode>())   return &o->form;
@@ -281,7 +281,7 @@ const Form* open_form(const Model& m) {
     return nullptr;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("form fuzz: random keys through every real settings pane") {
     fuzz_stub_deps();
@@ -324,7 +324,7 @@ TEST_CASE("form fuzz: random keys through every real settings pane") {
                 ++failures;
                 break;
             }
-            // Everything closed: reopen, so the session keeps exercising.
+            // 全部关闭:重新开放,所以会议继续进行。
             if (ui::panel::top(m) == ui::panel::Kind::None)
                 m = app::update(std::move(m), Msg{open}).first;
         }

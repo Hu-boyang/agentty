@@ -1,18 +1,18 @@
 #pragma once
-// agentty::tools::effects — capability-set tags that describe a tool's
-// observable impact on the world. The permission policy reads ONLY
-// these tags; tool implementations don't get to decide their own
-// trust level. This is the typeful inversion of the previous design,
-// where each tool carried a bespoke `needs_permission(Profile)`
-// lambda — easy to forget, easy to make inconsistent (read-only git_*
-// historically said "never ask" while bash said "always ask in non-
-// Write", even though both spawn subprocesses).
+// agentty::tools::effects——描述工具对世界
+// 的可观察影响的能力-set标签。 权限策略读取ONLY这些标签；
+// 工具实现无法决定自己的信任级别。这是之前设计的类型反转，
+// 每个工具都带有一个定制的 `needs_permission(Profile)`
+// lambda — 容易忘记，容易不一致（read
+// -only git_* 历史上表示 "never ask"，
+// 而 bash 表示 "always ask in non- Write"，
+// 即使两者都生成子进程）。
 //
-// Pick effects by what the tool DOES to the world, not how it's
-// implemented. `git_status` is `ReadFs` even though it shells out to
-// `git`; `bash` is `Exec` because the *model* picks the command. The
-// distinction between "we know what this subprocess does" and "the
-// model picked it" is what the permission flow actually cares about.
+// 挑选副作用是通过什么工具DOES走向世界的，而不是它是如何实现的。
+// `git_status` 是 `ReadFs`，即使它是 `git`；
+// `bash` 是 `Exec`，因为*型号*选择了命令。
+// "we know what this subprocess does" 和
+// "the model picked it" 之间的区别才是 权限 流程真正关心的。
 
 #include <cstdint>
 #include <initializer_list>
@@ -20,19 +20,19 @@
 
 namespace agentty::tools {
 
-// Single capability tag. Bit-encoded so EffectSet is a trivial uint8_t.
+// 单一能力标签。 Bit-encoded 所以 EffectSet 是一个微不足道的 uint8_t。
 //
-// ReadFs   — reads filesystem state (open, stat, readdir, scan).
-// WriteFs  — mutates filesystem state (create/modify/delete files,
-//            write to .git, anything that survives the process).
-// Net      — sends bytes to or receives bytes from the network.
-// Exec     — runs an arbitrary, model-chosen program (`bash`,
-//            `diagnostics`). Strictly more dangerous than `WriteFs`
-//            because the model controls *what* runs, not just what
-//            files change.
-// Pure     — no observable effect (no IO of any kind). Today only
-//            `todo` qualifies; reserve the tag so the policy can
-//            short-circuit it cleanly.
+// ReadFs — 读取文件系统状态（打开、统计、readdir、扫描）。
+// WriteFs — 改变文件系统状态（create/modify/delete 文件、
+//            写入 .git、在该过程中幸存的任何内容）。
+// 网络——向网络发送字节或从网络接收字节。
+// Exec —运行任意型号-chosen程序(`bash`、
+//            `diagnostics`)。绝对比 `WriteFs`
+//            更危险，因为模型控制“什么”运行，
+//            而不仅仅是更改哪些文件。
+// 纯净——没有可观察到的副作用(没有任何类型的IO)。
+//            今天只有 `todo` 符合资格；保留标签，以便策略可以
+//            干净地缩短-circuit。
 enum class Effect : std::uint8_t {
     ReadFs   = 1u << 0,
     WriteFs  = 1u << 1,
@@ -40,9 +40,9 @@ enum class Effect : std::uint8_t {
     Exec     = 1u << 3,
 };
 
-// A set of effects, packed into a uint8_t. Trivially copyable, all
-// operations constexpr — usable as a value member of constexpr-
-// constructed ToolDef-likes and as an immediate operand in the policy.
+// 一组副作用，包装成uint8_t。简单可复制，
+// 所有操作 constexpr — 可用作 constexpr
+// 构造的 ToolDef-likes 的值成员，并可用作策略中的立即操作数。
 class EffectSet {
     std::uint8_t bits_ = 0;
 public:
@@ -67,45 +67,45 @@ public:
     constexpr bool operator==(const EffectSet&) const noexcept = default;
 };
 
-// Convenience: a fully-pure effect set (no side effects). Use as the
-// default for tools that only manipulate in-memory state visible to
-// the model (currently just `todo`).
+// 便利性：一套完整的-pure 副作用（无副作用）。
+// 用作仅在模型可见的 -memory 状态下进行操作的工具的默认
+// 设置（当前仅为 `todo`）。
 inline constexpr EffectSet pure_effects{};
 
-// ── Parallel-safety rule ────────────────────────────────────────────────
-// Governs whether a tool with `want` effects may start while a set of
-// `active` effects is in flight. Expressed in terms of effect tags so
-// the scheduling policy is derived from the capability model, not
-// sprinkled through the runtime.
+// ── 平行-safety规则 ────────────────────────────────────────────────
+// 控制具有 `want` 副作用 的工具是否可以在一
+// 组 `active` 副作用 正在飞行时启动。
+// 以 副作用 标签表示，因此调度策略源自能力模型，
+// 而不是通过 运行时 散布。
 //
-//   WriteFs / Exec demand *exclusive* access:
-//     * a WriteFs-tagged tool may mutate filesystem state that any
-//       sibling could be reading (ReadFs), writing (WriteFs), or
-//       shelling out against (Exec). Two edits to different files
-//       look independent until the model picks overlapping paths.
-//     * Exec is strictly more powerful — the *model* chooses what the
-//       subprocess does, so we must assume the worst and serialise.
+//   WriteFs/Exec要求*独占*访问：
+//     * WriteFs-tagged工具可能会改变任何文件系统状态
+//       兄弟姐妹可能正在读取（ReadFs)、
+//       写入（WriteFs)或攻击（Exec)。
+//       对不同文件的两次编辑看起来是独立的，直到模型选择重叠的路径。
+//     * Exec 严格来说更强大——*模型*选择什么
+//       子进程确实如此，因此我们必须假设最坏的情况并进行序列化。
 //
-//   Pure / ReadFs / Net compose freely. Read-read never races; Net
-//   touches neither FS nor process state; in-memory Pure tools (todo)
-//   operate on data the model cannot observe concurrently.
+//   纯/ReadFs/网自由创作。读-read，绝不读竞态；
+//   Net 既不接触 FS 也不接触进程状态； in-memory 纯
+//   工具 (todo) 对模型无法同时观察的数据进行操作。
 //
-// Reflected in the tool spec as a compile-time invariant (see
-// agentty::tools::spec::proofs::parallel_rule_is_well_founded).
+// 在工具规范中反映为编译-time 不变量(参见agentty::
+// tools::spec::proofs::parallel_rule_is_well_founded)。
 [[nodiscard]] constexpr bool is_parallel_safe(EffectSet active, EffectSet want) noexcept {
     constexpr auto exclusive = [](EffectSet e) noexcept {
         return e.has(Effect::WriteFs) || e.has(Effect::Exec);
     };
     if (exclusive(active) || exclusive(want)) {
-        // One side needs exclusive access; only safe if the other side is
-        // empty. `active == {}` covers "nothing is running yet".
+        // 一侧需要独占访问；仅当另一侧空时才安全。 `active == {}`
+        // 覆盖 "nothing is running yet"。
         return active.empty();
     }
     return true;
 }
 
-// Compile-time spot-checks of the rule — clearer than a prose comment
-// and fail the build if someone rewrites the implementation wrong.
+// 规则的编译-time点-checks——比散文注释更清晰，
+// 并且如果有人重写了错误的实现，则构建失败。
 namespace proofs {
 static_assert( is_parallel_safe(EffectSet{}, EffectSet{Effect::ReadFs}));
 static_assert( is_parallel_safe(EffectSet{Effect::ReadFs}, EffectSet{Effect::ReadFs}));
@@ -120,13 +120,13 @@ static_assert(!is_parallel_safe(EffectSet{Effect::WriteFs}, EffectSet{Effect::Wr
 static_assert(!is_parallel_safe(EffectSet{Effect::Exec},    EffectSet{Effect::Exec}));
 } // namespace proofs
 
-// "ReadFs, Net" — sorted-by-bit, comma-separated. For permission UI
-// and logging; not parsed anywhere.
+// "ReadFs, Net"-排序-by-bit，逗号-separated。
+// 用于 权限 UI 和日志记录；没有在任何地方解析。
 [[nodiscard]] std::string to_string(EffectSet e);
 
-// Single-effect label, e.g. "ReadFs". Capital-cased for prose use
-// ("Tool needs WriteFs permission"); the lower-case "read", "exec"
-// forms aren't used anywhere because they collide with verbs.
+// 单个-effect标签，e.g。 "ReadFs"。 Capital-cased 用于
+// 散文用途 ("Tool needs WriteFs permission")；
+// 较低的-case "read"、"exec"形式没有在任何地方使用，因为它们与动词冲突。
 [[nodiscard]] std::string_view to_string(Effect e) noexcept;
 
 } // namespace agentty::tools

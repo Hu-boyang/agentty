@@ -1,16 +1,16 @@
-// Reducers describe their effects; this is the test shape that proves it.
+// 状态更新函数 描述他们 副作用 ;这是证明它的测试形状.
 //
-// The jaal design doc's second success criterion:
+// jaal设计博士的第二个成功标准:
 //
-//     "A reducer test is: build a Model, send a Msg, assert on the new Model
-//      and expect_effect<save_settings>(1)."
+//     状态更新测试的流程是：构造 Model，发送 Msg，断言新 Model 的状态，
+//      并检查 expect_effect<save_settings>(1)。
 //
-// Before persistence became effects, that was impossible: the save happened
-// INSIDE the reducer, through the Deps seam, so the only way to check it was
-// to install a fake store and inspect it afterwards. The reducer's own return
-// value said nothing about what it had written.
+// 之前,我说 持久化 成为 副作用 ,这是不可能的: 保存
+// 发生了 内部 编号 状态更新函数 ,通过 Deps 接口边界
+// 所以唯一能检查的方法就是安装一个假店 然后检查它 状态更新函数
+// 自己的回报价值 没有提到它写了什么。
 //
-// Now the Cmd IS the answer. These tests install no deps and touch no disk.
+// 现在 Cmd IS。这些测试不会安装道具,也不会触摸磁盘。
 #include "agtest.hpp"
 #include "agtest_fx.hpp"
 
@@ -25,13 +25,13 @@ TEST_CASE("effects: toggling a pref returns exactly one settings save") {
 
     auto [m2, cmd] = app::update(std::move(m), Msg{ToggleChangesStrip{}});
 
-    // The model changed...
+    // 模型变了...
     CHECK(m2.d.show_changes_strip == true);
-    // ...and the arm SAID to save, exactly once.
+    // ...还有手臂 SAID 改为 保存 一次就是一次 一次是一次是一次
     CHECK(agtest::fx::count<SaveSettings>(cmd) == 1);
 
-    // And what it would write carries the change — the record, not a
-    // re-read of the store.
+    // 它写的东西会带去改变的——记录,而不是商店的
+    // Re-read。
     const auto* e = agtest::fx::find<SaveSettings>(cmd);
     REQUIRE(e != nullptr);
     CHECK(e->settings.show_changes_strip == true);
@@ -39,7 +39,7 @@ TEST_CASE("effects: toggling a pref returns exactly one settings save") {
 
 TEST_CASE("effects: a reducer that changes nothing saves nothing") {
     Model m;
-    // Moving the cursor in a picker is pure UI state; it must not write.
+    // 将光标移动到一个 选择面板 纯洁 UI 州; 不得写。
     auto [m2, cmd] = app::update(std::move(m), Msg{ThreadListMove{+1}});
     CHECK(agtest::fx::count<SaveSettings>(cmd) == 0);
     CHECK(agtest::fx::count<SaveThread>(cmd) == 0);
@@ -58,10 +58,10 @@ TEST_CASE("effects: save_record describes the record it was handed") {
     CHECK(e->settings.show_reasoning == true);
 }
 
-// The Quit arm is the one place ORDER matters: jaal's interpreter stops
-// dispatching at the first quit (`if (exit_) return`), so a save batched
-// after it would be silently dropped — and this is the save that keeps the
-// last turn and the active model.
+// 退出臂是ORDER最重要的一个地方:jaal的翻译在第一次
+// 退出时停止发送(`if (exit_) return`),
+// 所以在它被默不作声地放下后,一个保存批量地被发送——这是保存
+// 保持了最后一转和主动模式.
 TEST_CASE("effects: Quit saves BEFORE it quits") {
     Model m;
     m.d.current.messages.push_back(Message{.role = Role::User, .text = "hi"});

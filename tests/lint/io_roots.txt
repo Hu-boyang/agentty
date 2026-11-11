@@ -1,47 +1,47 @@
-# Files allowed to mint an agentty::Io (IoAccess::grant). See io_roots.py.
-# Each is a place IO is supposed to start. Reducers and views are never here.
+# 允许薄荷文件。 agentty::Io (IoAccess::grant。见 io_roots.py.
+# 每一个地方 IO 应该是开始的 状态更新函数 和观点从来没有在这里。
 
-# The type, and the effect wrapper reducers return (cmd::io_task).
+# 类型,和 副作用 包装 状态更新函数 返回( 返回) ( cmd::io_task).
 include/agentty/util/io.hpp
 include/agentty/runtime/cmd.hpp
 
-# The effect host (it runs effects) and init(), the one launch read.
+# 电话 副作用 主机( 它运行) 副作用 和。 和 简 况 init() 一次发射读了
 include/agentty/runtime/app/host.hpp
 src/runtime/app/init.cpp
 
-# Process entry points: `agentty run`, the CLI verbs.
+# 进程切入点 : `agentty run` ,则 CLI 动词.
 src/runtime/main.cpp
 src/tool/skills_cli.cpp
-# `agentty run`'s body: after the one-shot finishes it persists the fields a
-# host rejected, from the top of the verb -- no reducer, no Io to inherit.
+# `agentty run`'s 正文 : 在一个之后 -shot 完成它坚持一个
+# 拒绝的主机字段,从动词的顶端开始 -- no 状态更新函数 ,没有 I/O 继承。
 src/runtime/run_cli.cpp
 
-# The ACP server: its handlers run on the RPC reader, not in a reducer.
+# 电话 ACP 服务器: 其 处理函数 运行在 RPC 读者,不是在 状态更新函数.
 src/acp/server.cpp
 
-# Tool bodies and subagents, on tool workers.
+# Tool 正文和子剂,在工具工作线程上.
 src/tool/mcp_tools_backends.cpp
 
-# The retriever's index, built on its own workers and tool threads.
+# 检索器的索引, 自己建 工作线程 工具 线程.
 src/rag/adapter.cpp
 
-# fresh_auth_header's one-at-a-time lock: a guarded body can't take the
-# caller's Io (not Sendable), so it re-mints the one the caller already had.
+# fresh_auth_header 是一个 -at-a-time 锁 : 一个被看守
+# 的 正文 不能拿打电话者 I/O (不能发),所以它 -mints 打电话的人已经吃了那个
 src/io/auth.cpp
 
-# The persistence store's internals (async writer, settings lock, thread
-# log, blob store) run only under its Io-taking entry points.
+# 电话 持久化 存储的内部(同步写入器、设置) 锁, 线程 日志,
+# blob 商店)仅在其下运行 I/O-taking 入口点。
 src/io/persistence.cpp
 src/io/shared_file.cpp
 src/io/thread_log.cpp
 src/io/blob_store.cpp
-# The daily gc job (blob sweep + thread retention) runs on its own pool.
+# 每日 gc 工作( blob 扫描 +) 线程 保留)自行运行 池.
 src/io/blob_gc.cpp
 
-# Network layer entry points. Each runs only off the UI thread: provider
-# streams (dispatch runs them on the turn's worker), OAuth device/browser
-# flows (CLI or a login stream), MCP transports (their own peer threads),
-# tool bodies, and the background update/catalog refreshers.
+# 网络层入口. 每个入口只运行UIXX线程: 供应商数据流(分派
+# 运行于转弯的工作线程),OAuth device/browser流量
+# (CLI或登录的数据流),MCP 传输层(它们自己的对端 线程),
+# 工具正文,以及背景的update/catalog复习.
 src/provider/dispatch.cpp
 src/provider/anthropic/transport.cpp
 src/provider/openai/transport.cpp

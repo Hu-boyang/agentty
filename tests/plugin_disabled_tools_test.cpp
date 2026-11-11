@@ -1,14 +1,14 @@
-// plugin_disabled_tools_test — a disabled server keeps its tool list.
+// plugin_disabled_tools_test — 一个已禁用的服务器保留其工具列表.
 //
-// The bug: disabling a plugin whose tools were showing made the WHOLE tool
-// list vanish (a disabled server advertises nothing live), while a server that
-// started disabled, or one with individually-excluded tools, kept them. The
-// fix caches each server's last-advertised tools (s_seen in plugin_model) and
-// falls back to it when the server isn't connected — so the tree stays
-// populated across a disable→enable round-trip.
+// 错误: 使工具显示的插件失效 整个 工具列表已消失( 已禁用服务
+// 器的广告为无生命), 而启动的服务器已禁用, 或单个的服务器
+// -excluded 工具,留着,修好 缓存 每个服务器上一个
+// -advertised 工具( 工具) s_seen 输入
+// plugin_model ),当服务器没有连接时,倒回它——所以 源
+// 码树 穿过一个禁用回合继续居住 -trip.
 //
-// This drives the REAL producer: connect a working stdio server (populating
-// the cache), snapshot, disable it, re-snapshot, and assert the tools persist.
+// 这驱动器 真实 制作人:连接工作 Stdio 服务器( 集成 缓存),
+// 快照 ,禁用它,再 -snapshot 并坚持工具的坚持。
 
 #include "agtest_cap.hpp"
 #include "agentty/tool/registry.hpp"
@@ -28,7 +28,7 @@
 namespace fs = std::filesystem;
 using namespace agentty;
 
-namespace {  // fold: TU-local (bundled into agentty_standalone_tests)
+namespace {  // 归并: TU-local (捆绑成 agentty_standalone_tests)
 static int g_fails = 0;
 static void check(bool ok, const std::string& what) {
     std::printf("  [%s] %s\n", ok ? "PASS" : "FAIL", what.c_str());
@@ -39,29 +39,29 @@ static std::size_t tool_count_for(const std::string& server) {
     auto m = mcp::plugin_model();
     for (const auto& s : m.servers)
         if (s.name == server) return s.tools.size();
-    return static_cast<std::size_t>(-1);   // server absent
+    return static_cast<std::size_t>(-1);   // 服务器不存在
 }
 
-}  // namespace (fold)
+}  // 名称空间( 归并)
 
 int main() {
-#ifdef SIGPIPE   // Windows has no SIGPIPE: a broken pipe is a write error
+#ifdef SIGPIPE   // Windows 没有 SIGPIPE : 管道损坏是写错误
     std::signal(SIGPIPE, SIG_IGN);
 #endif
     ::setenv("AGENTTY_MCP_CONNECT_TIMEOUT_MS", "5000", 1);
 
-    // Use the real, always-connecting date_server example binary. A scripted
-    // stdio server proved flaky to connect under the test's spawn env; the
-    // built example is the reliable source of a genuine handshake. Skip
-    // cleanly if it isn't built (e.g. a partial checkout).
+    // 总是用真品 -connecting date_server 实例
+    // 二进制程序。一个脚本的 stdio 服务器证明了在测试的产卵封内连接的片段;
+    // 构建的示例是真正的握手的可靠来源。 如果它没有被构建,
+    // 则跳过干净( )。 e.g . 部分离职)。
     const char* bin = std::getenv("AGENTTY_DATE_SERVER");
     fs::path date_server = bin && *bin
         ? fs::path{bin}
         : fs::path{"build/third_party/mcp-cpp/examples/date-mcp/date_server"};
     if (!fs::exists(date_server)) {
-        // Try relative to the source tree root guesses. The submodules live
-        // under third_party/, so agentty's build tree mirrors that path;
-        // mcp-cpp's own standalone build tree is the second family.
+        // 尝试相对 源码树 根猜想。该 子模块 住在一个 third_party/ ,
+        // 所以,我说 agentty ' 正在建设 源码树 镜像那条路;
+        // mcp-cpp 自己的独立建筑 源码树 是一个第二家庭。
         for (const char* c : {"third_party/mcp-cpp/examples/date-mcp/date_server",
                               "../build/third_party/mcp-cpp/examples/date-mcp/date_server",
                               "third_party/mcp-cpp/build/examples/date-mcp/date_server",
@@ -80,14 +80,14 @@ int main() {
              / ("agentty_disabled_tools_" + std::to_string(::getpid()));
     fs::remove_all(tmp);
     fs::create_directories(tmp / ".agentty");
-    // Isolate via AGENTTY_HOME, NOT $HOME. user_root() resolves
-    // $AGENTTY_HOME FIRST and only falls back to $HOME — and the folded
-    // standalone main sets $AGENTTY_HOME to its own sandbox for the whole
-    // binary. So a test that repoints only $HOME writes its mcp.json into a
-    // directory nothing ever reads: the server never appears in the model,
-    // and every assertion here reports the "server absent" sentinel
-    // (size_t)-1 rather than a real tool count. Set both, so the test is
-    // correct whether or not the harness pins AGENTTY_HOME.
+    // 隔绝通过 AGENTTY_HOME, 不 $HOME.
+    // user_root () 决 定 $AGENTTY_HOME 首次
+    // 只会回到 $HOME ——和折叠式独立主机组. $AGENTTY_HOME
+    // 给自己的钱 沙箱 整个 二进制程序。所以,测试只重定向 $HOME 写
+    // 它 mcp.json 输入一个没有读过的目录: 服务器从未出现在模型中,
+    // 这里的每个断言都报告 "server absent" 哨兵
+    // ( 数) size_t )-1 而不是真正的工具数。设置两者,
+    // 因此测试是否正确,是否带针 AGENTTY_HOME.
     ::setenv("AGENTTY_HOME", (tmp / ".agentty").c_str(), 1);
     ::setenv("HOME", tmp.c_str(), 1);
     ::unsetenv("USERPROFILE");
@@ -98,30 +98,30 @@ int main() {
         f << R"({"mcpServers":{"demo":{"command":")" << date_server.string()
           << R"("}}})";
     }
-    // date_server advertises exactly 2 tools (current_date, days_between).
+    // date_server 广告宣传2种工具( current_date, days_between).
     constexpr std::size_t kN = 2;
 
-    // 1. Connect → the server advertises its tools; snapshot records them.
-    tools::warm_registry();          // triggers connect_initial_mcp
-    (void)tools::reload_mcp_plugins(); // ensure a fresh connected pool
+    // 1. 连接 – 服务器发布其工具广告;快照记录这些工具.
+    tools::warm_registry();          // 触发器connect_initial_mcp
+    (void)tools::reload_mcp_plugins(); // 确保新连接的池
     const std::size_t connected = tool_count_for("demo");
     check(connected == kN,
           "connected server advertises its tools (got "
           + std::to_string(connected) + ")");
 
-    // 2. Disable the whole server, reload (it no longer connects).
+    // 2. 禁用整个服务器,重新装入(不再连接).
     check(tools::plugin::set_server_disabled(::agentty::IoAccess::grant(), agtest::cap(), cfg, "demo", true)
               == tools::plugin::EditResult::Ok, "disable succeeds");
     (void)tools::reload_mcp_plugins();
 
-    // 3. THE FIX: the disabled server still lists its tools (from cache),
-    //    instead of collapsing to zero.
+    // 3. 该 FIX : 已禁用的服务器仍然列出其工具(来自 缓存),
+    //    而不是崩溃为零。
     const std::size_t disabled = tool_count_for("demo");
     check(disabled == kN,
           "disabled server KEEPS its tools in the snapshot (got "
           + std::to_string(disabled) + ") — no vanishing tree");
 
-    // 4. Re-enable → back to live, still kN.
+    // 4. Re-enable → 恢复生活,仍为 kN.
     check(tools::plugin::set_server_disabled(::agentty::IoAccess::grant(), agtest::cap(), cfg, "demo", false)
               == tools::plugin::EditResult::Ok, "re-enable succeeds");
     (void)tools::reload_mcp_plugins();
@@ -130,8 +130,8 @@ int main() {
           "re-enabled server shows its tools again (got "
           + std::to_string(reenabled) + ")");
 
-    // 5. A DISABLED server's cached tools are display-only: they never count
-    //    as loaded or on demand (#98), and annotate never marks them.
+    // 5. A DISABLED 服务器的缓存工具正在显示 -only : 他们从不计数
+    //    以 已加载 或按要求(#98),且注释者从未在它们上留下标记.
     {
         auto m_on = mcp::plugin_model();
         tools::tool_loading::annotate(m_on);
@@ -152,7 +152,7 @@ int main() {
         (void)tools::reload_mcp_plugins();
     }
 
-    // 6. A command-less server surfaces an ERROR, not an eternal "connecting…".
+    // 6. 命令 -less 服务器表面 an ERROR 而不是永恒的 "connecting…".
     {
         std::ofstream f(cfg);
         f << R"({"mcpServers":{"broken":{}}})";

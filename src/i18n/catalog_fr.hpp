@@ -1,28 +1,28 @@
-// agentty::i18n — French.
+// agentty::i18n——法语。
 //
-// The CLDR exception in this set: French's `one` category covers i = 0,1, so
-// ZERO TAKES THE SINGULAR -- "0 fichier", not "0 fichiers". Every other
-// two-form language here puts 0 in `other`. plural.hpp handles it with one
-// extra comparison rather than a sixth rule shape, and the sweep in
-// i18n_test checks every integer 0..1000 against an independently written
-// rule, so this cannot drift quietly.
+// 该集合中的CLDR例外：法语的`one`类别涵盖i=0，1，因此ZERO
+// TAKES 该 SINGULAR——"0 fichier"，
+// 而不是"0 fichiers"。这里的所有其他两种-form 语言都将0 放入
+// `other` 中。 plural.hpp 通过一次额外的比较而不是第六个
+// 规则形状来处理它，并且 i18n_test 中的扫描根据独立编写的规则检查每个整数 0..
+// 1000，因此这不能安静地漂移。
 //
-// No plural strings exist in the catalog yet, so the rule is currently
-// untested against real French text -- but the selector is, which is the
-// part that would be wrong.
+// 目录中尚不存在复数字符串，因此该规则当前尚未
+// 针对真正的法语文本进行测试——但是选择器是，
+// 这是可能错误的部分。
 //
 // TRANSLATION NOTES:
 //
-//   * Typographic spacing. French puts a space before : ; ! ? and inside
-//     « ». We use a NARROW NO-BREAK SPACE (U+202F) before the colon, which
-//     is the correct character and renders as one column. A plain space
-//     would be allowed to wrap, leaving a line starting with ":".
+//   * 印刷间距。法语在 : 之前加一个空格；！？和里面
+//     《》。我们在冒号前使用 NARROW NO-BREAK
+//     SPACE (U+202F)，这是正确的字符，渲染 作为一列。
+//     允许使用普通空格换行，留下以 ":" 开头的行。
 //
-//   * tu, not vous. Same reasoning as Spanish: dev-tool register.
+//   * 编译单元，不是你。与西班牙语的推理相同：dev-tool 寄存器。
 //
-//   * "Sandbox" stays -- "bac à sable" is the literal translation and does
-//     appear in French security writing, but a CLI label is not the place
-//     for the long form.
+//   * "Sandbox" 保留——"bac à sable" 是直译，并且确实
+//     出现在法语安全书写中，但是 CLI 标签不是长
+//     形式的位置。
 
 #include <string_view>
 

@@ -1,9 +1,9 @@
-// stream_epilogue_test — how a stream that ends is reported.
+// stream_epilogue_test - 怎么样 数据流 报告目的。
 //
-// A dialect that always sends a terminal event (Anthropic message_stop,
-// Responses response.completed) and then closes WITHOUT one was cut off in
-// transit. That has to come out as a retryable error, not a clean turn that
-// silently stops half way.
+// 一种方言总是发出终端XXXX 事件(Anthropic message_stop,
+// Resignations response.completed),
+// 然后关闭WITHOUT 1在中转中断,这必须作为可重复的误差出现,
+// 而不是一个静静地停止半途的干净转弯.
 
 #include "agentty/provider/error_class.hpp"
 #include "agentty/provider/stream_epilogue.hpp"
@@ -55,10 +55,10 @@ bool finished_in(const std::vector<Msg>& v) {
     return false;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("epilogue: a cut-off stream is an error that gets retried") {
-    const Run r = finish(/*terminated=*/false, /*expects_terminal=*/true);
+    const Run r = finish(/*终止=*/false, /*expects_terminal=*/true);
     const StreamError* e = error_in(r.got);
     REQUIRE(e != nullptr);
     CHECK(!finished_in(r.got), "not reported as a clean end");
@@ -67,13 +67,13 @@ TEST_CASE("epilogue: a cut-off stream is an error that gets retried") {
 }
 
 TEST_CASE("epilogue: the terminal event already ended the turn") {
-    const Run r = finish(/*terminated=*/true, /*expects_terminal=*/true);
+    const Run r = finish(/*终止=*/true, /*expects_terminal=*/true);
     CHECK(r.got.empty(), "nothing more is emitted");
     CHECK(error_in(r.got) == nullptr);
 }
 
 TEST_CASE("epilogue: a dialect where a plain close is normal still ends cleanly") {
-    const Run r = finish(/*terminated=*/false, /*expects_terminal=*/false);
+    const Run r = finish(/*终止=*/false, /*expects_terminal=*/false);
     CHECK(error_in(r.got) == nullptr);
     CHECK(finished_in(r.got));
 }

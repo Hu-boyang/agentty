@@ -1,13 +1,13 @@
-// wire_encode_bench <thread-file> [runs] — per-round request-build cost.
+// wire_encode_bench <thread-file> [运行]——每-round 要求的-build 成本.
 //
-// The save path is now incremental, so the remaining per-round work that
-// still scales with thread size is building the wire body: every message
-// re-serialised, every tool result re-capped, on every round. This runs on
-// the stream worker, so it is pure added TTFT rather than UI lag — but it
-// is paid once per agent step, so it shows up on long threads.
+// 电话 保存 路径现在是递增的,所以剩下的每 -round 工作,
+// 但工作规模仍与 线程 大小正在构建 传输 正文 : 每条消息
+// -serialised ,每个工具结果重排 -capped 每一回合,
+// 这都发生在 数据流 工作线程 纯洁的, TTFT 而不是说 UI
+// 时间很慢,但每个代理工一付,所以就长长地出现 线程.
 //
-// Prints the cost of the three stages a turn pays, so a regression in any
-// one of them is attributable.
+// 打印一个回合支付的三个阶段的费用,因此其中任何一个阶段
+// 的回归都是可归因于的。
 
 #include <agentty/io/persistence.hpp>
 #include <agentty/io/thread_log.hpp>
@@ -37,7 +37,7 @@ double pct(std::vector<double> v, double p) {
     std::sort(v.begin(), v.end());
     return v[static_cast<std::size_t>(p * static_cast<double>(v.size() - 1))];
 }
-} // namespace
+} // 命名空间结束。
 
 int main(int argc, char** argv) {
     if (argc < 2) {

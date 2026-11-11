@@ -1,16 +1,16 @@
-// blob_gc_test — reclaiming payloads no thread references.
+// blob_gc_test ——收回. 载荷 无 线程 参考文献。
 //
-// The GC deletes files that hold the user's images and tool output, so
-// the tests here are mostly about when it must NOT delete:
+// 电话 GC 删除持有用户图像和工具输出的文件,
+// 因此这里的测试大多是必须何时进行 不 删除:
 //
-//   * a blob referenced by ANY thread survives, including one shared
-//     between two threads (content-addressing makes that the normal case,
-//     not an edge case),
-//   * every reference key is honoured, including the ones the writer
-//     generates dynamically as `<field>_blob`,
-//   * an unreadable thread file aborts the whole sweep, because unknown
-//     references cannot be assumed absent,
-//   * dry_run touches nothing.
+//   * 引用的blob 任意 线程 包括一个共享的
+//     介于两个之间 线程 (内容) -addressing 使正常情况,
+//     而不是边缘情况,
+//   * 每一个参考钥匙都值得尊重,包括那些作者的
+//     生成为 `<field>_blob`,
+//   * 一个无法读取的线程文件中止了整个扫描, 因为未知
+//     不得假定没有参考文献,
+//   * dry_run没有任何触摸。
 
 #include "agtest.hpp"
 
@@ -24,14 +24,14 @@
 #include <fstream>
 #include <string>
 
-#include <unistd.h>   // geteuid — root reads anything, so skip there
+#include <unistd.h>   // 根读任何内容,请跳过这里
 
 namespace fs = std::filesystem;
 using namespace agentty;
 
 namespace {
 
-// A private threads dir per test, so cases can't see each other's blobs.
+// 每个测试一个私家的线程 dir,所以病例无法看到对方的blobs.
 fs::path make_dir(std::string_view name) {
     auto p = fs::temp_directory_path() / "agentty_blob_gc" / name;
     std::error_code ec;
@@ -40,8 +40,8 @@ fs::path make_dir(std::string_view name) {
     return p;
 }
 
-// Put a blob directly, bypassing the store's own path resolution, so the
-// test controls which directory it lands in.
+// 直接放一个blob,绕过商店自己的路径分辨率,
+// 所以测试控制它降落在哪个目录中.
 std::string put_in(const fs::path& dir, const std::string& bytes) {
     const auto name = blobs::name_for(bytes);
     std::ofstream out(dir / "blobs" / name, std::ios::binary);
@@ -67,7 +67,7 @@ bool blob_exists(const fs::path& dir, const std::string& name) {
     return fs::exists(dir / "blobs" / name, ec);
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("blob gc: deletes orphans and keeps everything referenced") {
     const auto dir = make_dir("basic");
@@ -98,9 +98,9 @@ TEST_CASE("blob gc: deletes orphans and keeps everything referenced") {
 }
 
 TEST_CASE("blob gc: a blob shared by two threads survives deleting one") {
-    // The case that makes per-thread refcounting wrong. Content-addressing
-    // means the same screenshot in two threads is ONE file; deleting
-    // thread A must not blank the image in thread B.
+    // 案件数量 -thread 重算错误。 内容 -addressing
+    // 表示两个中相同的截图 线程 谓 一个 文件;
+    // 删除 线程 不得将图像空白于 线程 B.
     const auto dir = make_dir("shared");
     const auto shared = put_in(dir, std::string(400, 's'));
 
@@ -116,7 +116,7 @@ TEST_CASE("blob gc: a blob shared by two threads survives deleting one") {
     write_file(dir / "a.json", doc("a"));
     write_file(dir / "b.json", doc("b"));
 
-    // Thread A goes away; B still references the blob.
+    // 线程 A 离开; B 仍然引用 blob。
     std::error_code ec;
     fs::remove(dir / "a.json", ec);
 
@@ -128,10 +128,10 @@ TEST_CASE("blob gc: a blob shared by two threads survives deleting one") {
 }
 
 TEST_CASE("blob gc: honours every blob reference key") {
-    // Some keys are written literally ("blob", "output_blob"); others are
-    // generated as `<field>_blob` by put_or_inline, so a hardcoded list
-    // would silently stop protecting new ones. Anything ending in _blob
-    // counts.
+    // 有些密钥按字面写("blob","output_blob");
+    // 有些则按put_or_inline生成为`<field>_blob`,
+    // 所以一个硬编码的列表会默默停止保护新的密钥。任何以_blob计数结束
+    // 的事物。
     const auto dir = make_dir("keys");
     const auto img   = put_in(dir, std::string(10, '1'));
     const auto out   = put_in(dir, std::string(20, '2'));
@@ -160,8 +160,8 @@ TEST_CASE("blob gc: honours every blob reference key") {
 }
 
 TEST_CASE("blob gc: an unreadable thread aborts the sweep") {
-    // Unknown references cannot be assumed absent. A corrupt thread file
-    // is exactly when the user most needs their payloads left alone.
+    // 无法假定没有未知的引用。 腐败 线程
+    // 文件正是用户最需要时 载荷 独自一人
     const auto dir = make_dir("unreadable");
     const auto orphan = put_in(dir, std::string(100, 'x'));
     write_file(dir / "broken.json", "{ this is not json at all");
@@ -175,8 +175,8 @@ TEST_CASE("blob gc: an unreadable thread aborts the sweep") {
 }
 
 TEST_CASE("blob gc: a torn log line aborts the sweep") {
-    // Same rule for the log format: a partial final line means this
-    // thread's reference set is incomplete.
+    // 日志格式的相同规则:部分的终线表示
+    // 这个线程的参考集不完整.
     const auto dir = make_dir("torn");
     const auto orphan = put_in(dir, std::string(100, 'y'));
     write_file(dir / "t.jsonl",
@@ -189,19 +189,19 @@ TEST_CASE("blob gc: a torn log line aborts the sweep") {
 }
 
 TEST_CASE("blob gc: an unlistable threads dir deletes nothing") {
-    // The nastiest version of "unknown references cannot be assumed
-    // absent", because it does not look like a failure at all.
+    // 最恶心的版本 "unknown references cannot be assumed absent"
+    // 因为它看起来一点也不像失败。
     //
-    // `directory_iterator(dir, ec)` yields NOTHING when it cannot open the
-    // directory, and a range-for cannot tell that from an empty directory.
-    // So an unreadable threads dir scanned 0 threads, found 0 references,
-    // left `unreadable` at 0 -- and the sweep, seeing no references at all,
-    // deleted EVERY blob. The safety rule below already said what to do
-    // with an unreadable input; nothing had told it this was one.
+    // `directory_iterator(dir, ec)` 产量
+    // 无内容 当它无法打开目录和范围时 -for 无法从空目录中分辨。
+    // 因此,一个无法读取的线程 dir扫描了0线程,发现0个参考文献,
+    // 在0时留下`unreadable`,而扫描时却完全没有看到
+    // 参考文献,删除了EVERY blob。下面的安全规则已经
+    // 说过了如何处理一个不可读输入;没有告诉它这是一个。
     //
-    // Root can read anything, so this would pass vacuously there. Windows
-    // can't express "unlistable" through fs::permissions at all (it only
-    // toggles the read-only attribute), so the precondition can't be built.
+    // 根能读到任何东西,所以它会 空虚地通过那里。 Windows 无法
+    // 表达 "unlistable" 结束 fs::permissions
+    // 完全没有(仅指 切换 读取 -only 属性),所以先决条件不能被构建.
 #if defined(_WIN32)
     return;
 #else
@@ -217,15 +217,15 @@ TEST_CASE("blob gc: an unlistable threads dir deletes nothing") {
                 nlohmann::json{{"blob", blob}}})}}})}
     }.dump());
 
-    // The blobs/ subdir stays readable -- only the thread listing fails, so
-    // the GC can still SEE the payloads it would wrongly delete.
+    // 电话 blobs/ 子目录可读 - 只有 线程 列表失败,
+    // 因此 GC 还可以 SEE 编号 载荷 可能会错误地删除。
     std::error_code ec;
     const auto before = fs::status(dir, ec).permissions();
-    fs::permissions(dir, fs::perms::owner_exec, ec);   // traverse, not list
+    fs::permissions(dir, fs::perms::owner_exec, ec);   // 过路,不是列表
 
     const auto st = blobs::collect_in(dir);
 
-    fs::permissions(dir, before, ec);                  // restore for cleanup
+    fs::permissions(dir, before, ec);                  // 恢复清理
 
     CHECK_MESSAGE(!st.ran, "a sweep that could not read its input did not run");
     CHECK_MESSAGE(st.unreadable > 0u,
@@ -250,9 +250,9 @@ TEST_CASE("blob gc: dry_run reports without deleting") {
 }
 
 TEST_CASE("blob gc: metadata sidecars are scanned too") {
-    // <id>.meta.json holds compaction summaries, which go through
-    // put_or_inline and can therefore carry a blob reference. Skipping
-    // them would delete a summary that is still in use.
+    // <id>.meta.json 持有压缩摘要,
+    // 这些摘要将经过 put_or_inline ,因此可以带一个
+    // 粗略的引用。跳过它们会删除一个仍在使用的概要。
     const auto dir = make_dir("meta");
     const auto summary = put_in(dir, std::string(500, 'm'));
     write_file(dir / "t.jsonl", "{\"role\":\"user\",\"text\":\"hi\"}\n");
@@ -270,8 +270,8 @@ TEST_CASE("blob gc: metadata sidecars are scanned too") {
 }
 
 TEST_CASE("blob gc: dangling references are reported, not fatal") {
-    // A reference to a blob that isn't there is a real bug, but the GC's
-    // job is to notice it rather than to make it worse.
+    // 提到一个不存在真正的虫子的blob,
+    // 但GC的工作是注意它而不是使它更糟糕.
     const auto dir = make_dir("dangling");
     const auto real = put_in(dir, std::string(64, 'r'));
     write_file(dir / "t.json", nlohmann::json{
@@ -317,17 +317,17 @@ TEST_CASE("blob gc: grace window spares young orphans") {
     CHECK(st.deleted == 1u);
 }
 
-// The background GC must never outlive main(). The Windows CI pipe smoke
-// test (stdin at EOF → exit at once) crashed 0xC0000005 when the walk ran
-// on a detached thread into static destruction. start + join right away
-// must return at once and run nothing; join must be idempotent.
+// 背景情况 GC 永远不能超过寿命 main()。该词 Windows
+// CI 烟管烟雾试验(Stdin at EOF – 立即退出)
+// 0xC00000005 时,行走在脱落处坠毁 线程。启动 + 立即加入。
+// 启动 + 必须立即返回, 并且不运行 ; 加入必须是 幂等.
 TEST_CASE("blob gc: background thread joins at once and runs nothing") {
     const auto t0 = std::chrono::steady_clock::now();
     blobs::start_background_gc();
-    blobs::start_background_gc();                 // second start is a no-op
+    blobs::start_background_gc();                 // 第二首是n-op
     blobs::join_background_gc(agtest::cap());
     blobs::join_background_gc(agtest::cap());                  // idempotent
-    blobs::start_background_gc();                 // after join: stays stopped
+    blobs::start_background_gc();                 // 加入后: 停止
     blobs::join_background_gc(agtest::cap());
     const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - t0).count();

@@ -1,27 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// persistence_race_stubs.cpp — link-time stubs for the settings/vault half
-// of persistence.cpp, so persistence_race_test can be built narrow.
+// persistence_race_stubs.cpp — 链接-time 支点 settings/vault 半数
+// persistence.cpp ,所以,我说 persistence_race_test 能够建立狭长的建筑。
 //
-// WHY. persistence_race_test drives the async THREAD save queue:
-// save_thread, load_all_threads, flush_pending_saves. It never calls
-// load_settings or save_settings and never touches provider keys.
+// 原因. persistence_race_test 驱动自动同步 THREAD 保存 队列 :
+// save_thread, load_all_threads, flush_pending_saves 永远
+// 调用 load_settings 或 或 时 间 save_settings 永远不要碰提供商的钥匙。
 //
-// But persistence.cpp is one translation unit holding both halves, and its
-// settings half calls auth::keys::{load,save} -> vault -> keystore ->
-// credentials -> the provider registry. Linking that chain pulls ~74 TUs
-// for code this test does not execute. Under -fsanitize=thread, where the
-// CI race lane lives, every one of those is compiled instrumented.
+// 不过 persistence.cpp 是一个 编译单元 和它的设置 :
+// 调用 auth::keys::{加载,保存 } - > 保险库 -
+// > 密钥托盘 - > 凭据 - > 提供者 注册表. 链接 链拉~
+// 74 编译单元 用于代码的此测试不执行。在 -fsanitize=thread ,
+// 其中, CI 竞态 车道生活, 每一个这些 编译器械。
 //
-// The alternative to these stubs is what CI did before: build the whole
-// 375-TU agentty_standalone_tests under TSan to run this one test.
+// 换个方法就是 CI 建造了整个375座 -TU
+// agentty_standalone_tests 由TSan负责这次测试
 //
-// SAFETY. Each stub stands in for a function the test provably never
-// reaches, and each aborts rather than returning a fake value -- so if a
-// future edit to persistence.cpp DOES start calling one from the thread
-// path, this test dies loudly at that call instead of quietly exercising a
-// lie. That is the property that makes stubbing honest here: the stubs
-// cannot silently change what the test measures.
+// SAFETY。每个根茎都代表一个函数,测试可能永远
+// 无法到达,每个中断而不是返回一个假值 -- -- 因此,
+// 如果未来的编辑结果到 persistence.cpp
+// 执行 开始呼叫一个从 线程 路径,此测试会大声地在
+// 调用 而不是悄悄地撒谎。这就是使这里诚实地抽泣的
+// 财产:抽筋不能悄悄地改变测试措施。
 
 #include "agentty/auth/keys.hpp"
 
@@ -39,7 +39,7 @@ namespace {
         "thread path grew one (then that is the bug).\n", who);
     std::abort();
 }
-}  // namespace
+}  // 命名空间结束。
 
 namespace agentty::auth::keys {
 
@@ -48,16 +48,16 @@ bool save(const KeyMap&) { unreachable("auth::keys::save"); }
 
 }  // namespace agentty::auth::keys
 
-// persistence_race_test.cpp is ALSO a member of the standalone fold, and
-// the fold renames each member's main() to <name>_main via a source
-// property. That property is set at DIRECTORY scope, so it applies to this
-// narrow target's copy of the same source too -- the TU compiles, but no
-// `main` symbol comes out of it.
+// persistence_race_test.cpp 谓 ALSO 独立
+// 成员 归并 ,并显示 归并 重命名每个成员的 main() 改为
+// <name> 通过源属性主(_M),该属性设定为 DIRECTORY 范围,
+// 所以它适用于这个狭义的目标 复制同一个源 - - TU 编译 ,
+// 但无 `main` 符号 出来吧
 //
-// Rather than fight the rename (a second copy of the source, or a
-// target-scoped property that would drift from the fold's), just call what
-// the rename produced. One line, and it keeps ONE copy of the test source
-// feeding both the folded entry and the narrow one, which is the point --
-// they can never test different things.
+// 而不是对抗重命名( 源的第二份副本,
+// 或目标) -scoped 将漂移于 归并 刚刚,
+// 只是 调用 重命名产生的东西 一行,它保持 一个
+// 复制给折叠的条目和狭小的条目的测试源,这就是点——
+// 它们永远不能测试不同的东西.
 extern int persistence_race_test_main();
 int main() { return persistence_race_test_main(); }

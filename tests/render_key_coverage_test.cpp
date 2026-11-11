@@ -1,27 +1,27 @@
-// render_key_coverage_test.cpp — pins Message::compute_render_key() coverage.
+// render_key_coverage_test.cpp ——针头 Message::compute_render_key (a) 覆盖面。
 //
-// WHY THIS TEST EXISTS
+// 原因 此 TEST EXISTS
 // ====================
-// compute_render_key() is the CONTENT-identity hash the maya render cache keys
-// on (via assistant_run_hash_id / per-turn hash_id in turn.cpp). The cache's
-// contract: a hash_id uniquely determines the rendered cells. If a Message
-// field that AFFECTS the rendered card changes but is NOT mixed into
-// compute_render_key(), the key stays constant, maya's blit fast path serves
-// the STALE cached cells, and the user sees corruption (a card frozen on old
-// content). This is the exact "hash doesn't cover rendered content" class that
-// hid a terminal-resize bug in maya's height cache (fixed separately).
+// compute_render_key ( ) 是 : 或 : CONTENT-identity
+// 散开 maya 渲染 缓存 键上(通过) assistant_run_hash_id
+// /每笔 -turn hash_id 输入 turn.cpp。。 内容。 缓存 合同:
+// a hash_id 唯一决定已提供 存储单元。如果信件字段为 AFFECTS 已换卡,
+// 但 不 混合为 compute_render_key ( ) 键不变, maya
+// 快速路径为 STALE 缓存 存储单元 ,用户会看到腐败(旧内容上冻结的卡)。
+// 这是准确的 "hash doesn't cover rendered content"
+// 隐藏的课 终端-resize 错误进入 maya 高度( 高度 ) 缓存 (分别定.
 //
-// compute_render_key documents the invariant in a comment ("keep in sync with
-// the reads in turn.cpp"), but a comment isn't enforcement. This test makes it
-// enforceable: a declarative table of "fields that must move the key." Add a
-// rendered Message field → add a row here → the test then REQUIRES the matching
-// mix() line. It mirrors visual_hash_coverage_test for Program::visual_hash.
+// compute_render_key 文档 不变量 注释中( 以
+// "keep in sync with the reads in turn.cpp" ,但评论不是执行。
+// 这个测试使它可以执行:一个声明表,其中包含: "fields that must move the key."
+// 添加已渲染的信件字段 ~ 在此添加一行 ~ 测试到此为止。 REQUIRES 匹配( T) mix() 线条。
+// 它反射 visual_hash_coverage_test 费用 Program::visual_hash.
 //
-// NOTE ON SIZE-VS-BYTES: compute_render_key mixes string SIZES, not bytes, by
-// design — assistant text is append-only during streaming, so size uniquely
-// identifies content. These axes therefore change LENGTH, matching the real
-// mutation shape. (A same-length in-place byte swap is out of contract and not
-// asserted; it never happens for the settled cards the cache serves.)
+// 关于大小与字节内容的区别，见 compute_render_key。
+// 混合字符串 SIZES ,没有 字节 ,按设计——助手文本为附件 -only
+// 期间 流式传输 ,因此大小独占地识别内容。这些轴因此改变 LENGTH ,
+// 匹配真实的变异形状。 (相同) -length 输入 -place 字节 互换
+// 是合同外的,没有断言;对于结算的卡片,则从未发生 缓存 (服务。 )
 #undef NDEBUG
 #include "agtest.hpp"
 
@@ -42,8 +42,8 @@ struct Axis {
     std::function<void(Message&)>  mutate;
 };
 
-// A representative assistant message carrying every card kind, so each axis
-// mutates a field that is actually populated.
+// 一个代表助理信息, 携带着各种卡片, 所以每个轴突变
+// 了一个字段, 实际上是被覆盖的。
 Message base_message() {
     Message m;
     m.role           = Role::Assistant;
@@ -51,7 +51,7 @@ Message base_message() {
     m.streaming_text = "live tail";
     m.pending_stream = "buffered";
     m.error          = std::nullopt;
-    // Smart routing card.
+    // 智能路由卡.
     m.smart_routing          = true;
     m.smart_route_model      = "claude-opus-4-5";
     m.smart_route_effort     = "high";
@@ -59,7 +59,7 @@ Message base_message() {
     m.smart_route_note       = "bumped for ambiguity";
     m.smart_route_orchestrate = false;
     m.smart_route_subagents   = false;
-    // Fork card.
+    // 叉卡(原变种).
     m.fork_note       = true;
     m.fork_transcript = "/tmp/parent.md";
     return m;
@@ -78,9 +78,9 @@ const std::vector<Axis>& render_axes() {
         }},
         {"attachment appended", [](Message& m) {
             agentty::Attachment a; a.kind = agentty::Attachment::Kind::FileRef;
-            // byte_count is what compute_render_key mixes (NOT the body,
-            // which may be an unmaterialised blob ref), so it has to be set
-            // for this axis to actually move the hash.
+            // byte_count 是什么 说吧 compute_render_key
+            // 混合( 不 编号 正文 ,它可能是一个非物质化的blob ref),
+            // 所以必须设定这个轴来实际移动散列.
             a.name = "f.txt"; a.body.set_bytes("data"); a.byte_count = 4;
             m.attachments.push_back(a);
         }},
@@ -96,9 +96,9 @@ const std::vector<Axis>& render_axes() {
             m.proactive->expanded = !m.proactive->expanded;
         }},
         {"reasoning text (thinking) changes length", [](Message& m) {
-            // Drives Message::reasoning_display_text(), which the reasoning
-            // block renders. Must be in the render key or the cached Element
-            // serves a stale (or missing) "Thought for N tokens" summary.
+            // 驱动器 Message::reasoning_display_text (),
+            // 推理障碍 渲染。必须在里面 渲染 键或缓存元素服务 a 过期 (
+            // 或失踪) "Thought for N tokens" 总结。
             m.thinking += "chain of thought step";
         }},
         {"smart_routing toggles", [](Message& m) {
@@ -135,20 +135,20 @@ const std::vector<Axis>& render_axes() {
     return axes;
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("render_key covers every rendered Message field") {
-    // Non-vacuity guard: two IDENTICAL messages must hash equal, and a no-op
-    // must NOT move the key — proves the assertions below are comparing real,
-    // differing values (not a hash that changes on every call, which would
-    // make every axis "pass" vacuously).
+    // 无 -vacuity 警卫: 2 IDENTICAL 信息必须等距,
+    // 和否 -op 不得 移动关键字——证明以下断言比较了真实的,
+    // 不同的值(不是一散列,它改变于每一秒) 调用 ,
+    // 它将使每个轴 "pass" 虚空无故.
     {
         Message a = base_message();
         Message b = base_message();
         CHECK(a.compute_render_key() == b.compute_render_key());
         const std::uint64_t k = a.compute_render_key();
-        (void)a.text.size();                 // a genuine no-op read
-        CHECK(a.compute_render_key() == k);  // stable across calls
+        (void)a.text.size();                 // a 真正的第-op号改为
+        CHECK(a.compute_render_key() == k);  // 稳定 调用
     }
 
     int failures = 0;

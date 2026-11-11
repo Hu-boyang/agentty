@@ -1,4 +1,4 @@
-// src/rag/rag_host.cpp — rag-cpp's host services on agentty. See rag_host.hpp.
+// src/rag/rag_host.cpp — rag-cpp在agentty上的主机服务。参见 rag_host.hpp。
 
 #include "agentty/rag/rag_host.hpp"
 
@@ -20,9 +20,9 @@ namespace {
 
 namespace rd = ::rag::dense;
 
-// rag's POST seam over agentty's HTTP client. These are endpoints the user
-// configured (a local Ollama, a hosted API), so plaintext is allowed for
-// non-TLS and the SSRF guard (meant for model-chosen URLs) is off.
+// rag的POST 接口边界通过agentty的HTTP客户端。这些是用户配置的
+// 端点（本地 Ollama、托管 API），因此非 -TLS 允许使用明文，
+// 并且 SSRF 防护（适用于 model-chosen URL）已关闭。
 class AgenttyHttp final : public rd::HttpTransport {
 public:
     ::rag::Result<rd::HttpResponse> post(const rd::HttpRequest& r) const override {
@@ -48,7 +48,7 @@ public:
     }
 };
 
-// A bridge peer as a child process: its stdout is read, its stdin written.
+// 作为子进程的桥对端：读取其标准输出，写入其标准输入。
 ::rag::Result<std::shared_ptr<::rag::bridge::Channel>> spawn_peer(const ::rag::bridge::ProcessSpec& spec) {
     util::ChildProcess::Spawn sp;
     sp.command = spec.argv.front();
@@ -88,7 +88,7 @@ public:
         std::make_shared<::rag::bridge::LineChannel>(std::move(io), spec.name));
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 ::rag::plugin::HostIo host_io() {
     ::rag::plugin::HostIo io;
@@ -111,7 +111,7 @@ const ::rag::plugin::Registries& registries() {
         req.budgets.idle     = std::chrono::seconds{60};
         req.budgets.wall     = std::chrono::seconds{300};
         req.max_output_bytes = 64u << 20;
-        auto r = exec->run(::mcp::tools::Call{}, req);   // not a tool call: no card, no cancel
+        auto r = exec->run(::mcp::tools::Call{}, req);   // 不是工具调用：没有卡，没有取消
         if (std::holds_alternative<mt::StartFailed>(r.outcome)) return std::nullopt;
         return std::move(r.output);
     };

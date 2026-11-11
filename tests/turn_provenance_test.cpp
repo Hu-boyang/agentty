@@ -1,19 +1,19 @@
-// turn_provenance_test — an assistant turn is labelled by the model that
-// ACTUALLY served it, not by whatever the picker happens to hold now.
+// turn_provenance_test——第ACTUALLY
+// 号服务模式贴上助手转弯的标签,而不是现在第选择面板号的车型。
 //
-// The bug: under Smart Mode the turn is dispatched on the resolved role model
-// (`strategic_profile.model` in launch_stream), which is routinely NOT the
-// model in the picker. Both the status-bar badge and the turn header read
-// `Model::d.model_id` — the SELECTION — so agentty displayed "Mistral Large"
-// while every byte of the reply came from GLM. The debug log (which reports
-// the wire) and the UI (which reported the selection) disagreed, and the UI
-// was wrong.
+// 错误:在Smart Mode下,转弯是按已解决的榜样(launch_stream
+// 中的`strategic_profile.model`)发出的,
+// 通常在选择面板中是NOT。 状态-bar徽章和转弯头文件改为
+// `Model::d.model_id`-SELECTION,
+// 因此agentty显示"Mistral Large",而答复中每字节来自GLM。
+// 调试日志(它报告传输)和UI(它报告选择)都不一致,
+// UI是错误的。
 //
-// It also lied retroactively: because the header was computed from live state
-// at render time, switching models relabelled every turn already sitting in
-// the transcript. A turn's provenance is a property OF THE TURN, so it now
-// lives on the turn (Message::served_model / served_role), is stamped once at
-// StreamStarted, survives persistence, and is mixed into the render key.
+// 也追溯性地撒谎:因为 头文件 是从现时状态计算出来的 渲染 时间,
+// 转换模型重新标记了已经坐落在记录的每个转弯。转弯的出处是一个属性。
+// OF 该 TURN ,所以它现在生活 转弯( Message::served_model
+// / served_role ),在一次印章上加盖 StreamStarted ,
+// 存活下来 持久化 ,并混入 渲染 键。
 
 #include <string>
 
@@ -49,12 +49,12 @@ void install_stub_deps() {
     });
 }
 
-// A model mid-turn: one user message, one assistant placeholder, the wire
-// about to open. `routed` is what launch_stream resolved for this turn
-// (empty = Smart Mode off, so the selection serves it).
-// `routed` empty / `role` absent = Smart Mode off, so the selection serves
-// the turn. Both are TYPED now, which is the point: a caller cannot pass
-// the role where the model goes, and cannot invent a role spelling.
+// 中场模特儿 -turn : 一个用户消息, 一个助理占位符, 即 传输 即将打开。
+// `routed` 是什么 说吧 launch_stream 已解决此
+// 转折( 空 = 智能模式关闭, 因此选择服务它 )。
+// `routed`空 / `role`缺席 = Smart Mode 关闭,
+// 所以选择服务于转弯,两者都是现在的TYPED,这就是点:一个
+// 呼叫者不能传递模式去的地方的角色,也不能发明角色拼写.
 Model mid_turn(const std::string& selected, const std::string& routed,
                std::optional<smart::ModelRole> role) {
     Model m;
@@ -71,15 +71,15 @@ Model mid_turn(const std::string& selected, const std::string& routed,
     return m;
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("turn provenance: the role codec round-trips") {
-    // served_role is persisted as a string and read back as an enum, so
-    // the two directions have to agree. They used not to: the writer
-    // emitted only "strategic", the view matched
-    // "strategic"/"implementation"/"utility", and role_label() produced
-    // "impl" — three spellings of one concept, none compiler-checked.
-    // (docs/STRONG_TYPES_AUDIT.md §Finding 2.)
+    // served_role 被坚持为字符串,并读回为 枚举 ,所以两个方向必须一致。
+    // 它们过去没有: 作者只排放 "strategic" ,
+    // 视图匹配 "strategic"/
+    // "implementation"/"utility" ,和 role_label (
+    // 单位:千美元) "impl" ——一个概念的三种拼写,无 编译器-checked.
+    // (docs/STRONG_TYPES_AUDIT.md § 查找 2.)
     using smart::ModelRole;
     for (auto r : {ModelRole::Strategic, ModelRole::Implementation,
                    ModelRole::Utility}) {
@@ -90,16 +90,16 @@ TEST_CASE("turn provenance: the role codec round-trips") {
         CHECK(*back == r);
     }
 
-    // role_label() is a UI abbreviation ("impl"), NOT the wire spelling.
-    // Reusing it on disk is the tidy-up that would have broken the reader,
-    // so the reader accepts it defensively — pinned here so that stays true.
+    // role_label (a) 属于 UI 缩略语( "impl"), 不 编号 传输 拼写。
+    // 在磁盘上重用它就是能打碎读者的 整洁的-up,
+    // 所以读者会以防御性的方式接受它—— 被固定在这里,这样才是真的.
     const auto legacy = smart::role_from_wire_name("impl");
     CHECK(legacy.has_value());
     CHECK(*legacy == ModelRole::Implementation);
 
-    // Absent and unknown are both "no role tag", not a guess. A thread
-    // written by a build that knows a role this one doesn't must still
-    // open, just without the accent.
+    // 都失踪了 也不知道 "no role tag" 而不是
+    // 猜测 A 线程 由一个知道角色的建筑所写 这个角色不能
+    // 继续打开, 只是没有口音。
     CHECK_FALSE(smart::role_from_wire_name("").has_value());
     CHECK_FALSE(smart::role_from_wire_name("a-role-from-the-future").has_value());
 }
@@ -112,7 +112,7 @@ TEST_CASE("turn provenance: the header names the model that served the turn") {
         provider::select(::agentty::IoAccess::grant(), sel);
     }
 
-    // ── StreamStarted stamps the routed model onto the assistant turn ──
+    // ── StreamStarted 将路由模型印到助手转弯上 ──
     {
         Model m = mid_turn("mistral-large-3", "glm-5.3", smart::ModelRole::Strategic);
         auto [m1, _] = app::update(std::move(m), Msg{StreamStarted{}});
@@ -125,11 +125,11 @@ TEST_CASE("turn provenance: the header names the model that served the turn") {
               "stamping provenance must not disturb the user's selection");
     }
 
-    // ── Smart Mode off: the turn is STILL stamped, with no role ──────
-    // The model that served the turn is a fact about the turn whether or
-    // not a router chose it. Leaving it empty here was #120: a plain
-    // session recorded nothing, so every header fell back to the live
-    // selection and switching models relabelled the whole transcript.
+    // ── 智能模式关闭:转弯为 仍然 , 没有角色 ──────
+    // 服务于转弯的模型是路由器是否选择转弯的事实。
+    // 留空在这里是 # 120: 一个平整的会话
+    // 记录到什么也没有, 所以每个头文件 都回到了
+    // 现场选择, 切换模型重新标记了整个记录片。
     {
         Model m = mid_turn("mistral-large-3", "mistral-large-3", std::nullopt);
         auto [m1, _] = app::update(std::move(m), Msg{StreamStarted{}});
@@ -141,19 +141,19 @@ TEST_CASE("turn provenance: the header names the model that served the turn") {
              "overstate Smart Mode in the stats fold");
     }
 
-    // ── Switching models does NOT relabel turns already in the transcript ──
-    // This is the retroactive half of the bug: the header used to be derived
-    // from live state, so a settled GLM turn became a "Mistral" turn the
-    // instant you switched.
+    // ── 转换模型会重新标记 不 已重刻在记录簿中 ──
+    // 这是错误的追溯性半个: 头文件 曾经是来自活邦 所以
+    // 定居 GLM 转身成为了 "Mistral"
+    // 转动你转动的瞬间。
     {
         Model m = mid_turn("mistral-large-3", "glm-5.3", smart::ModelRole::Strategic);
         auto [m1, _] = app::update(std::move(m), Msg{StreamStarted{}});
-        m1.d.model_id = ModelId{"claude-opus-4-5"};   // user switches after
+        m1.d.model_id = ModelId{"claude-opus-4-5"};   // 用户切换器在之后
         CHECK(m1.d.current.messages.back().served_model == "glm-5.3",
               "a settled turn keeps its author across a model switch");
     }
 
-    // ── Provenance changes the render key (else the cached Element sticks) ──
+    // ── 证明更改 渲染 键( 以缓存元素棒) ──
     {
         Message a;
         a.role = Role::Assistant;
@@ -167,12 +167,12 @@ TEST_CASE("turn provenance: the header names the model that served the turn") {
 }
 
 TEST_CASE("turn provenance: a plain session stamps every turn (#120)") {
-    // The reported bug, at the layer it actually lived. launch_stream used
-    // to write smart_turn_model ONLY when Smart Mode orchestrated the turn,
-    // so an ordinary session left every assistant message unstamped. The
-    // header then fell back to the live selection, and switching model
-    // relabelled the entire transcript retroactively -- a Granite turn
-    // claiming to be the Spark model the user had just picked.
+    // 被报道的虫子,在它实际生活的地层上. launch_stream
+    // 用于写入 smart_turn_model 仅 当Smart
+    // Mode 安排了转弯时,所以一个普通会话会让每个助理
+    // 消息都未加标记。 头文件 然后回到现场选择,
+    // 切换模型 将整个记录稿重新贴上追溯标签—— 一个Granite转弯,
+    // 声称是用户刚刚选择的 Spark模型。
     install_stub_deps();
     {
         provider::Selection sel;
@@ -182,7 +182,7 @@ TEST_CASE("turn provenance: a plain session stamps every turn (#120)") {
 
     Model m;
     m.d.model_id = ModelId{"granite-4.2-3b"};
-    // Smart Mode OFF -- the condition under which nothing was recorded.
+    // Smart Mode OFF——无记录的条件.
     CHECK_FALSE(m.d.smart.orchestration());
 
     Message user;
@@ -199,7 +199,7 @@ TEST_CASE("turn provenance: a plain session stamps every turn (#120)") {
     INFO("an unrouted turn gets no role");
     CHECK_FALSE(m.s.smart_turn_role.has_value());
 
-    // The stamp lands on the message, and survives a later model switch.
+    // 邮票落在了信息上,在后来的模型开关中幸存下来.
     auto [m1, _] = app::update(std::move(m), Msg{StreamStarted{}});
     CHECK(m1.d.current.messages.back().served_model == ModelId{"granite-4.2-3b"});
     m1.d.model_id = ModelId{"spark-1"};

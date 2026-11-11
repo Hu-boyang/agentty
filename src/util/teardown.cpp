@@ -1,4 +1,4 @@
-// teardown.cpp — the process-exit join registry. See teardown.hpp.
+// teardown.cpp ——过程 -exit 加入( E) 注册表。见 teardown.hpp.
 
 #include "agentty/util/teardown.hpp"
 
@@ -19,21 +19,21 @@ namespace {
 struct Entry {
     Token                         token;
     std::string                   name;
-    util::Callback<void(const maya::unlocked&)> fn;   // invoked, never reassigned
+    util::Callback<void(const maya::unlocked&)> fn;   // 援引,从未重新分配
 };
 
-// Copy-on-write: register/cancel publish a new list with compare-and-swap.
-// Entrys are closures over whatever they tear down (often by reference), so
-// they are not Sendable values to pass through a lock; a published list of
-// them is the honest shape. Registration is rare and the list is short.
+// 复制 -on-write: register/cancel 以比较方式发布新列表 -and-swap.
+// 条目是关闭它们拆掉的(通常通过参考)任何内容,
+// 因此它们不是可以发送的值,无法通过锁;
+// 公布的列表是诚实的形状。注册是罕见的,列表很短。
 struct Registry {
     std::vector<Entry> actions;
     Token               next_token = 1;
 };
 
-// Function-local static: no static-init-order dependency on any subsystem
-// that might register from its own static constructor. Leaked so a late
-// registration during static destruction still finds it alive.
+// 函数 -local 静态: 无静态 -init-order
+// 依赖任何可能从自己的静态构造器中注册的子系统。
+// 在静态破坏中,由于延迟注册而泄漏,仍然发现它还活着。
 maya::published<const Registry>& registry() {
     static auto* r = [] {
         auto* p = new maya::published<const Registry>;
@@ -43,8 +43,8 @@ maya::published<const Registry>& registry() {
     return *r;
 }
 
-// Apply `edit` to a copy of the current list and publish it, retrying if
-// someone else published first. Returns what `edit` returned.
+// 应用 `edit` 以复制本清单并公布, 重试 如果先
+// 有其他人发布,则返回 `edit` 返回时,
 template <class F>
 auto update(F edit) {
     for (;;) {
@@ -55,7 +55,7 @@ auto update(F edit) {
     }
 }
 
-} // namespace
+} // 命名空间结束。
 
 Token on_shutdown(std::string name, teardown::Action action) {
     if (!action) return 0;
@@ -72,20 +72,20 @@ void cancel(Token token) noexcept {
         (void)update([token](Registry& r) {
             return std::erase_if(r.actions, [token](const Entry& a) { return a.token == token; });
         });
-    } catch (...) { /* out of memory copying a short list: leave it */ }
+    } catch (...) { /* 复制短名单的 内存 中:留下它 */ }
 }
 
 void run(const maya::unlocked& cap) noexcept {
-    // Swap in an empty list (keeping the token counter), then run: an action
-    // may register another action, or reach run() again via some destructor,
-    // and neither waits on anything.
+    // 换入空列表(保留符牌计数器),然后运行:一个动作可能
+    // 注册另一个动作,或者通过某种破坏器再次到达run(),
+    // 并且不等待任何东西.
     std::vector<Entry> actions;
     try {
         actions = update([](Registry& r) { return std::exchange(r.actions, {}); });
     } catch (...) { return; }
 
-    // LIFO — a subsystem registered later may depend on an earlier one, so it
-    // is torn down first. Same discipline as static destruction.
+    // LIFO — 一个后来注册的子系统可能依赖于早期的子系统,
+    // 所以它首先被撕毁. 和静态破坏一样的纪律.
     for (auto it = actions.rbegin(); it != actions.rend(); ++it) {
         try {
             if (it->fn) it->fn(cap);

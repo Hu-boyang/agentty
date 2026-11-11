@@ -1,11 +1,11 @@
-// credentials_test — the central provider credential layer must resolve the
-// RIGHT provider's secret, uniformly. Pins the fix for the class of bug where
-// a stale active AuthHeader (Anthropic's OAuth token) was sent to another
-// provider (Mistral) → HTTP 401.
+// credentials_test ——中央提供者. 凭据 层必须解决
+// RIGHT 源码 : 过期 活动 AuthHeader (Anthropic
+// oAuth 的代号)被发送给了另一个提供商(Mistral)
+// ~ HTTP 401.
 //
-// Isolated via XDG_CONFIG_HOME + a temp settings dir so it never touches the
-// real config; the keystore is disabled so provider_keys round-trip through
-// the sealed provider-keys.json vault.
+// 隔绝通过 XDG_CONFIG_HOME + 临时设置目录, 这样它不会触碰真正的配置;
+// 密钥托尔被禁用如此。 provider_keys 圆形 -trip 穿过封口
+// provider-keys.json 保险库
 #include "agtest.hpp"
 
 #include "agentty/provider/credentials.hpp"
@@ -35,11 +35,11 @@ struct TmpHome {
             / ("agentty_cred_test_" + std::to_string(::getpid()));
         fs::remove_all(dir);
         fs::create_directories(dir);
-        // COPY the previous values: getenv() returns a pointer INTO the
-        // environment block, which setenv() may reallocate — restoring
-        // from a stale pointer corrupted the env for every later test in
-        // this shared binary (and could leave AGENTTY_HOME unset, which
-        // the user-root tripwire then aborts on).
+        // COPY 以前的值:getenv()返回一个指针INTO
+        // 环境块,setenv()可能重新分配——从过期的指针
+        // 恢复到这个共享的二进制程序的每次以后的测试中,
+        // 其内涵都损坏(并且可能留下AGENTTY_HOME的未设置,
+        // 用户-root的绊线随后中止).
         if (const char* h = ::getenv("HOME"))          { old_home = h; had_home = true; }
         if (const char* a = ::getenv("AGENTTY_HOME"))  { old_agentty = a; had_agentty = true; }
         ::setenv("HOME", dir.c_str(), 1);
@@ -60,16 +60,16 @@ void set_key(const std::string& provider, const std::string& key) {
     persistence::save_settings(::agentty::IoAccess::grant(), agtest::cap(), s);
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("credentials::resolve returns the target provider's key") {
     TmpHome home;
-    // Save DISTINCT keys for two hosted providers.
+    // 保存 DISTINCT 用于两个主机提供者的密钥。
     set_key("mistral",  "MISTRAL-KEY-32chars-xxxxxxxxDdmj");
     set_key("cerebras", "CEREBRAS-KEY-yyyyyyyyyyyyyyyyyyyy");
 
-    // Resolving mistral must return the mistral key, NOT cerebras' or anything
-    // else. (This is exactly the guarantee the 401 bug violated.)
+    // 解析误差必须返回误差键, 不 脑或其它任何问题。
+    // (这正是被违反的401 错误的保证。 )
     CHECK(auth::bearer_token(cred::resolve(::agentty::IoAccess::grant(), "mistral"))
           == "MISTRAL-KEY-32chars-xxxxxxxxDdmj");
     CHECK(auth::bearer_token(cred::resolve(::agentty::IoAccess::grant(), "cerebras"))
@@ -78,16 +78,16 @@ TEST_CASE("credentials::resolve returns the target provider's key") {
 
 TEST_CASE("credentials: local providers need no login, hosted keys do") {
     TmpHome home;
-    // A hosted provider with no saved key + no env var needs login.
+    // 一个没有已保存密钥+没有env var的托管供应商需要登录.
     CHECK(cred::needs_login(::agentty::IoAccess::grant(), "mistral"));
     set_key("mistral", "sk-abc");
     CHECK(!cred::needs_login(::agentty::IoAccess::grant(), "mistral"));
 
-    // A local server (ollama) is keyless — never needs login.
+    // 本地服务器( ollama) 是无键的—— 不需要登录。
     CHECK(!cred::needs_login(::agentty::IoAccess::grant(), "ollama"));
     CHECK(cred::add_method("ollama") == cred::AddMethod::None);
 
-    // Hosted key providers take an API key; Anthropic takes OAuth.
+    // 所主控密钥提供者使用 API 键; Anthropic 带奥奥特去
     CHECK(cred::add_method("mistral") == cred::AddMethod::ApiKey);
     CHECK(cred::add_method("anthropic") == cred::AddMethod::OAuthDevice);
 }
@@ -95,54 +95,54 @@ TEST_CASE("credentials: local providers need no login, hosted keys do") {
 TEST_CASE("credentials::add_key preserves the prior account (no clobber)") {
     TmpHome home;
     set_key("mistral", "key-AAAA");
-    // Adding a different key snapshots the old one as an account first.
+    // 加上另一个键快照,旧键首先作为账户.
     cred::add_key(::agentty::IoAccess::grant(), agtest::cap(), "mistral", "key-BBBB");
     CHECK(auth::bearer_token(cred::resolve(::agentty::IoAccess::grant(), "mistral")) == "key-BBBB");
-    CHECK(cred::list(::agentty::IoAccess::grant(), "mistral").size() >= 1);   // the prior key was preserved
+    CHECK(cred::list(::agentty::IoAccess::grant(), "mistral").size() >= 1);   // 保存了上一个密钥
 }
 
 TEST_CASE("a pasted key names its own provider") {
-    // Issue #68: `agentty login` and the first-run modal both offer "an API
-    // key (Anthropic sk-ant-..., or any provider)" and then wrote EVERY key
-    // to the Anthropic store. A Groq key was accepted, saved, reported as
-    // success, and failed on the first turn with an auth error naming
-    // Anthropic -- so the user debugged a credential that was correct.
+    // 第68期: `agentty login` 和第一个 -run 弹出面板
+    // 两者都行 "an API key (Anthropic sk-ant-..., or any provider)"
+    // 然后写 每个 键 Anthropic 格鲁克的钥匙被接受,
+    // 已保存 ,报告为成功,并在第一个回合以认证错误命名
+    // 失败 Anthropic - 所以用户调试了 凭据 没错
     //
-    // The prefix table lives on the registry row beside auth_env, because a
-    // new provider already declares its host and env vars there and a second
-    // table elsewhere is one more place to forget.
+    // 前缀表格 位于 注册表 旁边的一行 auth_env
+    // 新的供应商已经宣布了它的宿主和主厨 和另一个
+    // 桌子在别处是另一个可以忘记的地方
     CHECK(provider::provider_for_api_key("gsk_abc123") == "groq");
     CHECK(provider::provider_for_api_key("xai-abc123") == "xai");
     CHECK(provider::provider_for_api_key("AIzaSyAbc123") == "gemini");
     CHECK(provider::provider_for_api_key("sk-ant-api03-abc") == "anthropic");
     CHECK(provider::provider_for_api_key("sk-ant-oat01-abc") == "anthropic");
 
-    // Longest match wins, so a more specific prefix is never shadowed by the
-    // looser one on the same row.
+    // 最长的比赛获胜,因此更具体的前缀从不会被同一
+    // 排的松散者所阴影.
     CHECK(provider::provider_for_api_key("sk-or-v1-abc") == "openrouter");
     CHECK(provider::provider_for_api_key("sk-or-abc") == "openrouter");
 }
 
 TEST_CASE("an ambiguous key is NOT guessed at") {
-    // THE property that keeps the fix from being a different bug. `sk-` is
-    // shared by OpenAI, DeepSeek and any custom endpoint, so it identifies
-    // nothing -- and a wrong confident answer is worse than none, because the
-    // user then debugs a credential they believe is correct against a vendor
-    // they never chose. Empty means "ask"; the caller keeps its own default.
+    // 该 属性,使固定不成为不同的错误。 `sk-` 由 E.
+    // 共享 OpenAI, DeepSeek 和任何自定义的终点,
+    // 所以它识别无 - 而错误的自信答案比无更糟糕,
+    // 因为用户然后调试 a 凭据 他们认为,对于他们从未选择的供应商来说,
+    // 是正确的。 "ask" ; 呼叫者保持自己的默认值.
     CHECK(provider::provider_for_api_key("sk-proj-abc123").empty());
     CHECK(provider::provider_for_api_key("sk-abc123").empty());
     CHECK(provider::provider_for_api_key("ollama-local").empty());
     CHECK(provider::provider_for_api_key("").empty());
-    // Shorter than any prefix: must not read out of bounds.
+    // 比任何前缀短:不得读出界限.
     CHECK(provider::provider_for_api_key("s").empty());
     CHECK(provider::provider_for_api_key("gsk").empty());
 }
 
 TEST_CASE("every declared key prefix resolves to the row that declared it") {
-    // Walks the registry rather than restating it, so a provider added with a
-    // prefix is covered without touching this test. The compile-time
-    // key_prefixes_unambiguous() already rejects two rows claiming
-    // overlapping prefixes; this checks the lookup agrees with the table.
+    // 走路时 注册表 而不是重述,所以添加了前缀的提供者会
+    // 被覆盖而不触及此测试。 编译-time
+    // key_prefixes_unambiguous
+    // ()已经拒绝两行重复前缀;这一检查与表格一致。
     for (const auto& p : provider::providers()) {
         for (std::string_view pre : p.key_prefixes) {
             if (pre.empty()) continue;

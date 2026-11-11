@@ -1,29 +1,29 @@
-// reveal_headroom_test — guard the geometric bound that authorizes the
-// INSTANT tool card at a text→tool seam (turn.cpp, cached_markdown_for).
+// reveal_headroom_test —— 注意授权进行下列操作的几何绑定: INSTANT
+// 文本工具的工具卡 接口边界 (turn.cpp, cached_markdown_for).
 //
-// Background: showing the tool card while prose is still revealing is only
-// safe if the unresolved tail provably cannot be pushed past the viewport
-// top into immutable scrollback. turn.cpp proves that with
+// 背景: 表达流言时显示工具卡, 只有在未解决的情况下才安全。
+// 末尾 无法证明是经过 可视区域 上到顶 不可变 回滚缓冲区.
+// turn.cpp 证明这一点
 //
-//     est_hidden_rows + est_tail_rows + chrome + slack < viewport_rows
+//     est_hidden_rows + est_tail_rows + 铬+ 松动 < viewport_rows
 //
-// where est_tail_rows bounds the rendered height of the not-yet-revealed
-// bytes. The bound is only a PROOF if it never UNDER-estimates: an
-// under-estimate authorizes the instant card with more rows in flight than
-// the viewport can hold, and ghosted / scramble glyphs land in scrollback
-// where no repaint can ever fix them.
+// 地点 est_tail_rows 将非高处的渲染高度限制在
+// -yet-revealed 字节。约束只是 PROOF 如果
+// 它从来没有 UNDER-estimates : 低 -estimate
+// 授权飞行中行数超过 可视区域 鬼魂在地上 闪烁着甘油 回滚缓冲区
+// 无 重绘 永远可以修复它们。
 //
-// A previous version used ceil(bytes / cols), which silently assumes every
-// byte consumes a column. Newlines break that assumption badly — measured
-// here: 40 short list items occupy 41 rows but that formula predicts 2, a
-// 20x under-estimate, and exactly the markdown shape (lists, tables) that
-// tends to precede a tool call. The scrollback oracle did NOT catch it
-// because its prose is long wrapping paragraphs where bytes/cols happens to
-// be right.
+// 上一版本使用了 ceil( Q) 字节 / cols),
+// 默默地假定每 字节 新建线断开这个假设——在这里测量:40
+// 个短列表项目占41行,但公式预测2, a 20x under
+// -estimate ,以及通常在工具前的标记下形状(列表、
+// 表格) 调用。该词 回滚缓冲区 先知已经做了 不 抓住它,
+// 因为它的传言是长的 包在段落中 bytes/cols
+// 恰巧是对的
 //
-// This test pins the invariant directly: for a corpus of markdown shapes,
-// at several widths, the estimator must be >= the height maya actually
-// renders for the same bytes.
+// 这个测试针钉 不变量 直接: 对于一组下标形状, 宽度是几度,
+// 估计值必须是 QQ 高度 maya 其实 渲染
+// 给同一机构的 字节.
 
 #include <algorithm>
 #include <cstdio>
@@ -40,11 +40,11 @@
 
 using namespace maya;
 
-namespace {  // fold: TU-local (bundled into agentty_standalone_tests)
+namespace {  // 归并: TU-local (捆绑成 agentty_standalone_tests)
 
-// EXACT copy of the estimator in turn.cpp's headroom proof. Kept in sync by
-// this test's existence: if turn.cpp's formula changes without changing this
-// one, the assertion below starts failing against real rendered heights.
+// EXACT 估计器副本 turn.cpp 头室证明。
+// 与此测试的存在同步 : 如果 turn.cpp 公式变化
+// 而不改变这个, 下面的断言开始失败 相对于真实的高度。
 int est_tail_rows(std::string_view tail, int cols) {
     if (cols < 1) cols = 1;
     constexpr int kBlockInset = 2;
@@ -64,17 +64,17 @@ int est_tail_rows(std::string_view tail, int cols) {
     return rows;
 }
 
-// EXACT copy of turn.cpp's kBlockChromeSlack. The production proof is
-//     est_tail_rows + slack >= actual
-// so this test must assert the same sum — asserting the bare estimator
-// while production adds slack would test a formula production doesn't use.
-// The slack absorbs block-level markup that adds rows beyond its own text
-// lines. Measured over the corpus below (5 widths × 17 shapes): the worst
-// deficit is 2 rows — table_real, where maya draws a border row above and
-// below that have no source line — so slack=4 holds with 2 rows of margin.
-// If maya's markdown chrome grows (wider fence borders, extra table
-// separators), the corpus fails here BEFORE the reveal seam can authorize
-// an instant card that strands ghosted rows in scrollback.
+// EXACT复制了turn.cpp的kBlockChromeSlack.
+//     生产证明是est_tail_rows
+// +lax + + = 实际的,因此这个测试必须坚持同样的
+// 总和——坚持光量估计器,而生产加减则测试一个公式生产不使用.
+// 懒惰的吸收器 -level 标注,将行加到它自己的文字行之外。
+// 在下面的元件上测量(5宽×17形状):最差的缺2行—
+// — table_real ,在其中 maya 画一条
+// 上下无源线的边框行——所以松动=4 持持,有2行边框.
+// 如果出现 maya 标记下降的铬生长( 宽度更大的栅栏边框,
+// 额外的桌子分隔器), 阳具在这里失效。 之前 编号 逐步显示
+// 接口边界 能够授权将幽灵行串入的即时卡片 回滚缓冲区.
 constexpr int kBlockChromeSlack = 4;
 
 struct Shape { const char* name; std::string body; };
@@ -86,12 +86,12 @@ std::vector<Shape> corpus() {
         for (int i = 0; i < n; ++i) out += unit;
         return out;
     };
-    // The shapes that broke the old bytes/cols bound.
+    // 打破旧的bytes/cols束缚的形状.
     s.push_back({"short_list_40",  rep("- x\n", 40)});
     s.push_back({"table_20",       rep("| a | b |\n", 20)});
     s.push_back({"blank_lines_30", std::string(30, '\n')});
     s.push_back({"tight_numbers",  rep("1. i\n", 25)});
-    // Shapes the old bound handled, kept so a "fix" can't regress them.
+    // 摆出旧的绳子,保持这样 "fix" 无法退缩
     s.push_back({"one_long_line",  std::string(500, 'x')});
     s.push_back({"wrapping_paras", rep("This is a long paragraph that wraps "
                                        "across several terminal rows just "
@@ -100,12 +100,12 @@ std::vector<Shape> corpus() {
                                    "- a\n- b\n- c\n\n> quote\n\n"
                                    "final paragraph that runs on for a while "
                                    "so it wraps at narrow widths too.\n"});
-    // Block-level markup whose CHROME adds rows beyond its own text lines —
-    // the shapes kBlockChromeSlack exists to absorb. None of these were in
-    // the corpus before, so the slack's value (4) was asserted by nothing:
-    // a maya markdown change that grew fence or table chrome past 4 rows
-    // would have silently broken the headroom proof while this test stayed
-    // green on prose-only shapes.
+    // 块 -level 标记 CHROME 在其文字行之外添加行——
+    // 形状为 kBlockChromeSlack 存在可以吸收。
+    // 这些字条在之前没有出现在体中, 因此懒惰值 (4) 没有任何断言 :
+    // a maya 标记下的变化,如果在四行之后 增加栅栏或
+    // 桌子的铬 将会静静地打破 头室证明,而这个测试 保持绿色的传教。
+    // -only 形状。
     s.push_back({"one_fence",      "```cpp\nint x = 1;\nint y = 2;\n```\n"});
     s.push_back({"two_fences",     "```cpp\na();\n```\ntext\n"
                                    "```py\nb()\n```\n"});
@@ -127,10 +127,10 @@ int failures = 0;
 int rows_of(const Canvas& c) { return c.max_content_row() + 1; }
 
 void check_shape(const Shape& sh, int cols) {
-    // Render the SAME bytes through the real widget and measure its height.
+    // 渲染 编号 相同 字节 穿过真正的部件,测量它的高度。
     StreamingMarkdown md;
     md.set_content(sh.body);
-    md.set_live(false);             // settled height = fully rendered rows
+    md.set_live(false);             // 固定高度=已完全渲染的行
 
     StylePool pool;
     std::vector<layout::LayoutNode> nodes;
@@ -143,10 +143,10 @@ void check_shape(const Shape& sh, int cols) {
 
     const int estimate = est_tail_rows(sh.body, cols);
 
-    // Mirror the production inequality: estimate + slack must cover the
-    // real render. A deficit within the slack is expected for block-chrome
-    // shapes; a deficit BEYOND it is exactly the ghosted-rows-in-scrollback
-    // authorization bug.
+    // 显示生产不平等:估计+松懈必须涵盖实际生产。 渲染。
+    // 预计会出现赤字。 -chrome 形状;
+    // 赤字 BEYOND 这正是鬼魂 -rows-in-scrollback
+    // 授权错误。
     if (estimate + kBlockChromeSlack < actual) {
         std::fprintf(stderr,
             "FAIL: %-16s cols=%3d  estimate=%3d + slack=%d < actual=%3d  "
@@ -162,13 +162,13 @@ void check_shape(const Shape& sh, int cols) {
     }
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 namespace {
 
-// ── advance_reveal_floor semantics ──────────────────────────────────────
-// The primitive behind the INSTANT-CARD path: resolve a prefix, keep the
-// tail animating. Guards the three properties turn.cpp relies on.
+// ── advance_reveal_floor 语义 ──────────────────────────────────────
+// 原始的背后的人类 INSTANT-CARD 路径: 解析前缀,
+// 保留 末尾 动画 守护三个属性 turn.cpp 依赖。
 void check_partial_resolve() {
     const std::string body =
         "Line one of the reply.\nLine two of the reply.\n"
@@ -184,7 +184,7 @@ void check_partial_resolve() {
     md.set_reveal_fx(true);
     md.set_live(true);
     md.set_content(body);
-    // Pace slowly so the cursor is demonstrably mid-tail, not at the edge.
+    // 慢慢地划,光标就明显是中点 -tail 而不是在边缘。
     md.set_reveal_pacing(/*floor_cps=*/40.0, /*drain_secs=*/0.8);
 
     auto paint = [&] {
@@ -198,7 +198,7 @@ void check_partial_resolve() {
 
     const double before = md.debug_reveal_cp();
 
-    // 1. Advances to the requested floor.
+    // 1. 申请的楼层预付款。
     const std::size_t floor_cp = 60;
     md.advance_reveal_floor(floor_cp);
     paint();
@@ -213,9 +213,9 @@ void check_partial_resolve() {
                      before, after);
     }
 
-    // 2. PARTIAL — the tail past the floor must still be clipped, i.e. the
-    //    widget did NOT paste the whole body. This is the property that
-    //    distinguishes it from snap_reveal_to_edge.
+    // 2. PARTIAL——第末尾号经过该层的仍须剪接,第i.e号。
+    //    部件已完成 不 整个贴上 正文。
+    //    这是它与 snap_reveal_to_edge.
     const std::size_t total_cp = md.debug_source_size();
     if (md.debug_reveal_cp() >= static_cast<double>(total_cp)) {
         std::fprintf(stderr,
@@ -228,8 +228,8 @@ void check_partial_resolve() {
                      md.debug_reveal_cp(), total_cp);
     }
 
-    // 3. MONOTONE — a lower floor must not rewind (that would re-ghost a row
-    //    which may already have scrolled into immutable scrollback).
+    // 3. MONOTONE ——下层不得倒挂(倒挂). -ghost 列数
+    //    可能已经滚动到 不可变 回滚缓冲区).
     const double pinned = md.debug_reveal_cp();
     md.advance_reveal_floor(1);
     paint();
@@ -242,9 +242,9 @@ void check_partial_resolve() {
         std::fprintf(stderr, "ok  : monotone — lower floor did not rewind\n");
     }
 
-    // 4. STILL ANIMATING — the reveal must keep advancing on later frames.
-    //    If advance_reveal_floor stamped the µs clock it would zero every
-    //    dt and freeze here, which is the exact stall this path removes.
+    // 4. 仍然 ANIMATING——逐步显示必须继续推进后期的帧.
+    //    如果出现 advance_reveal_floor 将微秒时钟印上,
+    //    它会把每秒都零掉, 并在这里冻结, 这正是这个路径所消除的精确的停顿。
     const double t0 = md.debug_reveal_cp();
     for (int i = 0; i < 8; ++i) {
         maya::testing::advance_anim_clock_ms(16);
@@ -262,13 +262,13 @@ void check_partial_resolve() {
     }
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 int main() {
-    // Time moves only through advance_anim_clock_ms, never the wall clock.
+    // 时间只通过advance_anim_clock_ms,从不通过墙钟.
     maya::testing::freeze_anim_clock(1'000'000);
-    // Widths spanning the oracle's shapes, including a narrow one where
-    // wrapping dominates and a wide one where line COUNT dominates.
+    // 宽度横跨神谕的形状,包括一个窄的,
+    // 包扎占主导,宽的,线条 COUNT 占优势
     const int widths[] = {46, 60, 80, 100};
     for (const auto& sh : corpus())
         for (int w : widths)

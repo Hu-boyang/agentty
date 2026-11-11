@@ -1,24 +1,24 @@
-// handoff_shell_test.cpp — the shell-path detection half of the trust gate.
+// handoff_shell_test.cpp - 壳 -path 探测到一半的信托门
 //
-// `check()` guards write/edit/apply_patch/move, which hand over a PATH. `shell`
-// hands over an opaque string, so none of that ran for it: `cat >
-// .vscode/tasks.json` walked straight past a policy that correctly knew the
-// path was dangerous. Measured before the fix, and the reason this file exists.
+// `check()`卫士 write/edit/apply_patch/move卫士,
+// 它交出了PATH. `shell`掌上一个不透明的字符串,
+// 所以没有一条为它奔跑:`cat > .vscode/tasks.json`
+// 直接通过一个正确知道路径危险的政策,在固定之前测量,这个文件存在的原因.
 //
-// Parsing the command was rejected as the mechanism (grammar arms race — see
-// docs/design/shell-write-gate.md). This tests the mechanism that replaced it:
-// snapshot the trusted-shape paths, let the call run, compare. It never looks
-// at the command, so no quoting trick evades it.
+// 解析 命令被拒绝作为机制(语法武器) 竞态 - 看见了
+// docs/design/shell-write-gate.md。测试了替换它的机制:
+// 快照 信任的那个人 -shape 路径,让 调用 运行,比较。
+// 它从不看命令,所以没有引用的诡计可以逃避它。
 //
-// What is pinned here:
-//   1. a MODIFIED trusted file is reported
-//   2. a CREATED trusted file is reported — the case the first implementation
-//      missed, and the more dangerous one (a fresh hook is the classic escape,
-//      and an empty repo has no hook to modify)
-//   3. a DELETED trusted file is reported
-//   4. ordinary files produce NOTHING — a gate that cries wolf gets ignored
-//   5. the snapshot is a no-op under HandoffPolicy::Allow
-//   6. review() on an empty snapshot is a no-op
+// 被钉在这里的东西:
+//   1. 报告MODIFIED信任文件
+//   2. a CREATED 报告可信赖的文件——案件第一次执行
+//      漏掉,而更危险的是(一个新鲜的钩子是经典的越狱,
+//      一个空的仓库没有钩子可以修改)
+//   3. 报告一个DELETED信任文件
+//   4. 普通文件生成NOTHING——一个哭狼的门被忽略了
+//   5. 国家 快照 是一个不 -op 下级 HandoffPolicy::Allow
+//   6. review() 空的。 快照 是一个不 -op
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -26,7 +26,7 @@
 #include <thread>
 
 #ifndef _WIN32
-#include <unistd.h>   // getpid — unique sandbox dir per test run
+#include <unistd.h>   // 得到pid——每个测试运行的沙箱 dir
 #else
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -44,14 +44,14 @@ namespace sc = agentty::sandbox_cfg;
 
 namespace {
 
-// fs::last_write_time(dir, t): MinGW's libstdc++ opens the path without
-// FILE_FLAG_BACKUP_SEMANTICS, which a DIRECTORY needs, so it throws
-// "Permission denied". Set it through a directory-capable handle there.
+// fs::last_write_time(dir, t):MinGW的libstdc++打开了没有
+// FILE_FLAG_BACKUP_SEMANTICS的路径,一个DIRECTORY需要这个路径,
+// 所以它扔出"Permission denied". 设置通过目录-capable的处理器在那里.
 void set_mtime(const fs::path& p, fs::file_time_type t) {
 #if defined(_WIN32)
     if (!fs::is_directory(p)) { fs::last_write_time(p, t); return; }
-    // file_time_type -> FILETIME via the regular-file path: stamp a scratch
-    // file with t and copy its FILETIME (avoids clock-epoch arithmetic).
+    // file_time_type -> FILETIME 通过经常 -file 路径:
+    // 用 t 印出抓取文件并复制其 FILETIME (避免时钟) -epoch )).
     const fs::path probe = p / ".agentty_mtime_probe";
     { std::ofstream{probe}; }
     fs::last_write_time(probe, t);
@@ -78,8 +78,8 @@ void write_file(const fs::path& p, std::string_view body) {
     f << body;
 }
 
-// A trusted path's mtime must actually differ, and some filesystems have
-// coarse timestamps. Bump it explicitly rather than sleeping for a second.
+// 信任路径的 mtime 必须在实际上有所不同,
+// 有些文件系统有粗糙的时间戳。 跳跃它, 而不是睡觉一秒钟。 Name
 void touch_newer(const fs::path& p) {
     auto t = fs::last_write_time(p);
     fs::last_write_time(p, t + std::chrono::seconds{2});
@@ -92,12 +92,12 @@ std::size_t events_for(std::string_view needle) {
     return n;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("handoff: the shell path is watched by observation, not parsing") {
-    // Refuse is the default, but seal it explicitly: snapshot_trusted() early-
-    // outs under Allow, so a test that forgot this would pass vacuously by
-    // measuring nothing.
+    // 拒绝是默认的,但明确封存:snapshot_trusted
+    // () 早期退出在允许下,所以一个忘记了这个的测试会空虚地
+    // 通过任何测量.
     {
         namespace sb = agentty::tools::util::sandbox;
         sb::reset_config_for_test();
@@ -105,8 +105,8 @@ TEST_CASE("handoff: the shell path is watched by observation, not parsing") {
         cfg.configured = true;
         cfg.handoff = sc::HandoffPolicy::Refuse;
         sb::set_config(cfg);
-        // The mode is process-wide and the "--sandbox off" case leaves it Off,
-        // under which snapshot_trusted() returns nothing. Say what we need.
+        // 模式是进程 -wide 编辑 "--sandbox off" 案子就让它关闭,
+        // 根据 snapshot_trusted () 什么都不要,说出我们需要的。
         (void)sb::init(sb::Mode::Auto);
     }
 
@@ -122,7 +122,7 @@ TEST_CASE("handoff: the shell path is watched by observation, not parsing") {
     write_file(g_root / "src" / "main.cpp", "int main(){}\n");
     write_file(g_root / "README.md", "# hi\n");
 
-    // ── 1. a MODIFIED trusted file is reported ──────────────────────────
+    // ── 1. 报告MODIFIED信任文件 ──────────────────────────
     {
         hg::clear_handoff_feed();
         auto before = hg::snapshot_trusted(g_root.string());
@@ -136,16 +136,16 @@ TEST_CASE("handoff: the shell path is watched by observation, not parsing") {
         CHECK_MESSAGE(n >= 1, "a modified trusted path must be reported");
         CHECK(events_for("tasks.json") >= 1);
 
-        // And the record says WHO, which is the whole point of reporting it.
+        // 而记录上说WHO,这是整个报告点.
         bool named = false;
         for (const auto& h : hg::handoff_feed())
             if (h.write.command.find("tasks.json") != std::string::npos) named = true;
         CHECK_MESSAGE(named, "the handoff must name the command, not just 'shell'");
     }
 
-    // ── 2. a CREATED trusted file is reported ───────────────────────────
-    // The gap the first implementation had: `entries` can only speak for paths
-    // it already saw, so a brand-new hook was invisible.
+    // ── 2. 报告CREATED信任文件 ───────────────────────────
+    // 第一次执行的差距包括: `entries` 只能代表它已经看到的
+    // 道路 所以一个品牌 -new 钩子是隐形的。
     {
         hg::clear_handoff_feed();
         auto before = hg::snapshot_trusted(g_root.string());
@@ -164,9 +164,9 @@ TEST_CASE("handoff: the shell path is watched by observation, not parsing") {
         CHECK_MESSAGE(flagged_created, "created=true distinguishes a new file");
     }
 
-    // ── 3. a DELETED trusted file is reported ───────────────────────────
-    // Removing a hook is also a handoff: it can disable a guard the user relies
-    // on, and it is just as invisible as writing one.
+    // ── 3. 报告一个DELETED信任文件 ───────────────────────────
+    // 删除钩子也是一次交接:它可以使用户依赖的守护器失效,
+    // 它和写入的一样隐形.
     {
         hg::clear_handoff_feed();
         auto before = hg::snapshot_trusted(g_root.string());
@@ -176,9 +176,9 @@ TEST_CASE("handoff: the shell path is watched by observation, not parsing") {
         CHECK_MESSAGE(n >= 1, "a deleted trusted path must be reported");
     }
 
-    // ── 4. ordinary files report NOTHING ────────────────────────────────
-    // The property that keeps this usable. A gate that fires on every build
-    // output is a gate nobody reads.
+    // ── 4. 普通档案报告 无内容 ────────────────────────────────
+    // 能够使用它的财产, 每一个建筑输出都有
+    // 一个没有读到的门。
     {
         hg::clear_handoff_feed();
         auto before = hg::snapshot_trusted(g_root.string());
@@ -195,7 +195,7 @@ TEST_CASE("handoff: the shell path is watched by observation, not parsing") {
         CHECK(hg::handoff_feed().empty());
     }
 
-    // ── 5. Allow means do not even look ─────────────────────────────────
+    // ── 5. 允许手段甚至不看 ─────────────────────────────────
     {
         namespace sb = agentty::tools::util::sandbox;
         sb::reset_config_for_test();
@@ -213,15 +213,15 @@ TEST_CASE("handoff: the shell path is watched by observation, not parsing") {
         sb::set_config(cfg);
     }
 
-    // ── 6. an empty snapshot reviews to nothing ─────────────────────────
+    // ── 6. 空的快照审查为零 ─────────────────────────
     {
         hg::clear_handoff_feed();
         CHECK(hg::review_trusted(hg::TrustedSnapshot{}, "shell") == 0);
     }
 
-    // ── 7. a submodule's git dir is watched like the top one ────────────
-    // Git runs hooks from .git/modules/<name>/hooks for a submodule. Pruning
-    // the object store must not prune that.
+    // ── 7. a 子模块 ⁇   ⁇  被监视如上 ────────────
+    // Git 运行钩子从 .git/modules/<name> 呼唤着
+    // 一个 子模块。运行对象商店不能挤出。
     {
         fs::create_directories(g_root / ".git" / "modules" / "lib" / "hooks");
         fs::create_directories(g_root / ".git" / "modules" / "lib" / "objects" / "ab");
@@ -236,8 +236,8 @@ TEST_CASE("handoff: the shell path is watched by observation, not parsing") {
                           "the object store is not a root: " << r);
     }
 
-    // ── 8. build trees are not walked, whatever they're called ──────────
-    // They held most of what the walk visited, on every shell call.
+    // ── 8. 建 构 源码树 人不走,不管他们叫什么 ──────────
+    // 他们把大部分的行走 都放在每枚壳上 调用.
     {
         write_file(g_root / "build-rel" / "x" / "Makefile", "all:\n");
         write_file(g_root / "cmake-out" / "CMakeCache.txt", "\n");
@@ -249,9 +249,9 @@ TEST_CASE("handoff: the shell path is watched by observation, not parsing") {
         }
     }
 
-    // ── 9. cached listings notice changes ───────────────────────────────
-    // Listings of old dirs are cached by mtime. Backdate everything so they
-    // are, then add files and check the next snapshot sees them.
+    // ── 9. 缓存清单通知的更改 ───────────────────────────────
+    // 列出旧 dirs 的列表以 mtime 缓存。 后期所有文件都如此,
+    // 然后添加文件, 检查下 快照 是否看到它们。
     {
         const auto old = fs::last_write_time(g_root) - std::chrono::hours{1};
         auto backdate = [&] {
@@ -269,14 +269,14 @@ TEST_CASE("handoff: the shell path is watched by observation, not parsing") {
         auto after = hg::snapshot_trusted(g_root.string());
         bool pkg = false, mk = false;
         for (const auto& e : after.entries) {
-            const std::string p = fs::path(e.path).generic_string();   // '\\' on Windows
+            const std::string p = fs::path(e.path).generic_string();   // '\\' 打开 Windows
             if (p.ends_with("src/package.json")) pkg = true;
             if (p.ends_with("deep/Makefile")) mk = true;
         }
         CHECK_MESSAGE(pkg, "a file added to a cached dir must be seen");
         CHECK_MESSAGE(mk, "a file in a new subdir of a cached dir must be seen");
 
-        // A new hook in a cached root is still reported.
+        // 缓存根中的新钩子仍然被报告.
         backdate();
         (void)hg::snapshot_trusted(g_root.string());
         hg::clear_handoff_feed();

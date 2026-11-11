@@ -1,5 +1,5 @@
 #include "agentty/runtime/view/status_bar/status_banner.hpp"
-#include <maya/core/anim_clock.hpp>   // anim_now: the frame clock
+#include <maya/core/anim_clock.hpp>   // anim_now : 数据 帧 时钟
 
 #include <chrono>
 #include <string_view>
@@ -8,17 +8,17 @@ namespace agentty::ui {
 
 namespace {
 
-// Severity for a transient status message. Splits the toast band
-// into three meanings instead of the old binary error/non-error:
-//   Error → red    ("error: …", terminal failures)
-//   Warn  → yellow ("retrying …", "awaiting …", "transient — …")
-//   Info  → phase  (everything else: "context compacted", "cancelled", …)
+// 切换到瞬态状态信息。将烤面包带分成三个含义,
+// 而不是旧的 二进制程序 error/non-error:
+//   错误 ~ 红色 ( "error: …", 终端 失败) 警告 ~
+//   黄色( "retrying …", "awaiting …", "transient — …"
+//   信息 − 阶段(其他所有: "context compacted", "cancelled", …)
 //
-// The old code routed ALL non-error messages through the streaming
-// phase color (bright_cyan) with bright_white text — unreadable on
-// most themes, and it told the user nothing about severity. Retries
-// in particular look identical to the calm "compacted" toast despite
-// being a thing the user might actually want to act on.
+// 旧代码已路由 全部 无 -error 消息通过 流式传输
+// 相位颜色( R) bright_cyan 与
+// bright_white 文本 – 大部分主题上无法读取,
+// 它没有告诉用户严重性. 重试 特别是看起来和平静完全一样
+// "compacted" 尽管这是用户可能想做的事,
 maya::StatusBanner::Kind classify(std::string_view status) noexcept {
     if (status.rfind("error:", 0) == 0) return maya::StatusBanner::Kind::Error;
 
@@ -37,19 +37,19 @@ maya::StatusBanner::Kind classify(std::string_view status) noexcept {
     return maya::StatusBanner::Kind::Info;
 }
 
-} // namespace
+} // 命名空间结束。
 
-// Toast notifications ride on the StatusBanner row, which maya::StatusBar
-// now uses to take over the activity_row slot entirely (full-width, bright
-// foreground on accent background) whenever `text` is non-empty. The
-// shortcut row was retired; shortcuts moved to the welcome screen.
+// 敬酒( 敬酒) 通知 骑在车上 StatusBanner 线条,
+// 哪个 maya::StatusBar 现在用来接管 activity_row
+// 全部槽( 完整) -width ,口音背景的明亮前景) `text`
+// 非为 -empty。快捷键行已退出;快捷键移动到欢迎屏幕。
 //
-// We surface `m.s.status` here as long as it's both non-empty AND still
-// inside its TTL window (`status_active`). "ready" is the calm/idle
-// pseudo-status and shouldn't strobe the toast band, so it's filtered
-// out. `kind` keys off the message text so the widget picks the right
-// tint (red for errors, yellow for retry/awaiting, phase-color info for
-// everything else — "context compacted", "cancelled", …).
+// 我们浮出水面 `m.s.status` 只要是两样都不行 -empty 和 还在里面
+// TTL 窗口( 窗口) `status_active`). "ready" 是
+// 那个 calm/idle 伪 -status 不应该拖着烤面包乐队, 所以它被过滤了。
+// `kind` 信件文本的键切换到此部件选择右侧的锡( 红色为错误,
+// 黄色为 retry/awaiting ,阶段 -color 其它信息信息 -
+// "context compacted", "cancelled", …).
 maya::StatusBanner::Config status_banner_config(const Model& m) {
     maya::StatusBanner::Config cfg;
     if (m.s.status.empty() || m.s.status == "ready") return cfg;

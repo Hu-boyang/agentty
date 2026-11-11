@@ -1,17 +1,17 @@
-// concurrency_primitives_test — proves util::run_isolated_detached gives
-// background work that is OWNED. Three guarantees, and only the first one
-// used to hold:
-//   a. a body that throws does NOT reach std::terminate,
-//   b. the work is WAITED FOR at shutdown, not detached and forgotten,
-//   c. the body is handed a stop_token and asked to stop.
-// (b) and (c) arrived with maya::pool. The old hand-rolled version was a
-// plain std::thread(...).detach() whose comment claimed a "self-joining
-// reaper" that did not exist, so there was nothing to join and nothing to
-// cancel. The test below would have failed it.
+// concurrency_primitives_test - 证明
+// util::run_isolated_detached 提供背景工作 OWNED 三种保证,
+// 只有一种保证是:
+//   a. a 正文 扔的对 不 到达 std::terminate ,
+//   b. 工作为: WAITED FOR 关闭时,不分离和遗忘,c.
+//   正文 被递出一个 stop_token 并请求停止。
+// (b)和(c) 与 maya::pool。旧手 -rolled 版本
+// 是一个平原 std::thread(...).detach() 其
+// 评论声称: "self-joining reaper" 不存在,
+// 所以没有加入,也没有 取消 . 下面的测试会失败。
 //
-// (It also used to test util::RankedLock, the lock-order tripwire. Nothing
-// uses ranked locks any more: every shared lock is a maya::guarded, whose
-// captureless body cannot take a second lock at all.)
+// (它也用来测试 util::RankedLock ,则 锁-order 绊线。
+// 没有任何内容使用排序 锁 更多:每份共享 锁 是一个 maya::guarded ,
+// 无俘虏 正文 无法用掉秒 锁 ) 完全没有.
 
 #include "agtest_cap.hpp"
 #include <atomic>
@@ -32,16 +32,16 @@ int failures = 0;
         else         { std::fprintf(stderr, "ok:   %s\n", (msg)); }             \
     } while (0)
 
-// ── Background work that is OWNED ───────────────────────────────────────
-// One test, one shutdown: the pool's shutdown is terminal (later posts are
-// dropped), so isolation and cancellation are asserted against the same
-// drain rather than in two passes.
+// ── 即: OWNED ───────────────────────────────────────
+// 一次测试,一次关闭: 池 关闭是 终端 (后来的
+// 岗位被撤),所以孤立和 取消 要求的排水口是相同的,
+// 而不是两条路口。
 //
-// The spin-and-hope the old version ended with ("even if some haven't run,
-// the point is none terminated") is exactly what a detached thread forces on
-// a test. Here shutdown() JOINS, so the counter is an assertion and not a
-// race: if the work were still detached, these counts would be unreliable
-// and `stuck` would be meaningless.
+// 旧版本以("even if some haven't run, the point is none terminated")
+// 结束的spin-and-hope正是一个脱落的线程在测试中迫使的.
+// 这里的shutdown()JOINS,所以计数器是断言
+// 而不是竞态:如果工作仍然脱落,这些计算将是不可靠的,
+// `stuck`将是毫无意义的.
 struct Counters {
     std::atomic<int>  ran{0};
     std::atomic<bool> saw_stop{false};
@@ -51,7 +51,7 @@ using counters_t = maya::co_owned<Counters>;
 void test_background_work_is_owned() {
     auto c = counters_t::make();
 
-    // (a) throwing bodies must be isolated, every one of them.
+    // (a) 投掷正文必须孤立,每一枚。
     for (int i = 0; i < 8; ++i) {
         agentty::util::run_isolated_detached("test.throwing_worker",
             [](std::stop_token, counters_t c) {
@@ -60,7 +60,7 @@ void test_background_work_is_owned() {
             }, c);
     }
 
-    // (c) a body must actually be stopped through its token.
+    // (c) a 正文 必须通过它来阻止它。
     agentty::util::run_isolated_detached("test.cancellable_worker",
         [](std::stop_token st, counters_t c) {
             while (!st.stop_requested())
@@ -68,8 +68,8 @@ void test_background_work_is_owned() {
             c->saw_stop = true;
         }, c);
 
-    // (b) shutdown REQUESTS STOP and WAITS. Returns how many were still
-    // stuck at the grace deadline.
+    // (b) 关闭 REQUESTS STOP 财务报告和已审计财务报表 WAITS
+    // 返回多少个在宽限期前仍然被卡住。
     const std::size_t stuck = agentty::util::background_pool().shutdown(agtest::cap());
 
     CHECK(c->ran.load() == 8,
@@ -80,7 +80,7 @@ void test_background_work_is_owned() {
     CHECK(true, "8 throwing workers did not terminate the process");
 }
 
-} // namespace
+} // 命名空间结束。
 
 int main() {
     test_background_work_is_owned();

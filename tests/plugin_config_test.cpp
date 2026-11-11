@@ -1,22 +1,22 @@
-// plugin_config_test.cpp — the `agentty plugin` mcp.json editor
-// (tools::plugin): the editing contract from plugin.hpp. The property that
-// matters most is ROUND-TRIP SAFETY — `plugin add` must never destroy
-// config the user wrote by hand (other servers' env blocks, the "servers"
-// spelling, unknown top-level keys).
+// plugin_config_test.cpp - 电话 `agentty plugin`
+// mcp.json 编辑器( 4) tools::plugin : 编辑合同来自 plugin.hpp。
+// 最重要的财产是: ROUND-TRIP SAFETY — `plugin add`
+// 绝对不能破坏用户手写配置(其他服务器的封装块, "servers" 拼写,
+// 未知顶端 -level ))," 键".
 
 #include "agtest_cap.hpp"
 #include "agtest.hpp"
 
 #include "agentty/tool/plugin.hpp"
-#include "agentty/scope/scope.hpp"   // Approvals — cross-process merge case
-#include "agentty/mcp/client.hpp"   // plugin_model() — the merged-config probe
-#include "agentty/tool/util/fs_helpers.hpp"   // workspace_root clamp
+#include "agentty/scope/scope.hpp"   // 核准——跨-process合并案
+#include "agentty/mcp/client.hpp"   // plugin_model ()——合并. -config 探测器
+#include "agentty/tool/util/fs_helpers.hpp"   // workspace_root 夹
 
 #include <nlohmann/json.hpp>
 
 #ifndef _WIN32
-#include <sys/wait.h>   // waitpid — cross-process race case
-#include <unistd.h>     // fork, _exit
+#include <sys/wait.h>   // 等待时间——交叉 -process 竞态 案件数量
+#include <unistd.h>     // 叉, 退出(_Exit)
 #endif
 
 #include <filesystem>
@@ -48,14 +48,14 @@ void write_file(const fs::path& p, const std::string& body) {
 
 [[nodiscard]] json read_json(const fs::path& p) {
     std::ifstream f(p, std::ios::binary);
-    return json::parse(f, nullptr, /*throw=*/false);
+    return json::parse(f, nullptr, /*投掷=*/false);
 }
 
 void creates_file_on_first_add(const fs::path& dir) {
     std::println("--- creates_file_on_first_add ---");
     const fs::path cfg = dir / "fresh" / "mcp.json";
     auto r = plug::add_server(::agentty::IoAccess::grant(), agtest::cap(), cfg, {"weather", "uvx", {"mcp-weather"}},
-                              /*force=*/false);
+                              /*力=*/false);
     check(r == plug::EditResult::Ok, "add on a missing file succeeds");
     json j = read_json(cfg);
     check(j.is_object() && j.contains("mcpServers"),
@@ -69,8 +69,8 @@ void creates_file_on_first_add(const fs::path& dir) {
 void round_trip_preserves_foreign_keys(const fs::path& dir) {
     std::println("--- round_trip_preserves_foreign_keys ---");
     const fs::path cfg = dir / "rt" / "mcp.json";
-    // A realistic hand-written config: another server with env + an
-    // unknown top-level key.
+    // 现实的手 -written 配置: 另一服务器, 带有 env +
+    // 未知顶端 -level 键。
     write_file(cfg, R"({
   "mcpServers": {
     "github": {
@@ -93,7 +93,7 @@ void round_trip_preserves_foreign_keys(const fs::path& dir) {
           "unknown top-level key survives");
     check(j["mcpServers"].contains("weather"), "new entry landed");
 
-    // Remove the new entry: github + the custom key must still be intact.
+    // 删除新条目: github + 自定义密钥必须仍然完整。
     r = plug::remove_server(::agentty::IoAccess::grant(), agtest::cap(), cfg, "weather");
     check(r == plug::EditResult::Ok, "remove succeeds");
     j = read_json(cfg);
@@ -125,7 +125,7 @@ void no_clobber_without_force(const fs::path& dir) {
     check(r == plug::EditResult::AlreadyExists, "duplicate add refused");
     check(read_json(cfg)["mcpServers"]["t"]["command"] == "cmd1",
           "original untouched after refusal");
-    r = plug::add_server(::agentty::IoAccess::grant(), agtest::cap(), cfg, {"t", "cmd2", {}}, /*force=*/true);
+    r = plug::add_server(::agentty::IoAccess::grant(), agtest::cap(), cfg, {"t", "cmd2", {}}, /*力=*/true);
     check(r == plug::EditResult::Ok, "--force overwrites");
     check(read_json(cfg)["mcpServers"]["t"]["command"] == "cmd2",
           "forced entry stored");
@@ -180,13 +180,13 @@ void list_reads_back(const fs::path& dir) {
     std::println("PASS\n");
 }
 
-} // namespace
+} // 命名空间结束。
 
 void tool_enable_disable(const fs::path& dir) {
     std::println("--- tool_enable_disable ---");
     const fs::path cfg = dir / "tgl" / "mcp.json";
     (void)plug::add_server(::agentty::IoAccess::grant(), agtest::cap(), cfg, {"date", "/x/date", {}}, false);
-    // disable one tool
+    // 禁用一个工具
     check(plug::set_tool_enabled(::agentty::IoAccess::grant(), agtest::cap(), cfg, "date", "current_date", false)
               == plug::EditResult::Ok, "disable succeeds");
     check(plug::is_tool_disabled(cfg, "date", "current_date"),
@@ -194,27 +194,27 @@ void tool_enable_disable(const fs::path& dir) {
     check(read_json(cfg)["mcpServers"]["date"]["tools"]["exclude"]
               == json::array({"current_date"}),
           "tools.exclude holds the bare name");
-    // idempotent disable
+    // 幂等 禁用
     check(plug::set_tool_enabled(::agentty::IoAccess::grant(), agtest::cap(), cfg, "date", "current_date", false)
               == plug::EditResult::Ok, "double-disable is Ok no-op");
-    // re-enable clears it (and prunes empty tools object)
+    // re-enable 清除它( 和 prunes 空工具对象)
     check(plug::set_tool_enabled(::agentty::IoAccess::grant(), agtest::cap(), cfg, "date", "current_date", true)
               == plug::EditResult::Ok, "re-enable succeeds");
     check(!plug::is_tool_disabled(cfg, "date", "current_date"),
           "tool no longer disabled");
     check(!read_json(cfg)["mcpServers"]["date"].contains("tools"),
           "empty tools object pruned on re-enable");
-    // command survives all of it
+    // 命令能生存下来
     check(read_json(cfg)["mcpServers"]["date"]["command"] == "/x/date",
           "server command preserved across toggles");
-    // toggling on a missing server is NotFound
+    // 正在丢失服务器时的正转位是 NotFound
     check(plug::set_tool_enabled(::agentty::IoAccess::grant(), agtest::cap(), cfg, "ghost", "x", false)
               == plug::EditResult::NotFound, "toggle on absent server NotFound");
     std::println("PASS\n");
 }
 
-// An HTTP/SSE server is written as {type, url} — no command — and reads back
-// with its url. This is the transport the inline `--http`/`--sse` add uses.
+// 来,来,来 HTTP/SSE 服务器被写为 {type, url} —— 没有命令 —— 并
+// 用它的 URl 读回。 这是 传输层 内置线性 `--http`/`--sse` 添加用途。
 void http_server_add(const fs::path& dir) {
     std::println("--- http_server_add ---");
     const fs::path cfg = dir / "http" / "mcp.json";
@@ -236,7 +236,7 @@ void http_server_add(const fs::path& dir) {
     check(plug::add_server(::agentty::IoAccess::grant(), agtest::cap(), cfg, sse, false) == plug::EditResult::Ok, "sse add succeeds");
     check(read_json(cfg)["mcpServers"]["events"]["type"] == "sse", "type is sse");
 
-    // list_servers reads the url back.
+    // list_servers读回了url.
     bool found = false;
     for (const auto& s : plug::list_servers(cfg))
         if (s.name == "remote") { found = true;
@@ -251,11 +251,11 @@ void server_enable_disable(const fs::path& dir) {
     const fs::path cfg = dir / "srv" / "mcp.json";
     (void)plug::add_server(::agentty::IoAccess::grant(), agtest::cap(), cfg, {"date", "/x/date", {}}, false);
     check(!plug::is_server_disabled(cfg, "date"), "new server starts enabled");
-    // Ecosystem portability: an added server is tagged type:stdio (the
-    // emerging cross-client convention).
+    // 生态系统可移植性:新增的服务器被标记为:stdio(新
+    // 出现的跨-client公约)。
     check(read_json(cfg)["mcpServers"]["date"]["type"] == "stdio",
           "added server carries type:stdio");
-    // disable the whole server
+    // 禁用整个服务器
     check(plug::set_server_disabled(::agentty::IoAccess::grant(), agtest::cap(), cfg, "date", true) == plug::EditResult::Ok,
           "disable server succeeds");
     check(plug::is_server_disabled(cfg, "date"), "server recorded disabled");
@@ -264,7 +264,7 @@ void server_enable_disable(const fs::path& dir) {
     // idempotent
     check(plug::set_server_disabled(::agentty::IoAccess::grant(), agtest::cap(), cfg, "date", true) == plug::EditResult::Ok,
           "double-disable is Ok no-op");
-    // re-enable removes the flag (absent == enabled, clean file)
+    // re-enable 删除 标志( 启用 \\\\ n没有文件)
     check(plug::set_server_disabled(::agentty::IoAccess::grant(), agtest::cap(), cfg, "date", false) == plug::EditResult::Ok,
           "re-enable succeeds");
     check(!plug::is_server_disabled(cfg, "date"), "server enabled again");
@@ -277,21 +277,21 @@ void server_enable_disable(const fs::path& dir) {
     std::println("PASS\n");
 }
 
-// A hand-edited malformed `disabled` (string, not bool) must NOT throw —
-// is_server_disabled and set_server_disabled must fail-open (treat as false).
+// 一只手,你来帮忙 -edited 结构不正确 `disabled` (弦,不是嘘声) 不 抛出( E)...
+// is_server_disabled 财务报告和已审计财务报表 set_server_disabled 必须失败 -open (当作假.
 void malformed_disabled_no_throw(const fs::path& dir) {
     std::println("--- malformed_disabled_no_throw ---");
     const fs::path cfg = dir / "bad" / "mcp.json";
     write_file(cfg,
         R"({"mcpServers":{"date":{"command":"/x","disabled":"true"}}})");
-    // Reading a string `disabled` must not throw and reads as "not disabled".
+    // 正在读取字符串 `disabled` 不得抛出和读作 "not disabled".
     bool threw = false;
     try {
         check(!plug::is_server_disabled(cfg, "date"),
               "string disabled reads as not-disabled (fail-open)");
     } catch (...) { threw = true; }
     check(!threw, "is_server_disabled does not throw on a string flag");
-    // Toggling it must succeed and REPLACE the bad value with a real bool.
+    // 把它弄成这样,一定要成功,而且 REPLACE 价值差的 与真正的bool。
     threw = false;
     try {
         check(plug::set_server_disabled(::agentty::IoAccess::grant(), agtest::cap(), cfg, "date", true) == plug::EditResult::Ok,
@@ -303,7 +303,7 @@ void malformed_disabled_no_throw(const fs::path& dir) {
     std::println("PASS\n");
 }
 
-// A non-object server entry (e.g. `"date": "just a string"`) must not throw.
+// 非 国 家 -object 服务器条目( E) e.g. `"date": "just a string"` ) 不得投掷.
 void non_object_entry_no_throw(const fs::path& dir) {
     std::println("--- non_object_entry_no_throw ---");
     const fs::path cfg = dir / "nonobj" / "mcp.json";
@@ -320,17 +320,17 @@ void non_object_entry_no_throw(const fs::path& dir) {
     std::println("PASS\n");
 }
 
-// Concurrent mutations on detached threads must not lose updates or corrupt
-// the file (the mutation_mutex + unique temp guarantee).
+// 脱落时同时发生的突变 线程 不得丢失更新或损坏文件(该
+// mutation_mutex + 独特的临时担保)。
 void concurrent_mutations_safe(const fs::path& dir) {
     std::println("--- concurrent_mutations_safe ---");
     const fs::path cfg = dir / "conc" / "mcp.json";
-    // Seed N servers.
+    // 种子 N 服务器.
     constexpr int N = 24;
     for (int i = 0; i < N; ++i)
         (void)plug::add_server(::agentty::IoAccess::grant(), agtest::cap(), cfg, {"s" + std::to_string(i), "/x", {}}, false);
 
-    // Hammer: each thread disables a distinct server concurrently.
+    // 锤子:每线程同时禁用一个不同的服务器.
     std::vector<std::thread> ts;
     for (int i = 0; i < N; ++i)
         ts.emplace_back([&, i]{
@@ -338,10 +338,10 @@ void concurrent_mutations_safe(const fs::path& dir) {
         });
     for (auto& t : ts) t.join();
 
-    // The file must still be valid JSON — no torn/interleaved write.
+    // 文件必须仍然有效 JSON -没有 torn/interleaved 写作。
     json j = read_json(cfg);
     check(!j.is_discarded(), "file is still valid JSON after concurrent writes");
-    // EVERY disable must have landed (no lost update).
+    // 每个 禁用必须已经着陆( 没有丢失更新)。
     int disabled = 0;
     for (int i = 0; i < N; ++i)
         if (plug::is_server_disabled(cfg, "s" + std::to_string(i))) ++disabled;
@@ -351,18 +351,18 @@ void concurrent_mutations_safe(const fs::path& dir) {
     std::println("PASS\n");
 }
 
-// Approvals from two PROCESSES must merge, not overwrite.
+// 两人核准 PROCESSES 必须合并,而不是覆盖。
 //
-// The store is shared by three subsystems (skills, hooks, MCP plugins) and
-// every caller does load -> approve(x) -> save. Two agentty instances
-// approving different things at once each wrote a list that had never seen
-// the other's entry, so one approval vanished and whatever it vouched for
-// went back to Pending. Measured before the fix: 4 concurrent approvals,
-// only 1 survived, every round.
+// 商店由三个子系统(技能,钩子, MCP 插件)和每个
+// 呼叫者都这样做 加载 - > 核准(x) - >
+// 保存 二 : 将两个 agentty 批准不同事情的
+// 事例 每一个都写了一张从未见过对方进入的列表 所以一个
+// 批准消失了 不管它担保什么 待处理 固定前测量:4项同时批准,
+// 每轮仅1项幸存。
 //
-// Merge is the right reconciliation rather than last-writer-wins because an
-// approval is a grow-only fact -- "a human vouched for these exact bytes" --
-// and nothing in the tree revokes one.
+// 合并是正确的对账而非最后 -writer-wins 因为批准是增长 -only 事实
+// 有人对这些确切字节作出了担保。
+// - 和什么都没有在 源码树 撤销一个。
 void approvals_merge_across_processes(const fs::path& dir) {
     std::println("--- approvals_merge_across_processes ---");
 #ifdef _WIN32
@@ -381,10 +381,10 @@ void approvals_merge_across_processes(const fs::path& dir) {
     int lost = 0;
 
     for (int round = 0; round < 6; ++round) {
-        // Start from empty each round. Write through save_approvals rather
-        // than touching a path by hand -- the store lives under state/, and
-        // seeding the old flat location would trip the legacy migration
-        // mid-race instead of testing the race.
+        // 从空开始每回合。 Write 结束 save_approvals
+        // 而不是手摸路 -- -- 商店住下 state/
+        // 并且为旧的平地播种 将会让遗留的迁徙 中途
+        // -race 而不是测试 竞态.
         (void)agentty::scope::save_approvals(::agentty::IoAccess::grant(), agtest::cap(), kLeaf, agentty::scope::Approvals{});
         { std::ofstream f(home / "state" / kLeaf, std::ios::trunc); f << "[]"; }
 
@@ -392,16 +392,16 @@ void approvals_merge_across_processes(const fs::path& dir) {
         for (int w = 0; w < kWriters; ++w) {
             const ::pid_t pid = ::fork();
             if (pid == 0) {
-                // Child: the real cycle -- load, add one, save.
+                // 儿童:真正的周期 -- 加载 ,添加一个, 保存.
                 //
-                // The sleep is what makes this a RACE rather than four
-                // lucky sequential runs. Each child loads, then waits, so
-                // every one of them is holding a snapshot taken before any
-                // of the others wrote. Without it the forks finish so fast
-                // they rarely overlap and the case passes even unfixed --
-                // which it did, the first time this was written.
+                // 睡眠是它使这个 RACE
+                // 而不是四个幸运的顺序运行。
+                // 加载 等待,所以他们每个人都
+                // 持有 快照 叉子没有它,
+                // 它们就很少重叠,案件甚至没有
+                // 固定下来。这是第一次写。
                 auto store = agentty::scope::load_approvals(kLeaf);
-                ::usleep(40000);   // 40 ms: all four now hold stale copies
+                ::usleep(40000);   // 40毫秒:所有四个现在持有过期副本
                 store.approve("hash-r" + std::to_string(round)
                               + "-w" + std::to_string(w));
                 const bool ok = agentty::scope::save_approvals(::agentty::IoAccess::grant(), agtest::cap(), kLeaf, store);
@@ -419,10 +419,10 @@ void approvals_merge_across_processes(const fs::path& dir) {
           "concurrent approvals all survive (lost rounds: "
               + std::to_string(lost) + "/6)");
 
-    // And a save must never leave the store momentarily EMPTY. The old form
-    // opened the real path with trunc, so a concurrent reader could catch it
-    // mid-write -- and an empty approvals file fails CLOSED, meaning every
-    // project config reads as untrusted for that instant.
+    // 还有 保存 千万不要马上离开店里 空。旧的表格打开
+    // 了真正的路径, 并列阅读器可以把它抓在中间 -write
+    // -- 且空批准文件失败 CLOSED ,
+    // 意味着每个项目配置都读作对那一刻的不信任.
     check(!fs::exists(home / "state" / (std::string{kLeaf} + ".tmp")),
           "no temp file is left behind");
 
@@ -432,17 +432,17 @@ void approvals_merge_across_processes(const fs::path& dir) {
 #endif
 }
 
-// Two agentty PROCESSES mutating one mcp.json must not lose an update.
+// 两位 agentty PROCESSES 变异一个 mcp.json 不得丢失更新。
 //
-// concurrent_mutations_safe above covers our own threads. It is not the
-// whole story: a TUI in one terminal and `agentty plugin add` in another
-// have separate mutexes and race exactly the same way. Measured before the
-// fix with two real processes, 20 rounds: 20 of 20 lost one of the two
-// servers.
+// concurrent_mutations_safe 上面覆盖
+// 我们自己的 线程。这不是整个故事:a TUI 在一个 终端 财务
+// 报告和已审计财务报表 `agentty plugin add`
+// 另一只有独立的变种动物 竞态 20发:20发丢失了两台服务器
+// 中的一台。
 //
-// fork() rather than spawning the binary, so the case runs in-suite without
-// depending on a built CLI or a PATH. Each child does a full
-// load->modify->store cycle, which is where the lost update lives.
+// fork() 而不是产下 二进制程序 ,所以案件运行在 -suite 不
+// 取决于一个建筑 CLI 或 单 PATH 每个孩子都做一个
+// 完整的 加载 - > 修改 - > 存储周期, 丢失的更新寿命在此。
 void cross_process_mutations_safe(const fs::path& dir) {
     std::println("--- cross_process_mutations_safe ---");
 #ifdef _WIN32
@@ -463,9 +463,9 @@ void cross_process_mutations_safe(const fs::path& dir) {
         for (int w = 0; w < kWriters; ++w) {
             const ::pid_t pid = ::fork();
             if (pid == 0) {
-                // Child: one add, then leave WITHOUT running doctest's
-                // teardown -- _exit skips atexit handlers and the parent's
-                // test state stays untouched.
+                // 子女:增加一个,然后离开 无需 运行
+                // doctest 拆卸 -- _ 退出跳过退出 处理
+                // 函数 父母的测试状态没有改变
                 const auto name = "r" + std::to_string(r) + "w" + std::to_string(w);
                 const auto rc = plug::add_server(::agentty::IoAccess::grant(), agtest::cap(), cfg, {name, "/bin/true", {}}, false);
                 ::_exit(rc == plug::EditResult::Ok ? 0 : 1);
@@ -474,9 +474,9 @@ void cross_process_mutations_safe(const fs::path& dir) {
         }
         for (::pid_t p : kids) { int st = 0; ::waitpid(p, &st, 0); }
 
-        // Every writer used a distinct name, so all of them must survive.
-        // A lost update shows up as a missing entry, not a corrupt file --
-        // store()'s atomic rename already prevented tearing.
+        // 每个作家都用一个鲜明的名字,所以他们都必须生存下去.
+        // 一个丢失的更新显示为缺失条目,而不是一个腐败的文件 -
+        // store()的原子重命名已经防止了撕裂.
         const auto servers = plug::list_servers(cfg);
         if (static_cast<int>(servers.size()) != kWriters) ++lost;
     }
@@ -488,32 +488,32 @@ void cross_process_mutations_safe(const fs::path& dir) {
 #endif
 }
 
-// A config path that is a DIRECTORY must not take the process down.
+// DIRECTORY的配置路径不能使进程下降。
 //
-// `std::ifstream` opens a directory SUCCESSFULLY on Linux; the failure
-// arrives later as an exception out of the first read, and nlohmann's
-// noexcept parse does not catch it. So `mkdir .agentty/mcp.json` aborted
-// agentty with `basic_filebuf::underflow error reading the file: Is a
-// directory` -- a message naming neither agentty nor the path, from a
-// `run` that had nothing to do with config.
+// `std::ifstream` 打开目录 SUCCESSFULLY 打开 Linux
+// 失败的出现是作为例外 出现在第一个读数和nlohmann的 noexcept 解析 抓不到,
+// 所以我还是要抓 `mkdir .agentty/mcp.json` 已中止 agentty
+// 与 `basic_filebuf::underflow error reading the file: Is a directory`
+// - 一个消息,既不命名 agentty 或从
+// 一条路 `run` 和配置无关
 //
-// Config lives where users, other tools and scripts can put anything, so
-// "not the kind of thing I expected" has to be a no-op. Every other
-// malformed case in this file already is; this was the one hole.
+// 配置 用户、其他工具和脚本可以放任何东西的地方,
+// 所以 "not the kind of thing I expected"
+// 一定不是,我必须去 -op。文档中的所有其它错误案例已经是;这是唯一的洞。
 void directory_shaped_config_is_not_fatal(const fs::path& dir) {
     std::println("--- directory_shaped_config_is_not_fatal ---");
     const fs::path cfg = dir / "dirshaped" / "mcp.json";
-    fs::create_directories(cfg);          // a DIRECTORY at the config path
+    fs::create_directories(cfg);          // a 配置路径的DIRECTORY
     check(fs::is_directory(cfg), "fixture really is a directory");
 
-    // Every reader must survive it. Before the fix each of these threw.
+    // 每个读者必须活下来,在修复之前,每个都扔了
     check(plug::list_servers(cfg).empty(), "list: no servers, no crash");
     check(!plug::is_server_trusted(::agentty::IoAccess::grant(), cfg, "anything"),
           "trust probe: false, no crash");
 
-    // And no writer may clobber it. A directory in that position is exactly
-    // the kind of thing we must refuse rather than replace -- load() reports
-    // it as present-but-broken, which is what gates every mutation here.
+    // 任何作家都不可能把它打碎。一个处于这种地位的目录正是
+    // 我们必须拒绝而不是替换的东西。 load()报告它为现在
+    // 的-but-broken, 这是这里每一个变异的门。
     check(plug::add_server(::agentty::IoAccess::grant(), agtest::cap(), cfg, {"x", "/bin/true", {}}, false)
               == plug::EditResult::ParseError,
           "add refuses to overwrite a directory");
@@ -521,20 +521,20 @@ void directory_shaped_config_is_not_fatal(const fs::path& dir) {
     std::println("PASS\n");
 }
 
-// A project mcp.json must NOT hide the user's own servers.
+// 一个项目 mcp.json 不得 隐藏用户自己的服务器。
 //
-// There used to be TWO ladders. read_config_servers() merged project+user
-// via scope::plan, so the Plugins pane, `agentty config mcp` and delegation
-// all listed both. But the CONNECT path (mcp_tools) called its own
-// resolve_config(), which returned ONE winning file -- so the moment a repo
-// had ./.agentty/mcp.json, every server in ~/.agentty/mcp.json silently
-// stopped running while still being listed everywhere. You saw your server;
-// it never ran.
+// 曾经有TWO梯级. read_config_servers() 通过scope::
+// plan合并了项目+用户, 所以插件面板, `agentty config mcp`和
+// 代表团都列出两者。 但是, CONNECT路径(mcp_tools) 称为
+// 自己的resolve_config(), 它返回了ONE胜负文件 -- 因此一个仓库
+// 拥有./.agentty/mcp.json的时刻, ~/.agentty/mcp.json
+// 中的每个服务器静静地停止运行, 但仍在任何地方被列出。 您看到您的服务器,
+// 它从未运行。
 //
-// plugin_model() is NOT the probe: it folded read_config_servers() all
-// along, so it never showed the bug. The broken path is the one that called
-// resolve_config() -- the connect loop and delegation. This asserts the two
-// now agree.
+// plugin_model ( ) 系 , ( ) 不 探测器: 折叠
+// read_config_servers ()一直以来,所以它从未显示错误。
+// 断路就是那个叫 resolve_config () -- -- 连接循环和授权,
+// 这说明现在两者同意。
 void project_does_not_hide_user_servers(const fs::path& dir) {
     std::println("--- project_does_not_hide_user_servers ---");
     const fs::path home = dir / "merge_home";
@@ -547,30 +547,30 @@ void project_does_not_hide_user_servers(const fs::path& dir) {
     const bool     had_home = std::getenv("AGENTTY_HOME") != nullptr;
     const fs::path prev_cwd = fs::current_path();
     ::setenv("AGENTTY_HOME", (home / ".agentty").string().c_str(), 1);
-    // Blanket-trust the workspace so this measures the LADDER, not the gate
-    // (the gate has its own cases above).
+    // 块 -trust 编号 工作区 因此,这可以衡量 LADDER ,
+    // 而不是大门(大门有其自身的案件上方)。
     ::setenv("AGENTTY_MCP_ALLOW_PROJECT", "1", 1);
     fs::current_path(work);
-    // scope's Project locus anchors on util::project_root(), which is the
-    // WORKSPACE-ROOT clamp -- process-global state, not the live cwd. chdir
-    // alone leaves it wherever an earlier test pinned it, and then the
-    // project source resolves somewhere else entirely. (Same trap the rag
-    // adapter test hit.)
+    // 观测站的卫星点点 util::project_root (,
+    // 即 WORKSPACE-ROOT 夹- 进程 -global 状态,
+    // 而不是活的 cwd. chdir 独自将它留在任何较早的测试
+    // 封存的地方,然后项目源完全解决到别的地方。 (同样陷阱的擦拭适配
+    // 器测试击中了。)
     const auto old_ws = ::agentty::tools::util::workspace_root();
     ::agentty::tools::util::set_workspace_root(::agentty::IoAccess::grant(), work);
 
-    // An HTTP server in each scope -- http needs no binary to exist and is
-    // never spawn-gated, so the only thing under test is whether both are
-    // seen at all.
+    // 来,来,来 HTTP 服务器在每一个范围内 -- http需要否
+    // 二进制程序 永远不存在 永远产卵 -gated 所以唯一要测试的是
+    // 是否看到两者
     write_file(work / ".agentty" / "mcp.json",
                R"({"mcpServers":{"projsrv":{"url":"http://127.0.0.1:9/p"}}})");
     write_file(home / ".agentty" / "mcp.json",
                R"({"mcpServers":{"usersrv":{"url":"http://127.0.0.1:9/u"}}})");
 
-    // plugin_model() already merged (it used read_config_servers all along);
-    // the path that was BROKEN is the one that called resolve_config() --
-    // delegation and the connect loop. Probe delegation: public, spawns
-    // nothing, and it is what ACP session/new hands downstream.
+    // plugin_model () 已经合并(它使用)
+    // read_config_servers 这条路是 BROKEN 是
+    // 那个叫 resolve_config () -- -- 授权和
+    // 连接循环。 ACP session/new 手执 下游.
     const auto launches = agentty::mcp::configured_servers_for_delegation();
     bool saw_proj = false, saw_user = false;
     for (const auto& l : launches) {
@@ -580,7 +580,7 @@ void project_does_not_hide_user_servers(const fs::path& dir) {
     check(saw_proj, "project server is delegable");
     check(saw_user, "USER server survives a project mcp.json (the merge bug)");
 
-    // And the listing surface agrees with it -- that agreement IS the fix.
+    // 上市表上也同意这个协议 IS 修复。
     const auto model = agentty::mcp::plugin_model();
     bool listed_user = false;
     for (const auto& s : model.servers)
@@ -596,8 +596,8 @@ void project_does_not_hide_user_servers(const fs::path& dir) {
     std::println("PASS\n");
 }
 
-// A symlinked mcp.json must be written THROUGH (target updated), not replaced
-// by a regular file (which would orphan the user's dotfile symlink).
+// 一个连结的mcp.json必须写THROUGH(目标更新),
+// 而不是被常规文件(它会孤儿用户的dotfile symlink)所取代.
 void symlink_written_through(const fs::path& dir) {
     std::println("--- symlink_written_through ---");
     const fs::path real = dir / "sym" / "real.json";
@@ -616,22 +616,22 @@ void symlink_written_through(const fs::path& dir) {
     std::println("PASS\n");
 }
 
-// Scope edit-routing: an edit targeted at one scope's mcp.json must NOT touch
-// the other's. This is the invariant behind the plugin picker's fix — a row
-// carries the .agentty dir it was read from, and remove/toggle route there
-// (edit_target(row) in the settings reducer), so toggling a PROJECT server
-// leaves the USER config untouched and vice-versa.
+// 范围编辑 -routing : 以一个范围为对象的编辑 mcp.json 不得
+// 摸对方的,这是... 不变量 插件后面的边框 选择面板 修补的一排 agentty 读自,
+// 和 remove/toggle 路径( 3) edit_target
+// 在设置中 状态更新函数 ),所以摇摆着一个 PROJECT 服务器
+// 离开 USER 配置未变换和阴性 -versa.
 void scope_edits_are_isolated(const fs::path& dir) {
     std::println("--- scope_edits_are_isolated ---");
     const fs::path proj = dir / "proj" / ".agentty" / "mcp.json";
     const fs::path user = dir / "user" / ".agentty" / "mcp.json";
-    // Same server name in both scopes, different commands.
+    // 两个瞄准镜中相同的服务器名称,不同的命令.
     check(plug::add_server(::agentty::IoAccess::grant(), agtest::cap(), proj, {"date", "/project/date", {}}, false) == plug::EditResult::Ok,
           "seed project-scope server");
     check(plug::add_server(::agentty::IoAccess::grant(), agtest::cap(), user, {"date", "/user/date", {}}, false) == plug::EditResult::Ok,
           "seed user-scope server");
 
-    // Disable ONLY the project server (mirrors a picker toggle on a project row).
+    // 禁用 仅 工程服务器( 模拟 a) 选择面板 切换 )),在项目行上.
     check(plug::set_server_disabled(::agentty::IoAccess::grant(), agtest::cap(), proj, "date", true) == plug::EditResult::Ok,
           "disable project server");
     check(plug::is_server_disabled(proj, "date"),  "project server now disabled");
@@ -639,7 +639,7 @@ void scope_edits_are_isolated(const fs::path& dir) {
     check(read_json(user)["mcpServers"]["date"]["command"] == "/user/date",
           "user command preserved across a project-scope edit");
 
-    // Remove ONLY the user server (mirrors `d` on a user row).
+    // 删除 仅 用户服务器( 镜像) `d` )),在用户行上.
     check(plug::remove_server(::agentty::IoAccess::grant(), agtest::cap(), user, "date") == plug::EditResult::Ok, "remove user server");
     check(!read_json(user)["mcpServers"].contains("date"), "user entry gone");
     check(read_json(proj)["mcpServers"].contains("date"),
@@ -647,10 +647,10 @@ void scope_edits_are_isolated(const fs::path& dir) {
     std::println("PASS\n");
 }
 
-// Project-config trust gate: a workspace-local mcp.json is untrusted until
-// approved by CONTENT HASH; editing it re-gates (the MCPoison fix). Runs in
-// its own AGENTTY_HOME + cwd sandbox so the approvals store and the project
-// file are both isolated.
+// 项目 -config 信任门: a 工作区-local mcp.json 在
+// 获得批准前不可信 CONTENT HASH ; 编辑它再 -gates (
+// MCPoison的固定) 运行在自己的 AGENTTY_HOME + 重度数 沙箱
+// 所以批准书和项目文件都是孤立的
 void project_trust_gate(const fs::path& dir) {
     std::println("--- project_trust_gate ---");
     const fs::path home = dir / "trust_home";
@@ -658,11 +658,11 @@ void project_trust_gate(const fs::path& dir) {
     fs::create_directories(home);
     fs::create_directories(work / ".agentty");
 
-    // Redirect the approvals root + cwd (project config lookup). The store
-    // resolves through util::user_root(): repoint AGENTTY_HOME at this test's
-    // home (the binary main set one for the whole process), so approvals land
-    // in the test's own sandbox, not the shared per-process one. Also clear
-    // the env opt-in so we're testing the content-hash path.
+    // 重新引导批准根 + cwd( 项目配置查询)。 商店会解决
+    // util::user_root (: 重新点头 AGENTTY_HOME
+    // 测试的家(在 二进制程序 主机为整个过程设定了一个,所以批准土地在测试
+    // 中自己 沙箱 ,而不是共享的每 -process 一条,还清除了洞穴
+    // 选择 -in 所以我们在测试内容 -hash 路径。
     const std::string prev_agt_home = std::getenv("AGENTTY_HOME") ? std::getenv("AGENTTY_HOME") : "";
     const bool        had_agt_home  = std::getenv("AGENTTY_HOME") != nullptr;
     const fs::path    prev_cwd      = fs::current_path();
@@ -670,40 +670,40 @@ void project_trust_gate(const fs::path& dir) {
     ::unsetenv("AGENTTY_MCP_ALLOW_PROJECT");
     fs::current_path(work);
 
-    // Seed a project stdio server.
+    // 种子一个工程 stdio 服务器.
     check(plug::add_server(::agentty::IoAccess::grant(), agtest::cap(), plug::config_path(::agentty::IoAccess::grant(), true), {"date", "/bin/date", {}}, false)
               == plug::EditResult::Ok, "seed project server");
 
-    // Untrusted by default — a clone can't auto-run its own commands.
+    // 默认情况下不可信——一个克隆人不能自动地将-run自己的命令自动化.
     check(!plug::is_project_config_trusted(::agentty::IoAccess::grant()), "project config untrusted by default");
 
-    // Approve THIS content → trusted.
+    // 批准THIS内容__信任.
     check(plug::approve_project_config(::agentty::IoAccess::grant(), agtest::cap()), "approve records trust");
     check(plug::is_project_config_trusted(::agentty::IoAccess::grant()), "approved project config is trusted");
 
-    // MCPoison: swap the command under the same name. The bytes change, so
-    // the hash changes, so the old approval no longer matches → re-gated.
+    // MCPoison: 以同名交换命令。 Name 字节 改变,
+    // 所以散列改变,所以旧的核准不再匹配 ~ re -gated.
     check(plug::set_server_disabled(::agentty::IoAccess::grant(), agtest::cap(), plug::config_path(::agentty::IoAccess::grant(), true), "date", false)
               == plug::EditResult::Ok, "touch the config");
-    check(plug::add_server(::agentty::IoAccess::grant(), agtest::cap(), plug::config_path(::agentty::IoAccess::grant(), true), {"date", "/evil/date", {}}, /*force=*/true)
+    check(plug::add_server(::agentty::IoAccess::grant(), agtest::cap(), plug::config_path(::agentty::IoAccess::grant(), true), {"date", "/evil/date", {}}, /*力=*/true)
               == plug::EditResult::Ok, "swap the command (attacker edit)");
     check(!plug::is_project_config_trusted(::agentty::IoAccess::grant()),
           "changed content RE-GATES trust (MCPoison fix)");
 
-    // The env opt-in still works as a blanket override.
+    // 隐蔽的 Opt-in 仍然可以做为覆盖的覆盖。
     ::setenv("AGENTTY_MCP_ALLOW_PROJECT", "1", 1);
     check(plug::is_project_config_trusted(::agentty::IoAccess::grant()), "env opt-in overrides the gate");
     ::unsetenv("AGENTTY_MCP_ALLOW_PROJECT");
 
-    // Restore.
+    // 复还.
     fs::current_path(prev_cwd);
     if (had_agt_home) ::setenv("AGENTTY_HOME", prev_agt_home.c_str(), 1);
     else              ::unsetenv("AGENTTY_HOME");
     std::println("PASS\n");
 }
 
-// Per-server trust: approving ONE server must not bless another, and editing
-// one server's command re-gates only that server.
+// 人数 -server 信任: 核准 一个 服务器不能为另一个服务器祝福,
+// 并编辑一个服务器的命令 -gates 只有那个服务器
 void per_server_trust(const fs::path& dir) {
     std::println("--- per_server_trust ---");
     const fs::path home = dir / "ps_home";
@@ -723,31 +723,31 @@ void per_server_trust(const fs::path& dir) {
     check(plug::add_server(::agentty::IoAccess::grant(), agtest::cap(), cfg, {"beta", "/bin/beta", {}}, false) == plug::EditResult::Ok,
           "seed beta");
 
-    // Approve only alpha.
+    // 只批准阿尔法。
     check(plug::approve_server(::agentty::IoAccess::grant(), agtest::cap(), cfg, "alpha"), "approve alpha");
     check(plug::is_server_trusted(::agentty::IoAccess::grant(), cfg, "alpha"),  "alpha trusted");
     check(!plug::is_server_trusted(::agentty::IoAccess::grant(), cfg, "beta"),   "beta NOT trusted by alpha's approval");
-    // The whole file is not trusted just because one server is.
+    // 整个文件不只因为有一个服务器才被信任.
     check(!plug::is_project_config_trusted(::agentty::IoAccess::grant()), "whole-file gate still closed");
 
-    // Add a third server later — alpha stays trusted, gamma is pending.
+    // 稍后添加第三个服务器——α仍然信任,γ为待处理.
     check(plug::add_server(::agentty::IoAccess::grant(), agtest::cap(), cfg, {"gamma", "/bin/gamma", {}}, false) == plug::EditResult::Ok,
           "add gamma later");
     check(plug::is_server_trusted(::agentty::IoAccess::grant(), cfg, "alpha"), "alpha still trusted after a new add");
     check(!plug::is_server_trusted(::agentty::IoAccess::grant(), cfg, "gamma"), "gamma pending");
 
-    // Edit alpha's command (MCPoison) — only alpha re-gates.
-    check(plug::add_server(::agentty::IoAccess::grant(), agtest::cap(), cfg, {"alpha", "/evil/alpha", {}}, /*force=*/true)
+    // 编辑α的指令(MCPoison)——只有α re-gates.
+    check(plug::add_server(::agentty::IoAccess::grant(), agtest::cap(), cfg, {"alpha", "/evil/alpha", {}}, /*力=*/true)
               == plug::EditResult::Ok, "swap alpha's command");
     check(!plug::is_server_trusted(::agentty::IoAccess::grant(), cfg, "alpha"),
           "alpha re-gated after its command changed");
 
-    // args are part of identity: approve, then change args → re-gated.
+    // ⁇ 是身份的一部分:批准,然后更改 ⁇   ⁇   ⁇  re-gated.
     check(plug::add_server(::agentty::IoAccess::grant(), agtest::cap(), cfg, {"delta", "/bin/delta", {"--safe"}}, false)
               == plug::EditResult::Ok, "seed delta with args");
     check(plug::approve_server(::agentty::IoAccess::grant(), agtest::cap(), cfg, "delta"), "approve delta");
     check(plug::is_server_trusted(::agentty::IoAccess::grant(), cfg, "delta"), "delta trusted with its args");
-    check(plug::add_server(::agentty::IoAccess::grant(), agtest::cap(), cfg, {"delta", "/bin/delta", {"--evil"}}, /*force=*/true)
+    check(plug::add_server(::agentty::IoAccess::grant(), agtest::cap(), cfg, {"delta", "/bin/delta", {"--evil"}}, /*力=*/true)
               == plug::EditResult::Ok, "change delta's args");
     check(!plug::is_server_trusted(::agentty::IoAccess::grant(), cfg, "delta"), "delta re-gated on args change");
 
@@ -757,9 +757,9 @@ void per_server_trust(const fs::path& dir) {
     std::println("PASS\n");
 }
 
-// A passthrough server writes {type:"passthrough", url, passthrough:[names]}
-// — no command, no spawn. The declared tools register for DISPATCH (a proxy
-// advertised their schemas to the model; agentty forwards args to the url).
+// 一个通过服务器写 {type:"passthrough", url,
+// asswitch:[names]} – 没有命令, 没有产卵。 宣布的DISPATCH
+// 的工具注册(一个代理向模型上登出他们的模式定义;agentty 转发了 url)。
 void passthrough_server_add(const fs::path& dir) {
     std::println("--- passthrough_server_add ---");
     const fs::path cfg = dir / "pt" / "mcp.json";
@@ -778,8 +778,8 @@ void passthrough_server_add(const fs::path& dir) {
           "declared tool names stored");
     check(!e.contains("command"), "no command key on a passthrough server");
 
-    // Round-trip safety: a later add of an unrelated server must preserve
-    // the passthrough block byte-for-byte.
+    // 圆 -trip 安全性: 稍后添加的无关服务器必须保存
+    // 过关块 字节-for-byte.
     plug::ServerSpec other;
     other.name = "today"; other.command = "python3";
     check(plug::add_server(::agentty::IoAccess::grant(), agtest::cap(), cfg, other, false) == plug::EditResult::Ok,

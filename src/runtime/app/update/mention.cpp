@@ -1,19 +1,19 @@
-// mention_update — reducer for `msg::MentionMsg`. The @file
-// picker reads a snapshot of the workspace's files and filters it
-// per-keystroke. On select, an Attachment
-// of kind FileRef is appended to composer.attachments and the inline
-// SOH placeholder is inserted at the cursor; the file's bytes are
-// loaded later, at submit time (modal.cpp), so an edited file is read
-// with its latest contents.
+// mention_update — 状态更新函数 对于
+// `msg::MentionMsg`。 @file 选择面板 读取
+// 工作区 文件中的 快照 并按 -keystroke
+// 过滤它。选择时，类型 FileRef 的附件将附加到
+// composer.attachments，并在光标处插入内联 SOH 占位符；
+// 文件的 字节 在提交时 (modal.cpp) 之后是 已加载，
+// 因此将读取已编辑的文件及其最新内容。
 //
-// The snapshot/memo/cursor mechanics are the shared FilteredPicker's
-// (panel/filtered_picker.hpp). Notably the COLD-OPEN REFILL: it used to live
-// only in the `MentionInput` arm behind an `o->files.empty()` guard, so a
-// picker opened before the index published and then arrowed (rather than
-// typed into) never refilled — and once the query was non-empty the guard
-// could never fire again, pinning the picker to whatever partial list it
-// caught on keystroke one. The refill now happens on every READ of the
-// snapshot, which is total by construction.
+// 电话 snapshot/memo/cursor 力学是共享的
+// FilteredPicker's (panel/filtered_picker.hpp
+// 特别是, COLD-OPEN REFILL :它曾经只生活在
+// `MentionInput` 臂在后面 手放在后面 `o->files.empty()` 警卫,
+// 所以 选择面板 索引发布前打开,然后箭头向上(而不是 带类型的 ——
+// 一旦查询是非 -empty 警卫再也无法开火了, 钉住 选择面板
+// 键盘中的任何部分列表。现在每一次都会出现重填。 READ 会 议 日
+// 程 和 议 程 快照 ,按建筑计算共计。
 
 #include "agentty/runtime/app/update/internal.hpp"
 #include "agentty/runtime/app/update.hpp"
@@ -34,11 +34,11 @@ using maya::overload;
 
 Cmd mention_update(Model& m, msg::MentionMsg mm) {
     return std::visit(overload{
-        // (No OpenMention arm: the panel opens from the COMPOSER's `@`
-        // handler, which builds pn::Mention directly with the file listing
-        // — see composer.cpp. A message nobody sent sat here for months.)
+        // (无) OpenMention 臂: 面板从 COMPOSER's `@` 处理函数 ,
+        // 该结构将构建 pn::Mention 直接与文件列表一起——参见 composer.cpp .
+        // . .. . ) . ...... . : . 无人寄来的信息在这里坐了几个月. )
         [&](CloseMention) -> Cmd {
-            ascend(m);   // usually → thread (opened by typing @), or a parent
+            ascend(m);   // 通常 ~ 线程(通过打字打开@),或父
             return Cmd::none();
         },
         [&](MentionInput& e) -> Cmd {
@@ -48,10 +48,10 @@ Cmd mention_update(Model& m, msg::MentionMsg mm) {
         [&](MentionBackspace) -> Cmd {
             auto* o = m.ui.panel.get<pn::Mention>();
             if (!o) return Cmd::none();
-            // Backspace on an empty query closes the picker — same
-            // affordance as command palette + most chat apps. The picker
-            // answers "was there anything to erase", so the test and the
-            // mutation cannot drift apart.
+            // Backspace 空查询关闭 选择面板 ——与命令调
+            // 色板+大多数聊天应用程序的同等价格。 选择面板 答案( T)
+            // 此前是否有内容可删除？
+            // 因此测试和突变不能分开。
             if (!o->picker.backspace()) m.ui.panel.close<pn::Mention>();
             return Cmd::none();
         },
@@ -67,22 +67,22 @@ Cmd mention_update(Model& m, msg::MentionMsg mm) {
                 m.ui.panel.close<pn::Mention>();
                 return Cmd::none();
             }
-            // COPY, not move: the snapshot is shared and immutable now, so
-            // stealing the string out of it would corrupt the cached index
-            // every other reader (and the next `@`) sees. The old move was
-            // only safe because each picker owned a private deep copy of the
-            // whole file list — which is precisely the copy we removed.
+            // COPY ,不移动: 快照 共享,
+            // 不可变 现在,所以从中偷走字符串会腐蚀所有
+            // 其它读者的缓存索引(以及下一个 `@` 看见了,
+            // 旧动作很安全,因为每次 选择面板 拥有一份私人
+            // 的深层文件清单——这正是我们删除的复制件。
             std::string path = *hit;
             m.ui.panel.close<pn::Mention>();
 
-            // Frecency: this path just got referenced — rank it near the
-            // top of the next `@`. Cheap, bounded recency window.
+            // 频率:这个路径刚刚被引用——在下个`@`
+            // 的顶端排位. 便宜,有界的复发窗口.
             note_file_referenced(path);
 
-            // Append a FileRef attachment + insert its placeholder at
-            // the composer cursor. Body is filled at submit time
-            // (modal.cpp) so a file edited between selection and send
-            // reaches the model with its current bytes.
+            // 附录a FileRef 附件+插入其占位符,
+            // 位于作曲光标。 正文 提交时填充(
+            // modal.cpp )所以在选择和发送之间编辑
+            // 的文件会以其当前状态到达模型 字节.
             Attachment att;
             att.kind = Attachment::Kind::FileRef;
             att.path = std::move(path);

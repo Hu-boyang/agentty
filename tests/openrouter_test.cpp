@@ -1,12 +1,12 @@
-// openrouter_test — the OpenRouter extensions a coding agent needs.
+// openrouter_test - 电话 OpenRouter 扩展编码代理需要。
 //
-//   1. reasoning_details stream in pieces, are merged by index, and come back
-//      on the next request, so reasoning models keep their chain of thought
-//      across tool calls (Gemini thought signatures require it).
-//   2. Never for Claude (it rejects the field) and never to another host.
-//   3. Claude via OpenRouter gets cache points: system prompt 1h, newest turn.
-//   4. Reasoning effort uses OpenRouter's `reasoning` object.
-//   5. session_id keeps one conversation on one upstream.
+//   1. reasoning_details 数据流 以片块形式,按指数合并,然后回来
+//      接下来的请求,所以推理模型 保持他们的思维链 跨
+//      工具 调用 (Gemini 认为签字需要。
+//   2. 绝不对Claude(拒绝球场),也绝不对另一个主机。
+//   3. Claude 途经 OpenRouter 获得 缓存 点: 系统 提示词 1h,最新转弯。
+//   4. 合理努力的用途 OpenRouter's `reasoning` 对象。
+//   5. session_id 保持一个谈话 上游.
 
 #include "agtest.hpp"
 
@@ -61,7 +61,7 @@ const StreamToolUseEnd* tool_end_in(const std::vector<Msg>& v) {
     return nullptr;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("openrouter: reasoning_details merge by index across deltas") {
     const std::string sse =
@@ -187,9 +187,9 @@ TEST_CASE("gemini: the signature goes back on the same call next turn") {
     CHECK(found);
 }
 
-// The whole path with nothing mocked but the network: the real SSE parser's
-// events go through the real stream reducer, then the next request is built
-// from the thread that left. What the model sent is what goes back.
+// 整个路,没有任何东西,只是嘲笑网络:真实的 SSE
+// 解析器's 事件 经历真实的 数据流 状态更新函数 ,
+// 然后从 线程 模型寄的就是回味
 TEST_CASE("end to end: what the stream carried is in the next request") {
     const std::string sse =
         R"(data: {"choices":[{"delta":{"reasoning_details":[{"type":"reasoning.text","index":0,"text":"need to "}]}}]})" "\n\n"
@@ -208,8 +208,8 @@ TEST_CASE("end to end: what the stream carried is in the next request") {
 
     for (auto& ev : oa::parse_sse_for_test(sse, {"read"}))
         if (auto* s = std::get_if<msg::StreamMsg>(&ev)) {
-            // StreamFinished would hand off to tool dispatch; stop at the
-            // settled message, which is what the next request is built from.
+            // StreamFinished 将交给工具 分派 ;
+            // 停止到已解决的消息, 下一个请求就是从那里建立起来的.
             if (std::holds_alternative<StreamFinished>(*s)) break;
             (void)app::detail::stream_update(m, std::move(*s));
         }
@@ -219,7 +219,7 @@ TEST_CASE("end to end: what the stream carried is in the next request") {
     CHECK(turn.tool_calls[0].extra_content["google"]["thought_signature"] == "TSIG");
     CHECK(turn.reasoning_site == "openrouter");
 
-    // The tool ran; now the follow-up request.
+    // 该工具运行; 现在遵循-up请求.
     Message done = turn;
     done.tool_calls[0].status = ToolUse::Done{{}, {}, "alpha\nbeta\n"};
     auto r = openrouter("google/gemini-3-pro");

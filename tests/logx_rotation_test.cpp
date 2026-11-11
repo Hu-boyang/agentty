@@ -1,22 +1,22 @@
-// logx_rotation_test — mid-run rotation must not lose lines or invalidate
-// the fd that writers hold.
+// logx_rotation_test 中间 -run 旋转不能丢失线条或
+// 使作者持有的ft 无效。
 //
-// Rotation is the one logx seam with a concurrency hazard: writers read the
-// sink fd WITHOUT the rotate mutex (a diagnostic must never lock the
-// caller's hot path), so a rotation that CLOSES the old descriptor and
-// publishes a new one leaves every racing writer holding a number the
-// kernel has already recycled. The write then succeeds — into whatever
-// opened next. That is silent log loss at best and cross-fd corruption at
-// worst, and it is invisible in a single-threaded test.
+// 旋转是一对对数 接口边界 带有货币危险: 写手读取汇 ft
+// 无需 旋转 互斥量 (诊断不得 锁 打电话者 高频路径 ),
+// 所以旋转可以 CLOSES 旧的描述符并发布新的描述符,
+// 并让每个持有内核已回收的号码的赛车作家都留下一个新描述符。
+// 写法成功, 进入了打开的下个任意。 最多只能是
+// 无声的日志丢失和交叉。 -fd 最坏的腐败,
+// 和它隐匿在单一 -threaded 测试。
 //
-// The fix is dup2: re-point the SAME descriptor at the new file, so the
-// value writers hold stays valid across a rotation and there is no window
-// in which it can be reused. These tests pin both halves of that contract.
+// 修理是dup2: 重装 -point 编号 相同 在新
+// 文件中的描述符, 因此所持有的值在旋转中保持有效,
+// 并且没有窗口可以重新使用。 这些测试将双半的契约标注在其中。
 //
-// Reaching rotation needs the threshold lowered: at the shipping 32 MB a
-// test would have to write 32 MB (measured: over three minutes). This TU
-// is linked against logx.cpp directly, so it sets the internal knob rather
-// than requiring an env var — logging stays something nobody configures.
+// 达到轮换需要降低门槛:在航运方面 32 MB 测试
+// 必须写32 MB (测量:超过3分钟) TU 链
+// 接到 logx.cpp 直接地,它设置了内部的把手,
+// 而不是需要一个内脏——伐木保留着无人配置的东西。
 
 #include <atomic>
 #include <cstdlib>
@@ -32,16 +32,16 @@
 
 using namespace agentty;
 
-// The internal rotation threshold (src/util/logx.cpp). Not public API; this
-// test is the only thing that touches it.
+// 内部轮换门槛( 3) src/util/logx.cpp )不公开
+// API 唯一能触摸到它的就是这个测试
 namespace agentty::logx::detail {
 extern std::atomic<std::int64_t> g_rotate_bytes;
 }
 
 namespace {
 
-// Rotate after 64 KB so the seam is reachable in milliseconds. Set before
-// anything logs: the sink latches on first use.
+// 旋转 64 KB 之后, 接口边界 可以以毫秒的速度到达。
+// 在任何日志之前设定: 初始使用时的沉积拉链。
 constexpr long long kRotateBytes = 64 * 1024;
 
 struct SetRotateBytes {
@@ -59,8 +59,8 @@ std::string read_file(const std::string& p) {
                        std::istreambuf_iterator<char>()};
 }
 
-// Everything the logger still owns: the live file plus the one rotated
-// generation it keeps. A line in either is a line that survived.
+// 日志员仍然拥有的一切:活文件加上它所保存的旋转生成。
+// 在其中之一的线条就是幸存下来的线条。
 std::string live_plus_rotated() {
     const auto lf = std::string{logx::log_file()};
     if (lf.empty()) return {};
@@ -73,15 +73,15 @@ void require_logging() {
                     "(ctest sets them; see cmake/AgenttyTests.cmake)");
 }
 
-// A payload wide enough that a few hundred lines cross a KB-scale
-// threshold, so each test actually rotates rather than merely appending.
+// A 载荷 足够宽的几百行 KB-scale 阈值,
+// 因此每个测试实际上都旋转,而不是仅仅附加.
 constexpr const char* kPad =
     "----------------------------------------------------------------";
 
-// Rough bytes on disk per emitted line: the payload plus logx's timestamp,
-// level, channel and site prefix. Only used for SIZING the bursts, so an
-// approximation is fine — every assertion below verifies against the file's
-// real contents, never against this estimate.
+// 粗糙的 字节 磁盘上每条已发射的行: 载荷
+// 加上logx 的时间戳、 关卡、 频道和站点前缀。
+// 仅用于 SIZING 以真实内容为根据,
+// 绝不反对这一估计。
 constexpr long long kLineCost = 64 + 80;
 
 long long live_size() {
@@ -89,43 +89,43 @@ long long live_size() {
 }
 
 #if defined(__linux__)
-// The fd number the process currently has open on `path`, or -1. Reading
-// /proc/self/fd is the only way to observe the sink descriptor from
-// outside logx without widening its public API for a test's benefit.
+// 进程当前打开的 fd 编号 `path` ,或 -1.
+// 阅读/ proc/self/fd 是唯一能从外部对流观察
+// 水槽描述符而不扩大其公共范围的方法 API 测试的好处。
 int fd_pointing_at(const std::string& path) {
     int found = -1;
     for (const auto& e : std::filesystem::directory_iterator("/proc/self/fd")) {
         std::error_code ec;
         const auto target = std::filesystem::read_symlink(e.path(), ec);
-        if (ec) continue;                       // fd closed under us; fine
+        if (ec) continue;                       // 弗德在我们下面关闭了,很好
         if (target.string() != path) continue;
         const int fd = std::atoi(e.path().filename().string().c_str());
-        // The directory_iterator itself holds an fd; the log is the only
-        // one that can point at this path, so first match wins.
+        // directory_iterator本身持有fd;
+        // 日志是唯一能够指向这条路径的,所以第一对齐获胜.
         if (found < 0) found = fd;
     }
     return found;
 }
 #endif
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("logx: mid-run rotation keeps the sink writable") {
     require_logging();
     const long long limit = rotate_limit();
-    // Write comfortably past the threshold from wherever the file currently
-    // is — these test cases share one log, so "how much is enough" depends
-    // on what earlier cases already wrote.
+    // Write 顺利地超过了极限,无论文件现在在哪里 这些测试案例
+    // 共享一个日志,所以 "how much is enough"
+    // 取决于以前的案件已经写过什么。
     const long long need = 2 * limit + limit / 2;
     for (long long w = 0; w < need; w += kLineCost)
         AGT_LOG(General, Warn, "rotation.test", "single {} {}", w, kPad);
 
     const auto all = live_plus_rotated();
-    // The last line written must be present: if rotation had invalidated
-    // the descriptor, writes after the swap would vanish.
+    // 写最后一行必须存在: 如果旋转使描述符无效,
+    // 在交换后写会消失。
     CHECK(all.find("single ") != std::string::npos);
-    // And rotation must actually have happened — otherwise this test is
-    // silently only exercising the append path.
+    // 而旋转必定真的发生了——否则这个测试
+    // 只是默默地行使了附加路径.
     CHECK_MESSAGE(!read_file(std::string{logx::log_file()} + ".old").empty(),
                   "expected a rotated .old generation");
 }
@@ -133,24 +133,24 @@ TEST_CASE("logx: mid-run rotation keeps the sink writable") {
 TEST_CASE("logx: concurrent writers lose nothing across a rotation") {
     require_logging();
 
-    // Getting real power out of this test took two false starts, both worth
-    // recording because both looked like evidence and were not:
+    // 真正从测试中获取能量 有两个错误的开始 都值得
+    // 记录 因为两者看起来都是证据 而不是:
     //
-    //   * "assert every line ever written survives" — wrong, because logx
-    //     keeps ONE rotated generation. A burst several times the threshold
-    //     is SUPPOSED to drop its oldest lines.
-    //   * "use a tiny threshold so it rotates constantly" — wrong for a
-    //     subtler reason: threads finish at different times, so a thread
-    //     that finished early has its last line evicted by rotations that
-    //     LATER threads trigger. That fails against the fixed logger too,
-    //     i.e. it measures retention, not the bug.
+    //   * "assert every line ever written survives"——错误,因为logx
+    //     保留 一个 旋转生成。 几倍于阈值的爆破
+    //     SUPPOSED 以放弃最古老的线条。
+    //   * "use a tiny threshold so it rotates constantly"——错误
+    //     更微妙的原因: 线程 在不同的时间完成,
+    //     所以 线程 早期完成的最后一行被旋转所驱离 LATER
+    //     线程 触发器,对固定的对冲器也失败了 i.e
+    //     测量的是保留量,而不是错误。
     //
-    // What separates the two is accounting. Size each ROUND so it crosses
-    // the threshold at most once: then the round's lines are split between
-    // .old and the live file with nothing evicted, and every single one
-    // MUST be present. Any absence is the sink going invalid under a
-    // writer — the actual defect. Repeat for many rounds to get many
-    // rotation windows to race against.
+    // 两者的区别在于会计,每个大小 ROUND 所以
+    // 最多一次就越过了门槛:然后,圆形的线条被分割成.
+    // old和活文件,没有被拆卸的东西,每个都被拆掉。
+    // 必须。任何缺位都是在写法下沉淀无效的
+    // – 实际缺陷。重复多次回合,
+    // 使许多旋转窗口能够 竞态 反对。
     const long long limit = rotate_limit();
     REQUIRE(limit > 0);
 
@@ -159,15 +159,15 @@ TEST_CASE("logx: concurrent writers lose nothing across a rotation") {
 
     long rotations_seen = 0;
     for (int round = 0; round < kRounds; ++round) {
-        // Size THIS round against where the live file actually sits, not
-        // against an empty file: these cases share a log, so a fixed burst
-        // can straddle two thresholds and evict its own early lines — a
-        // legitimate drop that would look exactly like the bug.
+        // 大小 此 回合对当前文件实际坐落的位置,
+        // 而不是对空文件:这些案例共享一个日志,
+        // 所以固定的突起可以跨越两个阈值,并驱逐自己的
+        // 早期行——这种合法的掉落看起来完全像错误.
         const long long before  = live_size();
         const long long headroom = limit - before;
-        // Just over the remaining headroom: guarantees one crossing, never
-        // two. If the file is already past the limit the next emit rotates,
-        // so a small burst still gives exactly one window.
+        // 仅靠剩下的主厅: 保证一个通道, 而不是两个。
+        // 如果文件已经超过极限, 下个发射会旋转,
+        // 所以一个小突突仍然会给出一个窗口。
         const long long budget  = (headroom > 0 ? headroom : 0) + limit / 4;
         const int per_thread =
             static_cast<int>(budget / kLineCost) / kThreads + 1;
@@ -187,8 +187,8 @@ TEST_CASE("logx: concurrent writers lose nothing across a rotation") {
         const auto all = live_plus_rotated();
         if (live_size() < before) ++rotations_seen;
 
-        // Every line of THIS round must be present — no eviction is
-        // possible for a round that fits inside one rotation window.
+        // 每行图 此 圆形必须存在——一个
+        // 旋转窗口内一个圆形的圆形不可能被驱离。
         int missing = 0, first_missing_t = -1, first_missing_i = -1;
         for (int t = 0; t < kThreads; ++t) {
             for (int i = 0; i < per_thread; ++i) {
@@ -207,7 +207,7 @@ TEST_CASE("logx: concurrent writers lose nothing across a rotation") {
                         << first_missing_t << " i=" << first_missing_i);
     }
 
-    // If nothing ever rotated, the test proved nothing about rotation.
+    // 如果没有任何东西旋转,测试证明没有旋转。
     CHECK_MESSAGE(rotations_seen > 0,
                   "no rotation observed across " << kRounds << " rounds");
 }
@@ -217,29 +217,29 @@ TEST_CASE("logx: rotation re-points the sink fd instead of replacing it") {
 #if !defined(__linux__)
     MESSAGE("fd-identity check needs /proc; skipped on this platform");
 #else
-    // THE load-bearing test for the dup2 fix, and the only one here with
-    // real power against the bug.
+    // 该 加载-bearing 测试Dup2修复, 和唯一一个在
+    // 这里 有真正的力量对抗虫。
     //
-    // The line-accounting test above passes against the BROKEN logger too:
-    // the race window between close(oldfd) and a racing writer's write() is
-    // nanoseconds wide, so losses are far too rare to catch by writing
-    // lines and counting them. Chasing it statistically would buy a slow,
-    // flaky test that still proves nothing on a green run.
+    // 线条 -accounting 试验通过时 BROKEN 日志器也 :
+    // 近( oldfd) 和赛车手的write() 之间的 竞态
+    // 窗口是宽的纳米秒, 因此损失太少, 无法通过写行和计数来捕捉。
+    // 从统计角度来说, 它将购买一个缓慢的、 片面的测试,
+    // 测试在绿色运行中仍然无法证明任何结果。
     //
-    // So assert the PROPERTY that makes the race impossible rather than
-    // the symptom it produces. Writers read the sink fd without the rotate
-    // lock; that is only sound if rotation never invalidates the number
-    // they hold. dup2 re-points the existing descriptor, so the number is
-    // stable for the process lifetime; swap-and-close publishes a new one
-    // and frees the old for reuse. Comparing the fd across a rotation
-    // separates those two implementations deterministically — every run,
-    // no race required.
+    // 所以,坚持 PROPERTY 使我们 竞态 无法,
+    // 而不是它所产生的症状。 作者读取沉淀的 fd 不旋转 锁 ;
+    // 只有在旋转从未使所持数字无效的情况下才发出声音。
+    // dup2 re -points 现有描述符,所以该数字在
+    // 进程上稳定 生命周期 ; 互换 -and-close
+    // 发布新的版本,并释放旧的用于再利用。在旋转的fd中进行比较,
+    // 可以确定这两个执行部分——每次运行,不 竞态 需要的,
+    // 请说明。
     const std::string path = std::string{logx::log_file()};
 
     const int before = fd_pointing_at(path);
     REQUIRE_MESSAGE(before >= 0, "could not find the log fd in /proc/self/fd");
 
-    // Force at least one rotation.
+    // 强制至少一次旋转.
     const long long limit = rotate_limit();
     const long long need  = limit - live_size() + limit / 4;
     for (long long w = 0; w < need; w += kLineCost)
@@ -254,9 +254,9 @@ TEST_CASE("logx: rotation re-points the sink fd instead of replacing it") {
                   << after << "); writers reading it unlocked would be "
                   "holding a closed, reusable descriptor");
 
-    // And the re-pointed fd must still reach the LIVE file, not the
-    // rotated-away one: dup2 onto the wrong target would keep the number
-    // stable while silently writing into .old forever.
+    // 和那个 -pointed 福德必须到达 LIVE 文件,
+    // 不是旋转 -away 一,dup2在错误的目标上会保持
+    // 数字稳定,同时默默地写入.old 永远.
     AGT_LOG(General, Warn, "rotation.test", "post-rotation sentinel {}", 1);
     CHECK(read_file(path).find("post-rotation sentinel 1") != std::string::npos);
 #endif
@@ -264,9 +264,9 @@ TEST_CASE("logx: rotation re-points the sink fd instead of replacing it") {
 
 TEST_CASE("logx: rotation bounds the live file") {
     require_logging();
-    // The point of rotating is that the live file stays small. Give it a
-    // generous ceiling (threshold + one burst) so this pins the guarantee
-    // without being sensitive to exactly where the crossing landed.
+    // 旋转的要点是, 活文件保持小块。 给它一个宽大的
+    // 天花板( 门槛 + 1 burke) ,
+    // 这样它就可以在不敏感地 到达 的 交叉 位置 下 保证。
     const long long limit = rotate_limit();
 
     for (long long w = 0; w < 4 * limit; w += kLineCost)

@@ -1,34 +1,34 @@
-// stream_liveness_test — UX-critical regression: the live-edge caret
-// (maya reveal_fx) must NEVER look frozen while a model response is in
-// flight. The user-visible failure this locks out: a slow model pauses
-// between deltas (median ~470 ms, worst seconds) and the typewriter
-// caret stops pulsing mid-sentence — reading as "the stream died".
+// stream_liveness_test — UX-critical 回归:
+// 活体 -edge 光标 (maya reveal_fx )必须 绝不 模型
+// 响应正在飞行时看起来冷冻。 用户 -visible 失败此 锁 出局:一个慢
+// 模式在三角洲(中间~470 ms,最差秒)和打字机之间暂停 光标 停止
+// 脉冲中点 -sentence 读作 "the stream died".
 //
-// Root cause history (commits 498ec9e → a9760e7): the RAF re-arm gate in
-// turn.cpp's cached_markdown_for was a fixed byte-recency timeout
-// (250 ms, then 3 s). ANY fixed timeout can be out-run by a slower
-// model or laggy link. The robust gate keys off m.s.is_streaming() —
-// the variant-backed phase::Streaming signal — so the caret stays armed
-// unconditionally while the wire is open, and drops only when the phase
-// leaves Streaming.
+// 根源历史(承诺498ec9e → a9760e7): RAF 内容 -arm 门进入
+// turn.cpp's cached_markdown_for 是个固定的
+// 字节-recency 超时 (250毫秒,然后是3秒). 任意 固定 超时
+// 可能已经出来了 -run 由慢的模型或拉吉 链接。坚固的门键关闭
+// m.s.is_streaming () —— 国家 变体-backed phase::Streaming 信号,
+// 所以 光标 武器在战争期间无条件保留 传输 打开, 仅在相位离开时才
+// 下降 流式传输.
 //
-// Contract asserted here, via maya::detail::animation_requested_ (the
-// thread-local that request_animation_frame() sets and the run loop
-// reads to schedule the next ~16 ms repaint):
+// 此处所称合同,通过 maya::detail::animation_requested_
+// (无) 线程-local 说 request_animation_frame ()
+// 设定和运行环路读取为下个~16 ms 的排程 重绘):
 //
-//   1. While phase == Streaming and the message has live bytes, EVERY
-//      view build re-arms the animation frame — even after a simulated
-//      10-second gap with zero new bytes (out-runs any timeout anyone
-//      might reintroduce).
-//   2. After the stream settles (phase → Idle, streaming_text drained
-//      into text), the widget finishes its ~200 ms finalize ramp and
-//      then STOPS re-arming — the idle loop must return to zero wakes
-//      (the other half of the contract: no frozen caret, but also no
-//      60 fps burn at idle).
+//   1. 阶段 流式传输 信息已经存在 字节, 每个
+//      视图构建再 -arms 动画 帧 ——即使模拟10次之后.
+//      -second 与零新数据的差距 字节 (出处) -runs 任何 超时
+//      任何人可能再次出现。
+//   2. 其后 数据流 结账(阶段 ) —— 离散, streaming_text 排水量
+//      ,部件完成 ~200 ms 的斜坡最后完成 STOPS 内容 -arming ——闲圈必须回到零醒(合同的另一半:没有冻结)
+//      —— 零醒(零醒) ——零醒(0醒) : 零醒 (0醒) - —— —— 空圈 —— 循环 —— 3醒 —— 4醒 ——0醒 —
+//      — — 零醒 —— - —— - - ——- —— = - - - - = - == - - 3醒 - - -= - - 光标 ,
+//      但同样没有 60 FPS 空闲时燃烧。
 //
-// If this test fails on (1), someone re-introduced a timeout race —
-// the "stream looks dead" bug is back. If it fails on (2), the caret
-// never disarms and idle CPU burns.
+// 如果测试失败了(1), 有人重新 -introduced a 超时 竞态 - 电话
+// "stream looks dead" 错误又回来了,如果失败在 (2) 上,
+// 则 光标 永远不能解除和闲置 CPU 烧伤。
 
 #include <chrono>
 #include <cstdio>
@@ -52,14 +52,14 @@ using agentty::Model;
 using agentty::Message;
 using agentty::Role;
 
-// Render the CONVERSATION region only (frozen + live tail) and report
-// whether any widget in it requested an animation frame during build.
-// Mirrors the run loop: clear the flag, build + paint, read the flag.
+// 渲染 编号 CONVERSATION 仅限区域(冻+活)
+// 末尾 )并报告其中是否有部件要求动画 帧 建设期间。
+// 镜像运行环: 清除 标志 ,构建 + 油漆,读取 标志.
 //
-// Deliberately NOT the full AppLayout: the composer's idle cursor blink
-// (maya composer.hpp) re-arms the animation frame on every idle build,
-// which would mask the markdown caret's disarm in test (2). The caret
-// under test lives in the thread region; probe exactly that.
+// 故意的 不 完整 AppLayout : 作曲家闲置光标
+// 闪烁( ) maya composer.hpp ) 有关
+// -arms 动画 帧 将掩盖了减速 光标 测试中解除。
+// 光标 试验中的生命 线程 区域; 精确地探测。
 static bool frame_requests_animation(const Model& m,
                                      int width = 100, int height = 40) {
     maya::detail::animation_requested_ = false;
@@ -74,17 +74,17 @@ static bool frame_requests_animation(const Model& m,
     return maya::detail::animation_requested_;
 }
 
-// Deterministic reveal drain. The maya reveal cursor advances by
-// anim_now_ms() (maya/core/anim_clock.hpp), so a test drives it by
-// ADDING to the test-only anim skew instead of sleeping against a
-// wall-clock deadline — the old sleep_for(16ms) + steady_clock::now()
-// deadline pattern flakes under CPU starvation (wall time burns while
-// the process is descheduled, the deadline expires before the ramp
-// finishes). Here each step advances exactly 16 ms of anim time and
-// runs `step` (which must call build() to consume it). Bounded to
-// `max_steps` frames (default 600 = 9.6 s of anim time, far past any
-// ramp) so a genuinely stuck reveal still terminates the loop with the
-// predicate true, tripping the caller's CHECK.
+// 决断 逐步显示 排水沟 maya 逐步显示 光标前进
+// anim_now_ms() (maya/core/anim_clock.hpp ),
+// 所以测试驱动它通过 ADDING 输入测试 -only
+// 动画"不要睡在墙上" -clock 最后期限——旧期限
+// sleep_for (16米)+ 宽度 steady_clock::now
+// (a) 期限模式下的碎片 CPU 饥饿(在进程解时墙壁
+// 时间燃烧,坡道结束前最后期限将到期)。 `step`
+// (必须 调用 build() 被束缚在...
+// `max_steps` 帧 (默认600=9.6秒的动画时间,
+// 远过任何斜坡) 所以真的卡住了 逐步显示 仍然终止循环
+// 与上游真,绊倒 呼叫者 CHECK.
 template <class Pred, class Step>
 static void drain_reveal(Pred still_animating, Step step,
                          int max_steps = 600) {
@@ -94,8 +94,8 @@ static void drain_reveal(Pred still_animating, Step step,
     }
 }
 
-// ── (1) The caret must stay armed across an arbitrarily long inter-
-//        delta gap while the phase says Streaming. ──────────────────────
+// （1）无论增量间隔多长，光标都必须保持启用，
+//        三角差距,而相位则表示流式传输.  ⁇ .
 TEST_CASE("caret armed across delta gap") {
     std::printf("test_caret_armed_across_delta_gap\n");
 
@@ -106,59 +106,59 @@ TEST_CASE("caret armed across delta gap") {
     agentty::app::detail::clear_frozen(m);
     agentty::app::detail::freeze_through(m, 1);
 
-    // In-flight assistant message: first delta arrived, wire still open.
-    // Body kept SHORT so the reveal cursor catches up to the live edge
-    // quickly — the gap probe below must isolate the RAF gate, and
-    // reveal_in_progress() (cursor still gliding backlog) arms the frame
-    // independently of it, which would mask a broken gate.
+    // 内 -flight 助理消息: 三角洲第一时间到 传输 仍然开放。
+    // 正文 保留 SHORT 所以,我们 逐步显示 光标快速追上到
+    // 活边上 —— 下面的漏洞探测器必须隔离 RAF 大门,
+    // 以及 reveal_in_progress (cursor
+    // 仍然滑翔积压) 帧 隔着它,它会掩盖一个破门而入的。
     Message a; a.role = Role::Assistant;
     a.streaming_text = "Hi";
     m.d.current.messages.push_back(std::move(a));
     m.s.phase = agentty::phase::Streaming{agentty::phase::Active{}};
 
-    // Frame right after the delta: must be armed (bytes just grew).
+    // 帧 三角洲之后:必须携带武器( 字节 刚刚长大了).
     CHECK(frame_requests_animation(m),
           "caret armed on the frame after a delta lands");
 
-    // Let the typewriter reach the live edge (2 cp at 30 cps ≈ 70 ms;
-    // generous deadline). Once reveal_in_progress() is false, the ONLY
-    // legitimate arming source left while the wire is open is the
-    // phase gate under test.
-    // NB: the entry migrates between the pinned (live) and settled maps
-    // as its lifecycle flips, and in the two-map ViewCache a migration is
-    // a node transfer that invalidates any long-lived reference. So the
-    // drain re-fetches through the NON-migrating peek() each step instead
-    // of caching an Entry& across frame_requests_animation calls.
+    // 让打字机到达直播边缘(2 cp at 30 cps QQ 70 ms;
+    // 宽限期). reveal_in_progress () 虚假的,
+    // 仅 合法武装源左侧,而 传输 正在打开的 是
+    // 测试中的相位门。
+    // NB : 输入在固定(活)和定居地图之间迁移,作为其生命周期的翻转,
+    // 在两个中 -map ViewCache 迁移是一个节点传输,
+    // 它使任何长的 -lived 引用。所以排水层重新 -fetches
+    // 通过 NON-migrating peek() 每一步骤,而不是缓冲一个
+    // 条目和交叉 frame_requests_animation 调用.
     const auto rip = [&] {
         const auto* mc =
             m.ui.view_cache.peek(m.d.current.id, m.d.current.messages.back().id);
         return mc && mc->streaming && mc->streaming->reveal_in_progress();
     };
-    drain_reveal(rip, [&] { (void)frame_requests_animation(m); });  // build() advances the cursor
+    drain_reveal(rip, [&] { (void)frame_requests_animation(m); });  // build() 前进光标
     CHECK(!rip(), "reveal cursor reached the live edge (test precondition)");
 
-    // Simulate the killer gap: NO new bytes, wire still open. TWO
-    // clocks must lapse for the probe to be honest:
-    //   • the widget's internal recency window (maya reveal_fx,
-    //     age_at_tail_ms ≤ 250 ms keeps it self-arming every build) —
-    //     defeated by advancing the anim clock (maya reads anim_now_ms);
-    //   • agentty's cache recency window (kRevealActiveMs = 3 s) —
-    //     agentty reads REAL steady_clock there, so backdate the stamp
-    //     directly, exactly what a slow model's gap does to it.
-    // Past both windows, maya's quiescent regime arms only once per
-    // 33/100 ms phase bucket — NOT every frame — so consecutive
-    // same-bucket builds return false unless agentty's phase gate
-    // (wire_streaming_here) holds the caret armed. That's the gate
-    // under test.
+    // 模拟杀手的缺口 : NO 新建( N) 字节, 传输 仍然开放。
+    // 两个 探测器必须关闭时钟才能诚实地:
+    //   • 部件的内部调整窗口(maya reveal_fx,
+    //     age_at_tail_ms 250毫秒保持它自己 -arming 每建造一座大楼)
+    //     ——被推进动因钟击败(Anim clock). maya 读取 anim_now_ms);
+    //   • agentty's 缓存 惯性窗口(kRevealAactiveMs = 3 s) -
+    //     agentty 读取 真实 steady_clock 上面,
+    //     直接背影印章, 即慢模的漏洞对它有何影响。
+    // 穿过两扇窗子 maya 军政府的武器每架只一次 33/100 毫
+    // 斯相位桶- 不 每隔一段时间 帧 - 如此连续 -bucket
+    // 建立虚假的返回,除非 agentty 相位门( 3)
+    // wire_streaming_here 持有 光标 装备齐全,
+    // 那是正在测试的大门
     maya::testing::advance_anim_clock_ms(400);
     m.ui.view_cache
         .message_md_live(m.d.current.id, m.d.current.messages.back().id)
         .last_grow_tick_ms =
-        maya::anim_now_ms() - 10000;   // simulate a 10 s inter-delta gap
+        maya::anim_now_ms() - 10000;   // 模拟 10 s 间 -delta 差额
 
-    // Six back-to-back frames inside the gap — EVERY one must re-arm.
-    // A timeout-only gate leaves same-phase-bucket frames unarmed and
-    // fails here (verified by sabotaging the gate to timeout-only).
+    // 6个回来 -to-back 帧 差距内—— 每个 一个人必须重新 -arm.
+    // A 超时-only 门没变 -phase-bucket 帧 无人武装,
+    // 但在此失败(通过破坏大门进行验证) 超时-only).
     for (int f = 0; f < 6; ++f) {
         CHECK(frame_requests_animation(m),
               "caret STILL armed mid-gap (400 ms + simulated 10 s, "
@@ -166,16 +166,16 @@ TEST_CASE("caret armed across delta gap") {
         maya::testing::advance_anim_clock_ms(2);
     }
 
-    // Sanity: the gate is the phase, not the backdated clock. Flip the
-    // phase to Idle while bytes remain unsettled (cancel-like edge) —
-    // the reveal cursor may still glide its backlog out, so arming may
-    // persist transiently, but the UNCONDITIONAL guarantee is gone.
-    // (No CHECK here: transient glide is legitimate. The hard assert
-    // for disarm is test_caret_disarms_after_settle.)
+    // 圣洁:大门是相位,而不是后期的时钟。将相位翻转到Idle
+    // 同时 字节 仍未解决( 取消-like —— 边 逐步
+    // 显示 光标可能仍然滑动 其积压, 因此武装可能持续 短暂,
+    // 但 UNCONDITIONAL 保证已经不存在了。
+    // (无) CHECK 暂时滑翔是合法的 裁军的强硬主张是
+    // test_caret_disarms_after_settle.)
 }
 
-// ── (2) After settle, the caret must disarm once the finalize ramp
-//        completes — idle must not burn frames forever. ────────────────
+// （2）收尾后，完成过渡结束时光标必须关闭，
+//        完成 —— 闲置不能永远烧帧。 @ @ info: whatsthis
 TEST_CASE("caret disarms after settle") {
     std::printf("test_caret_disarms_after_settle\n");
 
@@ -192,7 +192,7 @@ TEST_CASE("caret disarms after settle") {
     m.s.phase = agentty::phase::Streaming{agentty::phase::Active{}};
     CHECK(frame_requests_animation(m), "armed while streaming");
 
-    // Stream finishes: reducer moves streaming_text → text, phase → Idle.
+    // 数据流 完成 : 状态更新函数 移动 streaming_text 文本,阶段 ——闲置。
     {
         Message& back = m.d.current.messages.back();
         back.text = std::move(back.streaming_text);
@@ -201,12 +201,12 @@ TEST_CASE("caret disarms after settle") {
     }
     m.s.phase = agentty::phase::Idle{};
 
-    // The widget runs a ~200 ms finalize ramp (request_finalize(200))
-    // gliding the reveal cursor to the live edge; frames during the
-    // ramp legitimately re-arm. Advance the anim clock frame by frame
-    // until it disarms — bounded far past the ramp. If it never disarms,
-    // the caret (and 60 fps wakes) would run forever at idle and the
-    // CHECK below fires.
+    // 部件运行一个~200 ms 的最终斜拉桥(
+    // request_finalize (200) 滑翔机
+    // 逐步显示 光标到活边; 帧 正当的重新 -arm。
+    // 推进动画钟 帧 由 帧 直至它解除了武器,而且它远在斜坡上。
+    // 光标 (60个) FPS 将永远在闲置之中奔跑 CHECK
+    // 火力下方 火力以下
     bool disarmed = false;
     for (int i = 0; i < 600 && !disarmed; ++i) {
         if (!frame_requests_animation(m)) { disarmed = true; break; }
@@ -216,7 +216,7 @@ TEST_CASE("caret disarms after settle") {
           "caret disarms after settle + finalize ramp (idle must not "
           "burn animation frames)");
 
-    // And stays disarmed: settled fast-path must not re-arm.
+    // 并保持解除武装:迅速安顿下来 -path 绝不能重 -arm.
     if (disarmed) {
         for (int f = 0; f < 3; ++f) {
             CHECK(!frame_requests_animation(m),
@@ -225,17 +225,17 @@ TEST_CASE("caret disarms after settle") {
     }
 }
 
-// ── (3) The deferred settle-freeze must NEVER fire while the reveal is
-//        mid-glide — the structural guarantee against post-stream
-//        scrollback duplication / ghosting. live_tail_reveal_settled()
-//        is the gate meta.cpp checks before freezing; it must return
-//        false while the typewriter is still animating (so the freeze
-//        waits) and true only after the widget flips live_ off on its
-//        own (so the snapshot equals the on-screen frame = maya cache
-//        HIT = zero re-emit). Reproduces the screenshot bug class: a
-//        freeze taken on a still-animating turn snapshots a shape that
-//        diverges from the live frame in maya's prev_cells, re-emitting
-//        the whole turn over committed scrollback. ────────────────────
+// （3）逐字显示仍在运行时，绝不能触发延迟收尾冻结。
+//        中点 -glide ——员额结构保障. -stream
+//        回滚缓冲区 重复/ 幽灵。 live_tail_reveal_settled
+//        ()是大门 meta.cpp 冻结前检查; 当打字机仍在
+//        动画时必须返回假字( 所以冻结等待) , 并且只有在部件
+//        自动翻转后才真实( 所以 快照 等于 off 时
+//        -screen 帧 = maya 缓存 HIT =0个 -emit。
+//        重制截图错误类:静态冻结 -animating 转弯
+//        快照 与活体不同的形状 帧 输入 maya's prev_cells ,
+//        关于 -emitting 整个转身 承诺 回滚缓冲区.
+//        ────────────────────
 TEST_CASE("freeze gated on reveal drain") {
     std::printf("test_freeze_gated_on_reveal_drain\n");
 
@@ -246,13 +246,13 @@ TEST_CASE("freeze gated on reveal drain") {
     agentty::app::detail::clear_frozen(m);
     agentty::app::detail::freeze_through(m, 1);
 
-    // Assistant turn whose reveal is mid-glide with a finalize ramp armed
-    // — the exact widget state the freeze gate must refuse to snapshot.
-    // ONE long paragraph (NO blank-line block boundary): the whole body
-    // stays in the uncommitted reveal tail, so reveal_cp starts at 0 and
-    // the typewriter has real distance to glide. (A \n\n-delimited body
-    // commits every block on set_content, and the committed-snap jumps
-    // reveal_cp straight to the edge — no animation to observe.)
+    // 助理转身 逐步显示 中间 -glide 带有最后
+    // 斜坡的装备——确切部件说明冻结门必须拒绝 快照.
+    // 一个 长段( NO 空白 -line 块边界: 整个 正文 留在未
+    // 承诺的 逐步显示 末尾 ,所以,我说 reveal_cp 以 0 开始,
+    // 打字机有滑翔的真距离。 (A\ n\ n) -delimited
+    // 正文 将每个块都输入 set_content ,和所承诺的 -snap
+    // 跳跃 reveal_cp 直指边缘——没有动画观察. )
     std::string body;
     for (int i = 0; i < 80; ++i)
         body += "word" + std::to_string(i) + " ";
@@ -260,7 +260,7 @@ TEST_CASE("freeze gated on reveal drain") {
     m.d.current.messages.push_back(std::move(a));
     m.s.phase = agentty::phase::Idle{};
 
-    // Build the widget by hand so we drive its reveal DIRECTLY below.
+    // 手动构建部件,然后我们开它 逐步显示 DIRECTLY 下图。
     auto& cache = m.ui.view_cache.message_md(
         m.d.current.id, m.d.current.messages.back().id);
     if (!cache.streaming)
@@ -270,19 +270,19 @@ TEST_CASE("freeze gated on reveal drain") {
     cache.streaming->set_content(body);
     cache.streaming->set_live(true);
     cache.streaming->request_finalize(200);
-    // Drive the widget DIRECTLY (not through frame_requests_animation /
-    // the view): cached_markdown_for finish()es a SETTLED message on its
-    // first frame, which flips live_ off and orphans the finalize ramp
-    // (advance_reveal_cursor_ early-outs once !live_, so finalize_deadline_
-    // never clears and is_finalizing() sticks true forever). Building the
-    // widget directly lets the ramp run to completion and flip live_ off on
-    // its own — exactly the self-drain this test asserts on. (Production
-    // no longer arms a post-settle glide at all; settle_message_md calls
-    // finish() outright. request_finalize is kept here only to exercise the
-    // gate's is_finalizing() term in isolation.)
-    (void)cache.streaming->build();  // advance the reveal cursor once
+    // 驱动部件 DIRECTLY (不通则. frame_requests_animation
+    // / 视图 : cached_markdown_for finish() 是因为a
+    // SETTLED 首个 帧 ,它会把最后的斜坡翻开, 并成为孤儿(
+    // advance_reveal_cursor_ 早点 -outs 一次,生活,所以,
+    // 我说, finalize_deadline_ 永远无法澄清 is_finalizing
+    // () 永远坚持真实。 建造部件可以直接让斜坡跑到完成,然后自己自动翻转(Live_off)
+    // —— 完全就是自己。 -drain 试验说,(生产不再武装一个哨所) -settle 滑翔;
+    // settle_message_md 调用 finish() 直截了当的。
+    // request_finalize 被保存在这里只是为了锻炼大门的
+    // is_finalizing () 名词与众隔绝. )
+    (void)cache.streaming->build();  // 将 逐步显示 光标提前一次
 
-    // While the reveal is mid-glide the gate MUST block the freeze.
+    // 和当时 逐步显示 中间 -glide 大门 必须 封锁冻结。
     CHECK(cache.streaming->reveal_in_progress()
               || cache.streaming->is_finalizing(),
           "reveal is animating (test precondition)");
@@ -290,8 +290,8 @@ TEST_CASE("freeze gated on reveal drain") {
           "freeze BLOCKED while the reveal is still animating — freezing "
           "a mid-glide turn is the post-stream duplication root cause");
 
-    // Drain the reveal to completion (build() advances the cursor; the
-    // finalize ramp flips live_ off once the cursor reaches the edge).
+    // 排水 下水 下水道 逐步显示 完成( 完成) build()
+    // 推进光标; 完成的斜坡翻转在光标到达边缘后启动。
     drain_reveal(
         [&] {
             return cache.streaming->reveal_in_progress()
@@ -301,31 +301,31 @@ TEST_CASE("freeze gated on reveal drain") {
         },
         [&] { (void)cache.streaming->build(); });
 
-    // Now the widget has flipped live_ off on its own and the live tail
-    // has painted the settled shape — the gate must OPEN so the freeze
-    // can take a byte-identical snapshot.
+    // 现在,部件已经翻转了 活... 关闭自己和活 末尾 已经
+    // 画了固定的形状——大门必须 OPEN 冰冻可以带来 字
+    // 节-identical 快照.
     CHECK(agentty::app::detail::live_tail_reveal_settled(m),
           "freeze ALLOWED once the reveal fully drained (settled shape "
           "is on screen — snapshot is a maya cache HIT)");
 
-    // And a turn that still has UNCOMMITTED wire bytes is never
-    // freezable regardless of reveal state — it isn't done arriving.
+    // 转动的转动仍然 UNCOMMITTED 传输 字
+    // 节 永远无法自由,不管 逐步显示 州政府... 还没到
     m.d.current.messages.back().streaming_text = "trailing";
     CHECK(!agentty::app::detail::live_tail_reveal_settled(m),
           "freeze BLOCKED while streaming_text still has unsettled bytes");
     m.d.current.messages.back().streaming_text.clear();
 }
 
-// ── (4) The caret must stay armed when the widget is LIVE but the
-//        phase has left Streaming (e.g. a mid-run tool round-trip:
-//        Streaming → ExecutingTool → Streaming) AND the reveal cursor
-//        has caught up to the live edge. In that pinned-but-live window
-//        render_live_panel_ still animates the scramble/gradient/
-//        pulsing caret every frame, so the RAF must keep firing or the
-//        turn looks frozen mid-response. is_streaming() is false here, so
-//        the phase gate (wire_streaming_here) does NOT cover it; the
-//        is_live() term must. Reproduces "md feels stuck in the middle
-//        when the stream is slow / pauses for a tool". ──────────────────
+// （4）组件仍处于 LIVE、但尚未满足其他条件时，光标必须保持启用。
+//        阶段已离开 流式传输 (e.g 中间 -run 工具回合 -trip:
+//        流式传输 → ExecutingTool → 流式传输) 和 编号 逐步显示 光
+//        标已锁定到活边。 -but-live 窗口 render_live_panel_
+//        仍然动画 scramble/gradient/ 脉冲 光标 每隔一段时间 帧 ,
+//        所以,请 RAF 一定要继续射击,否则转弯会冷冻 -response.
+//        is_streaming ()此处虚实,故相门( ⁇ ). wire_streaming_here
+//        已经 不 盖上; is_live () 术语必须。
+//        流速较慢或为工具暂停时，Markdown 在中途显得卡住。
+//        ──────────────────
 TEST_CASE("caret armed when live but phase not streaming") {
     std::printf("test_caret_armed_when_live_but_phase_not_streaming\n");
 
@@ -336,8 +336,8 @@ TEST_CASE("caret armed when live but phase not streaming") {
     agentty::app::detail::clear_frozen(m);
     agentty::app::detail::freeze_through(m, 1);
 
-    // In-flight assistant message, short body so the cursor reaches the
-    // edge fast. Mark it live via a streaming render first.
+    // 内 -flight 助理消息, 短句 正文
+    // 标记它通过一个 流式传输 渲染 先说
     Message a; a.role = Role::Assistant;
     a.streaming_text = "Ok";
     m.d.current.messages.push_back(std::move(a));
@@ -345,11 +345,11 @@ TEST_CASE("caret armed when live but phase not streaming") {
     CHECK(frame_requests_animation(m),
           "armed on the first streaming frame (sets the widget live_)");
 
-    // Drain the reveal cursor to the live edge so reveal_in_progress()
-    // can't be what arms the frame below. Re-fetch through the
-    // non-migrating peek() each step: frame_requests_animation migrates
-    // the entry between the pinned/settled maps, invalidating any held
-    // Entry&.
+    // 将逐步显示光标排到活边,所以reveal_in_progress()不能
+    // 是下面的帧的武器. Re-fetch通过非-migratingXXXXpeek
+    // ()的每个步骤:frame_requests_animation将条目迁移到pinned/settled地图之间,
+    // 使任何持有的条目
+    // 无效.
     const auto live_state = [&] {
         const auto* mc =
             m.ui.view_cache.peek(m.d.current.id, m.d.current.messages.back().id);
@@ -363,21 +363,21 @@ TEST_CASE("caret armed when live but phase not streaming") {
     CHECK(live_state() && !live_state()->reveal_in_progress(),
           "reveal cursor reached the live edge (precondition)");
 
-    // The wire briefly leaves Streaming for a tool round-trip. The
-    // assistant message is NOT settled (streaming_text still holds the
-    // unsettled bytes) so the widget stays live_. Backdate the recency
-    // clock past kRevealActiveMs (3 s) so the since_grow window can't be
-    // what arms it either. Now ONLY the is_live() term remains.
+    // 电话 传输 短叶 流式传输 用于工具回合 -trip。
+    // 助理信息是: 不 已解决( streaming_text 仍然坚持着未
+    // 解决的 字节 )所以部件保持为 live_。在 kRevealAactiveMs
+    // ( 3 s) 之后的后置时钟显示 since_grow 窗口也不可能是
+    // 哪个武器。 仅 编号 is_live (a) 任期未定。
     m.s.phase = agentty::phase::ExecutingTool{agentty::phase::Active{}};
     m.ui.view_cache
         .message_md_live(m.d.current.id, m.d.current.messages.back().id)
         .last_grow_tick_ms =
-        maya::anim_now_ms() - 10000;   // simulate a 10 s inter-delta gap
+        maya::anim_now_ms() - 10000;   // 模拟 10 s 间 -delta 差额
 
-    // Advance the anim clock past maya's own recency window so its
-    // quiescent regime only self-arms once per phase bucket —
-    // consecutive same-bucket builds would return false without
-    // agentty's is_live() gate.
+    // 将动画钟提前过 maya 自己的静脉窗口 所以它的微弱制度
+    // 只有自己 -arms 每阶段桶一次——连续相同
+    // -bucket 建筑会变回假的,没有 agentty's
+    // is_live () 大门。
     maya::testing::advance_anim_clock_ms(400);
 
     for (int f = 0; f < 6; ++f) {
@@ -389,18 +389,18 @@ TEST_CASE("caret armed when live but phase not streaming") {
     }
 }
 
-// ── (5) The freeze gate must BLOCK while a tail md widget is still live_,
-//        even when the reveal cursor is at the edge and nothing else is
-//        animating (reveal_in_progress / is_finalizing / is_parsing all
-//        false). live_tail_reveal_settled() must be the EXACT mirror of
-//        build_live_tail's `reveal_settled` (the hash-stamp gate), which
-//        ORs is_live(). If the freeze gate dropped the is_live() term it
-//        would green-light a freeze in a state where the live tail refused
-//        to stamp the cacheable assistant_run_hash_id — so freeze_range
-//        would stamp a key the live frame never painted (maya cache MISS),
-//        rebuild the run under FrozenBuildScope (show_all) at a possibly
-//        different height, and strand a duplicate in scrollback. This locks
-//        the two gates' predicate sets together so they can't drift. ─────
+// （5）尾部 Markdown 组件仍为 live_ 时，冻结条件必须阻止冻结。
+//        即便在 逐步显示 光标位于边缘,没有其它动画( reveal_in_progress
+//        / is_finalizing / is_parsing 都是假的 都是
+//        假的 我... 都说错了 live_tail_reveal_settled
+//        ( )必须是 EXACT 镜像 build_live_tail's
+//        `reveal_settled` (散列) -stamp 门),
+//        哪些 Ors is_live () 如果冻结门掉下来 is_live () 将
+//        绿化 -light 在一个生活状态下冻结 末尾 拒绝盖章可缓存
+//        assistant_run_hash_id - 这么说吧 freeze_range
+//        将刻出一个键 现场 帧 从未涂过( N) maya 缓存 MISS ,
+//        重建运行在 FrozenBuildScope (show_all )在可能不同的高度,
+//        并用一个复制件插入 回滚缓冲区。这个 锁 两座城门的上游集成,所以它们不能漂移。
 TEST_CASE("freeze gate blocks while widget live") {
     std::printf("test_freeze_gate_blocks_while_widget_live\n");
 
@@ -411,9 +411,9 @@ TEST_CASE("freeze gate blocks while widget live") {
     agentty::app::detail::clear_frozen(m);
     agentty::app::detail::freeze_through(m, 1);
 
-    // Settled assistant turn: text FINAL, no streaming bytes in flight
-    // (so the `!streaming_text.empty()` guard can't be what blocks the
-    // gate — we need to isolate the is_live() term).
+    // 解析助理转弯:文本 FINAL ,没有 流式传输 字节 飞行中(即
+    // `!streaming_text.empty()` 守卫不可能是堵住大门的...
+    // 我们需要隔离 is_live () 任期。
     const std::string body = "Short settled reply body.";
     Message a; a.role = Role::Assistant; a.text = body;
     m.d.current.messages.push_back(std::move(a));
@@ -422,16 +422,16 @@ TEST_CASE("freeze gate blocks while widget live") {
     auto& cache = m.ui.view_cache.message_md(
         m.d.current.id, m.d.current.messages.back().id);
     cache.streaming = std::make_shared<maya::StreamingMarkdown>();
-    // reveal_fx OFF makes reveal_in_progress() false unconditionally; NOT
-    // calling request_finalize keeps is_finalizing() false; no async keeps
-    // is_parsing() false. The ONLY non-settled signal left is is_live(),
-    // armed here exactly as the live-tail render arms it for a streaming
-    // message that hasn't been finish()ed yet.
+    // reveal_fx OFF 制造 reveal_in_progress (a) 无条件的虚假;
+    // 不 呼叫 request_finalize 保留 is_finalizing () 虚假;
+    // 无自动同步保存 is_parsing ()虚假的。 仅 无 -settled 左侧
+    // 是 is_live (,这里武装 恰好是现场) -tail 渲染 拿着它 流式
+    // 传输 还没有的消息 finish() 还没有,艾德。
     cache.streaming->set_reveal_fx(false);
     cache.streaming->set_content(body);
     cache.streaming->set_live(true);
 
-    // Precondition: the isolated is_live()-only state.
+    // 先决条件: 隔离 is_live()-only 州立大学.
     CHECK(cache.streaming->is_live(), "widget live_ (precondition)");
     CHECK(!cache.streaming->reveal_in_progress(),
           "reveal_in_progress false with reveal_fx off (precondition)");
@@ -439,16 +439,16 @@ TEST_CASE("freeze gate blocks while widget live") {
           "no finalize ramp armed (precondition)");
     CHECK(!cache.streaming->is_parsing(), "no async parse (precondition)");
 
-    // THE CONTRACT: the freeze gate blocks while the widget is live_.
+    // 该 CONTRACT : 部件在直播时冻结门块。
     CHECK(!agentty::app::detail::live_tail_reveal_settled(m),
           "freeze BLOCKED while the md widget is still live_ — the gate "
           "must mirror build_live_tail's hash-stamp condition (is_live "
           "term) or freeze_range stamps an unkeyed run and strands a "
           "duplicate");
 
-    // finish() drops live_ (the other three were already false), so now
-    // build_live_tail WOULD stamp the cacheable key — the freeze gate must
-    // open in lockstep so the handoff is a maya cache HIT.
+    // finish() 滴滴的LIVE... (另外三个已经是假的),
+    // 所以现在 build_live_tail WOULD 印章可缓存密钥——
+    // 冻结门必须锁上,这样交接就是 maya 缓存 HIT.
     cache.streaming->finish();
     CHECK(!cache.streaming->is_live(),
           "finish() dropped live_ (precondition)");
@@ -457,18 +457,18 @@ TEST_CASE("freeze gate blocks while widget live") {
           "stamped the cacheable key — freeze is a byte-identical cache HIT)");
 }
 
-// ── (6) DEEP RUN, live edge below many settled sub-turns. The reported
-//        low-CPU stall: in a long autopilot run the streaming edge is a
-//        fresh placeholder message BELOW dozens of settled tool sub-turns.
-//        turn_config_for_assistant_run wraps each SETTLED sub-turn in its
-//        own stably-keyed bare Turn (maya blits it, flat cost) but MUST
-//        keep the still-streaming edge built inline so its
-//        cached_markdown_for re-arms the animation frame every build. If
-//        the edge were stably keyed (e.g. because its text prefix looked
-//        settled), maya would blit the cached component, cached_markdown_
-//        for would never re-run, the RAF would never re-arm, and the
-//        typewriter would freeze mid-turn at ~0% CPU until an unrelated
-//        hash axis flips. This asserts the edge stays armed. ────────────
+// （6）深层运行：实时边界位于多个稳定子轮次下方。报告中的
+//        低级 -CPU 拖放: 在长的自动驾驶中运行 流式传输 边缘
+//        是一个新的占位符消息 下方 数十个已解决的工具子 -turns.
+//        turn_config_for_assistant_run 包起来
+//        SETTLED 子目录 -turn 自己被刺伤 -keyed 赤转(
+//        R) maya 破碎,平价),但 必须 保持安静
+//        -streaming 边缘是内在的 所以它 cached_markdown_for
+//        内容 -arms 动画 帧 如果边缘被刺入键盘( 或 键盘) ,则 e.g .
+//        因为其文本前缀看起来已经确定), maya 将粉碎缓存组件,
+//        cached_markdown_ 永远也不会重新 -run ,
+//        则 RAF 永远也不会重新 -arm ,打字机会冻结中 -turn ~0%
+//        时 CPU 以至不相关的散列轴翻转。此选项表示边缘保持武装。 @ @ info
 TEST_CASE("deep run live edge stays armed") {
     std::printf("test_deep_run_live_edge_stays_armed\n");
 
@@ -479,8 +479,8 @@ TEST_CASE("deep run live edge stays armed") {
     agentty::app::detail::clear_frozen(m);
     agentty::app::detail::freeze_through(m, 1);
 
-    // Many SETTLED tool-only sub-turns (each its own Assistant message) —
-    // the deep run's quiescent prefix. Tool terminal, no prose.
+    // 多个 SETTLED 工具 -only 子目录 -turns (每个都发自助理
+    // 消息)——深跑的quiescent前缀. Tool 终端 ,没有旁白。
     for (int e = 0; e < 40; ++e) {
         Message a; a.role = Role::Assistant;
         agentty::ToolUse tc;
@@ -494,9 +494,9 @@ TEST_CASE("deep run live edge stays armed") {
         m.d.current.messages.push_back(std::move(a));
     }
 
-    // The LIVE EDGE: a fresh streaming placeholder with live prose bytes,
-    // mid-tool-execution phase (the wire left Streaming for a tool
-    // round-trip). This is the message that must stay inline + armed.
+    // 电话 LIVE EDGE : 新鲜 流式传输 活传的占位符 字节
+    // 中间 -tool-execution 阶段( 传输 左边 流
+    // 式传输 用于工具回合 -trip。这是必须保持内置+武装的信息。
     Message edge; edge.role = Role::Assistant;
     edge.streaming_text = "Now I will summarize the edits I performed";
     m.d.current.messages.push_back(std::move(edge));
@@ -504,23 +504,23 @@ TEST_CASE("deep run live edge stays armed") {
     CHECK(frame_requests_animation(m, 100, 4000),
           "armed on the first streaming frame of the deep-run edge");
 
-    // The edge keeps receiving bytes (a real stream), so it stays live.
-    // Across several frames — including after the recency clock is
-    // backdated past kRevealActiveMs and the phase leaves Streaming for a
-    // tool round-trip — the edge's build must re-arm the animation frame
-    // EVERY time. If the deep-run keying swallowed the edge into a cached
-    // bare Turn, cached_markdown_for would stop running and the arm would
-    // drop (the low-CPU freeze).
+    // 边缘不断接收 字节 (实数) 数据流 ),所以它保持活泼.
+    // 数个 帧 包括复时钟在 kRevealAactiveMs
+    // 和相位叶后 流式传输 用于工具回合 -trip 边缘的建筑
+    // 必须重新 -arm 动画 帧 每个 时间,
+    // 如果深处 -run 键入边缘 隐藏在赤转弯,
+    // cached_markdown_for 将停止运行,手臂将下降(低点) -CPU ) ,
+    // 以"冻结"为主.
     m.s.phase = agentty::phase::ExecutingTool{agentty::phase::Active{}};
     for (int f = 0; f < 6; ++f) {
-        // Feed a byte so the edge is unambiguously still streaming, and
-        // backdate the per-message recency clock so the since_grow window
-        // can't be what arms it — only the inline reveal path can.
+        // 进食a 字节 故边缘毫不含糊地仍然 流式传输 ,
+        // 并返回到 -message 静静的钟表 since_grow
+        // 窗口不能是哪个臂——只有内线 逐步显示 路径可以。
         m.d.current.messages.back().streaming_text += ".";
         auto& edge_cache = m.ui.view_cache.message_md(
             m.d.current.id, m.d.current.messages.back().id);
         edge_cache.last_grow_tick_ms =
-            maya::anim_now_ms() - 10000;   // simulate a 10 s inter-delta gap
+            maya::anim_now_ms() - 10000;   // 模拟 10 s 间 -delta 差额
         CHECK(frame_requests_animation(m, 100, 4000),
               "deep-run live edge STILL armed (40 settled sub-turns above, "
               "phase=ExecutingTool, recency expired) — the streaming edge "

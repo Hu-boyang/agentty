@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-# Protocol-surface test for agentty's ACP agent. Exercises every method that
-# does NOT require the model (so it runs offline/in CI): initialize, the full
-# session lifecycle (new/list/load/resume/close/delete), set_mode,
-# set_config_option, and logout. Asserts the responses match the ACP v1 shapes.
+# 针对agentty的ACP代理的协议-surface测试。练习 不 需要模型的每个
+# 方法（因此它运行 offline/in CI）：初始化、完整会话生命周期 (
+# new/list/load/resume/close/delete)、
+# set_mode、set_config_option 和注销。断言响应与 ACP v1 形状匹配。
 #
-# session/prompt is covered separately by acp_smoke.py (needs a live model).
+# session/prompt由acp_smoke.py单独覆盖（需要现场模型）。
 import json, subprocess, sys, threading, queue, os, tempfile
 
-# Run in a throwaway HOME so we don't touch the user's real thread store and
-# logout doesn't nuke real credentials.
+# 在一次性 HOME 中运行，因此我们不会触及用户的真实 线程 存储，
+# 并且注销不会破坏真实的 凭据。
 env = dict(os.environ)
 env["HOME"] = tempfile.mkdtemp(prefix="acp_test_home_")
 
@@ -56,7 +56,7 @@ def check(cond, msg):
     print(("ok   " if cond else "FAIL ") + msg)
     if not cond: fails.append(msg)
 
-# ── initialize ───────────────────────────────────────────────────────
+# ── 初始化 ───────────────────────────────────────────────────────
 r = call("initialize", {"protocolVersion":1,"clientCapabilities":{}})["result"]
 check(r.get("protocolVersion") == 1, "initialize → protocolVersion 1")
 caps = r.get("agentCapabilities", {})
@@ -66,7 +66,7 @@ check(all(k in sc for k in ("list","resume","close","delete")),
       "caps.sessionCapabilities {list,resume,close,delete}")
 check("logout" in caps.get("auth", {}), "caps.auth.logout")
 
-# ── session/new → modes ──────────────────────────────────────────────
+# ── session/new – 模式 ──────────────────────────────────────────────
 cwd = env["HOME"]
 r = call("session/new", {"cwd":cwd,"mcpServers":[]})["result"]
 sid = r["sessionId"]
@@ -99,14 +99,14 @@ check(sid in listed, "session/list → includes new session")
 entry = next((s for s in r["sessions"] if s["sessionId"]==sid), {})
 check(entry.get("cwd")==cwd, "session/list → reports cwd")
 
-# cwd filter
+# CWD过滤器
 r = call("session/list", {"cwd":"/nonexistent/path"})["result"]
 check(sid not in {s["sessionId"] for s in r.get("sessions",[])},
       "session/list → cwd filter excludes mismatch")
 
 # ── session/load ─────────────────────────────────────────────────────
-# (no on-disk thread yet — session has no messages — but the live session
-#  is in memory, so load should succeed and return modes)
+# (还没有 on-disk 线程 — 会话没有消息 — 但实时
+#  会话在 内存 中，因此 加载 应该成功并返回模式)
 r = call("session/load", {"sessionId":sid,"cwd":cwd,"mcpServers":[]})["result"]
 check("modes" in r, "session/load → returns modes")
 
@@ -125,11 +125,11 @@ r = call("session/list", {})["result"]
 check(sid not in {s["sessionId"] for s in r.get("sessions",[])},
       "session/delete → removed from session/list")
 
-# ── logout ───────────────────────────────────────────────────────────
+# ── 登录 ───────────────────────────────────────────────────────────
 r = call("logout", {})
 check("result" in r, "logout → ok")
 
-# ── unknown method → error ───────────────────────────────────────────
+# ── 未知方法 − 错误 ───────────────────────────────────────────
 r = call("does/not/exist", {})
 check("error" in r and r["error"]["code"] == -32601,
       "unknown method → -32601 MethodNotFound")

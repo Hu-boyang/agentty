@@ -1,4 +1,4 @@
-// acp_agents_test — generic, config-driven external ACP registry.
+// acp_agents_test ——通用,配置 -driven 外部 ACP 注册表.
 
 #include "agentty/provider/acp_agents.hpp"
 #include "agentty/provider/selection.hpp"
@@ -18,12 +18,12 @@
 #endif
 #include <windows.h>
 namespace {
-// The file only needs a per-process unique name; the pid is the posix way to
-// get one, GetCurrentProcessId the windows one. Same property, no extra deps.
+// 文件只需要一个 -process 独有的名字; pid是 posix 获得一个的方法,
+// GetCurrentProcessId 同一个地产,没有额外的道具
 [[nodiscard]] int local_pid() noexcept {
     return static_cast<int>(::GetCurrentProcessId());
 }
-}  // namespace
+}  // 命名空间结束。
 #endif
 
 #include "agtest.hpp"
@@ -40,8 +40,8 @@ TEST_CASE("no builtin acp agents when unconfigured") {
     CHECK(!P::resolve_acp_agent("codex-acp").has_value());
     CHECK(P::enumerate_acp_agents().empty());
 
-    // Unconfigured ACP-looking names cannot silently spawn a subprocess or be
-    // misread as OpenAI hostnames; stale saved selections fall back safely.
+    // 未配置 ACP-looking 名称不能静默地生成子进程或被误读为
+    // OpenAI 主办单位名称; 过期 已保存 选择会安全地退后。
     CHECK(P::parse_selection("claude-agent-acp").kind == P::Kind::Anthropic);
     CHECK(P::parse_selection("codex-acp").kind == P::Kind::Anthropic);
     CHECK(P::parse_selection("anthropic").kind == P::Kind::Anthropic);

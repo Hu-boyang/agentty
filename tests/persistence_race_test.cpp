@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// persistence_race_test.cpp — drive the REAL async save queue from many
-// threads, under ThreadSanitizer.
+// persistence_race_test.cpp - 开车 真实 自动同步 保存 从多个队列中排入
+// 线程 下,在 ThreadSanitizer.
 //
-// race_harness_test models the write-behind shape; this one exercises the
-// actual code: persistence::save_thread's coalescing map, its lazily-started
-// worker, thread_index_mu, and the offset/blob bookkeeping save_thread_sync
-// performs. The concurrency that matters here is real — the reducer saves on
-// the UI thread while the worker fsyncs, and `agentty acp` saves from several
-// session workers at once.
+// race_harness_test 模式写 -behind 形状; 此操作实际
+// 代码 : persistence::save_thread 其云集的地图,
+// 其懒惰 -started 工作线程, thread_index_mu ,
+// 并显示 offset/blob 记账 save_thread_sync 实际的货币,
+// 也就是 状态更新函数 保存 自动调试 UI 线程 时 工作线程 丝丝,和 `agentty acp`
+// 保存 几届会议 工作线程 立刻来
 //
-// Invariants pinned:
-//   • no data race (that is TSan's job; this file just supplies the pressure)
-//   • every distinct thread id survives a concurrent save storm
-//   • flush drains rather than truncates
-//   • a save issued AFTER flush still lands (the write-behind queue restarts
-//     its worker rather than silently dropping late writes — the shape that
-//     left settings_cache's worker joinable and aborted at exit)
+// 不变量 钉住 :
+//   • 没有数据竞态(即TSan的工作;这个文件只是提供压力)
+//   • 每一个不同的 线程 id在同时存在的情况下存活下来 保存 风暴
+//   • 冲水沟而不是截流沟
+//   • a 保存 已印发 之后 冲动静态( 写) -behind 队列重新启动
+//     编号 工作线程 而不是默默地放下迟到的写作——留下的形状
+//     settings_cache's 工作线程 可合并,退出时中止)
 
 #include "agentty/io/persistence.hpp"
 #include "agtest_cap.hpp"
@@ -60,7 +60,7 @@ int count_saved() {
     return n;
 }
 
-} // namespace
+} // 命名空间结束。
 
 int main() {
     const auto root = fs::temp_directory_path() /
@@ -76,9 +76,9 @@ int main() {
 
     std::printf("=== persistence_race_test ===\n");
 
-    // ── Concurrent save storm ────────────────────────────────────────────
-    // Every thread hammers its OWN id, so coalescing is free to drop
-    // intermediate generations but must never drop an id entirely.
+    // ── 同步的保存风暴 ────────────────────────────────────────────
+    // 每一个 线程 锤子 自身 id,
+    // 所以联合是自由 放弃中间代,但决不能完全放弃一个ID。
     {
         std::barrier sync(kThreads);
         std::vector<std::thread> ts;
@@ -100,11 +100,11 @@ int main() {
         std::printf("  save storm: %d/%d ids landed\n", count_saved(), kThreads);
     }
 
-    // ── A save AFTER flush still lands ───────────────────────────────────
-    // flush_and_stop() latches `stopping`, so the write-behind queue has to
-    // restart its worker for late writes rather than drop them. A late save
-    // is not hypothetical: the Quit reducer issues one, and ACP sessions can
-    // save after the TUI has flushed.
+    // ── A 保存 之后 冲动静地 ───────────────────────────────────
+    // flush_and_stop (节) `stopping` ,
+    // 所以写 -behind 队列必须重新启动 工作线程 写作迟到,
+    // 而不是丢掉 保存 假设:退出 状态更新函数 问题1,以及 ACP 届会可以
+    // 保存 之后 TUI 已经冲洗。
     {
         agentty::persistence::save_thread(::agentty::IoAccess::grant(), agtest::cap(), make_thread(999, 0));
         agentty::persistence::flush_pending_saves(::agentty::IoAccess::grant(), agtest::cap());

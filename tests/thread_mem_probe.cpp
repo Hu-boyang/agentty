@@ -1,13 +1,13 @@
-// thread_mem_probe — RAM cost of opening a thread.
+// thread_mem_probe — RAM 开户费a 线程.
 //
-// Loads a thread file the way the TUI does when you pick it (load,
-// rehydrate_frozen, scrollback replay on the worker pool) and prints the
-// process RSS after each step, so memory per transcript byte is a number
-// you can compare before and after a change.
+// 加载 a 线程 将“% 1” 的标签格式 TUI 选的时候做( 选
+// 时做 ) 加载, rehydrate_frozen, 回滚缓冲区 在游戏中
+// 重播 工作线程 池 )并打印进程 RSS 每一步之后,所以,
+// 内存 每笔录 字节 是一个您可以在变化前后比较的数字。
 //
 //   ./build/agentty_standalone_tests thread_mem_probe ~/.agentty/threads/<id>.jsonl [width]
 //
-// No thread given: prints usage and succeeds (ctest runs it bare).
+// 没有给定的线程:打印使用和成功(测试运行为赤色).
 
 #include "agentty/io/persistence.hpp"
 #include "agentty/io/thread_log.hpp"
@@ -48,8 +48,8 @@ long rss_mb() {
     return 0;
 }
 
-// Same cleanup the app does after a replay: collect on every worker too,
-// since mimalloc keeps freed pages per thread.
+// 重播后同样的清理应用程序: 收集到每张 工作线程 也因为
+// mimalloc 保持自由页面/ 每 线程.
 void collect_everywhere() {
     maya::exec::parallel_for(std::max(1u, std::thread::hardware_concurrency()) * 4,
                              [](std::size_t) { release_to_kernel(); });
@@ -71,7 +71,7 @@ void stage(const char* name) {
     std::fflush(stdout);
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 int main(int argc, char** argv) {
     if (argc < 2) {
@@ -82,7 +82,7 @@ int main(int argc, char** argv) {
     const std::filesystem::path p = argv[1];
     const int width = argc > 2 ? std::atoi(argv[2]) : 140;
 
-    // The app renders replay blocks on a worker pool; do the same.
+    // 应用程序 渲染 重播块在一个 工作线程 池 ; 照做, 照做.
     agentty::tune_allocator();
     maya::host_detail::executor_scope pool;
     stage("start");

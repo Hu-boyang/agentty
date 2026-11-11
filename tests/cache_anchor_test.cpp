@@ -1,16 +1,16 @@
-// cache_anchor_test — SOTA prompt-cache breakpoint placement.
+// cache_anchor_test — SOTA 提示词-cache 断点位置。
 //
-// SOTA prompt-cache breakpoint placement. Two message breakpoints roll or
-// anchor, and the full body spends the other 2 of Anthropic's 4-breakpoint
-// budget on system + tools. This test locks the message-array shape:
+// SOTA 提示词-cache 中断点位置。两个中断点滚动或锁定,
+// 以及全部 正文 花掉其中的两块 Anthropic's 4-breakpoint
+// 系统+工具的预算。此测试 锁 消息( I) -array 形状 :
 //
-//   • LONG thread: a 1-HOUR anchor deep in history + ONE rolling 5m pin on the
-//     newest message (the second-to-last rolling pin is dropped so the request
-//     never exceeds 4 total breakpoints — exceeding 4 makes Anthropic evict the
-//     system-prompt pin from the front).
-//   • anchor is QUANTIZED (doesn't move when one turn is appended).
-//   • SHORT thread: no anchor; the classic rolling PAIR (≤ 2 pins).
-//   • message breakpoints never exceed 2.
+//   • LONG 线程:一个历史深处的1-HOUR号锚+ 一个 滚动5米的钉子
+//     最新消息( 第二次 -to-last 滚针被放弃,
+//     因此请求从未超过4个总断点——超过4个 Anthropic 驱逐
+//     系统 -prompt 针从前.
+//   • 锚是QUANTIZED(一转后不动)。
+//   • SHORT 线程 : 无锚; 经典滚动 PAIR ( ⁇ 二针.
+//   • 信息断点不超过2个。
 
 #include <string>
 #include <vector>
@@ -32,7 +32,7 @@ using agentty::ToolUse;
 
 namespace {
 
-// A thread of `pairs` User/Assistant text turns → 2*pairs messages.
+// A 线程 备注 `pairs` User/Assistant 文本转动 = 2 * 传真消息。
 Thread make_thread(int pairs) {
     std::vector<Message> msgs;
     for (int i = 0; i < pairs; ++i) {
@@ -44,9 +44,9 @@ Thread make_thread(int pairs) {
     return Thread{ThreadId{"t"}, "", std::move(msgs), {}, {}};
 }
 
-// Walk the serialized messages array and collect, per emitted message, the ttl
-// of its cache_control (or "" if none). Index in the returned vector == the
-// message's position in the wire array.
+// 逐行浏览序列化信件阵列,并收集每封已发送信件的 ttl
+// cache_control (或 减 减 ) ""
+// 如果无的话)。 传输 数组。
 struct Pin { int msg_index; std::string ttl; };
 std::vector<Pin> collect_pins(const std::string& wire) {
     std::vector<Pin> pins;
@@ -64,14 +64,14 @@ std::vector<Pin> collect_pins(const std::string& wire) {
     return pins;
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("cache_anchor") {
     namespace ap = agentty::provider::anthropic;
 
-    // ── 1. Long thread: exactly one 1h anchor + the two rolling 5m pins ──
+    // ── 1. 长 线程 : 正好1h锚+两个滚5m的钉子 ──
     {
-        Thread t = make_thread(40);                    // 80 messages
+        Thread t = make_thread(40);                    // 80条信息
         std::string wire = ap::messages_json_string(t);
         auto pins = collect_pins(wire);
 
@@ -85,17 +85,17 @@ TEST_CASE("cache_anchor") {
         check(rolling == 1, "long thread keeps one rolling 5m breakpoint (2nd dropped for the 4-cap)");
         check(pins.size() <= 2, "≤ 2 message breakpoints so total ≤ 4 (system+tools spend 2)");
 
-        // Anchor sits strictly before the rolling pair (deep in history).
+        // 安切尔严格坐落在滚动对(深历史)之前.
         int total = 80;
         check(anchor_idx > 0 && anchor_idx < total - 2,
               "anchor lands deep in history, before the rolling pair");
     }
 
-    // ── 2. Anchor is STABLE: adding one turn does not move it ──
+    // ── 2. 锚值为STABLE:增加一个转弯不移动它. ──
     {
-        Thread t1 = make_thread(40);   // 80 msgs
+        Thread t1 = make_thread(40);   // 80毫升( 80毫秒)
         Thread t2 = make_thread(40);
-        // Append one more user+assistant pair (82 msgs) — still same quantum.
+        // 追加一个用户+辅助对(82 msgs)——仍然相同的量子.
         Message u; u.role = Role::User;      u.text = "extra";
         Message a; a.role = Role::Assistant; a.text = "extra-a";
         t2.messages.push_back(std::move(u));
@@ -112,9 +112,9 @@ TEST_CASE("cache_anchor") {
               "anchor index is unchanged when one turn is appended (quantized)");
     }
 
-    // ── 3. Short thread: no 1h anchor (rolling pair covers everything) ──
+    // ── 3. 短 数 线程 : 无 1h 锚( 滚动对覆盖所有内容) ──
     {
-        Thread t = make_thread(3);                     // 6 messages
+        Thread t = make_thread(3);                     // 6条信息
         std::string wire = ap::messages_json_string(t);
         auto pins = collect_pins(wire);
         int anchors = 0;
@@ -123,7 +123,7 @@ TEST_CASE("cache_anchor") {
         check(pins.size() <= 2, "short thread has only the rolling pins");
     }
 
-    // ── 4. Empty thread: no breakpoints, valid JSON ──
+    // ── 4. 空 点 线程 : 无断点, 有效 JSON ──
     {
         Thread t{ThreadId{"t"}, "", {}, {}, {}};
         std::string wire = ap::messages_json_string(t);

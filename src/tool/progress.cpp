@@ -1,7 +1,7 @@
-// progress.cpp — tools::CallContext's waits.
+// progress.cpp — tools::CallContext 等着吧
 //
-// The context itself is a plain value the dispatcher builds and hands to
-// ToolDef::execute; nothing here is per-thread.
+// 环境本身是一个纯价值 分派器 建设和手到 ToolDef::execute ;
+// 这里没有任何信息 -thread.
 
 #include "agentty/tool/registry.hpp"
 
@@ -16,7 +16,7 @@
 namespace agentty::tools {
 
 std::shared_ptr<std::stop_source> CallContext::merged_stop() const {
-    // The source and the callbacks that trip it live and die together.
+    // 来源和 回调 那次旅行 它一起生活 一起死去
     struct Merged {
         std::stop_source src;
         std::vector<std::unique_ptr<std::stop_callback<std::function<void()>>>> cbs;

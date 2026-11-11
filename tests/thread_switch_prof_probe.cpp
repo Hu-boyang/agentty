@@ -1,22 +1,22 @@
-// thread_switch_prof_probe — where does a thread SWITCH actually spend
-// its time, on the UI thread?
+// thread_switch_prof_probe - 在哪里进行? 线程 SWITCH
+// 实际花时间,在 UI 线程?
 //
-// The load already runs on a worker (cmd_factory::load_thread_async uses
-// task_isolated), so the parse cost is NOT what the user waits on. What
-// they wait on is the ThreadLoaded reducer plus the first render, both of
-// which are on the UI thread and both of which run while the screen is
-// frozen.
+// 电话 加载 已经运行在 a 工作线程 (cmd_factory::load_thread_async
+// 使用 task_isolated ),所以, 解析 成本为 不 用户等待的,
+// 他们等待的就是 ThreadLoaded 状态更新函数 加上第
+// 一个 渲染 ,这两个项目都位于 UI 线程 两者都在屏幕被冻结
+// 时运行
 //
-// This measures that path directly: move a loaded Thread into the model,
-// clear the caches, rehydrate the frozen prefix, build the conversation
-// element, and render it — the same sequence, in the same order, as the
-// reducer. Reporting each stage separately is the point; a total tells
-// you nothing about which part to fix.
+// 直接路径的测量: 移动 a 已加载 线程 进入模型,
+// 清除 缓存 ,将冷冻前缀补水,构建对话元素,
+// 以及 渲染 ——顺序相同,顺序相同,与 状态更新函数。
+// 每个阶段单独报告是重点;一个总数并不能
+// 说明需要解决的哪一部分。
 //
 //   ./build/agentty_standalone_tests thread_switch_prof_probe <thread> [width]
 //
-// Accepts .json or .jsonl so the same thread can be measured either side
-// of the migration. No argument = no-op pass.
+// 接受 . 接受 接受 的 接受 , 接受 同意 的 同意 , 同意 接受。 JSON 或
+// Jsonl这样一样 线程 迁移的两边都可以测量。 -op 过.
 
 #include <agentty/domain/session.hpp>
 #include <agentty/io/persistence.hpp>
@@ -47,14 +47,14 @@ double ms_since(clk::time_point t) {
     return std::chrono::duration<double, std::milli>(clk::now() - t).count();
 }
 
-// Median of a few runs — one sample of a millisecond-scale operation is
-// mostly scheduler noise.
+// 少数运行的中位数——一个毫秒
+// -scale操作的样本大多是排程噪音.
 double median(std::vector<double> v) {
     std::sort(v.begin(), v.end());
     return v.empty() ? 0.0 : v[v.size() / 2];
 }
 
-} // namespace
+} // 命名空间结束。
 
 int main(int argc, char** argv) {
     if (argc < 2) {
@@ -65,7 +65,7 @@ int main(int argc, char** argv) {
     const fs::path p = argv[1];
     const int width = (argc > 2) ? std::atoi(argv[2]) : 120;
 
-    // ── Off the UI thread: the load. Timed, but NOT part of the wait. ──
+    // ── 离UI 线程:加载. 时光,但NOT部分等待. ──
     auto t = clk::now();
     std::optional<Thread> loaded;
     if (p.extension() == ".jsonl") {
@@ -85,12 +85,12 @@ int main(int argc, char** argv) {
     std::printf("\n  worker thread (user does NOT wait):\n");
     std::printf("    load + parse            %7.2f ms\n", load_ms);
 
-    // ── On the UI thread: everything the reducer does. ────────────────
+    // ── 上场 UI 线程 : 一切,我们 状态更新函数 已经。 ────────────────
     std::vector<double> swap_v, rehyd_v, cfg_v, build_v, render_v;
     constexpr int kRuns = 5;
     for (int i = 0; i < kRuns; ++i) {
         Model m;
-        Thread copy = *loaded;          // the reducer moves an owned Thread
+        Thread copy = *loaded;          // 编号 状态更新函数 移动自有的 线程
 
         t = clk::now();
         m.d.current = std::move(copy);
@@ -130,13 +130,13 @@ int main(int argc, char** argv) {
     std::printf("    %-23s %7.2f ms  <- perceived switch cost\n",
                 "TOTAL on UI thread", swap + rehyd + cfg + build + render);
 
-    // The number that decides whether windowed reads are worth it: how
-    // much of the UI-thread cost scales with THREAD length rather than
-    // SCREEN size. rehydrate_frozen is already bounded; the model swap is
-    // a move plus a cache clear, both O(1)-ish; the rest is per-visible-row.
-    // The number that decides whether windowed reads are worth it: how
-    // much of the UI-thread cost scales with THREAD length rather than
-    // SCREEN size.
+    // 决定窗口是否读取的号码值得: UI-thread 成本比额表
+    // THREAD 长度而不是 SCREEN 大小。
+    // rehydrate_frozen 已设定了边框; 模式交换是一个动作加一个
+    // 缓存 清空,O(1)两个 -ish ;其余为每 -visible-row.
+    // 决定窗口是否读取的号码值得: UI-thread
+    // 成本比额表 THREAD 长度而不是 SCREEN
+    // 大小。
     {
         Model m;
         m.d.current = *loaded;

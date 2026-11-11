@@ -1,37 +1,37 @@
-// reasoning_ssot_test — "reasoning ‹off›" in the picker means off on the wire.
+// reasoning_ssot_test — "reasoning ‹off›" 输入 选择面板 意思是离开 传输.
 //
-// ── THE BUG ──────────────────────────────────────────────────────────────
+// ── 该 BUG 国 务 院 ──────────────────────────────────────────────────────────────
 //
-// The model picker's effort strip read `reasoning ‹off›` while every single
-// Copilot request went out asking for reasoning:
+// 模型( 模型) 选择面板 工作条读作 `reasoning ‹off›`
+// 每一个副驾驶请求都出门 要求推理:
 //
-//     responses.request: … model=gpt-5.4 tools=45 reasoning=1 bytes=99174
+//     responses.request :... 模型=gpt-5.4工具=45推理=1 字节=99174
 //
-// and the user got thinking blocks they had switched off, and paid for the
-// tokens. Three separate inputs could each answer "do we want reasoning",
-// and they disagreed:
+// 用户有他们关闭的思维障碍,并支付代币。三个不同的输入
+// 可以回答"do we want reasoning",
+// 他们不同意:
 //
-//   1. the effort strip (m.d.effort)  — the live, per-model control, and
-//                                       the only one bound to a key
-//   2. m.d.show_reasoning             — the old ^R toggle. Its reducer arm
-//                                       still existed but NOTHING dispatched
-//                                       it (^R is review), so the flag was
-//                                       frozen at whatever settings.json
-//                                       happened to hold — `true` here.
-//   3. ui.thinking != Hidden          — Appearance's DISPLAY preference
+//   1. 努力带( m.d.effort ——活体,每 -model 控制,以及
+//                                       唯一一个绑着钥匙的
+//   2. m.d.show_reasoning - 旧的 ^R 切换。该主题 状态更新函数 手臂
+//                                       仍然存在,但 无内容 派遣( ^R ),
+//                                       所以, 标志 被冻在任何
+//                                       settings.json
+//                                       恰巧抱着... `true` 给
+//   3. ui.thinking 隐藏着 外表 DISPLAY 偏好
 //
-// On top of that, build_body sent `reasoning: {summary: "auto"}` when no
-// effort tier was set. That is not "no opinion" — it is an explicit request
-// for a reasoning summary. So even with every toggle off, the wire asked.
+// 再说一遍 build_body 发送
+// `reasoning: {summary: "auto"}` 那时没有分层工作,
+// 那不是 "no opinion" ——这是对推理摘要的明确要求。 切换 关,关 传输 问.
 //
-// ── THE RULE ─────────────────────────────────────────────────────────────
+// ── 该 RULE ─────────────────────────────────────────────────────────────
 //
-//     The effort strip is the SSOT. No tier → no reasoning on the wire.
+//     努力的条条是 SSOT 无等级 − 没有关于 传输.
 //
-// "How hard should this model think" is a property of the model you are
-// picking. "Do I want to look at it" is a property of your UI, and belongs
-// to Appearance — but a DISPLAY choice must never silently change what we
-// REQUEST, because that is how tokens get paid for and dropped.
+// 模型应该投入多少思考力度？
+// 是一个你所选的模型的财产。 "Do I want to look at it"
+// 属于你的财产 UI ,属于外观——但 DISPLAY 选择永远不能
+// 悄悄改变我们 REQUEST 因为这是支付和放弃象征的方式。
 
 #include <string>
 
@@ -47,7 +47,7 @@ using json = nlohmann::json;
 
 namespace {
 
-// A minimal well-formed request; the effort tier is what each case varies.
+// 一条小井 -formed ; 努力级别是每个案件不同之处。
 provider::Request req_with_effort(std::string effort) {
     provider::Request req;
     req.model         = "gpt-5.4";
@@ -61,23 +61,23 @@ provider::Request req_with_effort(std::string effort) {
     return req;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("reasoning ssot: no effort tier sends no reasoning field") {
-    // The exact configuration from the bug report: the strip says off, so
-    // nothing about reasoning may appear on the wire. Sending
-    // `{"summary":"auto"}` here is what produced thinking blocks on a turn
-    // the user had switched off.
+    // 错误报告的确切配置: 条形文字取消, 所以在其中可能
+    // 没有关于推理的内容。 传输 发送
+    // `{"summary":"auto"}` 这里的思维是 用户
+    // 关闭的转弯处 产生的思想块
     const json body = cc::build_body_for_test(req_with_effort(""));
 
     CHECK(!body.contains("reasoning"));
 }
 
 TEST_CASE("reasoning ssot: an effort tier sends that tier plus a summary") {
-    // The other half of the contract — `off` meaning off is only useful if
-    // a real tier still asks for the summary text. Without `summary` a
-    // reasoning model burns thinking tokens and returns no visible trace,
-    // which is the same waste in the opposite direction.
+    // 合同的另一半是... `off` 意思关闭只有在
+    // 真正的层次仍然要求摘要文本时才有用。
+    // 没有 `summary` 推理模型烧掉思维符号,
+    // 返回的痕迹没有可见,而这是相反方向的同样的废物。
     for (const char* tier : {"minimal", "low", "medium", "high", "xhigh"}) {
         const json body = cc::build_body_for_test(req_with_effort(tier));
 
@@ -88,9 +88,9 @@ TEST_CASE("reasoning ssot: an effort tier sends that tier plus a summary") {
 }
 
 TEST_CASE("reasoning ssot: the field is present iff a tier is set") {
-    // State the invariant as one biconditional, so a future edit that adds
-    // a third arm ("omit the tier but keep the summary", the exact shape of
-    // the original bug) fails here rather than on someone's bill.
+    // 说明 不变量 做为双条件,所以未来的编辑,增加第三个臂(
+    // 省略力度等级，但保留摘要。
+    // 原始虫子的确切形状) 而不是在某人的帐单上失败了.
     for (const char* tier : {"", "minimal", "low", "medium", "high", "xhigh"}) {
         const std::string effort{tier};
         const json body = cc::build_body_for_test(req_with_effort(effort));

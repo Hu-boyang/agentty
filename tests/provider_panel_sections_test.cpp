@@ -1,13 +1,13 @@
-// provider_panel_sections_test — the ^P provider picker's SECTIONED browse
-// view, asserted against real rendered cells.
+// provider_panel_sections_test - 电话 ^P 提供者 选择面板's
+// SECTIONED 浏览观点,对真实的表达 存储单元.
 //
-// `^P` is the surface where you MANAGE backends, so browsing leads with the
-// providers you can actually use and collapses the rest of the registry into
-// one "N more providers · type to search" signpost. The headers and that
-// signpost are SPELLED in the view, so this renders through the real view +
-// maya and reads them back off the canvas: a source-text assertion can't tell
-// you the hint is reachable, or that hiding a row didn't also make it
-// unfindable.
+// `^P` 就是你所在的表面 ? ? ! ? 吗? MANAGE 后端,
+// 所以浏览线索 与提供者,你能够实际使用 和崩溃 其余的 注册表 变成
+// 一个 "N more providers · type to search" 路标,
+// 那个 头文件 和标志牌是 SPELLED 风景中,
+// 所以这个 渲染 通过真实视图+ maya 并把它们从画布上读回来:
+// 一个来源 -text 说不出提示是可以达到的 或隐藏一行并不
+// 等于无法找到
 
 #include "agtest.hpp"
 
@@ -31,8 +31,8 @@ namespace pn = agentty::ui::panel;
 
 namespace {
 
-// Non-ASCII folds to '?' — the section titles and the hint are ASCII, and the
-// badge chrome around them is not what we're asserting on.
+// 无 -ASCII 归并 改为 '?' ——节标题和提示为:
+// ASCII 和徽章 铬周围不是我们所主张的。
 std::string render_panel(const Model& m, int width = 110, int height = 220) {
     auto root = ui::providers_panel(m);
     maya::StylePool pool;
@@ -67,30 +67,30 @@ Model picker_model(std::string query = {}) {
     return m;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("provider picker: browse hides unconfigured behind one signpost") {
-    // Nothing configured — the fresh-install shape. The vendor registry must
-    // NOT be dumped as a wall of identical amber rows.
+    // 没有配置到新。 -install 销售商 注册表
+    // 不得 被丢弃为一堵墙 相同的琥珀排。
     Model m = picker_model();
     const std::string screen = render_panel(m);
     INFO(screen);
 
-    // The signpost is present and names the VERB, not just a count.
+    // 路标在座,并命名为VERB,而不仅仅是一个计数.
     CHECK(has(screen, "more providers"));
     CHECK(has(screen, "Show"));
 
-    // Providers you haven't set up are not in the browse list.
+    // 你没有建立供应商 不在浏览列表中。
     CHECK_FALSE(has(screen, "Cerebras"));
     CHECK_FALSE(has(screen, "Fireworks"));
 
-    // "Custom host…" stays reachable: it's the one row that always applies.
+    // "Custom host…"仍然可以达到:它总是适用的一行.
     CHECK(has(screen, "ADD"));
 }
 
 TEST_CASE("provider picker: ^E expands the withheld providers in place") {
-    // The signpost must be ACTIONABLE, not just informative. Expanding keeps
-    // the picker open and reveals the rows it was standing in for.
+    // 路标一定是 ACTIONABLE ,不仅仅是信息。
+    // 选择面板 打开并揭示它站立的行。
     Model m = picker_model();
     auto* p = m.ui.panel.get<pn::Providers>();
     REQUIRE(p != nullptr);
@@ -102,23 +102,23 @@ TEST_CASE("provider picker: ^E expands the withheld providers in place") {
     CHECK(has(screen, "Cerebras"));
     CHECK(has(screen, "DeepSeek"));
     CHECK(has(screen, "NOT CONFIGURED"));
-    // Nothing is withheld any more, so the signpost retires.
+    // 不再扣下任何物品 所以路标就退休了
     CHECK_FALSE(has(screen, "more providers"));
-    // The footer offers the way back.
+    // 足者为后道.
     CHECK(has(screen, "fewer"));
 }
 
 TEST_CASE("provider picker: Enter on the signpost expands, doesn't close") {
-    // The signpost shares the NewCustomHost payload with the "Custom host..."
-    // sentinel, so Enter on it must be intercepted BEFORE the close/switch
-    // path or it would open the host prompt instead of expanding.
+    // 路标上有 NewCustomHost 载荷 与 "Custom host..." 哨兵,
+    // 所以,我叫你们... Enter 一定要被拦截 之前 编号
+    // close/switch 路径或打开主机 提示词 而不是扩张。
     namespace P = agentty::provider;
     Model m;
     m.ui.panel.descend(pn::Providers{});
 
-    // Must mirror the reducer's own build exactly -- it passes the active
-    // provider id, which can re-order rows, so an index derived without it
-    // would point at a different row.
+    // 一定要照镜子 状态更新函数 自己的建筑-- 它通过活动
+    // 提供方 ID,它可以重新 -order 排,
+    // 所以一个索引不通过它就指向不同的排。
     const auto active = m.d.selection.catalog_id();
     const auto rows = ui::build_sectioned_provider_rows(
         {}, "", m.d.persisted, m.d.auth, active, false);
@@ -135,9 +135,9 @@ TEST_CASE("provider picker: Enter on the signpost expands, doesn't close") {
     auto [m2, cmd] = app::update(std::move(m), Msg{ProvidersSelect{}});
 
     auto* p2 = m2.ui.panel.get<pn::Providers>();
-    REQUIRE(p2 != nullptr);              // still open -- not a destination
+    REQUIRE(p2 != nullptr);              // 仍然开放 -- -- 不是目的地
     CHECK(p2->show_all);
-    // The cursor parked on the first revealed row, so the payoff is under it.
+    // 光标停在第一显示的行上,所以报酬就在它下面.
     const auto after = ui::build_sectioned_provider_rows(
         {}, "", m2.d.persisted, m2.d.auth, active, true);
     REQUIRE(p2->index < static_cast<int>(after.rows.size()));
@@ -145,17 +145,17 @@ TEST_CASE("provider picker: Enter on the signpost expands, doesn't close") {
               == ui::ProviderSection::More);
 }
 
-// ── Key path ─────────────────────────────────────────────────────────────
+// ── 密钥路径 ─────────────────────────────────────────────────────────────
 //
-// The rows above are built by a pure function; these press REAL keys through
-// app::on_key so a binding that never reaches the reducer is caught here
-// rather than by hand in the terminal.
+// 上面的行是由纯函数构建的; 这些按 真实 键通过 app::on_key
+// 如此的,这样 绑定 永远无法到达 状态更新函数 被困在
+// 这里 而不是被手牵扯进来 终端.
 
 TEST_CASE("provider picker: ^E toggles through the real key path") {
-    // A terminal sends ^E as the bare control byte 0x05 with no ctrl flag;
-    // some send the letter with mods.ctrl. BOTH must work -- char_view folds
-    // 0x01..0x1A to a letter and synthesises ctrl, and if either encoding
-    // missed the binding the key would look flaky rather than broken.
+    // A 终端 发送 ^E 以至于无所不能, 字节 0x05 无 ctrl 标志 ;
+    // 发送信件时使用 mods.ctrl. 两者 一定要工作 - 工作时必须工作
+    // - 使用 char_view 归并 0x01.0x1A到字母和合成 ctrl,
+    // 如果其中任一编码错过 绑定 钥匙看起来是片状的,而不是破碎的。
     auto press = [](Model&& mm, maya::KeyEvent ev) {
         if (auto msg = app::on_key(mm, ev))
             mm = app::update(std::move(mm), std::move(*msg)).first;
@@ -167,14 +167,14 @@ TEST_CASE("provider picker: ^E toggles through the real key path") {
         return mm;
     };
 
-    {   // raw 0x05, no modifier flag
+    {   // 原 0x05, 无修改 标志
         maya::KeyEvent ev{maya::CharKey{static_cast<char32_t>(0x05)}, {}, {}};
         Model m2 = press(fresh(), ev);
         auto* p = m2.ui.panel.get<pn::Providers>();
         REQUIRE(p != nullptr);
         CHECK(p->show_all);
     }
-    {   // 'e' with ctrl set
+    {   // 以 ctrl 设置的 'e'
         maya::KeyEvent ev{maya::CharKey{U'e'}, {}, {}};
         ev.mods.ctrl = true;
         Model m2 = press(fresh(), ev);
@@ -182,7 +182,7 @@ TEST_CASE("provider picker: ^E toggles through the real key path") {
         REQUIRE(p != nullptr);
         CHECK(p->show_all);
     }
-    {   // and it TOGGLES -- two presses return to collapsed
+    {   // 和它,这 TOGGLES - 两根压车倒塌
         maya::KeyEvent ev{maya::CharKey{static_cast<char32_t>(0x05)}, {}, {}};
         Model m2 = press(press(fresh(), ev), ev);
         auto* p = m2.ui.panel.get<pn::Providers>();
@@ -192,10 +192,10 @@ TEST_CASE("provider picker: ^E toggles through the real key path") {
 }
 
 TEST_CASE("provider picker: no binding on a multiplexer prefix chord") {
-    // ^A is tmux's default prefix and ^B is screen's: under a multiplexer
-    // the FIRST press is eaten and never reaches us, so a binding there
-    // looks like it needs pressing twice. nav.hpp warns about this; the
-    // rule only holds if something checks it.
+    // ^A tmux 的默认前缀和 ^B 屏幕: 在多轮
+    // 驱动器下 首次 媒体被吃掉,永远无法到达我们,
+    // 所以 绑定 似乎需要两下 nav.hpp 警告这一点;
+    // 只有在有东西检查时,规则才有效。
     auto fresh = [] {
         Model mm;
         mm.ui.panel.descend(pn::Providers{});
@@ -206,7 +206,7 @@ TEST_CASE("provider picker: no binding on a multiplexer prefix chord") {
         maya::KeyEvent ev{maya::CharKey{c}, {}, {}};
         ev.mods.ctrl = true;
         const auto msg = app::on_key(m, ev);
-        // Either nothing, or at least NOT the expand toggle.
+        // 要么什么都没有, 或至少 不 扩展 切换.
         if (msg) {
             const auto* pm = std::get_if<msg::ProvidersMsg>(&*msg);
             if (pm)
@@ -216,7 +216,7 @@ TEST_CASE("provider picker: no binding on a multiplexer prefix chord") {
 }
 
 TEST_CASE("provider picker: typing stays typing, ^A is not swallowed") {
-    // ^A must not land in the filter query, and a bare 'a' must not toggle.
+    // ^A 不得在过滤查询中降落, 并空空 'a' 绝对不能 切换.
     Model m;
     m.ui.panel.descend(pn::Providers{});
 
@@ -230,13 +230,13 @@ TEST_CASE("provider picker: typing stays typing, ^A is not swallowed") {
 }
 
 TEST_CASE("provider picker: the row list is never a stale snapshot") {
-    // THE bug that read as a flaky key. providers_update used to build the
-    // row list ONCE on entry, so any arm running after a mutation saw the
-    // PREVIOUS state: after ^E expanded the list, `n` was still the
-    // collapsed length, ProvidersMove clamped the cursor to it, and Enter
-    // or ^D on a revealed row did nothing. Single-threaded, fully
-    // deterministic -- but it looked like a race because it depended on
-    // the key SEQUENCE, not on any one key.
+    // 该 读取为 flashy 键的bug。 providers_update
+    // 用于构建行列表 一次 所以任何手臂在变异后 都会在进入时
+    // PREVIOUS 状态: 之后 ^E 扩大清单,
+    // `n` 仍然有断裂的长度 ProvidersMove 将光标夹住,
+    // 然后 Enter 或 或 时 间 ^D 单人一行 -threaded
+    // 完全决定了... 但看起来就像... 竞态 因为它取决于钥匙
+    // SEQUENCE 任何钥匙上都没有
     auto press = [](Model&& mm, Msg msg) {
         return app::update(std::move(mm), std::move(msg)).first;
     };
@@ -252,39 +252,39 @@ TEST_CASE("provider picker: the row list is never a stale snapshot") {
         ui::build_sectioned_provider_rows(
             {}, "", m.d.persisted, m.d.auth,
             m.d.selection.catalog_id(), true).rows.size());
-    REQUIRE(expanded > collapsed);       // there is something to reveal
+    REQUIRE(expanded > collapsed);       // 一定有办法 逐步显示
 
     m = press(std::move(m), Msg{ProvidersToggleAll{}});
     REQUIRE(m.ui.panel.get<pn::Providers>()->show_all);
 
-    // Walk to the very end. With the stale snapshot this stopped at the
-    // COLLAPSED length and the last rows were unreachable.
+    // 走到尽头,带着... 过期 快照 停止在
+    // COLLAPSED 长度和最后一行无法到达。
     for (int i = 0; i < expanded * 2; ++i)
         m = press(std::move(m), Msg{ProvidersJump{ProvidersJump::Where::End}});
 
     auto* p = m.ui.panel.get<pn::Providers>();
     REQUIRE(p != nullptr);
     CHECK(p->index == expanded - 1);
-    CHECK(p->index >= collapsed);        // genuinely past the old ceiling
+    CHECK(p->index >= collapsed);        // 真正越过旧天花板
 
-    // And a step down from the end wraps rather than sticking.
+    // 并且从最后一步下来 而不是坚持。
     m = press(std::move(m), Msg{ProvidersMove{+1}});
     CHECK(m.ui.panel.get<pn::Providers>()->index == 0);
 }
 
 TEST_CASE("provider picker: collapsing never strands the cursor") {
-    // The mirror case: ^E while parked on a revealed row must pull the
-    // cursor back inside the shorter list, not leave it pointing past the
-    // end where Enter would silently do nothing.
+    // 镜案: ^E 将光标拉回短
+    // 列表中 而不是让它指向终点
+    // Enter 默默无所作为
     auto press = [](Model&& mm, Msg msg) {
         return app::update(std::move(mm), std::move(msg)).first;
     };
 
     Model m;
     m.ui.panel.descend(pn::Providers{});
-    m = press(std::move(m), Msg{ProvidersToggleAll{}});          // expand
+    m = press(std::move(m), Msg{ProvidersToggleAll{}});          // 扩展
     m = press(std::move(m), Msg{ProvidersJump{ProvidersJump::Where::End}});
-    m = press(std::move(m), Msg{ProvidersToggleAll{}});          // collapse
+    m = press(std::move(m), Msg{ProvidersToggleAll{}});          // 崩溃
 
     auto* p = m.ui.panel.get<pn::Providers>();
     REQUIRE(p != nullptr);
@@ -298,9 +298,9 @@ TEST_CASE("provider picker: collapsing never strands the cursor") {
 }
 
 TEST_CASE("provider picker: each section header appears at most once") {
-    // Rows must be emitted in SECTION order. Saved hosts and ACP agents are
-    // tagged YOURS but were once appended AFTER the not-configured band,
-    // which made the YOURS divider render a second time mid-list.
+    // 必须在 SECTION 秩序。 秩序。 已保存 东道主和 ACP 特工被
+    // 标记了 YOURS 但曾经被附在 之后 无法 -configured 乐队,
+    // 它创造了 YOURS 分隔符 渲染 第二次中场 -list.
     auto count_of = [](const std::string& s, const std::string& needle) {
         int n = 0;
         for (std::size_t at = 0; (at = s.find(needle, at)) != std::string::npos; ++at)
@@ -308,14 +308,14 @@ TEST_CASE("provider picker: each section header appears at most once") {
         return n;
     };
 
-    // Collapsed, expanded, and searching -- all three assemble the list.
+    // 折叠,扩充,搜索——三个都组装了列表.
     {
         Model m = picker_model();
         m.d.persisted.provider_keys["my-box:8080"] = "k";
         const std::string s = render_panel(m, 110, 400);
         INFO(s);
         CHECK(count_of(s, "YOURS") == 1);
-        // The saved custom host is in YOURS, above any later band.
+        // 电话 已保存 自定义主机在 YOURS ,高于任何以后的乐队。
         const auto host = s.find("my-box");
         if (host != std::string::npos) {
             const auto add = s.find("ADD");
@@ -330,7 +330,7 @@ TEST_CASE("provider picker: each section header appears at most once") {
         INFO(s);
         CHECK(count_of(s, "YOURS") == 1);
         CHECK(count_of(s, "NOT CONFIGURED") == 1);
-        // Every YOURS row precedes the not-configured divider.
+        // 每一个 YOURS 排在非行前 -configured 分数。
         const auto host = s.find("my-box");
         const auto notc = s.find("NOT CONFIGURED");
         REQUIRE(host != std::string::npos);
@@ -340,9 +340,9 @@ TEST_CASE("provider picker: each section header appears at most once") {
 }
 
 TEST_CASE("provider picker: the active provider leads YOURS even unauthed") {
-    // You are running on it, so the ● marker belongs in YOURS -- but the
-    // badge must still tell the truth about the missing credential, and it
-    // must not render as a dim "Enter to set up" offer.
+    // 你正在运行它,所以 标记属于 YOURS - 但是警徽必须
+    // 说出失踪的真相 凭据 ,它不能这样做 渲染 暗淡的 暗淡 暗淡
+    // "Enter to set up" 提供。
     Model m = picker_model();
     const auto rows = ui::build_sectioned_provider_rows(
         {}, "", m.d.persisted, m.d.auth, "anthropic", false);
@@ -352,7 +352,7 @@ TEST_CASE("provider picker: the active provider leads YOURS even unauthed") {
     REQUIRE(p != nullptr);
     CHECK(std::string{p->id} == "anthropic");
     CHECK(first.section == ui::ProviderSection::Yours);
-    CHECK_FALSE(first.offer);          // never "Enter to set up"
+    CHECK_FALSE(first.offer);          // 永远不要"Enter to set up"
 }
 
 TEST_CASE("provider picker: a configured provider is promoted into YOURS") {
@@ -363,26 +363,26 @@ TEST_CASE("provider picker: a configured provider is promoted into YOURS") {
 
     CHECK(has(screen, "YOURS"));
     CHECK(has(screen, "Groq"));
-    // Still hidden: configuring one vendor must not unhide its neighbours.
+    // 仍隐蔽:配置一个供应商不得泄露其邻居.
     CHECK_FALSE(has(screen, "Cerebras"));
 }
 
 TEST_CASE("provider picker: search reaches a provider browse hides") {
-    // The no-dead-end contract. Hiding is a BROWSE decision; typing a name
-    // must still find it, or we've made the feature unreachable.
+    // 没有 -dead-end 隐藏是一个 BROWSE
+    // 输入名称必须找到, 否则我们无法接触到这个特性。
     Model m = picker_model("cerebras");
     const std::string screen = render_panel(m);
     INFO(screen);
 
     CHECK(has(screen, "Cerebras"));
-    // It renders as an offer with its single action, not as a key warning.
+    // 来,来,来 渲染 作为一种提议,只要有行动,而不是关键的警告。
     CHECK(has(screen, "Enter to set up"));
-    // The signpost belongs to the browse view only.
+    // 标点牌只属于浏览视图.
     CHECK_FALSE(has(screen, "more providers"));
 }
 
 TEST_CASE("provider picker: configured rows lead the unconfigured in search") {
-    Model m = picker_model("e");            // matches many vendors
+    Model m = picker_model("e");            // 匹配许多供应商
     m.d.persisted.provider_keys["cerebras"] = "k";
     const std::string screen = render_panel(m);
     INFO(screen);
@@ -393,25 +393,25 @@ TEST_CASE("provider picker: configured rows lead the unconfigured in search") {
     if (notconf != std::string::npos)
         CHECK(configured < notconf);
 
-    // Cerebras is the configured one, so it sorts above the band divider.
+    // 脑管是配置的,所以它排序在乐队分机上方.
     const auto cer = screen.find("Cerebras");
     REQUIRE(cer != std::string::npos);
     if (notconf != std::string::npos) CHECK(cer < notconf);
 }
 
-// ── Multi-account surfacing ──────────────────────────────────────────────
+// ── 多个 -account 表面画 ──────────────────────────────────────────────
 //
-// Entitlement is account-scoped, so two accounts on one provider can serve
-// DIFFERENT model lists. The identity is named on the picker's section
-// header (and the status badge), never per row: the account is not part of
-// what a model IS. See docs/IDENTITY_CAPABILITY_ENTITLEMENT.md.
+// 应享权利为账户 -scoped ,因此一个供应商的两个账户可以服务
+// 不同 模式列表。该身份在 选择面板 区域 头文件 (和状态徽章),
+// 从不每行:账户不是什么模型的一部分 IS。
+// 见 docs/IDENTITY_CAPABILITY_ENTITLEMENT.md.
 
 TEST_CASE("model picker: footer hints describe the HIGHLIGHTED row") {
-    // A hint is a promise about what the key will do NOW. ^F is a toggle,
-    // so on a row that is already starred it unstars -- saying "favorite"
-    // there describes the state instead of the action. And a sign-in offer
-    // has no model to star at all, so the hint must go rather than name an
-    // action that silently does nothing.
+    // 提示就是保证钥匙会做什么 当前. ^F 是一个 切换 ,
+    // 所以在一排已经主演 它的unstars --
+    // "favorite" 上面描述的是状态而不是动作。
+    // 还有一个标志 -in 提供根本没有任何模式可以显示,所以暗示必须去掉,
+    // 而不是点出一个默默无闻的动作。
     auto render = [](const Model& mm) {
         auto root = ui::models_panel(mm);
         maya::StylePool pool;
@@ -429,7 +429,7 @@ TEST_CASE("model picker: footer hints describe the HIGHLIGHTED row") {
         return s;
     };
 
-    {   // A plain row: ^F adds a favorite.
+    {   // 平话行:^F加了一个最爱.
         Model m;
         m.ui.panel.descend(pn::Models{});
         FusedRow r;
@@ -443,7 +443,7 @@ TEST_CASE("model picker: footer hints describe the HIGHLIGHTED row") {
         CHECK(has(s, "favorite"));
         CHECK_FALSE(has(s, "unfavorite"));
     }
-    {   // Already a favorite: the same key REMOVES it.
+    {   // 已经是最喜欢的了, 同样的钥匙 REMOVES。
         Model m;
         m.ui.panel.descend(pn::Models{});
         FusedRow r;
@@ -460,10 +460,10 @@ TEST_CASE("model picker: footer hints describe the HIGHLIGHTED row") {
 }
 
 TEST_CASE("model picker: a scoped list never claims to search all providers") {
-    // The title said "Anthropic only" while the search box invited you to
-    // filter "across providers" -- two contradictory claims on one screen.
-    // And ^/ is the way back out, so its hint must say so or a narrowed
-    // list looks like a trap.
+    // 标题说 "Anthropic only" 搜索框邀请您过滤
+    // "across providers" - 在一个屏幕上有两个相互矛盾的说法。
+    // 而^/是后退的出路,所以它的提示必须这么说,或者一个缩小
+    // 的列表看起来像陷阱.
     Model m;
     m.ui.panel.descend(pn::Models{});
     auto* mp = m.ui.panel.get<pn::Models>();
@@ -493,19 +493,19 @@ TEST_CASE("model picker: a scoped list never claims to search all providers") {
         return s;
     };
 
-    {   // Unscoped: the cross-provider promise is true, keep it.
+    {   // 失察:跨-provider承诺是真实的,要坚持下去.
         const std::string s = render();
         INFO(s);
         CHECK(has(s, "across providers"));
     }
-    {   // Scoped: it must not claim to reach past the one provider, and the
-        // footer must name the way back.
+    {   // 范围:它不得声称通过一个提供者,以及
+        // 脚步必须命名返回的路。
         mp->provider_scope = "anthropic";
         const std::string s = render();
         INFO(s);
         CHECK_FALSE(has(s, "across providers"));
         CHECK(has(s, "this provider"));
-        CHECK(has(s, "all providers"));      // ^/ hint, the escape hatch
+        CHECK(has(s, "all providers"));      // ^/ 提示, 逃生舱
     }
 }
 
@@ -543,14 +543,14 @@ TEST_CASE("model picker: the scoped header names the active account") {
     }
     INFO(screen);
 
-    // The header carries the identity whose catalog this is.
+    // 电话 头文件 具有下列身份: 目录 这是。
     CHECK(has(screen, "WORK"));
-    // The model row itself stays clean — the account is named once, on the
-    // header, not repeated down the list where it would steal width.
+    // 模型行本身保持干净——账户被命名一次,
+    // 在头文件上,不重复它会窃取宽度的列表.
     const auto hdr = screen.find("ANTHROPIC MODELS");
     REQUIRE(hdr != std::string::npos);
     const auto hdr_eol = screen.find('\n', hdr);
-    // Exactly one WORK on screen, and it's on the header line.
+    // 只有一个 WORK 屏幕上,它就在屏幕上 头文件 线条。
     CHECK(screen.find("WORK") < hdr_eol);
     CHECK(screen.find("WORK", hdr_eol) == std::string::npos,
           "the account appears once, on the header — not per model row");
@@ -590,7 +590,7 @@ TEST_CASE("model picker: a single-account provider adds no chrome") {
     }
     INFO(screen);
 
-    // One account is no choice at all — naming it would be noise.
+    // 一个说法是绝对没有选择的——命名它就是噪音。
     CHECK_FALSE(has(screen, "WORK"));
 }
 

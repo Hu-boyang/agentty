@@ -1,44 +1,44 @@
 #pragma once
-// agentty::dirs — WHERE agentty's bytes live, and HOW LONG they live there.
+// agentty::dirs — WHERE agentty 的 字节 住在那里，而 HOW LONG 他们住在那里。
 //
-// The write-side peer of agentty::scope.
+// 将-side写入对端的agentty::scope。
 //
-// scope made config LOOKUP total: one algebra (Locus × Dialect), provenance
-// on every hit, no caller re-deriving precedence. It answers "where do I
-// READ this from?".
+// 范围配置LOOKUP总计：一个代数（轨迹×方言），每次命中的出处，
+// 没有调用者re-deriving优先级。
+// 它回答 "where do I READ this from?"。
 //
-// Nothing answered "where do I WRITE this to?", and that half grew the way
-// config did before scope: one decision at a time, at each call site. The
-// result, measured:
+// 没有任何答案回答 "where do I WRITE this to?"，
+// 并且配置在范围之前的方式增长了一半：在每个 调用 站点一次做出一个决定。
+// 测量结果：
 //
-//   - memory clamps its project path to project_root()
-//   - rag uses raw fs::current_path() at FIVE separate sites
-//   - skills deliberately passes "." and carries a NOTE explaining why it
-//     disagrees with memory
+//   -内存将其项目路径固定到project_root()
+//   - rag 在 FIVE 单独站点使用原始 fs::current_path()
+//   -技能故意传递"."并携带NOTE解释其原因
+//     不同意内存
 //
-// A comment explaining why one consumer disagrees with another is the shape
-// of a missing primitive.
+// 解释为什么一个消费者不同意另一个消费者的评论是
+// 缺失基元的形状。
 //
-// And nothing had a LIFECYCLE at all. user_root's resolve_subdir() answers
-// `where`; no function answered `for how long`. That is why a 47 MB .ragdb
-// from a superseded naming scheme can sit on disk forever (#62) — the leak
-// is not an oversight in the rag code, it is that nothing ever asked.
+// 并且根本没有LIFECYCLE。 user_root 的 resolve_subdir
+// () 回答 `where`；没有函数回答 `for how long`。
+// 这就是为什么来自被取代的命名方案的 47 MB .ragdb 可以永远保留在
+// 磁盘上 (#62) — 泄漏不是 rag 代码中的疏忽，而是没有任何人询问。
 //
-// ── The contract, and why it is shaped like scope's ──────────────────────
+// ── 合同,为什么它形状 像范围 ──────────────────────
 //
-// A caller hands over a Spec: which root, what leaf, which override var,
-// how long it lives. dirs knows NOTHING about who its callers are — no enum
-// of features, no filenames baked in here. That would invert the dependency
-// and turn this primitive into a registry of everything downstream, which
-// is precisely the property that makes scope::Layout work.
+// 调用者移交规范：哪个根、哪个叶、哪个覆盖var、
+// 它的寿命有多长。 dirs 知道 无内容 的调用者是谁
+// ——没有 枚举 的功能，这里没有文件名。这将反转依赖
+// 关系并将这个原语变成所有 下游 的 注册表，
+// 这正是使 scope::Layout 工作的属性。
 //
-//     agentty::scope  :  Layout  →  read roots, by precedence
-//     agentty::dirs   :  Spec    →  one write root, with a lifecycle
+//     agentty::scope:布局→读取根，
+//     按优先级agentty::dirs:规范→一个写入根，具有生命周期
 //
-// Total, not partial: every resolution yields a path AND its provenance, or
-// a typed error. Never an empty path that each caller re-interprets — that
-// pattern is what scope-model.md calls "partial functions pretending to be
-// total", and it is how the MCP "toggled the wrong file" bug happened.
+// 全部，而非部分：每个解析产生其出处的路径AND，或带类型的错误。每个调用者都不会出现空路径，
+// 即 -interprets — 该模式就是 scope-model.md 调用
+// 把偏函数伪装成全函数。
+// 这就是 MCP "toggled the wrong file" 错误发生的方式。
 
 #include <chrono>
 #include <expected>
@@ -51,53 +51,53 @@ namespace agentty::dirs {
 
 namespace fs = std::filesystem;
 
-// ── Root: whose tree, and therefore what it follows ──────────────────────
-// Two values, not five. The long note in util/user_root.hpp argues why
-// agentty has ONE user root rather than XDG's four; the same reasoning caps
-// this enum. A root exists here only when it answers a genuinely different
-// question about WHAT THE DATA FOLLOWS.
+// ── 根: 谁 源码树 ,因此,它接下来 ──────────────────────
+// 两个值，而不是五个。 util/user_root.hpp 中的长注释
+// 争论了为什么 agentty 有 一个 用户 root 而不是 XDG 的四个；
+// 同样的推理也适用于这个 枚举。仅当它回答有关 内容 该 DATA FOLLOWS
+// 的真正不同的问题时，根才存在于此处。
 enum class Root {
-    // ~/.agentty — follows the HUMAN. Settings, credentials, threads,
-    // learned memory, logs: things that should be identical regardless of
-    // which checkout you are standing in.
+    // ~/.agentty-遵循HUMAN。设置、
+    // 凭据、线程、学习 内存、日志：无论您站在哪个结帐处，
+    // 这些内容都应该相同。
     User,
 
-    // <anchor>/.agentty — follows the CODE. Retrieval indexes, feedback:
-    // things that are meaningless away from the tree that produced them and
-    // must not be shared between unrelated checkouts.
+    // <anchor>/.agentty —遵循 CODE。检索索引、反馈：
+    // 远离产生它们的源码树而无意义的事物并且
+    // 不能在不相关的结账之间共享。
     Project,
 };
 
-// ── Lifecycle: declared WITH the path, on purpose ────────────────────────
-// This field is the structural fix for #62. Putting retention in the Spec
-// means ADDING A STORE FORCES THE DECISION — you cannot introduce a new
-// directory without saying, at the declaration site, whether anything ever
-// reclaims it. A default of "forever" is then a choice someone made rather
-// than a question nobody asked.
+// ── 生命周期:故意宣布WITH为路径 ────────────────────────
+// 该字段是#62的结构修复。将保留放在规范中意味着
+// ADDING A STORE FORCES 该
+// DECISION — 如果在声明站点上不说明是否有任何内容回收它，
+// 则无法引入新目录。默认值 "forever" 是某人做出的选择，
+// 而不是没人问的问题。
 struct Lifecycle {
-    // Can this be deleted without losing anything the user cannot get back?
+    // 是否可以将其删除而不丢失用户无法恢复的任何内容？
     //
-    // This is the axis that separates us from blobs::gc, and it matters
-    // more than it looks. blobs::gc is CAUTIOUS because being wrong
-    // destroys conversation history that no amount of recomputation
-    // restores. A .ragdb is rebuildable, so being wrong costs one
-    // re-index. Same mark-and-sweep mechanism, opposite risk posture — and
-    // a shared GC gets that wrong unless the distinction is a field rather
-    // than a convention.
+    // 这是将我们与blobs::gc分开的轴线，并且它比看起来更重要。
+    // blobs::gc 是 CAUTIOUS，
+    // 因为错误会破坏对话历史记录，无论重新计算多少都无法恢复。
+    // .ragdb 是可重建的，因此错误会导致 re
+    // -index 的损失。相同的mark-and-sweep机制，
+    // 相反的风险态势——共享的GC会犯这个错误，除非区别是一个领域
+    // 而不是一个惯例。
     bool rebuildable = false;
 
-    // Keep the N newest matching variants, sweep older ones. 0 ⇒ keep all.
+    // 保留N个最新匹配的变体，扫除旧的。 0 ⇒ 保留全部。
     //
-    // Exists because of a real tension in the rag naming scheme: the
-    // embedder-identity tag in the filename is CORRECT (it stops us serving
-    // vectors from an incompatible space) but it makes the filename set
-    // unbounded. keep_last=1 means A/B-ing two embedders does not force a
-    // full rebuild every time you switch back, while still bounding growth.
+    // 存在是因为 rag 命名方案中存在真正的紧张：文件名
+    // 中的 embedder-identity 标签是 CORRECT
+    // （它阻止我们从不兼容的空间提供向量），但它使文件名集不受限制。
+    // keep_last=1 意味着 A/B-ing 两个
+    // 嵌入器不会在每次切换回来时强制完全重建，同时仍然限制增长。
     unsigned keep_last = 0;
 
-    // Grace window before anything is eligible. Mirrors blobs::gc's reason
-    // for having one: another agentty process may be mid-save, and a
-    // concurrent process may legitimately be running a different config.
+    // 任何事物合格之前的宽限期。镜像 blobs::gc 的
+    // 原因是：另一个 agentty 进程可能是 mid
+    // -save，并且并发进程可能合法地运行不同的配置。
     std::chrono::seconds min_age{0};
 
     [[nodiscard]] constexpr bool sweeps() const noexcept {
@@ -105,53 +105,53 @@ struct Lifecycle {
     }
 };
 
-// ── Spec: what a feature declares about its own storage ──────────────────
+// ── Spec: 特性宣布它自己的存储内容 ──────────────────
 struct Spec {
     Root root = Root::User;
 
-    // The leaf under the resolved root. A subdirectory name ("threads",
-    // "rag"); dirs only ever joins it on.
+    // 已解析的根下的叶。子目录名称（"threads"、"rag"）；
+    // dirs 只会加入它。
     //
-    // EMPTY means "the root itself", for a caller that owns its own
-    // filenames and just wants the directory (rag appends
-    // rag_docs.<embedder-tag>.ragdb). Resolution special-cases it so the
-    // result has no trailing separator — `root / ""` names the same
-    // directory but compares UNEQUAL to `root`, which silently breaks any
-    // "did this path move?" comparison.
+    // EMPTY意味着"the root itself"，对于拥有自己的文件
+    // 名并且只想要目录的调用者（rag附加rag_docs.
+    // <embedder-tag>.ragdb）。分辨率为special-cases，
+    // 因此结果没有尾随分隔符 - `root / ""` 命名相同的目录，
+    // 但将 UNEQUAL 与 `root` 进行比较，这会默默地破坏任何
+    // "did this path move?" 比较。
     std::string_view leaf;
 
-    // Override variable, AGENTTY_<NAME>_DIR. Every directory has one.
+    // 覆盖变量，AGENTTY_<NAME>_DIR。每个目录都有一个。
     std::string_view env = {};
 
-    // Force 0700 on the resolved directory. The default is inherited from
-    // the root, which is enough for the default path and NOT enough for an
-    // override that may point at a 0755 directory the user already made.
+    // 在解析的目录上强制0700。默认值是从根继承的，
+    // 这对于默认路径来说足够了，对于可能指向用户已经
+    // 创建的 0755 目录的覆盖来说，不 也足够了。
     bool owner_only = false;
 
     Lifecycle life{};
 
-    // One line on how long things live here, for `agentty config`. Only
-    // used when nothing sweeps the dir, since then the Lifecycle can't say.
+    // 一行关于事物在这里生存了多久，对于 `agentty config`。
+    // 仅当没有任何东西扫过目录时才使用，从那时起生命周期就不能说了。
     std::string_view retention = {};
 };
 
-// ── Origin: provenance, for the same reason scope tracks Source ──────────
-// A user who set a variable and did not get it deserves to know, and a
-// Storage pane cannot honestly report "where are my bytes" from a bare
-// path. Keeping this on the result is what makes the fallback case
-// debuggable instead of mysterious.
+// ── 来源:来源,原因相同 ──────────
+// 设置了变量但没有得到它的用户应该知道，并且存储面板
+// 不能从裸路径诚实地报告"where are my bytes"。
+// 将这一点保留在结果上使得 回退 案例
+// 变得可调试而不是神秘。
 enum class Origin {
     Default,            // <root>/<leaf>
-    Override,           // $env named it, and it worked
-    OverrideFellBack,   // $env named it, it was unusable, we warned + defaulted
+    Override,           // $env 命名它，并且它起作用了
+    OverrideFellBack,   // $env命名为它，它无法使用，我们警告+默认
 };
 
 struct Resolved {
     fs::path path;
     Origin   origin = Origin::Default;
 
-    // The root `path` sits under, before `leaf` was joined. Carried so a
-    // caller can resolve siblings without re-deriving the root.
+    // 在加入 `leaf` 之前，根 `path` 位于其下方。进行此操作，
+    // 以便调用者可以解析兄弟姐妹，而无需 re-deriving 根。
     fs::path root;
 
     [[nodiscard]] bool overridden() const noexcept {
@@ -159,12 +159,12 @@ struct Resolved {
     }
 };
 
-// ── Error: typed, because "empty path" is not an error report ────────────
+// ── 错误 : 带类型的 ,因为 "empty path" 不是一个错误报告 ────────────
 struct Error {
     enum class Kind {
-        NoRoot,          // user root unresolvable (no HOME) or no project anchor
-        NotWritable,     // the anchor exists but we cannot write under it
-        Unusable,        // both the override AND the default failed
+        NoRoot,          // 用户 root 无法解析（无 HOME）或无项目锚点
+        NotWritable,     // 锚点存在，但我们不能在其下书写
+        Unusable,        // 均覆盖AND默认失败
     };
     Kind        kind = Kind::NoRoot;
     std::string detail;
@@ -172,105 +172,105 @@ struct Error {
 
 [[nodiscard]] std::string_view to_string(Error::Kind) noexcept;
 
-// ── Resolution ───────────────────────────────────────────────────────────
+// ── 决议 ───────────────────────────────────────────────────────────
 
-// Resolve (and create) the directory for `spec`.
+// 解析(并创建)`spec`的目录。
 //
-// Override semantics are inherited verbatim from user_root's
-// resolve_subdir(), because they were already right:
+// 覆盖语义是从 user_root 的 resolve_subdir
+// () 逐字继承的，因为它们已经是正确的：
 //
-//   - $env wins when set and NON-EMPTY. An exported-but-blank variable is a
-//     common shell accident and relocates nothing.
-//   - A RELATIVE override resolves against the root, never the process CWD.
-//     `AGENTTY_LOGS_DIR=logs2` has to mean ONE directory, not a different
-//     one for every directory agentty is launched from.
-//   - A failed override WARNS ONCE and falls back. Silently papering over
-//     it with the default tells the user the wrong thing twice: the setting
-//     did not take, and nothing said so.
+//   -设置时$env获胜并且NON-EMPTY获胜。导出的-but-blank变量是
+//     常见的壳事故与搬迁无关。
+//   -RELATIVE覆盖针对根解析，而不是进程CWD。
+//     `AGENTTY_LOGS_DIR=logs2`必须表示ONE目录，
+//     而不是对于从其启动agentty的每个目录而言不同的目录。
+//   -失败的覆盖WARNS ONCE并回退。默默地铺纸
+//     它用默认的方式告诉用户错误的事情两次：设置没有采取，
+//     并且什么也没说。
 [[nodiscard]] std::expected<Resolved, Error> resolve(const Spec& spec);
 
-// Resolve without creating anything, and without warning. For probes and
-// for UI that wants to report a location it is not about to write to.
+// 解决而不创建任何东西，并且没有警告。
+// 对于探测器和想要报告不打算写入的位置的 UI。
 [[nodiscard]] std::expected<Resolved, Error> resolve_dry(const Spec& spec);
 
-// ── The project storage anchor ───────────────────────────────────────────
+// ── 项目存储锚 ───────────────────────────────────────────
 //
-// NOT project_root(), and the difference is load-bearing.
+// 不 project_root()，差值为加载-bearing。
 //
-// project_root() is documented as "the process cwd, clamped inside the
-// access boundary". It does not walk up. That is RIGHT for its job —
-// relative tool paths must track where the user is standing, so
-// `read src/foo.cpp` lands in the launched project and not at /src/foo.cpp.
+// project_root()被记录为
+// 进程当前目录，但必须限制在访问边界内。
+// 它不会走起来。这就是 RIGHT 的工作 - 相对工具路径必须跟踪用户站立的位置，
+// 因此 `read src/foo.cpp` 落在启动的项目中，而不是 /src/foo.cpp.
 //
-// It is wrong for storage, because it moves. Launch from a subdirectory and
-// you get a SECOND index: `cd src/ && agentty` builds its own 82 MB
-// <cwd>/.agentty because current_path() moved and nothing anchored it.
+// 对于存储来说这是错误的，因为它会移动。从子目录启动，你会得到一个 第二 索引：
+// `cd src/ && agentty` 构建了自己的 82 MB <cwd>/.
+// agentty，因为 current_path() 移动了并且没有任何东西锚定它。
 //
-// So storage asks a different question and gets its own answer: the nearest
-// enclosing directory holding a project marker, falling back to
-// project_root() when there is none. Both are then subject to scope's
-// usable_project_root() guard — "/" is agentty's unrestricted-access
-// sentinel and never a place to scatter state.
+// 因此，存储提出不同的问题并得到其自己的答案：保存项目标记的最近的封闭目录，
+// 当没有项目标记时回退到project_root()。然后，
+// 两者都受到范围的 usable_project_root()
+// 保护 - "/" 是 agentty 的不受限制的 -access 哨兵，
+// 并且永远不是分散状态的地方。
 //
-// Deliberately leaving project_root() alone. Unifying them would reintroduce
-// one bug or the other.
+// 故意留下project_root()。将它们统一起来会重新引入
+// 一个或另一个错误。
 [[nodiscard]] fs::path project_anchor();
 
-// Markers searched for, nearest-first. Order is not significance: the walk
-// stops at the first directory containing ANY of them.
+// 搜索的标记，nearest-first。顺序并不重要：
+// 步行会在包含 任意 的第一个目录处停止。
 [[nodiscard]] std::span<const std::string_view> project_markers() noexcept;
 
-// ── Sweep: the lifecycle, enforced ───────────────────────────────────────
+// ── 扫荡:生命周期,强制 ───────────────────────────────────────
 //
-// Reclaims superseded VARIANTS of a file whose name carries an identity
-// tag. The motivating case is rag's `rag_code.<embedder>.ragdb`: the tag is
-// correct (it stops us serving vectors from an incompatible space) but it
-// makes the filename set unbounded, and nothing collected the losers — a
-// 47 MB orphan from a retired naming scheme was still on disk (#62).
+// 回收名称带有身份标签的文件的被取代的VARIANTS。
+// 激励案例是 rag 的 `rag_code.<embedder>.ragdb`：
+// 标签是正确的（它阻止我们从不兼容的空间提供向量），
+// 但它使文件名集不受限制，并且没有收集失败者 - 来自已
+// 退休命名方案的 47 MB 孤儿仍然在磁盘上（#62）。
 //
-// Modelled on blobs::gc deliberately, including dry_run and min_age, with
-// ONE axis deliberately different: Lifecycle::rebuildable. blobs::gc is
-// cautious because deleting a blob destroys conversation history that no
-// recomputation restores. A .ragdb costs one re-index. That asymmetry is
-// why `sweeps()` demands rebuildable AND keep_last — a store that is not
-// rebuildable is NEVER swept, no matter what keep_last says.
+// 刻意以blobs::gc为原型，包括dry_run和min_age，
+// 刻意与ONE轴不同：Lifecycle::rebuildable。
+// blobs::gc 是谨慎的，因为删除 blob 会破坏会话历史记录，
+// 而无法通过重新计算来恢复。一个 .ragdb 花费一个 re-index。
+// 这种不对称性就是为什么 `sweeps()` 需要可重建的 和 keep_last —
+// —无论 keep_last 说什么，不可重建的商店都会被 绝不 扫荡。
 struct SweepStats {
     std::size_t examined = 0;
     std::size_t kept     = 0;
     std::size_t deleted  = 0;
-    std::size_t too_new  = 0;   // held back by min_age
-    std::size_t failed   = 0;   // >0 ⇒ something was unreadable; see below
+    std::size_t too_new  = 0;   // 被min_age阻止
+    std::size_t failed   = 0;   // >0 ⇒ 某些内容无法读取；见下文
     std::uintmax_t bytes_freed = 0;
 };
 
-// What to sweep, within the directory a Spec resolves to.
+// 在规范解析到的目录中要扫描的内容。
 //
-// `stem` + `suffix` bracket the variant tag: stem="rag_code.",
-// suffix=".ragdb" matches `rag_code.<anything>.ragdb`. `keep` names the
-// variants that must survive regardless of age or count — the live ones.
+// `stem`+`suffix`将变体标签括起来：主干="rag_code."，
+// 后缀=".ragdb"匹配`rag_code.<anything>.ragdb`。
+// `keep` 命名了 变体，无论其年龄或数量如何，都必须存活下来 - 活的。
 //
-// Sidecars are swept with their principal: deleting `x.ragdb` and leaving
-// `x.ragdb.meta.json` is how you get a meta that describes a file that is
-// not there, which every loader then has to defend against.
+// Sidecars 以其原理被横扫：删除 `x.ragdb` 并
+// 留下 `x.ragdb.meta.json` 是你如何获得描述
+// 不存在的文件的元的方式，然后每个加载器都必须防御该元。
 struct SweepRequest {
     Spec             spec;
     std::string_view stem;
     std::string_view suffix;
-    std::span<const std::string>  keep;      // live filenames, never deleted
-    std::span<const std::string_view> sidecar_suffixes;  // e.g. ".meta.json"
+    std::span<const std::string>  keep;      // 实时文件名，从未删除
+    std::span<const std::string_view> sidecar_suffixes;  // e.g。 ".meta.json"
 
-    // Also delete an UNTAGGED `<stem-without-dot><suffix>` (e.g. a legacy
-    // `rag_code.ragdb` with no embedder tag). Off by default because "a
-    // name I do not recognise" is normally a reason to leave a file alone,
-    // not to delete it.
+    // 还删除UNTAGGED `<stem-without-dot><suffix>`
+    // (e.g.没有嵌入器标签的旧版`rag_code.ragdb`)。默认关闭，
+    // 因为 "a name I do not recognise" 通常是保留文件
+    // 而不是删除它的原因。
     bool include_untagged = false;
 };
 
-// Sweep. A no-op returning {} unless spec.life.sweeps().
+// 扫一扫。除非 spec.life.sweeps()，否则 no-op 返回 {}。
 //
-// SAFETY: if any directory entry cannot be examined, nothing is deleted and
-// `failed` is non-zero. Same rule as blobs::gc — being wrong about what is
-// present must cost disk, never data.
+// SAFETY：如果无法检查任何目录条目，则不删除任何内容，
+// 并且`failed`不是-zero。与 blobs::gc 相同的规则 - 对
+// 当前内容的错误肯定会消耗磁盘，而不是数据。
 [[nodiscard]] SweepStats sweep(const SweepRequest& req, bool dry_run = false);
 
 }  // namespace agentty::dirs

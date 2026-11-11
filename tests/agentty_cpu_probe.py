@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Run agentty in a real pty, get past the splash, sample its CPU.
+"""在真实 PTY 中运行 agentty，越过启动画面后采样 CPU 使用情况。
 
-Usage: agentty_cpu_probe.py BINARY [SECONDS]
-Prints cumulative CPU, RSS and thread count every 2s, then per-thread CPU
-for the last window so a busy thread has a name.
+用法：agentty_cpu_probe.py BINARY [SECONDS]
+每 2 秒输出累计 CPU、RSS 和线程数，再输出最后一个窗口内的逐线程 CPU 数据，
+便于根据名称定位繁忙线程。
 """
 import os, pty, sys, time, select, signal
 
@@ -47,7 +47,7 @@ while time.time() - start < total:
     drain()
     el = time.time() - start
     if not sent and el > 1.5:
-        os.write(fd, b"\r")          # dismiss the sandbox-off splash
+        os.write(fd, b"\r")          # 驳回 沙箱-off 喷出
         sent = True
     time.sleep(0.25)
     if int(el * 4) % 8 == 0:

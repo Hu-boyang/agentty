@@ -1,6 +1,6 @@
-// thread_list.cpp - the thread switcher's reducer (open/pick/delete/rename
-// + the async ThreadsLoaded). Split from panels.cpp; shares only
-// reset_to_fresh_thread (defined here, its sole user).
+// thread_list.cpp - 说 线程 切换器 状态更新函数 (open/pick/delete/rename
+// + 自动 ThreadsLoaded。从 panels.cpp ;
+// 只共享 reset_to_fresh_thread (此处定义, 其唯一用户).
 
 #include "agentty/runtime/app/update/internal.hpp"
 #include "agentty/runtime/app/update.hpp"
@@ -19,7 +19,7 @@
 #include "agentty/runtime/app/cmd_factory.hpp"
 #include "agentty/runtime/app/deps.hpp"
 #include "agentty/foreign/names.hpp"
-#include "agentty/io/persistence.hpp"   // new_id: a pure function, called directly
+#include "agentty/io/persistence.hpp"   // new_id: 纯函数,直接调用
 #include "agentty/provider/selection.hpp"
 #include "agentty/runtime/login.hpp"
 #include "agentty/runtime/mem.hpp"
@@ -29,7 +29,7 @@
 #include "agentty/runtime/view/helpers.hpp"
 #include "agentty/tool/skills.hpp"
 #include "agentty/tool/subagent.hpp"
-#include "agentty/tool/util/utf8.hpp"   // safe_utf8_cut: the rename draft cap
+#include "agentty/tool/util/utf8.hpp"   // safe_utf8_cut: 重命名盖子草稿
 
 namespace pn = agentty::ui::panel;
 
@@ -37,9 +37,9 @@ namespace agentty::app::detail {
 
 namespace {
 
-// Put the not-yet-opened foreign sessions into the picker list. A session
-// already opened is a native thread with the same id, so it's skipped here;
-// that thread's row stands for it. Keeps recency order.
+// 放下那个 -yet-opened 外国会议进入 选择面板 列表。
+// 已经打开的会话是本地 线程 和同一身份证明一样,
+// 所以它被跳过这里; 线程 排队代表它,保持秩序
 void merge_foreign(Model& m) {
     std::erase_if(m.d.threads, [](const Thread& t) { return t.foreign_only; });
     if (m.d.foreign.sessions.empty() || !m.d.ui().foreign_sessions) return;
@@ -53,8 +53,8 @@ void merge_foreign(Model& m) {
         std::ranges::stable_sort(m.d.threads, std::greater<>{}, &Thread::updated_at);
 }
 
-// The session behind an imported thread: does its file look changed since?
-// Compared against the last scan, not the disk, so the reducer stays pure.
+// 导入的 线程 背后的会话: 它的文件看起来有变化吗 ?
+// 与上次扫描相比,不是磁盘,所以状态更新函数保持纯度.
 [[nodiscard]] bool session_moved_on(const Model& m, const Thread& t) {
     if (!t.imported) return false;
     for (const auto& s : m.d.foreign.sessions)
@@ -63,7 +63,7 @@ void merge_foreign(Model& m) {
     return false;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 }  // namespace agentty::app::detail
 
@@ -74,12 +74,12 @@ using maya::overload;
 
 namespace {
 
-// What the picker lists right now: its query, in its folder scope.
+// 或 选择面板 列表中:它的查询, 在其文件夹范围中。
 [[nodiscard]] std::vector<int> visible(const Model& m, const pn::ThreadList& p) {
     return ui::visible_threads(m.d.threads, p.query, m.env.cwd, p.all_workspaces, p.only_foreign);
 }
 
-// The thread under the picker cursor, after the filter. -1 when none.
+// 电话 线程 下划线 选择面板 光标, 过滤器后。 - 1 当无时。
 [[nodiscard]] int picked_thread(const Model& m, const pn::ThreadList& p) {
     const auto vis = visible(m, p);
     if (vis.empty()) return -1;
@@ -91,7 +91,7 @@ namespace {
     return static_cast<int>(visible(m, p).size());
 }
 
-// Where thread `id` sits in the picker's current list, or -1.
+// 在哪里,我们在哪里 线程 `id` 坐在这 选择面板 '当前列表, 或 - 1。
 [[nodiscard]] int visible_index_of(const Model& m, const pn::ThreadList& p,
                                    const ThreadId& id) {
     const auto vis = visible(m, p);
@@ -101,8 +101,8 @@ namespace {
     return -1;
 }
 
-// Old threads with no picker summary yet, newest first: the ones whose
-// preview and message count are still to be filled in.
+// 旧 线程 没有 选择面板 最新消息:
+// 预览和信件计数的要填入的。
 constexpr std::size_t kSummaryBatch = 12;
 
 [[nodiscard]] Cmd next_summary_batch(Model& m) {
@@ -114,22 +114,22 @@ constexpr std::size_t kSummaryBatch = 12;
         if (ids.size() == kSummaryBatch) break;
     }
     if (ids.empty()) return Cmd::none();
-    // Marked before the work, so a thread that can't be summarised (empty,
-    // unreadable) isn't picked again and the backfill always ends.
+    // 标在作品前,所以无法概括的线程(空,
+    // 不可读)不再被选中,回填总是结束.
     for (auto& t : m.d.threads)
         if (std::ranges::find(ids, t.id) != ids.end()) t.summary_tried = true;
     m.s.summaries_filling = true;
     return cmd::backfill_summaries_async(std::move(ids));
 }
 
-// The peek pauses this long on a row before loading it, so holding ↓
-// through the list doesn't load every thread it passes.
+// 偷看会停在一排上 装上它之前,所以在列表中保持不动
+// 加载 每隔一段时间 线程 已经过去了。
 constexpr auto kPeekSettle = std::chrono::milliseconds{90};
 
-// Point the peek at the row under the cursor. A new row resets its scroll
-// to the latest turn and, unless it's cached or already loading, (re)starts
-// one keyed settle timer: holding ↓ keeps replacing it, so only the row
-// you stop on is loaded.
+// 将鼠标指向光标下的行。 一个新的行将其卷轴重排到最近的转弯,
+// 除非它被缓存或已经装入, (重) 启动一个按键结算定
+// 时器: 持有 QQ 继续替换它, 所以只有您停在
+// 的行是 已加载。
 [[nodiscard]] Cmd sync_peek(Model& m) {
     auto* p = m.ui.panel.get<pn::ThreadList>();
     if (!p) return Cmd::none();
@@ -141,16 +141,16 @@ constexpr auto kPeekSettle = std::chrono::milliseconds{90};
     p->peek_turn = 0;
     const bool cached = std::ranges::any_of(
         m.ui.peek_cache, [&](const auto& t) { return t.id == id; });
-    // Off in Appearance: track the row (so turning it on shows it) but load
-    // nothing.
+    // 关闭在外观中:追踪行(所以打开显示),
+    // 但加载什么都没有.
     if (!m.d.ui().thread_preview || cached || m.ui.peek_loading == id.value)
         return Cmd::cancel("thread-peek");
     return Cmd::after("thread-peek", kPeekSettle, Msg{ThreadPeekSettled{id}});
 }
 
-// A pasted or typed piece of a title, flattened to one line: line breaks
-// and tabs become spaces, other control bytes go. The draft is cleaned
-// again on submit; this only keeps what is on screen sane meanwhile.
+// 贴贴或 带类型的 标题的一块, 平整为一行:
+// 换行符和制表符成为空格, 其他控制 字节。
+// 草稿在提交时再次被清理;这只保持屏幕上正常状态。
 [[nodiscard]] std::string one_line(std::string_view s) {
     std::string out;
     out.reserve(s.size());
@@ -162,31 +162,31 @@ constexpr auto kPeekSettle = std::chrono::milliseconds{90};
     return out;
 }
 
-}  // namespace
-// ── Fresh-thread reset ────────────────────────────────────────────────────
-// Swap the model over to a brand-new empty thread and return the terminal
-// reset that wipes the departing thread's rendered turns off-screen.
+}  // 命名空间结束。
+// ── Fresh-thread 重置( 重置) ────────────────────────────────────────────────────
+// 把模型换到一个品牌 -new 空 线程 并返回 终端
+// 重置擦拭离开的 线程 关闭了 -screen.
 //
-// This is the SHARED core behind two entry points: `NewThread` (^N, in the
-// picker too) and `ThreadListDelete` when the row removed is the active thread.
-// It is deliberately the part *after* the caller's save/delete decision —
-// NewThread persists the outgoing thread first, delete has just destroyed
-// it — so the caller owns that policy and this owns the reset. Keeping the
-// two callers on one code path is what stops them drifting (they had, and
-// the delete copy was missing the phase reset + kernel release + inline
-// wipe, which is exactly the machinery that makes a mid-stream swap safe).
+// 这是 SHARED 有两个切入点的后方核心: `NewThread` (^N ,
+// 在 选择面板 和 国 务 院 `ThreadListDelete` 当删除的行是活动 线程.
+// 故意的,在打电话者之后 save/delete 决定-
+// NewThread 将离开的恒定 线程 首先,
+// 删除刚刚销毁了它——所以呼叫者拥有这个政策,而这个是重置。
+// 让两个呼叫者在一个代码路径上保持其漂移状态就是阻止他们
+// 漂流(他们曾经有,删除副本没有相位重置+内核释放+内线擦拭,
+// 这正是制造中位的机械) -stream 交换安全。
 //
-// Returns the reset_inline Cmd so the caller can batch it with its own
-// commands (delete also kicks a thread-list refresh + a toast).
+// 返回 reset_inline Cmd 呼叫者可以用自己的命令进行
+// 批量(删除也踢出一个) 线程-list 刷新+敬酒仪式).
 [[nodiscard]] Cmd reset_to_fresh_thread(Model& m) {
-    // Drop the whole render cache: every (tid,msg) entry belongs to the
-    // thread we're leaving, whose messages will never freeze again (freeze
-    // is the only per-entry drop, and it only runs on the CURRENT thread).
-    // Keys embed thread_id so there's no collision — this purely reclaims
-    // the old thread's staged/pinned entries so they don't linger.
+    // 整个放下 渲染 缓存 : 每一(tid,
+    // msg)项属于 线程 我们要走了,他们的消息 永远不会再冻结
+    // (冻结是唯一的 -entry 掉下来,它只在 当前 线程).
+    // 嵌入键 thread_id 所以没有碰撞——这纯粹是让旧的重新
+    // 恢复 线程's staged/pinned 输入时不会停留
     m.ui.view_cache.clear();
-    // A thread load still in flight is for the transcript we're replacing;
-    // forget it so its result doesn't overwrite the fresh thread.
+    // A 线程 加载 还在飞行中是用来代替的笔录,
+    // 忘了它,结果不会覆盖新鲜的 线程.
     if (!m.s.loading_thread.value.empty()) {
         m.s.loading_thread = {};
         m.s.thread_loading = false;
@@ -200,56 +200,56 @@ constexpr auto kPeekSettle = std::chrono::milliseconds{90};
         m.wall_now();
     m.s.reset_usage_for_thread(0);
     clear_frozen(m);
-    // Close every modal that framed the OLD thread: the picker we acted
-    // from, plus the palette / code-block picker whose contents belonged to
-    // the departing thread's last reply.
+    // 关闭一次 弹出面板 设计了 旧 线程 : 数据 选择面板
+    // 我们从,加上调色板/代码 -block 选择面板 其内容属于离境者,
+    // 线程 最后一次回复
     m.ui.panel.close<pn::ThreadList>();
     m.ui.panel.close<pn::Palette>();
     m.ui.panel.close<pn::CodeBlocks>(); m.ui.panel.close<pn::CodeBlockResult>();
-    // Wipe the whole composer draft — a pasted-but-unsent image (or any
-    // chip / queued message) belongs to the thread we're leaving. Leaking
-    // it once carried an empty-bytes image attachment into the new thread's
-    // first submit and 400'd the request.
+    // 擦掉整份作曲草稿——贴上 -but-unsent 图像
+    // ( 或任何) 标签 / 队列中的消息)属于 线程 我们要走了,
+    // 它曾经是空的 -bytes 图像附件到新窗口 线程
+    // 第一次提交,400"请求。
     reset_composer_draft(m.ui.composer);
-    // A fresh empty thread has no live turn — drop any streaming phase and
-    // hand the kernel back so a mid-stream swap can't leave the wire running
-    // against a thread that no longer exists.
+    // 新鲜空 线程 没有任何活转弯- 任何 流式传输 相位并
+    // 把内核递回到中间 -stream 换不掉的 传输 运行
+    // 对齐 a 线程 已经不复存在。
     end_turn(m.s.phase);
-    // Smart-Mode per-THREAD routing state must not leak into the new thread:
-    // complexity momentum (classify_score_with_context inherits a tier from
-    // the PREVIOUS turn), the session cascade bias, and the last turn's
-    // signature (outcome feedback would otherwise attribute the new thread's
-    // first reply to the OLD thread's route). The learned per-workspace
-    // priors (RoutingMemory) survive by design — they are cross-thread.
+    // 聪明 -Mode 百分比 -THREAD 线路状态不能泄露到新状态中 线程:
+    // 复杂势头( classify_score_with_context
+    // 继承从 PREVIOUS ,会话的叠加偏差,以及最后一个转折的
+    // 签名(结果反馈会将新的属性归为 线程 第一次答复 旧 线程 路径。
+    // 学习的每 -workspace 以往( RoutingMemory
+    // )通过设计生存——它们是十字形的. -thread.
     m.s.smart_turn_complexity  = smart::Complexity::Standard;
     m.s.smart_effort_bias      = 0;
     release_to_kernel();
-    // Re-warm the active provider's TLS socket. The launch-time prewarm has
-    // usually aged out of the pool by now — a user reads a reply, composes,
-    // then hits ^N, and the 90 s idle TTL has evicted the warm connection.
-    // Without this the FIRST turn of every new thread re-pays the full
-    // DNS+TCP+TLS handshake (~150-300 ms) before its first SSE byte. Returned
-    // as an effect, so the dial overlaps the user typing their first prompt.
+    // 调 -warm 活动提供者的 TLS 套接字 发射
+    // -time 温室前的年长时间通常超过 池 用户读回信、
+    // 写作、点击 ^N ,90s闲置 TTL 已经把暖气切断了
+    // 没有这个 首次 每一个新的转折 线程 内容 -pays 完整
+    // DNS+TCP+TLS 第一次握手(~150-300毫秒) SSE 字节。
+    // 返回时, 副作用 ,所以拨号与用户输入的第一个 提示词.
     //
-    // Per maya's contract reset_inline is the ONE allowed wiring of
-    // `\x1b[3J`: an explicit, user-initiated content swap. It wipes
-    // saved-lines (including pre-agentty shell history), acceptable precisely
-    // because the user asked to switch threads. Do NOT extend it to per-turn
-    // paths.
+    // 人数 maya 合同 reset_inline 是那个 一个
+    // 允许的线条 `\x1b[3J` : 明确、用户 -initiated
+    // 内容交换,它擦拭 已保存-lines (包括 -agentty ),
+    // 可以接受,原因正是用户要求切换 线程 执行。 不 扩展为每 -turn
+    // 路径。
     return Cmd::batch(cmd::prewarm_provider(m), cmd::reset_inline());
 }
 
-// Rename thread `id`, or with `clear` drop the chosen name and go back to
-// the automatic one: the first line of its first message, auto-titled again
-// after the next reply. Both stamp renamed_at, so either beats a stale copy
-// another agentty may still write. Updates the list row and, if it's the
-// open thread, m.d.current (which is re-saved every turn and would
-// otherwise write the old title back).
+// 重命名( E) 线程 `id` ,或与 `clear` 将选中的
+// 名称放下, 回到自动名称: 其首条消息的第一行, 自动 -titled
+// 下个回复后再次重写。两个印章 renamed_at ,所以要么击败
+// 过期 复制另一个 agentty 可能仍然会写入。更新列表行,
+// 如果是打开的 线程, m.d.current (这是
+// -saved 并且会写回旧标题).
 [[nodiscard]] Cmd apply_rename(Model& m, const ThreadId& id, std::string title, bool clear) {
     const auto it = std::ranges::find(m.d.threads, id, &Thread::id);
     Thread* open = m.d.current.id == id ? &m.d.current : nullptr;
     if (clear) {
-        // The first-line name, from the first message you typed.
+        // 第一个 -line 名称,从第一个消息中您 带类型的.
         const Thread& src = open ? *open : (it != m.d.threads.end() ? *it : m.d.current);
         std::string first;
         for (const auto& msg : src.messages)
@@ -258,8 +258,8 @@ constexpr auto kPeekSettle = std::chrono::milliseconds{90};
                 first = msg.text;
                 break;
             }
-        // A list row holds no messages: keep its current title until the
-        // thread is opened and its next reply titles it.
+        // 列表行不保存信件: 保留其当前标题,
+        // 直到 线程 打开并下个回复标题。
         title = first.empty() ? (it != m.d.threads.end() ? it->title : src.title)
                               : persistence::title_from_first_message(first);
     }
@@ -269,7 +269,7 @@ constexpr auto kPeekSettle = std::chrono::milliseconds{90};
         t.title        = title;
         t.renamed_at   = at;
         t.name_is_auto = clear;
-        // A cleared name gets an auto title again (if titling is on).
+        // 清除后的名字再次获得汽车标题( 如果有授权)。
         if (clear) { t.auto_titled = false; t.auto_title_ok = true; }
     };
     if (it != m.d.threads.end()) apply(*it);
@@ -283,40 +283,40 @@ constexpr auto kPeekSettle = std::chrono::milliseconds{90};
 Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
     return std::visit(overload{
         [&](OpenThreadList) -> Cmd {
-            // Refresh in the background if no load is in flight — the
-            // walk + parse is too slow (seconds, with hundreds of
-            // multi-MB thread files) to do synchronously here. The
-            // picker opens immediately against the cached list; new
-            // entries fade in when ThreadsLoaded lands.
+            // 如果没有加载在飞行中,则在背景中刷新——
+            // 行走+解析太慢(秒,有数百个多-MB线程文件),
+            // 无法在此同步运行. 选择面板在缓存
+            // 列表中立即打开; ThreadsLoaded登陆后,
+            // 新条目逐渐消失.
             Cmd cmd = Cmd::none();
             if (!m.s.threads_loading) {
                 m.s.threads_loading = true;
                 cmd = cmd::load_threads_async();
             }
-            // Other agents' sessions too. Unchanged files aren't re-read.
+            // 其他特工的会话 未经更改的文件不是Re-read
             if (!m.s.foreign_loading && m.d.ui().foreign_sessions) {
                 m.s.foreign_loading = true;
                 cmd = Cmd::batch(std::move(cmd), cmd::load_foreign_sessions_async(m.d.foreign));
             }
-            // Open AT the current thread, not row 0 — the user's mental
-            // anchor is "where am I", and cycling from there (↑ newer /
-            // ↓ older) mirrors the Alt+←/→ quick-cycle order.
+            // 打开 AT 当前 线程 ,而不是行 0 — 用户的精神主锚是
+            // "where am I" ,从那里循环(XX 较新/XX 年长)
+            // 来反射 Alt е е -cycle 秩序。 秩序。
             pn::ThreadList fresh{{0}};
             fresh.index = std::max(0, visible_index_of(m, fresh, m.d.current.id));
             m.ui.panel.descend(std::move(fresh));
             return Cmd::batch(std::move(cmd), sync_peek(m));
         },
         [&](CloseThreadList) -> Cmd {
-            // Esc with a filter clears it first, so a typo never closes the list.
+            // Esc 带有过滤器先清除,所以一个打字符永远不会关闭列表.
             if (auto* p = m.ui.panel.get<pn::ThreadList>(); p && !p->query.empty()) {
                 const int was = picked_thread(m, *p);
                 p->query.clear();
-                // Stay on the same thread, now at its unfiltered position.
+                // 保持同一线程,现在处于未过滤位置.
                 p->index = was < 0 ? 0 : std::max(0, visible_index_of(
                     m, *p, m.d.threads[static_cast<std::size_t>(was)].id));
                 return Cmd::none();
             }
-            ascend(m);   // Esc: back to whatever opened this, or close
+            ascend(m);   // Esc:返回到打开此的任何内容，或关闭
             return Cmd::none();
         },
         [&](ThreadListFilterInput& e) -> Cmd {
@@ -324,7 +324,7 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
             if (!p) return Cmd::none();
             p->confirm_remove.clear();
             p->query += ui::utf8_encode(e.ch);
-            p->index = 0;                    // best (most recent) match first
+            p->index = 0;                    // 最佳( 最近) 匹配第一
             m.ui.thread_list_scroll.y = 0;
             return sync_peek(m);
         },
@@ -341,7 +341,7 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
         [&](ThreadListMove& e) -> Cmd {
             auto* p = m.ui.panel.get<pn::ThreadList>();
             if (!p) return Cmd::none();
-            p->confirm_remove.clear();   // moving disarms a pending ^D
+            p->confirm_remove.clear();   // 移动裁军a 待处理 ^D
             p->index = ui::step(p->index, e.delta, visible_count(m, *p));
             return sync_peek(m);
         },
@@ -350,9 +350,9 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
             if (!p) return Cmd::none();
             const int sz = visible_count(m, *p);
             if (sz == 0) return Cmd::none();
-            p->confirm_remove.clear();   // jumping disarms a pending ^D
+            p->confirm_remove.clear();   // 跳跃式解除武装 待处理 ^D
             using W = ThreadListJump::Where;
-            constexpr int kPage = 14;  // matches kViewportH in pickers.cpp
+            constexpr int kPage = 14;  // 与 pickers.cpp 中的 kViewportH 匹配
             switch (e.where) {
                 case W::Home:     p->index = 0; break;
                 case W::End:      p->index = sz - 1; break;
@@ -364,8 +364,8 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
         [&](ThreadListScopeToggle& e) -> Cmd {
             auto* p = m.ui.panel.get<pn::ThreadList>();
             if (!p) return Cmd::none();
-            // The scopes, in Tab order. One that would list nothing (no
-            // threads in this folder, no other-tool sessions) is skipped.
+            // 瞄准镜,在 Tab 命令。一个不列出(否) 线程
+            // 在此文件夹中,没有其它 -tool 正在跳过会议)。
             enum Scope { All, Folder, Foreign };
             const bool has_folder  = ui::workspace_thread_count(m.d.threads, m.env.cwd) > 0;
             const bool has_foreign = ui::foreign_thread_count(m.d.threads) > 0;
@@ -385,7 +385,7 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
             const int n = static_cast<int>(ring.size());
             const Scope next = ring[static_cast<std::size_t>(((i + e.delta) % n + n) % n)];
 
-            // Keep the cursor on the same thread if it's in the new scope.
+            // 如果光标在新范围,则保持光标在相同的线程上.
             const int was = picked_thread(m, *p);
             p->all_workspaces = next != Folder;
             p->only_foreign   = next == Foreign;
@@ -399,11 +399,11 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
         [&](ThreadPeekScroll& e) -> Cmd {
             auto* p = m.ui.panel.get<pn::ThreadList>();
             if (!p || p->peek_id.empty() || !m.d.ui().thread_preview) return Cmd::none();
-            // peek_turn counts back from the latest turn (0 = latest). Clamp
-            // to the turns this thread really has, so the far end isn't
-            // "sticky". Before the thread has loaded the count is unknown:
-            // keep the presses (clamped once it lands) instead of dropping
-            // them, which read as dead arrow keys.
+            // peek_turn 算回最近的转弯( 0 = 最新转弯)。
+            // 将这个转弯的转弯切入到这里 线程 是真的,所以远端不是
+            // "sticky"。在 线程 已经 已加载 计数未知 :
+            // 保留压轴(一旦它降落就被打开),而不是将其丢弃,
+            // 因为它读作死箭键。
             const auto it = std::ranges::find(m.ui.peek_cache, p->peek_id,
                                               [](const auto& t) { return t.id.value; });
             const int last = it == m.ui.peek_cache.end()
@@ -415,14 +415,14 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
             return Cmd::none();
         },
         [&](ThreadPeekSettled& e) -> Cmd {
-            // Only if the cursor is still on that row, and it isn't already
-            // loading. Another row's load being in flight doesn't block it:
-            // that one is stale now, and lands in the cache harmlessly.
+            // 只有在光标还在那一行,而且它还没有装入。
+            // 另一行的 加载 正在飞行中,它不会被挡住 :
+            // 那个是 过期 现在, 和着陆在 缓存 无害的。
             const auto* p = m.ui.panel.get<pn::ThreadList>();
             if (!p || p->peek_id != e.id.value) return Cmd::none();
             if (m.ui.peek_loading == e.id.value) return Cmd::none();
             m.ui.peek_loading = e.id.value;
-            // A session not opened yet has no agentty file: read the source.
+            // 未打开的会话没有 agentty 文件: 读取源代码。
             for (const auto& t : m.d.threads)
                 if (t.id == e.id && t.foreign_only && t.imported)
                     return cmd::load_foreign_peek_async(std::move(e.id), *t.imported);
@@ -436,80 +436,80 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
                                    Model::UI::PeekThread{e.id, std::move(*e.turns)});
             if (m.ui.peek_cache.size() > Model::UI::kPeekCache)
                 m.ui.peek_cache.resize(Model::UI::kPeekCache);
-            // Presses made while it loaded were kept unclamped; fit them now.
+            // 时按压 已加载 被保留在未密闭处,现在适合他们。
             if (auto* p = m.ui.panel.get<pn::ThreadList>(); p && p->peek_id == e.id.value)
                 p->peek_turn = std::clamp(
                     p->peek_turn, 0,
                     std::max(0, static_cast<int>(m.ui.peek_cache.front().turns.size()) - 1));
             return Cmd::none();
         },
-        // ── Model swap: commit overflow before swapping ──────────────
+        // ── Model 互换: 互换前承付溢出 ──────────────
         //
-        // ThreadListSelect and NewThread replace m.d.current wholesale.
-        // Before the swap we dispatch Cmd::commit_scrollback_overflow()
-        // — NOT force_redraw (see history below).
+        // ThreadListSelect 财务报告和已审计财务报表 NewThread 替换 m.d.current 批发.
+        // 交换前,我们为分派 Cmd::commit_scrollback_overflow
+        // ()——不 force_redraw(见下文历史)。
         //
-        // Why commit-overflow is required:
-        //   maya's inline diff treats rows [0, prev_rows - term_h) as
-        //   committed scrollback ("updatable_start" in serialize.cpp).
-        //   When the old thread overflowed (prev_rows > term_h) those
-        //   rows are skipped by the diff scan and per-row emit. After
-        //   a wholesale model swap the new thread's canvas rows at
-        //   those Y positions are entirely different content — but
-        //   the diff still considers them "scrollback, untouchable"
-        //   and never emits them. Result: visible seam mid-viewport
-        //   where the wire still holds old-thread bytes against the
-        //   new-thread canvas, manifesting as two unrelated text
-        //   fragments on adjacent rows.
+        // 为什么做 -overflow 需要:
+        //   maya 内置 diff 处理行 [0], prev_rows - term_h (a)
+        //   承诺 回滚缓冲区 ("updatable_start" 输入 serialize.cpp).
+        //   讽ρ 线程 溢额( prev_rows >
+        //   term_h 这些行被 diff 扫描和每 -row
+        //   发售后,换了新的 线程 画布排在Y位置上的内容
+        //   完全不同 但diff仍然认为
+        //   "scrollback, untouchable"
+        //   绝不发泄。结果:明显; 接口边界 中点 -viewport
+        //   中标 传输 仍然持旧 -thread 字节 反
+        //   新规 -thread 画布,表现为相邻行上
+        //   两个不相关的文字片段.
         //
-        //   commit_scrollback_overflow() calls into maya's
-        //   commit_inline_overflow which advances prev_cells by
-        //   max(0, prev_rows - term_h) rows. After it runs,
-        //   prev_rows ≤ term_h, updatable_start drops to 0, and the
-        //   diff scans the full common range — every visible row
-        //   gets correctly emitted against the new thread.
+        //   commit_scrollback_overflow() 调
+        //   用 输入 maya's commit_inline_overflow
+        //   预收的 prev_cells 以最大值( 0) 表示,
+        //   prev_rows - term_h 排队,跑完后 prev_rows
+        //   ≤ term_h, updatable_start 滴到0,
+        //   diff扫描了全部常见范围——每个可见的行都正确发射到新位置 线程.
         //
-        //   The rows that scroll out of prev_cells are bytes the
-        //   terminal already committed to its native scrollback
-        //   anyway (they were emitted via bottom-edge \r\n's during
-        //   streaming). commit just acknowledges that fact — zero
-        //   wire effect.
+        //   卷出线条 prev_cells 已经 字节
+        //   编号 终端 已经承诺 其本土 回滚缓冲区
+        //   反正(它们都是通过底部排放的) -edge \r。
+        //   n的期间 流式传输 承诺承认这一事实——零 传输
+        //   副作用.
         //
-        // Why NOT force_redraw:
-        //   cmd::force_redraw demotes Synced → Stale, routing the
-        //   next render through compose case (B). Case (B)'s
-        //   scroll-to-fit branch (scroll_n > 0) emits \n at the
-        //   viewport bottom when the new frame is taller than the
-        //   old cursor's offset from viewport top — each \n there
-        //   scrolls a row of whatever was on screen (old thread
-        //   tail + host shell history above it) up into
-        //   terminal-owned scrollback, permanently. History: commit
-        //   8becb88 did exactly that and reverted in 0b24148.
+        // 为什么 不 force_redraw:
+        //   cmd::force_redraw 降级 ~
+        //   同步 ~ 过期 , 将下一个路径 渲染 由
+        //   编译案(B)进行。 -to-fit 分支(
+        //   scroll_n > 0) 发音\n 可视区域
+        //   新建时的下方 帧 高于旧光标的乘以 可视区域 顶
+        //   部——每个屏幕上滚动一行(旧的) 线程 末尾
+        //   + 上面的主机 shell 历史) 上到
+        //   终端-owned 回滚缓冲区 历史:8becb88
+        //   号的犯案正是如此,于0b24148年恢复。
         [&](ThreadListSelect) -> Cmd {
             auto* p = m.ui.panel.get<pn::ThreadList>();
             Cmd cmd = Cmd::none();
-            if (p) p->confirm_remove.clear();   // selecting disarms a pending ^D
+            if (p) p->confirm_remove.clear();   // 选择一个待处理XXXX ^D
             if (p && !m.d.threads.empty() && !m.s.thread_loading) {
                 const int at = picked_thread(m, *p);
-                if (at < 0) return Cmd::none();   // the filter matches nothing
+                if (at < 0) return Cmd::none();   // 过滤器匹配无
                 const Thread& meta = m.d.threads[static_cast<std::size_t>(at)];
-                // Same-thread re-select — closing the picker is the
-                // only useful action. No async load: would just
-                // reparse the same bytes and flash.
+                // 一样 -thread 内容 -select - 关闭
+                // 选择面板 是唯一有用的动作。没有 ASync 加载
+                // : 将只是重新划分相同 字节 闪耀。
                 if (meta.id == m.d.current.id) {
                     m.ui.panel.close<pn::ThreadList>();
                     return Cmd::none();
                 }
                 m.s.thread_loading = true;
                 m.s.loading_thread = meta.id;
-                // Warm the socket so the first turn in the thread the user
-                // is switching INTO doesn't re-pay the handshake (the pool's
-                // idle TTL has usually evicted it during composer breathing
-                // room). Returned, not performed.
+                // 暖一下套接字,然后第一个转弯 线程 用户正在
+                // 切换 INTO 已经没有了 -pay 握手(
+                // 手握手握手掌) 池 闲着 TTL 通常在作曲室里拆迁。
+                // 返回,而不是表演。
                 Cmd load;
                 if (meta.imported && (meta.foreign_only || session_moved_on(m, meta))) {
-                    // A Codex / Claude Code session: import it on first open,
-                    // or re-read it when more was said there since.
+                    // A Codex / Claude 代码会话: 在第一次打开时导入,
+                    // 或重新导入 -read 之后人们又说了很多
                     load = cmd::open_foreign_async(meta.id, *meta.imported);
                     if (meta.foreign_only)
                         set_status_toast(m, "opening " + foreign::display_name(meta.imported->source)
@@ -523,41 +523,41 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
             return cmd;
         },
         [&](ThreadListDelete) -> Cmd {
-            // ^D in the thread picker: two-press delete with confirm_remove,
-            // mirroring SettingsListRemove / AccountRemove. First press on a
-            // row marks it pending (warning badge in the view); second press
-            // on the SAME row returns a DeleteThread effect. Any
-            // move/jump/select/new/close disarms the pending state.
+            // ^D 输入 线程 选择面板 : 2个 -press 删除时使用 confirm_remove ,
+            // 镜像 SettingsListRemove / AccountRemove。
+            // 第一排按下标记它 待处理 (在视图中显示警徽); 相同 返回行数
+            // DeleteThread 副作用 任意
+            // move/jump/select/new/close 解除 待处理 州立大学.
             auto* p = m.ui.panel.get<pn::ThreadList>();
             if (!p || m.d.threads.empty()) return Cmd::none();
-            // The cursor is a position in the FILTERED list; picked_thread
-            // maps it back and clamps it, so a list shrunk by an async
-            // refresh can't index past the end.
+            // 光标是 FILTERED 列表; 用于计算数据。
+            // picked_thread 地图回放并夹住它,所以一个列表
+            // 缩小的Aync刷新不能索引到结尾.
             const int idx = picked_thread(m, *p);
             if (idx < 0) return Cmd::none();
             const Thread& target = m.d.threads[static_cast<std::size_t>(idx)];
-            // Use the thread id as the confirm key — stable across title edits.
+            // 使用线程 id作为确认密钥——在标题编辑上稳定.
             const std::string key = target.id.value;
             if (p->confirm_remove != key) {
                 p->confirm_remove = key;
                 return Cmd::none();
             }
-            // Second press — commit. Snapshot everything we need OUT of the
-            // vector element BEFORE erase(): the erase invalidates `target`,
-            // so reading target.title / target.id afterward is a
-            // use-after-free. Copy them here while the reference is live.
+            // 第二媒体——承诺。 快照 需要的一切,都给我 OUT 矢量元素的
+            // 之前 erase() : 擦除无效 `target` 读到
+            // target.title / target.id 之后是用法,
+            // 使用时, -after-free。在参考文献直播时复制到这里。
             const ThreadId  target_id = target.id;
             const bool      was_current = (target_id == m.d.current.id);
             const std::string label =
                 target.title.empty() ? "(untitled)" : target.title;
 
             p->confirm_remove.clear();
-            // The delete is a VALUE, batched into both of this arm's
-            // returns below — taken here, where target_id is still in hand.
+            // 删除是 值 ,在下面分批分解为两支手臂的返回——
+            // 带到这里来,在那里 target_id 仍然在手头。
             Cmd del = Cmd(DeleteThread{target_id});
             m.d.threads.erase(m.d.threads.begin() + idx);
             ++m.d.threads_rev;
-            // Clamp the cursor so it stays valid after removal.
+            // 将光标粘合,使其在移除后仍然有效。
             const int sz = visible_count(m, *p);
             if (sz == 0) {
                 p->index = 0;
@@ -568,13 +568,13 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
             std::string msg = "deleted \"" + label + "\"";
             if (was_current) msg += " \xe2\x80\x94 started a new thread";
             auto toast = set_status_toast(m, std::move(msg));
-            // Deleting the ACTIVE thread leaves m.d.current pointing at a
-            // thread whose file no longer exists — swap to a fresh empty
-            // thread through the SAME core NewThread uses. That single code
-            // path is what guarantees the phase reset + kernel release (so a
-            // mid-stream delete can't leave the wire running against a dead
-            // thread), the modal/skill/cache teardown, and the reset_inline
-            // that wipes the deleted thread's rendered turns off-screen.
+            // 删除 活动 线程 叶 m.d.current 指着一个
+            // 线程 其文件已不存在 —— 转换为新空 线程 通过
+            // 相同 核心项目 NewThread。这个单一代码路径是
+            // 保证相重设 + 内核释放(因此是中位)。 -stream
+            // 删除不能离开 传输 与死人对决 线程 ),
+            // 该 modal/skill/cache 撕裂,
+            // 还有 reset_inline 擦拭删除的 线程 关闭了 -screen.
             if (was_current) {
                 auto reset = reset_to_fresh_thread(m);
                 return Cmd::batch(std::move(del), cmd::load_threads_async(),
@@ -590,7 +590,7 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
             const Thread& target = m.d.threads[static_cast<std::size_t>(idx)];
             p->confirm_remove.clear();
             p->renaming     = target.id.value;
-            p->rename_input = target.title;   // pre-filled: edit, don't retype
+            p->rename_input = target.title;   // 前-filled:编辑,不要重排
             p->rename_cursor = static_cast<int>(p->rename_input.size());
             return Cmd::none();
         },
@@ -598,8 +598,8 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
             auto* p = m.ui.panel.get<pn::ThreadList>();
             if (!p || p->renaming.empty()) return Cmd::none();
             const std::string add = one_line(ui::utf8_encode(e.ch));
-            // Refuse past the cap rather than cut on submit, so what you see
-            // is what gets stored.
+            // 拒绝过盖子而不是剪接提交,
+            // 所以你看到的是存储的。
             if (p->rename_input.size() + add.size() > persistence::kTitleMaxBytes)
                 return Cmd::none();
             p->rename_input.insert(static_cast<std::size_t>(p->rename_cursor), add);
@@ -638,8 +638,8 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
         [&](ThreadListRenamePaste& e) -> Cmd {
             auto* p = m.ui.panel.get<pn::ThreadList>();
             if (!p || p->renaming.empty()) return Cmd::none();
-            // Only what fits goes in, so a long paste mid-title cuts the
-            // paste, never the text after the caret.
+            // 只有适合的才能进入,所以一个长的糊糊的中间 -title
+            // 剪切粘贴, 切换后从文本中切换 光标.
             std::string add = one_line(e.text);
             const std::size_t room = persistence::kTitleMaxBytes
                                    - std::min(persistence::kTitleMaxBytes, p->rename_input.size());
@@ -657,14 +657,14 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
             return Cmd::none();
         },
         [&](RenameCurrentThread& e) -> Cmd {
-            // A thread with nothing in it isn't saved yet, so there's
-            // nothing on disk to rename.
+            // A 线程 里面什么都没有,不是 已保存 磁盘
+            // 上没有东西可以重命名
             if (m.d.current.messages.empty())
                 return set_status_toast(m, "send a message first, then /rename");
             std::string title = persistence::clean_title(e.title);
             if (title.empty())
                 return set_status_toast(m, "/rename needs a title");
-            return apply_rename(m, m.d.current.id, std::move(title), /*clear=*/false);
+            return apply_rename(m, m.d.current.id, std::move(title), /*清 净 =*/false);
         },
         [&](ThreadListRenameSubmit) -> Cmd {
             auto* p = m.ui.panel.get<pn::ThreadList>();
@@ -674,18 +674,18 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
             p->renaming.clear();
             p->rename_input.clear();
             p->rename_cursor = 0;
-            // Found by id: a refresh that landed mid-edit may have reordered
-            // the list, or dropped the thread (deleted elsewhere): then there
-            // is nothing to rename.
+            // 由 id 找到: 中途降落的刷新 -edit 可能
+            // 重新排序了列表,或者删除了 线程 (删除别处):那么
+            // 没有东西可以重命名.
             const auto it = std::ranges::find(m.d.threads, id, &Thread::id);
             if (it == m.d.threads.end()) return Cmd::none();
-            // An emptied draft clears the name, back to the automatic one. On
-            // a thread you never named that's a no-op, like an unchanged draft:
-            // Enter on an untouched draft must not cost a disk write.
+            // 空草稿能清空名字,回到自动草稿。 线程 你从来没有
+            // 命名 这是一个不 -op ,就像一个不变的草案:
+            // 未经修改的草稿上的Enter不得花费一张磁盘写作的费用.
             const bool clear = title.empty();
             if (clear ? !it->user_named() : title == it->title) return Cmd::none();
             Cmd out = apply_rename(m, id, std::move(title), clear);
-            // The renamed row may no longer match the filter.
+            // 重新命名的行可能不再匹配过滤器.
             if (auto* pp = m.ui.panel.get<pn::ThreadList>()) {
                 const int sz = visible_count(m, *pp);
                 pp->index = sz > 0 ? std::clamp(pp->index, 0, sz - 1) : 0;
@@ -693,11 +693,11 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
             return out;
         },
         [&](ThreadCycle& e) -> Cmd {
-            // Alt+←/→ — jump to the adjacent thread without the picker.
-            // Recency order (same as ^J): index 0 = newest; +1 = older,
-            // -1 = newer, wrapping at both ends. Gated on an idle
-            // session — swapping m.d.current under an active stream
-            // would strand the in-flight ctx's writes.
+            // Alt QQ/________ 跳到邻近地区 线程 没有 选择面板.
+            // 紧急命令(与 ^J :索引0 = 最新;+1 = 旧, -1 = 新,
+            // 两端包装. Gated on a locate session
+            // – s互换 m.d.current 活动下 数据流
+            // 将拖入 -flight 克特克斯的笔记.
             if (m.s.active()) {
                 auto cmd = set_status_toast(m,
                     "wait for the reply to finish before switching threads");
@@ -706,8 +706,8 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
             if (m.s.thread_loading) return Cmd::none();
             const int sz = static_cast<int>(m.d.threads.size());
             if (sz == 0) {
-                // History not loaded yet (or genuinely empty) — kick a
-                // refresh so the NEXT press works, and say so.
+                // 历史不是 已加载 来点新鲜的,然后...
+                // 下一个 新闻工作,说吧。
                 Cmd cmd = Cmd::none();
                 if (!m.s.threads_loading) {
                     m.s.threads_loading = true;
@@ -716,9 +716,9 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
                 auto toast = set_status_toast(m, "no other threads yet");
                 return Cmd::batch(std::move(cmd), std::move(toast));
             }
-            // Locate the current thread in the recency list. A fresh
-            // unsaved thread isn't in it — treat "newest" as the anchor
-            // so the first press lands on the most recent saved thread.
+            // 定位当前 线程。在重新定义的列表中。
+            // 新的未保存 线程 里面没有,请 "newest"
+            // 成为了锚 所以第一个按着最近的 已保存 线程.
             int cur = -1;
             for (int i = 0; i < sz; ++i)
                 if (m.d.threads[static_cast<std::size_t>(i)].id == m.d.current.id) {
@@ -737,33 +737,33 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
             }
             const Thread& meta = m.d.threads[static_cast<std::size_t>(target)];
             if (meta.id == m.d.current.id) return Cmd::none();
-            // Preserve the thread being left — same courtesy NewThread
-            // extends. finalize_turn saves per turn, but a title edit or
-            // an un-persisted tail shouldn't be lost to a quick cycle.
+            // 保留左方的线程——同样的礼节NewThread延伸.
+            // finalize_turn 保存每转弯,但标题编辑或
+            // un-persisted 末尾不应该丢失到一个快速循环.
             Cmd save = m.d.current.messages.empty()
                          ? Cmd::none() : save_current_whole(m);
             m.s.thread_loading = true;
             m.s.loading_thread = meta.id;
-            // "thread k/N · title" — the positional readout that makes
-            // repeated Alt+←/→ presses feel like flipping through a
-            // deck rather than teleporting blind. Survives the swap
-            // because ThreadLoaded doesn't touch m.s.status.
+            // "thread k/N · title" ——
+            // 位置读取重复 Alt – 压力感觉像是翻过甲板,
+            // 而不是在电传中盲转。 ThreadLoaded
+            // 不许碰 m.s.status.
             auto toast = set_status_toast(m,
                 "thread " + std::to_string(target + 1) + "/"
                     + std::to_string(sz) + " \xc2\xb7 "
                     + (meta.title.empty() ? "(untitled)" : meta.title));
-            // The prewarm warms the socket for the switched-into thread's
-            // first turn.
+            // 预温会暖和 套接字的切换 -into 线程 初
+            // 转法轮.
             return Cmd::batch(std::move(save),
                               cmd::prewarm_provider(m),
                               cmd::load_thread_async(meta.id),
                               std::move(toast));
         },
         [&](NewThread) -> Cmd {
-            // Persist the outgoing thread before we drop it (delete's
-            // active-row path does the opposite — it just removed the
-            // thread, so it must NOT save). The shared reset below owns
-            // everything after this policy decision.
+            // 坚持向外的 线程 之前,我们放弃它(删除的
+            // 活跃 -row 路径则相反——它刚刚移除了 线程 ,
+            // 所以它不得 保存 ),在下方共享重置,
+            // 在作出这一政策决定后拥有所有东西.
             Cmd save = m.d.current.messages.empty()
                          ? Cmd::none() : save_current_whole(m);
             auto reset = reset_to_fresh_thread(m);
@@ -771,50 +771,50 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
         },
         [&](ThreadTitleGenerated& e) -> Cmd {
             if (m.s.titling == e.id) m.s.titling = {};
-            // The model's reply, cleaned the same way a typed name is. Quotes
-            // and a trailing period are the usual chat-model habits.
+            // 模特儿的回答 也是一样的清理 带类型的 名称。
+            // 引用和后继的时段是通常的聊天 -model 习惯。
             std::string title = persistence::clean_title(e.title);
             while (!title.empty() && (title.front() == '"' || title.front() == '\''))
                 title.erase(0, 1);
             while (!title.empty() && (title.back() == '"' || title.back() == '\''
                                       || title.back() == '.'))
                 title.pop_back();
-            // Failed: keep the first-line name, and don't ask again. A model
-            // that can't answer would otherwise cost a request every turn.
+            // 失败: 保留第一个-line 名称, 并且不要再问了。
+            // 否则无法回答的模型会花费每个转弯的请求。
             if (title.empty()) {
                 if (m.d.current.id != e.id) return Cmd::none();
-                // Tried once; never again. The title stays what it was.
+                // 试一次,永远不要,标题不变
                 m.d.current.auto_titled = true;
                 return save_current(m);
             }
 
-            // Only the open thread. If you switched away while the title was
-            // being made, the thread keeps its first-line name, the same as a
-            // failed request.
+            // 只有开着 线程。如果您在标题被制作时切换,
+            // 则 线程 保持它的第一线 -line 名称,
+            // 与失败的请求相同。
             if (m.d.current.id != e.id || m.d.current.user_named()) return Cmd::none();
             if (const auto it = std::ranges::find(m.d.threads, e.id, &Thread::id);
                 it != m.d.threads.end()) {
-                if (it->user_named()) return Cmd::none();   // never replace a chosen name
+                if (it->user_named()) return Cmd::none();   // 永远不要替换选中的名称
                 it->title       = title;
                 it->auto_titled = true;
                 ++m.d.threads_rev;
             }
             m.d.current.title       = title;
             m.d.current.auto_titled = true;
-            // Say so: the name changed under you, and /rename changes it.
+            // 说:名字在您下面更改了, /重命名更改了它.
             auto toast = set_status_toast(m, "named this chat \"" + title + "\" \xc2\xb7 /rename to change");
             return Cmd::batch(save_current(m), std::move(toast));
         },
         [&](SaveRefused& e) -> Cmd {
-            // Only the open thread has a base to drop. Send it whole now, so
-            // what the refused delta carried isn't lost until the next turn.
+            // 只有开放的线程有下降基础。现在发送整个,
+            // 所以拒绝的三角洲携带的东西直到下一个转弯才丢失。
             if (e.id != m.d.current.id) return Cmd::none();
             m.d.saved_fps.clear();
             return save_current(m);
         },
         [&](ThreadsLoaded& e) -> Cmd {
-            // A reload can be read from disk before a rename made a moment
-            // ago has been written. Keep any row's newer rename.
+            // 在重新命名之前可以从磁盘上读取。
+            // 保留任何行中较新的重命名。
             for (auto& t : e.threads)
                 if (const auto it = std::ranges::find(m.d.threads, t.id, &Thread::id);
                     it != m.d.threads.end() && it->renamed_at > t.renamed_at) {
@@ -822,14 +822,14 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
                     t.renamed_at   = it->renamed_at;
                     t.name_is_auto = it->name_is_auto;
                 }
-            // Keep the picker's cursor on the thread it was on: the reload
-            // can add or reorder rows above it.
+            // 留着 选择面板 光标在 线程 重装
+            // 可以在上面加排或重排行
             ThreadId was;
             if (const auto* p = m.ui.panel.get<pn::ThreadList>())
                 if (const int at = picked_thread(m, *p); at >= 0)
                     was = m.d.threads[static_cast<std::size_t>(at)].id;
-            // Keep the backfill's progress: a reload must not re-queue a
-            // thread it already tried (an empty or unreadable one).
+            // 保留回填进度: 重装不能重装 -queue a
+            // 线程 已经尝试了(一个空的或不可读的)。
             for (auto& t : e.threads)
                 if (t.message_count == 0 && t.preview.empty())
                     if (const auto it = std::ranges::find(m.d.threads, t.id, &Thread::id);
@@ -839,10 +839,10 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
             merge_foreign(m);
             ++m.d.threads_rev;
             m.s.threads_loading = false;
-            // Old threads have no preview yet: fill them in, a batch at a
-            // time, now that the list is already showing.
+            // 旧的线程还没有预览: 填入,一次批次,
+            // 现在列表已经显示。
             Cmd fill = next_summary_batch(m);
-            // Re-clamp too: the new list may be shorter.
+            // RE-clamp也:新名单可能较短.
             if (auto* p = m.ui.panel.get<pn::ThreadList>()) {
                 const int sz = visible_count(m, *p);
                 const int at = was.value.empty() ? -1 : visible_index_of(m, *p, was);
@@ -881,30 +881,30 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
             return next_summary_batch(m);
         },
         [&](ThreadLoaded& e) -> Cmd {
-            // Result of the async single-thread load kicked off by
-            // ThreadListSelect. Empty Thread (default ThreadId) means
-            // the disk read or parse failed; just clear the spinner
-            // and leave the current thread in place.
-            // No pending load means it was superseded (^N): drop it.
+            // 合成单曲的结果 -thread 加载 被踢下来的
+            // ThreadListSelect 空的,将打开 线程 (默认)
+            // ThreadId )指读取的磁盘,或 解析 失败;
+            // 只需清除 加载动画 离开当前 线程 已经就位了
+            // 20世纪80年代的待处理 加载表示它被取代(^N):放弃它.
             if (m.s.loading_thread.value.empty()) return Cmd::none();
             const bool wanted = e.thread.id == m.s.loading_thread;
             m.s.loading_thread = {};
             m.s.thread_loading = false;
             if (!wanted || e.thread.id.value.empty()) return Cmd::none();
-            // Smart-Mode per-thread routing state belongs to the departing
-            // thread too — same reset as reset_to_fresh_thread (momentum,
-            // cascade bias, outcome-feedback signature). Without it the
-            // loaded thread's first turn inherits the OLD thread's tier
-            // momentum and its first follow-up trains the old signature.
+            // 聪明 -Mode 百分比 -thread 路由状态属于离
+            // 队 线程 也——与重置时相同 reset_to_fresh_thread
+            // (运动、级联偏差、结果) -feedback 签名。
+            // 没有签名, 已加载 线程 首转继承 旧 线程
+            // 层次动力及其第一个后续 -up 训练旧的签名。
             m.s.smart_turn_complexity  = smart::Complexity::Standard;
             m.s.smart_effort_bias      = 0;
-            // Timing probe for the synchronous portion of the load
-            // (rehydrate + release_to_kernel) that still lives on the UI
-            // thread. AGENTTY_LOG=perf=debug surfaces it.
+            // 同步部分的时序探测器 加载 (水合物+ )
+            // release_to_kernel 仍然生活在 生活于 UI 线程.
+            // AGENTTY_LOG 脱衣舞娘会露面的
             //
-            // A STOPWATCH: it reads a real clock twice to time work inside
-            // this fold, which the fold's single instant (m.now) can't do.
-            // Log-only; never reaches the Model, so replay is unaffected.
+            // A STOPWATCH :它读了两次真实的钟表 时间工作在这个
+            // 内部 归并 ,该 归并 '是单瞬间( 3) m.now )不能办.
+            // 日志 -only ; 从未到达 Model ,所以重播不会受到影响。
             auto stamp = [](const char* tag, auto t0) {
                 auto dt = std::chrono::duration<double, std::milli>(
                     std::chrono::steady_clock::now() - t0).count();
@@ -913,9 +913,9 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
             };
             m.d.current = std::move(e.thread);
             m.d.saved_fps.clear();
-            // An opened session is a saved agentty thread from here on: its
-            // picker row stops being a foreign placeholder, and the scan's
-            // copy follows its size so the next open doesn't re-import.
+            // 开幕会议是 已保存 agentty 线程 从这里开始:
+            // 选择面板 排不再是外国占位符,扫描的复制件会跟随其大小,
+            // 所以下一个打开时不会重新打开 -import.
             if (m.d.current.imported) {
                 Thread h = persistence::thread_header(m.d.current);
                 if (auto it = std::ranges::find(m.d.threads, m.d.current.id, &Thread::id);
@@ -927,9 +927,9 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
                     if (s.id == m.d.current.id) s.imported = m.d.current.imported;
                 ++m.d.threads_rev;
             }
-            // A rename is stored by the writer, which may still be busy with
-            // an earlier save, so a load right after one can read the old
-            // title from disk. Keep whichever title was renamed more recently.
+            // 重命名被作者存储, 可能仍然忙于早期的 保存 ,
+            // 所以一个 加载 之后,您就可以从磁盘
+            // 上读取旧标题。保留最近重新命名的标题。
             if (const auto it = std::ranges::find(m.d.threads, m.d.current.id, &Thread::id);
                 it != m.d.threads.end() && !it->title.empty()
                 && it->renamed_at > m.d.current.renamed_at) {
@@ -938,55 +938,55 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
                 m.d.current.name_is_auto = it->name_is_auto;
             }
             m.s.reset_usage_for_thread(last_reported_prompt(m.d.current));
-            // The loaded thread has no live turn, so any run state still
-            // standing belongs to the thread we just left. Dropping it is
-            // not housekeeping — it is a crash fix.
+            // 已加载XX线程号没有直播转弯,所以任何运行
+            // 状态仍然处于我们刚刚离开的线程号位置。
+            // 放下它不是内部管理,而是崩溃修复。
             //
-            // Switching threads mid-stream (the load is async, so the wire
-            // can very much still be running) left `phase` non-Idle and
-            // `pending_permission` set, both pointing at a transcript that
-            // no longer exists. The view then walks the NEW thread's
-            // messages looking for the old thread's ToolUse id, and the
-            // in-flight row reads active_ctx() for a run whose messages are
-            // gone. NewThread has always done this via reset_to_fresh_thread
-            // (see "a fresh empty thread has no live turn"); ThreadLoaded is
-            // the same situation and was simply missing it.
+            // 切换中 线程 中点 -stream (无) 加载 即是同声,所以 传输
+            // 仍然可以运行)左 `phase` 无 -Idle 财务报告和已审计
+            // 财务报表 `pending_permission` 设定,两者都指向已经
+            // 不存在的文字记录。 新 线程 寻找旧的留言 线程's ToolUse 编号,
+            // 和英寸 -flight 读取 active_ctx (为消息消失
+            // 的跑步) NewThread 一直通过 reset_to_fresh_thread
+            // (见A/C.5/61/L.48,第16段)
+            // "a fresh empty thread has no live turn");
+            // ThreadLoaded 情况是一样的,只是错过了
             //
-            // Order matters: hand the kernel back BEFORE the transcript is
-            // rehydrated so a late delta can't land against a half-swapped
-            // model.
+            // 顺序事项: 将内核交回 之前 记录稿被补水了 晚
+            // 三角洲无法降落在半个 -swapped 模型 模型
+            // 模式
             end_turn(m.s.phase);
             m.d.pending_permission.reset();
-            // Modals framed the OLD thread's content (the palette and
-            // code-block pickers hold indices into the departing thread's
-            // last reply), so they'd index into the wrong transcript.
+            // 模具设计 旧 线程 '内容(调色板和代码)
+            // -block 选择面板 将指数保存在离线时 线
+            // 程 上次的回复,所以他们会输入错误的笔录。
             m.ui.panel.close<pn::Palette>();
             m.ui.panel.close<pn::CodeBlocks>();
             m.ui.panel.close<pn::CodeBlockResult>();
-            // Drop the whole render cache — same rationale as NewThread:
-            // the entries belong to the thread being left, which won't
-            // freeze again. The loaded thread rebuilds its frozen prefix
-            // via rehydrate_frozen below and repopulates the cache lazily.
+            // 整个放下 渲染 缓存 - 理由与 NewThread:
+            // 属于 线程 被左转,不会再次冻僵 已加载 线
+            // 程 重建其冻结的前缀通过 rehydrate_frozen
+            // 下层和重新分布 缓存 懒惰的。
             m.ui.view_cache.clear();
-            // Wipe the composer draft — same rationale as NewThread: a
-            // pasted-but-unsent image / chip / queued message belongs to
-            // the thread being left, and the leftover image Attachment has
-            // empty bytes (drained into a prior Message), which serializes
-            // an empty image block and 400s the next submit.
+            // 删去作曲草稿——与 NewThread :
+            // 贴上 -but-unsent 图像 / 标签
+            // / 队列中的消息属于 线程 左侧,
+            // 剩余图像附件为空 字节 (排入前一个信件),
+            // 它序列化一个空图像块,并有400s的下一个提交.
             reset_composer_draft(m.ui.composer);
             auto t1 = std::chrono::steady_clock::now();
             rehydrate_frozen(m);
             stamp("rehydrate_frozen", t1);
-            // Frozen scrollback was just built from cold; the very
-            // first render() would otherwise pay full layout+paint
-            // over every frozen Turn. Flip the warmup flag so maya's
-            // run loop pre-warms the component cache before the
-            // wire-bound render — see Program::needs_warmup hook.
+            // 冻 回滚缓冲区 刚从寒冷中建成的, 第一次 render()
+            // 否则会支付满额布局+油漆, 覆盖每个冰冻的转弯。
+            // 翻转暖气 标志 这么说吧 maya 运行循环预览 -warms
+            // 构成部分 缓存 之前, 传输-bound 渲染 -
+            // 看见了 Program::needs_warmup 钩子
             m.ui.needs_warmup_render = !m.ui.frozen.empty();
-            // Arm the one-shot post-paint trim: the rehydrate budget used
-            // ESTIMATED heights; the first paint records real ones into the
-            // ledger, and the Tick arm re-trims against those. The Tick
-            // subscription gates on this flag (subscribe.cpp) until it fires.
+            // 举起手来 -shot 员额 -paint 修剪: 使用的水合水
+            // 预算 ESTIMATED 高度;第一种油漆将真实的油漆记录在分类账中,
+            // 而Tick手臂则重新记录 -trims 和那些对齐,
+            // 票 事件订阅 关卡上 标志 (subscribe.cpp 直到它燃烧。
             m.ui.pending_rehydrate_trim = !m.ui.frozen.empty();
             auto t2 = std::chrono::steady_clock::now();
             release_to_kernel();
@@ -999,18 +999,18 @@ Cmd thread_list_update(Model& m, msg::ThreadListMsg tm) {
                     m.ui.frozen.row_total(),
                     m.ui.frozen_through,
                     m.ui.term_rows);
-            // Wholesale model swap into the loaded thread. Same
-            // rationale as NewThread above: the previous thread's
-            // overflow rows are committed to native scrollback and only
-            // reset_inline (which emits `\x1b[2J\x1b[3J\x1b[H`) can
-            // erase them. Without it the previous thread's tail turns
-            // are visible above the rehydrated thread's first turn.
+            // 批发模式转换为已加载 线程.
+            // 与上文NewThread相同的理由:前线程的
+            // 溢出行承诺为原生的回滚缓冲区,
+            // 只有reset_inline(其喷出
+            // `\x1b[2J\x1b[3J\x1b[H`)可以抹去它们,
+            // 没有它,前线程的末尾转弯可以看到在补水的线程的第一转弯之上.
             //
-            // Per maya/device.hpp reset_inline() docs: this is the
-            // sanctioned recovery for thread switch / new thread. The
-            // `\x1b[3J` cost (wipes the user's pre-agentty shell
-            // scrollback) is acceptable because the user explicitly
-            // asked for the content swap (picker select).
+            // 人数 maya/device.hpp reset_inline
+            // () 证明文件:这是对以下物品的经批准追回: 线程 切换/
+            // 新建 线程。该词 `\x1b[3J` 成本( 擦除
+            // 用户的预 -agentty 外壳 回滚缓冲区 )可以接受,
+            // 因为用户明确要求内容交换( 选择面板 选择).
             return cmd::reset_inline();
         },
     }, tm);

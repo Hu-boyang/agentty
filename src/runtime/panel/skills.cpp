@@ -1,9 +1,9 @@
-// skills_panel::scan — build the read-only rows.
+// skills_panel::scan ——构建读物. -only 排行数.
 //
-// Done once on open, not per frame: screen_body() walks the body line by
-// line, and re-screening every skill every frame would be a cost paid for
-// nothing. Same reasoning as the stats panel's projection — the cache
-// lives on the open panel because its lifetime is exactly the panel's.
+// 一次公开完成,不是每 帧: screen_body
+// (走着) 正文 逐行排列,然后重新 -screening
+// 每一个技能 帧 与统计小组预测的相同推理——
+// 即 缓存 因为它的 生命周期 这正是面板的。
 
 #include "agentty/runtime/panel/skills.hpp"
 
@@ -23,11 +23,11 @@ Open scan(const Library& lib) {
     out.rows.reserve(all.size());
     for (const auto& s : all) {
         Row r;
-        // Sanitise at the boundary, once. Everything downstream of here is
-        // safe to render inside agentty's own chrome — which matters because
-        // the detail pane puts a description directly under agentty's
-        // headings, and author text that can open a new line can impersonate
-        // them (91% of confirmed-malicious skills carry injection).
+        // 一次在边界处的桑尼蒂斯,一切 下游 这里安全 渲染
+        // 内 agentty 自己的铬 - 这很重要 因为细节
+        // 面板 直接在下面插入一个描述 agentty 标题,
+        // 以及可以打开新行的作者文本可以冒充它们(确认的91
+        // %) -malicious 技能携带注射)。
         r.name        = tools::skills::sanitize_author_text(s.name, 64);
         r.description = tools::skills::sanitize_author_text(s.description, 300);
         r.origin      = tools::skills::sanitize_author_text(s.origin, 96);
@@ -40,31 +40,31 @@ Open scan(const Library& lib) {
         r.trusted = std::holds_alternative<scope::Trusted>(
             tools::skills::trust_of(s, approvals));
 
-        // Screen every skill, not just effectful ones. The shadow-feature
-        // finding is the whole reason: capability in the body with nothing
-        // in the declaration showed up in 100% of advanced attacks in the
-        // 98k-skill study, so "declares nothing" is not a reason to skip.
+        // 筛选每一种技能, 不只是效果好的。 -feature
+        // 发现是整个原因: 正文 宣言中没有任何内容 出现在98k
+        // 的 100%的先进攻击中 -skill 学习,
+        // 所以 "declares nothing" 不是一个跳过的理由。
         r.findings = tools::skills::screen_body(s.body);
         r.has_critical = std::ranges::any_of(
             r.findings, [](const tools::skills::Finding& f) {
                 return f.severity == tools::skills::Finding::Severity::Critical;
             });
 
-        // Is another directory in the same scope claiming this name? The
-        // losing copy is invisible everywhere — including this panel — so
-        // the winner has to carry the warning, or nothing does.
+        // 是否另一个范围相同的目录声称这个名字?
+        // 丢失的复制品在任何地方都看不见——包括这个面板——
+        // 所以胜利者必须携带警告,否则什么也做不了.
         r.shadow_conflict = lib.shadowed_within_scope(s.name);
 
         out.rows.push_back(std::move(r));
     }
 
-    // Order: things needing attention first, then alphabetical. A viewer
-    // that buries the one flagged skill under forty clean ones is a viewer
-    // that answers the wrong question.
+    // 顺序: 需要注意的事情, 然后按字母顺序排列。
+    // 一个将标注在四十个干净的技巧下的人,
+    // 是一个回答错误问题的查看者。
     std::ranges::stable_sort(out.rows, [](const Row& a, const Row& b) {
         const auto rank = [](const Row& r) {
             if (r.has_critical)          return 0;
-            if (r.shadow_conflict)       return 1;   // something is hidden
+            if (r.shadow_conflict)       return 1;   // 东西是隐藏的
             if (r.gated && !r.trusted)   return 2;
             return 3;
         };

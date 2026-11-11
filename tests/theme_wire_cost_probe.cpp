@@ -1,13 +1,13 @@
-// What does one theme change actually COST the terminal?
+// 主题有什么变化? COST 编号 终端?
 //
-// A cursor move repaints two rows. A theme change repaints every cell on
-// screen — every colour changes, so maya's cell diff finds no unchanged
-// spans and emits the whole viewport. Over a slow link, or a terminal that
-// is slow to parse SGR, that is the difference between "instant" and
-// "mushy" even when the CPU cost is a few milliseconds.
+// 光标移动 重绘 主题更改 重绘 每隔一段时间 存储单元 屏幕上——每一
+// 颜色都变了,所以 maya's 存储单元 diff 找不到不变的跨度,
+// 并释放整个 可视区域 慢一点 链接 ,或 a ,或 终端 慢到这个
+// 解析 SGR ,这是区别于 "instant" 财务报告和已审计
+// 财务报表 "mushy" 即便在 CPU 成本是几毫秒。
 //
-// Prints bytes written per keypress for a theme move vs a plain cursor
-// move, so the two are directly comparable.
+// 每个按键压印出字节用于主题移动相对于一个平版光标移动,
+// 所以两者直接可比较.
 #include "agentty/runtime/model.hpp"
 #include "agentty/runtime/msg.hpp"
 #include "agentty/runtime/app/deps.hpp"
@@ -46,7 +46,7 @@ Model seeded(int msgs) {
     return m;
 }
 
-// Render and return the emitted string — the bytes a terminal must parse.
+// 渲染 并返回所释放的字符串—— 字节 a 终端 必须 解析.
 std::string frame(const Model& m, int w = 100, int h = 40) {
     maya::RenderContext ctx{w, h, maya::render_generation(), true};
     maya::RenderContextGuard g(ctx);
@@ -54,7 +54,7 @@ std::string frame(const Model& m, int w = 100, int h = 40) {
     return maya::render_to_string(el, w);
 }
 
-// How many bytes CHANGED between two frames — what a diffing writer sends.
+// 有多少个 字节 CHANGED 介于两个之间 帧 ——一个流言蜚语的作家寄来的.
 std::size_t changed_bytes(const std::string& a, const std::string& b) {
     std::size_t p = 0;
     const std::size_t lim = std::min(a.size(), b.size());
@@ -64,7 +64,7 @@ std::size_t changed_bytes(const std::string& a, const std::string& b) {
     return b.size() - p - q;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 int main(int argc, char** argv) {
     const int msgs = argc > 1 ? std::atoi(argv[1]) : 400;
@@ -85,12 +85,12 @@ int main(int argc, char** argv) {
     std::printf("%-22s %12s %12s %10s\n",
                 "action", "frame bytes", "changed", "ms");
 
-    // ── Theme move: every colour on screen changes ──────────────────
+    // ── 主题移动: 屏幕上的每一颜色更改 ──────────────────
     //
-    // The AVERAGE is not the complaint. "Not snappy ALWAYS" is a tail
-    // problem: if one key in twenty costs 10x the rest, the mean stays
-    // inside budget and the hand still feels a hitch. So collect every
-    // sample and print the distribution.
+    // 电话 AVERAGE 并不是投诉 "Not snappy ALWAYS"
+    // 是一个 末尾 问题:如果20个键中有一个成本是10x的,
+    // 那么,平均值会留在预算范围内,而手仍然感到很不适。
+    // 所以收集每个样本并打印分配。
     {
         Model m = seeded(msgs);
         m = app::update(std::move(m), Msg{OpenAppearance{}}).first;
@@ -120,7 +120,7 @@ int main(int argc, char** argv) {
                     pct(0.50) > 0 ? pct(1.0) / pct(0.50) : 0.0);
     }
 
-    // ── Settings list move: only the cursor row changes ─────────────────
+    // ── 设置列表移动: 只有光标行更改 ─────────────────
     {
         Model m = seeded(msgs);
         m = app::update(std::move(m),

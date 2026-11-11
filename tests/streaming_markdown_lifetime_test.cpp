@@ -1,32 +1,32 @@
-// streaming_markdown_lifetime_test — the settled tree must outlive its widget.
+// streaming_markdown_lifetime_test ——解决. 源码树 必须是超过其部件的寿命。
 //
-// REGRESSION (maya 54ad00d → fixed): StreamingMarkdown::build() wrapped its
-// children in a component() lambda that captured `this` so it could record
-// the layout width into the `last_paint_width_` member (the reveal's
-// line_bounded clamp needs the real wrapped width).
+// REGRESSION (maya 54ad00d − 固定号: StreamingMarkdown::build
+// (a) 将儿童包裹在 component() 抓获的羊肉 `this` 从而可以
+// 将布局宽度记录到 `last_paint_width_` 成员 逐步显示'
+// s line_bounded 夹口需要真正的包宽度).
 //
-// But that lambda runs at LAYOUT time, not build time — and the Element
-// holding it is explicitly designed to outlive the widget:
-// settled_element() hands the settled tree to the host as a
-// shared_ptr<const Element> precisely so frozen scrollback can keep it on
-// the heap, and the renderer caches it across frames. So every layout of a
-// stashed tree wrote 4 bytes into freed memory.
+// 但是羊肉会跑到 LAYOUT 时间,而不是构建时间
+// —— 和元素 持有它被明确设计为超过部件:
+// settled_element ( ) 手拿定案 源码树
+// 以主机形式 shared_ptr<const Element> 这么冷
+// 回滚缓冲区 它可以保持它 堆,和 渲染器 缓存 横跨 帧。所以每个隐藏的
+// 布局 源码树 写 4 字节 变成自由 内存.
 //
-// Valgrind named it exactly:
-//   Invalid write of size 4
-//     at maya::StreamingMarkdown::build()::{lambda(int,int)}::operator()
-//   Address is inside a block of size 3168 free'd
-//     by maya::StreamingMarkdown::~StreamingMarkdown()
+// 瓦尔格林德给它取了个确切的名字:
+//   大小 4 的写法无效
+//     maya::StreamingMarkdown::build (:{lambda(int,
+//   int)}}: operator() 地址在3168码的区块内
+//     maya::StreamingMarkdown::~StreamingMarkdown()
 //
-// The corruption surfaced far from the cause — bad_array_new_length or
-// SIGSEGV inside an unrelated Element copy several frames later, which is
-// what made agentty appear to "crash when loading a thread".
+// 腐败远远没有达到目的—— bad_array_new_length 或 或 时 间
+// SIGSEGV 在一个不相关的元素内复制若干 帧 之后,这就是我们做的 agentty
+// 显示 "crash when loading a thread".
 //
-// This test reproduces the ownership pattern directly: build + settle a
-// widget, stash its settled_element(), DESTROY the widget, then lay the
-// stashed tree out. Under ASan/valgrind the old code trips here; without a
-// sanitizer it still exercises the path, and the width cell must remain
-// readable and correct.
+// 此测试直接复制了 所有权 模式: 构建 + 结算部件,
+// 隐藏其 settled_element( ), DESTROY 部件,
+// 然后将隐藏的 源码树 放置出来。 在 ASan/valgrind 下,
+// 旧代码行走这里; 没有消毒器, 它仍然在运行路径, 宽度 存储单元
+// 必须保持可读性和正确性。
 
 #include <maya/print.hpp>
 #include <maya/render/renderer.hpp>
@@ -45,8 +45,8 @@ void check(bool ok, const char* what) {
     if (!ok) { std::printf("FAIL: %s\n", what); ++failures; }
 }
 
-// A body long enough to wrap at the widths we lay out at, with a couple of
-// blocks so the settled tree has real children to walk.
+// A 正文 足够我们铺满宽度的宽度 和几个街区的宽度
+// 所以定居 源码树 有了真正的孩子可以走路。
 std::string sample_body() {
     return "# Heading\n\n"
            "The quick brown fox jumps over the lazy dog, and keeps on "
@@ -56,10 +56,10 @@ std::string sample_body() {
            "Closing paragraph with enough text to occupy several rows.\n";
 }
 
-} // namespace
+} // 命名空间结束。
 
 int main() {
-    // ── 1. The settled tree must survive its widget's destruction ────────
+    // ── 1. 定居的源码树必须在其部件的破坏中生存 ────────
     {
         std::shared_ptr<const maya::Element> stashed;
         {
@@ -68,29 +68,29 @@ int main() {
             md.finish();
             stashed = md.settled_element();
             check(stashed != nullptr, "settled_element() returns a tree");
-            // Lay out ONCE while the widget is alive — this is what primes
-            // the width cell the lambda writes to.
+            // 准备 一次 部件还活着时——这是宽度的质数
+            // 存储单元 羊肉会写信的
             (void)maya::render_to_string(*stashed, 80);
-        }   // md is destroyed here; `stashed` deliberately outlives it.
+        }   // md在这里被摧毁;`stashed`故意超过它.
 
-        // The stashed tree is now the host's (frozen scrollback's) to render.
-        // Laying it out must not touch the dead widget. This is the exact
-        // operation that wrote into freed memory before the fix.
+        // 藏起来的 源码树 现为主机( 冻结) 回滚缓冲区 's) 改为 渲染.
+        // 刻录它不能触碰已死的部件。
+        // 这是在修复前写入 内存 的精确操作。
         const std::string a = maya::render_to_string(*stashed, 80);
         check(!a.empty(), "settled tree renders after the widget is gone");
 
-        // Re-render at DIFFERENT widths: each one invokes the layout lambda
-        // again, so each is another write through the (now dangling) capture.
+        // 宽度为DIFFERENT的Re-render:每个都再次
+        // 引用布局羊肉达,所以每个都通过(现在的)抓取来写另一个.
         for (int w : {40, 100, 24, 120}) {
             const std::string out = maya::render_to_string(*stashed, w);
             check(!out.empty(), "settled tree renders at every width");
         }
     }
 
-    // ── 2. Several stashed trees, all outliving their widgets ────────────
-    // Frozen scrollback holds many of these at once; interleaving their
-    // layouts is the realistic shape and catches a per-instance cell that
-    // was accidentally shared.
+    // ── 2. 数处藏匿 源码树 ,所有活在它们的部件 ────────────
+    // 冻 回滚缓冲区 将许多这些组合同时保存; 将组合式相互
+    // 连接是现实的形状, 并捕获每枚 -instance 存储
+    // 单元 意外地分享了这些
     {
         std::vector<std::shared_ptr<const maya::Element>> stash;
         for (int i = 0; i < 8; ++i) {
@@ -107,13 +107,13 @@ int main() {
             }
     }
 
-    // ── 3. A LIVE (unsettled) widget re-lays out safely at many widths ───
-    // The width cell exists to serve the reveal clamp; it's private, so
-    // rather than reach into it we exercise the path that writes it — a live
-    // widget laid out repeatedly at changing widths, which is what a resize
-    // during streaming does — and require that it stays consistent and
-    // crash-free. (Under valgrind this is where a dangling capture would
-    // report; the value itself is covered by the reveal's own tests.)
+    // ── 3. A LIVE (未解决) 部件重新 -lays 安全地从许多宽度外移 ───
+    // 宽度 存储单元 已存在,用于服务 逐步显示 夹子,
+    // 是私人的,所以我们不接触它,而是使用写它的道路——一个不断在
+    // 宽度变化时铺设的活的部件,这就是在它被修改时的大小。
+    // 流式传输 ——并要求它保持一致性并坠毁 -free .
+    // (在Valgrind下,这是一个正在被捕获的捕捉器报告的地方;
+    // 值本身由以下内容涵盖: 逐步显示 自己的测试。 )
     {
         maya::StreamingMarkdown md;
         md.set_live(true);
@@ -122,8 +122,8 @@ int main() {
             const std::string out = maya::render_to_string(md.build(), w);
             check(!out.empty(), "live widget re-lays out at a new width");
         }
-        // Settle it, stash it, drop the widget, and lay out again: the
-        // live→settled→orphaned sequence is the real frozen-scrollback path.
+        // 把它安顿下来,藏起来,放下部件,然后再放出来: 活的
+        // —沉的—孤的序列是真正的冰冻的-scrollback路径.
         md.finish();
         auto settled = md.settled_element();
         check(settled != nullptr, "settled after a live phase");

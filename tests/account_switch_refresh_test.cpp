@@ -1,16 +1,16 @@
-// account_switch_refresh_test — switching to a long-idle account must not
-// leave you holding an EXPIRED token.
+// account_switch_refresh_test ——换成长篇. -idle
+// 账户不能让你持有 EXPIRED 符号。
 //
-// Two accounts on the same provider (Anthropic): if you switch to one that's
-// been idle long enough for its OAuth access token to lapse, the account_select
-// reducer must kick a background token refresh (oauth_refresh_in_flight) using
-// the just-swapped store's refresh_token — instead of installing the stale
-// bearer verbatim and 401-ing on the first turn. Switching to an account whose
-// token is still fresh must NOT trigger a refresh.
+// 同一供应商的两个账户( Anthropic :如果你切换到一个已经闲置了
+// 足够长的时间,以至于其OAuth访问令牌失效,则 account_select
+// 状态更新函数 必须在背景符号刷新时踢出( S) oauth_refresh_in_flight
+// )使用正义 -swapped 商店的 refresh_token
+// ——而不是安装 过期 无记名逐字记录和401 -ing
+// 转换到一个仍然新鲜的账户 不 启动刷新。
 //
-// Driven through the REAL app::update reducer. Points XDG_CONFIG_HOME at a temp
-// dir and disables the keystore so the credential + registry round-trips hit
-// sealed files, exactly like oauth_proactive_refresh_test.
+// 开车经过 真实 app::update 状态更新函数 点 XDG_CONFIG_HOME
+// 临时目录中,键盘被禁用,所以 凭据 + 注册表 圆形 -trips 点击密封文件,
+// 完全一样 oauth_proactive_refresh_test.
 #include "agtest_cap.hpp"
 #include "agtest.hpp"
 #include "agtest_fx.hpp"
@@ -32,7 +32,7 @@
 #if defined(_WIN32)
 #  include <process.h>   // _getpid
 #else
-#  include <unistd.h>    // getpid
+#  include <unistd.h>    // 发作
 #endif
 
 using namespace agentty;
@@ -58,15 +58,15 @@ void save_oauth(std::int64_t expires_at_ms, const std::string& refresh) {
     (void)auth::save_credentials(::agentty::IoAccess::grant(), auth::Credentials{std::move(o)});
 }
 
-// Point this process's config root at a FRESH temp dir.
+// 将此进程配置根点为 FRESH 临时 dir。
 //
-// Uniqueness must survive two things: (a) sibling ctest processes started
-// in the same millisecond under `ctest -j` (a bare timestamp collided, and
-// two processes sharing a credential store failed each other's
-// assertions non-deterministically), and (b) multiple CASES in one binary
-// — each wants a clean registry, since a leftover account from an earlier
-// case changes what "the outgoing account" is. So: timestamp + pid +
-// per-call counter, and no `static done` latch.
+// 独一性必须活过两件事:(a) 在同一毫秒内开始的兄弟姐妹试验过程。
+// `ctest -j` (赤色时间戳碰撞,两个过程共用 a 凭据 存储
+// 失败 对方的断言非 -deterministically
+// )和(b) 多重 CASES 在一个 二进制程序 每个人想要一个干净的
+// 注册表 ,因为以前案件遗留的账户改变了什么 "the outgoing account"。
+// 所以:时间戳+pid+每 -call 计数器,
+// 没有 `static done` 锁锁.
 void isolate_config_dir() {
     static std::atomic<int> seq{0};
     auto dir = fs::temp_directory_path()
@@ -105,14 +105,14 @@ void install_stub_deps() {
     });
 }
 
-// Register two anthropic accounts (A = fresh, B = long-expired) and leave A
-// active. Returns the AccountList with the cursor pre-placed on `on_label`.
+// 登记两个人类账户(A = 新鲜账户,B = 长账户) -expired ,然后离开 A。
+// 返回 AccountList 与光标在前面 -placed 打开 `on_label`.
 ui::login::AccountList setup_two_accounts(const std::string& on_label) {
-    // B first: capture a long-EXPIRED OAuth as account "B".
-    save_oauth(/*expires*/ now_ms() - 60 * 60 * 1000, "rt-B");
+    // B第一: 抓长 -EXPIRED 代理账户 "B".
+    save_oauth(/*过期*/ now_ms() - 60 * 60 * 1000, "rt-B");
     acc::snapshot_active(::agentty::IoAccess::grant(), agtest::cap(), "anthropic", "B");
-    // A second: a token that is still comfortably fresh, active.
-    save_oauth(/*expires*/ now_ms() + 60 * 60 * 1000, "rt-A");
+    // 第二: 一种仍然新鲜、活跃的标志。
+    save_oauth(/*过期*/ now_ms() + 60 * 60 * 1000, "rt-A");
     acc::snapshot_active(::agentty::IoAccess::grant(), agtest::cap(), "anthropic", "A");
 
     ui::login::AccountList al;
@@ -131,7 +131,7 @@ ui::login::AccountList setup_two_accounts(const std::string& on_label) {
     return al;
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("account switch refreshes a stale token") {
     isolate_config_dir();
@@ -142,13 +142,13 @@ TEST_CASE("account switch refreshes a stale token") {
         provider::select(::agentty::IoAccess::grant(), sel);
     }
 
-    // ── Switch to the long-idle account B → kick a background refresh ──
+    // ── 切换到长-idle账户 B – 踢出一个背景刷新 ──
     {
         Model m;
         m.ui.login = setup_two_accounts("B");
         auto [m2, cmd] = app::update(std::move(m),
                                      Msg{msg::LoginMsg{agentty::AccountSelect{}}});
-        agtest::fx::run_credentials(cmd);   // what the host does next
+        agtest::fx::run_credentials(cmd);   // 接下来主机会做什么
 
         CHECK(m2.s.oauth_refresh_in_flight,
               "switching to a long-idle account with an expired token kicks "
@@ -159,14 +159,14 @@ TEST_CASE("account switch refreshes a stale token") {
               "the account picker closes after the switch");
     }
 
-    // ── Switch back to the fresh account A → NO refresh ──
+    // ── 切换回新账户 A ~ NO 刷新 ──
     {
-        acc::activate(::agentty::IoAccess::grant(), agtest::cap(), "anthropic", "B");   // make A the inactive target
+        acc::activate(::agentty::IoAccess::grant(), agtest::cap(), "anthropic", "B");   // 使 A 成为不活动目标
         Model m;
         m.ui.login = setup_two_accounts("A");
         auto [m2, cmd] = app::update(std::move(m),
                                      Msg{msg::LoginMsg{agentty::AccountSelect{}}});
-        agtest::fx::run_credentials(cmd);   // what the host does next
+        agtest::fx::run_credentials(cmd);   // 接下来主机会做什么
 
         CHECK(!m2.s.oauth_refresh_in_flight,
               "switching to an account whose token is still fresh does NOT "
@@ -176,11 +176,11 @@ TEST_CASE("account switch refreshes a stale token") {
 }
 
 TEST_CASE("account switch invalidates the outgoing account's catalog") {
-    // Entitlement is ACCOUNT-scoped: a Pro and a Max subscription serve
-    // different model lists. The catalog in hand was fetched as the OUTGOING
-    // account, so after a switch it is wrong. Without invalidation the 60s
-    // freshness guard in the ^/ reducer skips the refetch and the picker
-    // browses the PREVIOUS account's models.
+    // 应享权利 ACCOUNT-scoped : Pro和
+    // 最大 事件订阅 服务不同的模式列表。 目录 手持的被拿来
+    // 作为 OUTGOING 账户,所以在切换后它就错了。
+    // 不无效,则在 ^/ 状态更新函数 跳过反切和 选择面板
+    // 浏览 PREVIOUS 账户的模型。
     isolate_config_dir();
     install_stub_deps();
     {
@@ -192,10 +192,10 @@ TEST_CASE("account switch invalidates the outgoing account's catalog") {
     Model m;
     m.ui.login = setup_two_accounts("B");
 
-    // A catalog that was just fetched -- the exact state that defeats the
-    // TTL guard. The anim clock starts at 0 in tests, so stamp it explicitly;
-    // any nonzero value is "fetched" as far as the freshness check is
-    // concerned.
+    // A 目录 刚刚被取走的 -- 击败了 TTL 守护。
+    // 动画时钟从0开始测试,所以明确标记它;
+    // 任何非零值都是 "fetched" 至于新鲜
+    // 度检查
     ProviderCatalog cat;
     cat.provider_id  = "anthropic";
     cat.label        = "Anthropic";
@@ -224,14 +224,14 @@ TEST_CASE("re-login reuses the derived-label slot, no proliferation") {
         provider::select(::agentty::IoAccess::grant(), sel);
     }
 
-    // Start from a clean anthropic registry: drop any slots a prior case
-    // left (this test asserts on the exact count).
+    // 从干净的人类学注册表开始: 放下任何一个先前案例剩下
+    // 的空档( 这个测试坚持精确的计数)。
     for (const auto& a : acc::list_for(::agentty::IoAccess::grant(), "anthropic"))
         acc::remove(::agentty::IoAccess::grant(), agtest::cap(), "anthropic", a.label);
     REQUIRE(acc::list_for(::agentty::IoAccess::grant(), "anthropic").empty());
 
-    // First OAuth login → one "OAuth login" slot (label derived from the
-    // credential; OAuth has no per-account identity).
+    // 第一次 OAuth 登录 ~ 1 "OAuth login" 插槽( 从“ ” 中生成的标签) 凭据 ; OAuth 中
+    // 没有 -account 身份). 互联网档案馆的存檔,存档日期2013-09-02..
     save_oauth(now_ms() + 3'600'000, "rt-1");
     acc::snapshot_active(::agentty::IoAccess::grant(), agtest::cap(), "anthropic", acc::derive_current_label(::agentty::IoAccess::grant(), "anthropic"));
     REQUIRE(acc::list_for(::agentty::IoAccess::grant(), "anthropic").size() == 1);
@@ -239,11 +239,11 @@ TEST_CASE("re-login reuses the derived-label slot, no proliferation") {
     const std::string first_secret =
         acc::get(::agentty::IoAccess::grant(), "anthropic", "OAuth login")->secret;
 
-    // Re-login THREE more times — an expired-token refresh, or just
-    // re-testing. Each derives the SAME "OAuth login" label, so the fix
-    // (snapshot_active upserts by (provider,label)) UPDATES the one slot
-    // in place. The pre-fix reducer suffixed "OAuth login 2/3/4", the
-    // reported accumulation.
+    // 调 -login 三个 更多次——过期 -token 刷新,
+    // 或者重新来过 -testing。每个 相同 "OAuth login" 标签,
+    // 所以固定( snapshot_active 由(提供方,标签)提供)
+    // UPDATES 预选档 -fix 状态更新函数 后缀 "OAuth login 2/3/4" ,
+    // 报告累积。
     for (int i = 2; i <= 4; ++i) {
         save_oauth(now_ms() + 3'600'000, "rt-" + std::to_string(i));
         acc::snapshot_active(::agentty::IoAccess::grant(), agtest::cap(), "anthropic", acc::derive_current_label(::agentty::IoAccess::grant(), "anthropic"));
@@ -251,59 +251,59 @@ TEST_CASE("re-login reuses the derived-label slot, no proliferation") {
               "re-login must not create a new slot");
     }
 
-    // The single slot now holds a DIFFERENT (newer) credential than the
-    // first login's — the secret is a sealed blob, so compare bytes
-    // rather than looking for a plaintext token.
+    // 单位现在有一个 不同 (新编). 凭据 而不是第一个
+    // 登录的——这个秘密是密封的blob,所以比较一下
+    // 字节 而不是寻找一个简单的符号。
     auto slot = acc::get(::agentty::IoAccess::grant(), "anthropic", "OAuth login");
     REQUIRE(slot.has_value());
     CHECK(slot->secret != first_secret,
           "the reused slot carries the most recent login's credential");
     CHECK(acc::active_label(::agentty::IoAccess::grant(), "anthropic") == "OAuth login", "reused slot is active");
 
-    // A DELIBERATE second account (explicit label) still coexists — the
-    // reuse rule keys on the label, so distinct labels never collide.
+    // 一个DELIBERATE的第二个账户(显式标签)仍然共存
+    // ——标签上的再利用规则键,因此不同的标签永远不会碰撞.
     save_oauth(now_ms() + 3'600'000, "rt-work");
     acc::snapshot_active(::agentty::IoAccess::grant(), agtest::cap(), "anthropic", "work laptop");
     CHECK(acc::list_for(::agentty::IoAccess::grant(), "anthropic").size() == 2,
           "a distinctly-labelled account is a separate slot");
 }
 
-// ── Token-rotation safety across switches ────────────────────────────────
+// ── 调试 -rotation 跨开关的安全性 ────────────────────────────────
 //
-// Anthropic rotates the refresh token on every refresh and invalidates the
-// old one server-side. The registry slot for an account is a SNAPSHOT; if
-// the live store refreshes after the snapshot, the slot is stale. The fix:
-// activate() re-snapshots the OUTGOING account's slot from the live store
-// before overwriting it, so switching back later presents the freshest
-// (still-valid) refresh token — never the login-day one.
+// Anthropic 在每个刷新时旋转刷新符牌, 并取消旧的
+// 服务器 -side。该词 注册表 账户的槽是 SNAPSHOT
+// 如果现场商店在之后刷新 快照 ,插槽是 过期。固定点:
+// activate() 内容 -snapshots 编号 OUTGOING 账户
+// 的插槽在覆盖前从直播商店中打开, 所以在后面切换会呈现最新鲜的( 仍然)
+// -valid () 刷新符号—— 永远不要登录 -day 一个
 TEST_CASE("switch A→B→A returns A's FRESHEST token, not the login-day one") {
     isolate_config_dir();
     install_stub_deps();
 
-    // Log in as A (rt-A-v1), snapshot, then simulate a background refresh
-    // that ROTATED A's token in the live store (rt-A-v2) — the registry
-    // slot still holds v1, exactly the staleness window.
+    // 登录为 A( r) -A-v1), 快照 ,然后模拟背景刷新 ROTATED
+    // A在现场商店的代号(r) -A-v2 —— —— . 注册表 插槽
+    // 仍然保留v1, 确切的 staleness 窗口。
     save_oauth(now_ms() + 3'600'000, "rt-A-v1");
     acc::snapshot_active(::agentty::IoAccess::grant(), agtest::cap(), "anthropic", "A");
-    save_oauth(now_ms() + 3'600'000, "rt-A-v2");   // rotation post-snapshot
+    save_oauth(now_ms() + 3'600'000, "rt-A-v2");   // 轮调员额 -snapshot
 
-    // Log in as B and register it.
-    // (In the app, login saves the store then snapshots — same order here.)
-    // Switching A→B via activate("B") must FIRST re-snapshot A from the
-    // live store (capturing v2), THEN install B.
+    // 登记为B并登记。
+    // (在应用程序中,登录) 保存 那店里就卖了 快照 ——这里的顺序相同.
+    // ) 通过激活切换 A_B( ) "B" )必须 首次 内容 -snapshot
+    // 现场商店的A(抓V2), THEN 安装 B.
     {
-        // Register B from a separate live credential.
+        // 登记B号从单独的实况凭据。
         auto keep_a = auth::load_credentials(::agentty::IoAccess::grant());
         REQUIRE(keep_a.has_value());
         save_oauth(now_ms() + 3'600'000, "rt-B-v1");
         acc::snapshot_active(::agentty::IoAccess::grant(), agtest::cap(), "anthropic", "B");
-        // Restore A live (as if A was the active account all along).
+        // 恢复 A 直播( A 一直作为活动账户)。
         auth::save_credentials(::agentty::IoAccess::grant(), *keep_a);
         acc::set_active(::agentty::IoAccess::grant(), agtest::cap(), "anthropic", "A");
     }
 
     REQUIRE(acc::activate(::agentty::IoAccess::grant(), agtest::cap(), "anthropic", "B"));
-    // Live store now carries B.
+    // 现场商店现在载着B.
     {
         auto c = auth::load_credentials(::agentty::IoAccess::grant());
         REQUIRE(c.has_value());
@@ -312,9 +312,9 @@ TEST_CASE("switch A→B→A returns A's FRESHEST token, not the login-day one") 
         CHECK(o->refresh_token == "rt-B-v1");
     }
 
-    // Switch back to A: the token must be v2 (the rotated one), because
-    // activate() re-snapshotted A on the way OUT. Pre-fix this was v1 —
-    // server-invalidated, so every refresh failed until re-login.
+    // 切换回A: 符号必须是v2(旋转的), 因为 activate() 内容
+    // -snapshotted 来了 OUT 预览 -fix 这是v1——服务器
+    // -invalidated ,所以每次刷新都失败,直到恢复 -login.
     REQUIRE(acc::activate(::agentty::IoAccess::grant(), agtest::cap(), "anthropic", "A"));
     {
         auto c = auth::load_credentials(::agentty::IoAccess::grant());
@@ -331,14 +331,14 @@ TEST_CASE("activate to the SAME label does not self-snapshot-clobber") {
 
     save_oauth(now_ms() + 3'600'000, "rt-same-v1");
     acc::snapshot_active(::agentty::IoAccess::grant(), agtest::cap(), "anthropic", "solo");
-    // Live store rotates…
+    // 直播店旋转...
     save_oauth(now_ms() + 3'600'000, "rt-same-v2");
 
-    // Re-activating the already-active label must install the SLOT's copy
-    // (v1) — the outgoing==incoming guard skips the outgoing snapshot, so
-    // this is a genuine "restore from registry" and not a no-op — without
-    // upserting v2 into the slot first (which would make restore-from-
-    // registry impossible).
+    // 调 -activating 已经 -active 标签必须安装
+    // SLOT 抄袭(v1)——出品的 ⁇ 警队跳过出品. 快照 ,
+    // 所以这是真的 "restore from registry" 而不是
+    // 拒绝 -op ——不先将v2提升到槽中(这样可以使恢复 -from-
+    // 注册表 无法完成).
     REQUIRE(acc::activate(::agentty::IoAccess::grant(), agtest::cap(), "anthropic", "solo"));
     auto c = auth::load_credentials(::agentty::IoAccess::grant());
     REQUIRE(c.has_value());

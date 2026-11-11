@@ -1,25 +1,25 @@
-// anthropic_md_stream — capture a real Anthropic SSE markdown stream once,
-// then replay the recorded deltas through maya's StreamingMarkdown reveal-fx
-// path so we can validate the typewriter animation against authentic bytes
-// (delta sizes, inter-delta timing) without needing network access in CI.
+// anthropic_md_stream - 抓住一个真实的 Anthropic
+// SSE 标记下 数据流 一次,然后通过 maya's StreamingMarkdown
+// 逐步显示-fx 路径,这样我们就可以验证打字机动画 相对于真实 字
+// 节 (德尔塔大小, -delta 时间),不需要网络访问 CI.
 //
-// Modes:
-//   --capture <out.jsonl> [--prompt "..."] [--model claude-...]
-//       Performs ONE live call to api.anthropic.com using the same auth
-//       resolution as the main binary (~/.config/agentty/credentials.json
-//       or ANTHROPIC_API_KEY). Appends each StreamTextDelta as a JSON
-//       line: {"t_ms": <int>, "delta": "<text>"}. t_ms is the monotonic
-//       offset from the first delta.
+// 模式 :
+//   --capture <out.jsonl> [--prompt "..."] [--model
+//       表演 表演 演出 表演 一个 现场直播 调用 改为 api.anthropic.com 使用与主版本
+//       相同的认证分辨率 二进制程序 (~/.config/agentty/credentials.json
+//       或 或 时 间 ANTHROPIC_API_KEY。各附录 StreamTextDelta 作为
+//       JSON 线条 : { "t_ms": <int>, "delta": "<text>"}.
+//       t_ms 是那个 单调递增的 由第一三角洲供资。
 //
-//   --replay <in.jsonl> [--realtime] [--width 100] [--no-fx]
-//       Reads the recorded deltas and pushes them into a StreamingMarkdown
-//       with reveal_fx ON, rendering each frame to stdout. --realtime
-//       sleeps between deltas at the recorded cadence; default is "as
-//       fast as possible" but still polls render at 16 ms ticks so the
-//       reveal cursor walks visibly.
+//   --replay <in.jsonl> [--realtime] [
+//       --width 100] [--no-fx 读了记录的三角洲 把它们推向一个
+//       StreamingMarkdown 与 reveal_fx ON,
+//       渲染 每一个 帧 来点小酒 --realtime 记录的cadence 时在三角洲
+//       之间睡眠;默认值为 "as fast as possible" 但仍在投票中 渲染
+//       16毫秒时, 逐步显示 光标明显走动。
 //
-// Intentionally minimal: this is a developer tool / bench, not a ctest
-// entry. EXCLUDE_FROM_ALL in CMakeLists; build with
+// 故意最小化:这是开发者工具/长凳,而不是测试项. EXCLUDE_FROM_ALL
+// CMakeLists中; 以CMake构建 --build 构
 //   cmake --build build --target anthropic_md_stream
 
 #include <algorithm>
@@ -42,7 +42,7 @@
 #include "agentty/auth/auth.hpp"
 #include "agentty/domain/conversation.hpp"
 #include "agentty/provider/provider.hpp"
-#include "agentty/provider/stream_epilogue.hpp"  // complete provider::StreamResult
+#include "agentty/provider/stream_epilogue.hpp"  // 完成( I) provider::StreamResult
 #include "agentty/provider/anthropic/transport.hpp"
 #include "agentty/runtime/msg.hpp"
 
@@ -56,11 +56,11 @@ using json = nlohmann::json;
 
 namespace {
 
-// ── shared helpers ────────────────────────────────────────────────────────
+// ── 共享帮助 ────────────────────────────────────────────────────────
 
 [[nodiscard]] std::string escape_json_text(std::string_view s) {
-    // nlohmann handles UTF-8 + control bytes correctly; round-trip via
-    // json::value() is a one-liner instead of hand-rolling \u escapes.
+    // 自动操作控制器 UTF -8+ 控制器 字节 正确; 圆 -trip 途经 json::value
+    // ()是一款 -liner 而不是手, 手, 而不是手 -rolling - 逃出来了
     return json(s).dump();
 }
 
@@ -69,7 +69,7 @@ void die(std::string_view msg, int code = 2) {
     std::exit(code);
 }
 
-// ── capture ───────────────────────────────────────────────────────────────
+// ── 抓取 ───────────────────────────────────────────────────────────────
 
 constexpr const char* kDefaultPrompt =
     "Write a richly-formatted markdown response (about 800-1200 words) "
@@ -83,7 +83,7 @@ constexpr const char* kDefaultPrompt =
 int do_capture(const std::string& out_path,
                const std::string& prompt,
                const std::string& model) {
-    // Resolve creds exactly like main.cpp does.
+    // 解脱之心如 main.cpp 已经。
     auth::Credentials creds = auth::resolve(::agentty::IoAccess::grant(), /*cli_api_key=*/"");
     auth::AuthHeader  hdr   = auth::make_auth_header(creds);
     if (auth::is_empty(hdr)) {
@@ -156,7 +156,7 @@ int do_capture(const std::string& out_path,
     return 0;
 }
 
-// ── replay ────────────────────────────────────────────────────────────────
+// ── 重播( E) ────────────────────────────────────────────────────────────────
 
 struct Delta { long long t_ms; std::string text; };
 
@@ -193,12 +193,12 @@ int do_replay(const std::string& in_path,
         deltas.size(), realtime, width, fx_on, floor_cps, drain_secs,
         feed_cps > 0.0 ? std::to_string(feed_cps) : std::string{"∞"}, trace);
 
-    // Shared md is fed by a producer thread and read by maya::live's
-    // render thread. StreamingMarkdown::append() + build() are not
-    // documented as thread-safe; for the dev tool case (single producer,
-    // single consumer, append always before build sees it) the small
-    // race window is acceptable. A mutex around append/build would add
-    // contention and isn't necessary for visual validation.
+    // 共享 md 由生产商提供 线程 读作: maya::live's 渲染 线程.
+    // StreamingMarkdown::append() + build() 未记录为
+    // 线程-safe ; 对于 dev 工具箱(单一的生产者,单一的消费者,附件总是在构建前看到)
+    // 小工具箱(Single Production, single close,
+    // application always before building sees it) 竞态
+    // 窗口为可接受。 互斥量 环绕 append/build 并且不是视觉验证所必需的
     auto md = std::make_shared<maya::StreamingMarkdown>();
     md->set_live(true);
     md->set_reveal_fx(fx_on);
@@ -207,16 +207,16 @@ int do_replay(const std::string& in_path,
     std::atomic<bool> done{false};
     auto wall_start = steady_clock::now();
 
-    // Flatten all deltas into one byte stream when --feed-cps is on:
-    // we drip codepoint-by-codepoint at the requested rate. This is
-    // what makes the typewriter feel REAL — the markdown parser's
-    // commit_range can never settle a paragraph faster than the user
-    // sees it appear, so committed prefixes don't flash in pre-styled.
-    // Without this throttle, a 150-char burst delta lands all bytes
-    // at once, the parser commits the paragraph (e.g. on `\n\n`), and
-    // the rendered prefix paints with full style — maya's reveal
-    // cursor only animates the still-live TAIL after that, so the
-    // user perceives "everything appears then animation happens".
+    // 将所有三角洲平整成一个 字节 数据流 何时 --feed-cps 内容在 :
+    // 我们滴代码点 -by-codepoint。
+    // 这就是打字机的感觉。 真实 ——减记 解析器's
+    // commit_range 无法比用户看到的时间更快地解析段落,
+    // 因此承诺的前缀不会在前端闪烁 -styled.
+    // 没有油门,150 -char 三角洲的爆发 全部着陆 字节 一次,
+    // 一个 解析器 执行本款( e.g 打开 `\n\n` ),
+    // 以及制作的带有全风格的前缀画—— maya's 逐步显示 光标只显示
+    // 静态动画 -live TAIL 之后,用户会感知
+    // 所有内容先出现，随后才播放动画。
     std::string all_bytes;
     if (feed_cps > 0.0) {
         std::size_t total = 0;
@@ -226,10 +226,10 @@ int do_replay(const std::string& in_path,
     }
 
     if (trace) {
-        // Trace mode bypasses maya::live and runs a manual render loop
-        // that logs each frame's source/reveal/committed state to
-        // stderr. Lets us SEE whether bursts come from the producer,
-        // the reveal cursor, the commit, or the renderer.
+        // 跟踪模式绕行 maya::live 运行一个手动 渲染 循环,
+        // 记录每个 帧's source/reveal/committed
+        // 状态到 stderr。让我们 SEE 不论来自制片人,
+        // 逐步显示 光标、 承诺或 渲染器.
         auto start = steady_clock::now();
         std::thread tprod([&, md] {
             if (feed_cps > 0.0) {
@@ -261,28 +261,28 @@ int do_replay(const std::string& in_path,
             done = true;
         });
 
-        // Frame loop. Render each frame to a plain string (no ANSI),
-        // measure how many visible chars are present, and log the
-        // per-frame delta. If the typewriter is smooth this should
-        // grow by ~floor_cps * 0.033 chars per 33 ms frame; if it's
-        // bursty we'll see long flat stretches followed by big jumps.
+        // 帧 循环。 渲染 每一个 帧 改为普通字符串( 无)
+        // ANSI ),测量可见字符的显示数量,并记录每个字符的显示数。
+        // -frame 三角洲,如果打字机很滑, 就会增加~
+        // floor_cps * 0.033个字符/33毫秒
+        // 帧 如果它爆炸,我们会看到 长的平展 之后的大跳跃。
         std::size_t last_visible = 0;
         int frame = 0;
         while (!done) {
             const maya::Element& el = md->build();
             std::string rendered = maya::render_to_string(el, width);
-            // Count visible (non-whitespace, non-newline) chars as a
-            // proxy for "what the user can see". Whitespace+newlines
-            // are added by the renderer for layout and would muddy
-            // the per-frame delta signal.
+            // 计数可见( 非) -whitespace 编号、非 -newline
+            // (字符作为代词) "what the user can see"
+            // 中添加了白空+新线。 渲染器 用于布局, 并会将每个
+            // 泥土 -frame 三角洲信号
             std::size_t visible = 0;
             for (char c : rendered) {
                 if (c != ' ' && c != '\n' && c != '\r' && c != '\t')
                     ++visible;
             }
-            // Rendered height in rows = newline count + 1. This is the
-            // signal that drives chrome position; oscillation here IS
-            // the flicker.
+            // 成行的渲染高度 = 新线数 + 1.
+            // 这是驱动铬位置的信号; 这里的振荡 IS
+            // 闪烁器。
             std::size_t rows = 1;
             for (char c : rendered) if (c == '\n') ++rows;
             static std::size_t last_rows = 0;
@@ -307,9 +307,9 @@ int do_replay(const std::string& in_path,
 
     std::thread producer([&, md] {
         if (feed_cps > 0.0) {
-            // Codepoint-paced drip. UTF-8 codepoint boundary = byte
-            // whose top 2 bits are not 10. Walk the byte stream,
-            // releasing one cp at a time at the requested rate.
+            // 代码point-paced滴滴. UTF-8
+            // 代码点边界=字节,其前2位数不10.
+            // 步行字节XX数据流,按要求的速率一次释放1 cp.
             const auto per_cp = duration_cast<nanoseconds>(
                 duration<double>(1.0 / feed_cps));
             auto next_wake = steady_clock::now();
@@ -333,18 +333,18 @@ int do_replay(const std::string& in_path,
                 md->append(deltas[i].text);
             }
         }
-        // Let the reveal cursor catch up + chrome settle before stopping.
+        // 让逐步显示光标在停止前追上+铬结算.
         std::this_thread::sleep_for(2s);
         md->finish();
         std::this_thread::sleep_for(500ms);
         done = true;
     });
 
-    // The host split removed maya::live (and the global maya::quit it needed
-    // to break out of). This mode is the INTERACTIVE replay — the ctest arms
-    // all run `det` — so a plain 30 fps render loop over the same builder is
-    // an honest stand-in: it exercises the identical StreamingMarkdown path
-    // and ends when the producer sets `done`, no quit flag required.
+    // 将主机分割删除 maya::live 和全球化问题 maya::quit
+    // 模式是 INTERACTIVE 重放——试臂全部运行 `det`
+    // 30岁 FPS 渲染 同一建筑商的圆圈是诚实的 -in : 它
+    // 行使相同的 StreamingMarkdown 路径和结束当
+    // 制作人设定 `done` ,不退出 标志 需要的,请说明。
     while (!done) {
         (void)maya::render_to_string(md->build(), width);
         std::this_thread::sleep_for(33ms);
@@ -355,13 +355,13 @@ int do_replay(const std::string& in_path,
     return 0;
 }
 
-// ── deterministic replay (the trustworthy measurement) ─────────────────────
-// Single-threaded, frozen anim clock. Walks a virtual timeline in fixed
-// frame steps; appends each recorded delta when its t_ms has passed; renders
-// every frame and measures the per-frame VISIBLE-character delta. Because
-// everything runs on one thread at a frozen clock, source / clip / cursor /
-// visible are all consistent — no producer-thread race, no wall-clock jitter.
-// This is what tells us, on REAL recorded bytes, whether the reveal glides.
+// ── 确定性的重玩(可信赖的衡量) ─────────────────────
+// 单身 -threaded 时速。 帧 步骤; 附加每个已
+// 记录的三角洲 t_ms 已经通过; 渲染 每隔一段时间 帧
+// 计量单位 -frame 可见-character 三角洲,
+// 因为一切都在一线运行 线程 冻结时钟时,源/夹/光标/可见均一致
+// ——无制片人 -thread 竞态 ,没有墙 -clock 紧张。
+// 这就是我们所知道的,在 真实 记录 字节 ,是否为 逐步显示 滑翔机。 滑翔器。
 int do_det(const std::string& in_path, int width, double floor_cps,
            double drain_secs, bool fx_on, int snap_at_frame, int snap_glide_ms,
            long long assert_max_delta, bool adaptive,
@@ -372,28 +372,28 @@ int do_det(const std::string& in_path, int width, double floor_cps,
     if (deltas.empty()) { std::println(stderr, "no deltas"); return 2; }
 
     maya::testing::freeze_anim_clock(0);
-    // Motion level under test. The divisor is what makes "Reduced" mean
-    // something on a slow link; without it the bench can only measure the
-    // two extremes.
+    // 测试中的运动级别。 "Reduced" 慢着
+    // 就意味着什么 链接 ;没有它,长凳只能测量两
+    // 个极端.
     maya::anim::set_frame_divisor(frame_div);
     maya::StreamingMarkdown md;
     md.set_live(true);
     md.set_reveal_fx(fx_on);
-    // The three motion levels the Appearance pane offers map onto these two
-    // switches, so a bench that can only say fx on/off cannot measure the
-    // MIDDLE one — which is the level that matters for a high-latency link
-    // (issue #36): keep the progressive clip (progress information) and
-    // drop the decorative glyph churn (not information).
-    //   Full    = fx on,  deco on
-    //   Reduced = fx on,  deco OFF
-    //   Off     = fx off, deco off
+    // 三个运动水平的外观 面板 提供这两个交换机的映射,
+    // 所以只能表示 fx 的长凳 on/off 无法测量
+    // MIDDLE ——高低的级别, -latency 链
+    // 接 (问题36):保留进步剪辑(进步信息),
+    // 并放下装饰性的甘油churn(不是信息).
+    //   满=fx 开, deco 开,
+    //   decod 开, deco
+    //   OFF 关闭=fx 关闭, 解码
     md.set_reveal_decorate(fx_on && deco_on);
     md.set_reveal_pacing(floor_cps, drain_secs);
-    // The adaptive WINDOW is part of the profile under test, not a detail:
-    // the lane's ceiling is what decides whether the cursor sprints through
-    // a burst and then sits at the edge. Defaulting it here measured the
-    // answer lane's window (20..220) while calling itself the reasoning
-    // profile, which is the instrument lying again.
+    // 适应性WINDOW是测试中剖面图的一部分,而不是细节:
+    // 车道的天花板是决定光标是否冲过一个破裂,
+    // 然后坐落在边缘。默认它在这里测量了答录道的
+    // 窗口( 20. 220) , 同时自称是推理剖面,
+    // 也就是再次躺着的仪器。
     if (adaptive) md.set_reveal_adaptive(true, adapt_min, adapt_max);
 
     std::size_t wire_bytes_total = 0, wire_bytes_changed = 0, wire_frames_changed = 0;
@@ -401,27 +401,27 @@ int do_det(const std::string& in_path, int width, double floor_cps,
 
     auto visible_of = [&](const maya::Element& el) -> std::size_t {
         std::string s = maya::render_to_string(el, width);
-        // Count real CONTENT codepoints only: skip newlines, spaces, and
-        // (crucially) box-drawing / block-element chrome (U+2500..U+259F —
-        // heading underline rules, table borders). Those are decoration the
-        // renderer adds whole when a block exists; counting them as "visible"
-        // would report a heading's full-width underline as a content burst.
+        // 数到真 CONTENT 只跳过代码点:新行、
+        // 空格和(关键)框 -drawing 块 -element
+        // 铬(U+2500.U+259F-标题下划线规则,表框),
+        // 这些是装饰 渲染器 当块存在时添加整块; 计为 "visible"
+        // 报告一个标题的满 -width 下划线为内容破碎。
         std::size_t v = 0;
         for (std::size_t i = 0; i < s.size(); ) {
             unsigned char c = static_cast<unsigned char>(s[i]);
             if ((c & 0x80) == 0) {            // ASCII
                 if (c != '\n' && c != ' ') ++v;
                 ++i;
-            } else if ((c & 0xE0) == 0xC0) {  // 2-byte
+            } else if ((c & 0xE0) == 0xC0) {  // 2-byte 东
                 ++v; i += 2;
-            } else if ((c & 0xF0) == 0xE0) {  // 3-byte
-                // Decode to test the box-drawing/block range.
+            } else if ((c & 0xF0) == 0xE0) {  // 3-byte 东
+                // 解码以测试box-drawing/block范围.
                 char32_t cp = (c & 0x0F) << 12;
                 if (i + 1 < s.size()) cp |= (static_cast<unsigned char>(s[i+1]) & 0x3F) << 6;
                 if (i + 2 < s.size()) cp |= (static_cast<unsigned char>(s[i+2]) & 0x3F);
-                if (!(cp >= 0x2500 && cp <= 0x259F)) ++v;   // skip chrome
+                if (!(cp >= 0x2500 && cp <= 0x259F)) ++v;   // 跳过铬
                 i += 3;
-            } else {                          // 4-byte (emoji etc.)
+            } else {                          // 4-byte(emoji等) 互联网档案馆的存檔,存档日期2014-09-02.
                 ++v; i += 4;
             }
         }
@@ -430,21 +430,21 @@ int do_det(const std::string& in_path, int width, double floor_cps,
 
     constexpr std::int64_t kFrameMs = 16;
     const std::int64_t last_t = deltas.back().t_ms;
-    const std::int64_t end_t  = last_t + 4000;   // drain tail
+    const std::int64_t end_t  = last_t + 4000;   // 排水量 末尾
 
     std::size_t di = 0, prev_vis = 0;
     long long max_delta = 0, worst_t = 0, max_delta_all = 0;
     int frame = 0, over24 = 0;
-    // Finalize-glide instrumentation (#5 positive verification): the
-    // streaming gate above deliberately EXCLUDES finalizing frames, so the
-    // end-of-turn contract — a bounded visible glide, never a paste — was
-    // only verified by eyeball. Track the finalize phase separately:
-    //   • fin_max_delta: worst single finalizing-frame reveal. A glide
-    //     paints a few cells/frame; a paste paints the whole backlog.
-    //   • fin_arm_t / fin_land_t: wall-clock from the first finalizing
-    //     frame to the cursor landing (live_ off) — must be bounded by
-    //     the ramp deadline + the settle window (the widget holds live_
-    //     through scramble resolution: settle_window_ms × 2.5 ≈ 940 ms).
+    // 定稿 -glide 仪器(# 5 正核查):
+    // 流式传输 上方的门刻意 EXCLUDES 定稿 帧 ,
+    // 所以结束 -of-turn 合同——一种有界限
+    // 的可见滑翔机,从未贴过,只是通过眼球来验证。
+    //   • fin_max_delta : 最糟糕的单曲定稿 -frame 逐步显示 滑翔机
+    //     画了几幅cells/frame;一个糊涂了整个积压。
+    //   • fin_arm_t / fin_land_t : 墙 -clock 第一次定稿以来
+    //     帧 以斜坡截止时间+和解窗口(部件通过拼接
+    //     分辨率持有 live_)为界:
+    //     settle_window_ms ×2.5××940 ms).
     long long fin_max_delta = 0, fin_worst_t = 0;
     std::int64_t fin_arm_t = -1, fin_land_t = -1;
     std::println(stderr,
@@ -457,31 +457,31 @@ int do_det(const std::string& in_path, int width, double floor_cps,
             ++di;
         }
         if (di >= deltas.size()) md.request_finalize(200);
-        // Simulate a TOOL BOUNDARY: agentty calls snap_reveal_to_edge() when
-        // a tool card appears mid-stream (turn.cpp) — it jumps the reveal
-        // cursor straight to the edge, pasting the whole typed-but-unrevealed
-        // backlog in one frame. This is the burst the user sees on real
-        // turns ("first char sticks, then it all appears with the next
-        // tool") that a pure-text replay never triggers.
+        // 模拟 a TOOL BOUNDARY: agentty 调用 snap_reveal_to_edge
+        // () 当工具卡出现中点时 -stream (turn.cpp - 它跳过
+        // 逐步显示 光标直接粘贴到边缘 带类型的-but-unrevealed 积压案件 帧。
+        // 这是用户在真实转弯时看到的破裂(
+        // 首字符停住，其余内容直到下一次工具调用才出现。
+        // 纯净的 -text 重放永远不会触发。
         if (snap_at_frame >= 0 && frame == snap_at_frame) {
             md.snap_reveal_to_edge(snap_glide_ms);
             std::println(stderr, "  >>> snap_reveal_to_edge({}) at frame {} "
                                  "(simulated tool boundary)", snap_glide_ms, frame);
         }
         const std::size_t vis = visible_of(md.build());
-        // WIRE COST. Content cells are the right metric for "does the reveal
-        // glide", but they are not what a high-latency link pays for
-        // (issue #36: agentty over mosh). What crosses the wire is the
-        // RENDERED FRAME, escape sequences and all, so measure that too —
-        // and measure how much of it CHANGED, since an unchanged frame is
-        // one the render gate should have skipped entirely.
+        // 传输 COST 内容 存储单元 正确的衡量标准
+        // "does the reveal glide" 但他们不是
+        // 高人 -latency 链接 支付(问题36): agentty
+        // 穿过摩什的 传输 是那个 RENDERED FRAME 越狱的
+        // 顺序和所有,所以测量这个, 并测量它有多少 CHANGED ,
+        // 因为没有变化 帧 是一个 渲染 门应该完全跳过。
         {
             std::string s = maya::render_to_string(md.build(), width);
             wire_bytes_total += s.size();
             if (s != prev_render) {
                 ++wire_frames_changed;
-                // Longest common prefix/suffix: a rough stand-in for what a
-                // diffing terminal writer would actually send.
+                // 最长的常见 prefix/suffix : 一个粗糙的立
+                // 面 -in 以什么为笑柄, 终端 作家会派来
                 std::size_t p = 0;
                 const std::size_t lim = std::min(s.size(), prev_render.size());
                 while (p < lim && s[p] == prev_render[p]) ++p;
@@ -501,11 +501,11 @@ int do_det(const std::string& in_path, int width, double floor_cps,
         }
         const long long d = static_cast<long long>(vis)
                           - static_cast<long long>(prev_vis);
-        // Track the burst maximum over the STREAMING body only. Finalizing
-        // frames are the deliberate end-of-turn / tool-boundary glide that is
-        // allowed to move faster to land the tail; counting them would flag
-        // the intended settle as a burst. (max_delta_all still reported for
-        // visibility.)
+        // 追踪最大爆炸量 STREAMING 正文 仅此而已。
+        // 帧 故意的结束 -of-turn / 工具 -boundary
+        // 滑翔机可以更快地降落 末尾 数着会 标志 打算的和解作为爆发。
+        // ( max_delta_all 仍报告为能见度。
+        // )
         if (d > max_delta_all) { max_delta_all = d; }
         if (!md.is_finalizing() && d > max_delta) { max_delta = d; worst_t = t; }
         if (!md.is_finalizing() && d > 24) ++over24;
@@ -541,22 +541,22 @@ int do_det(const std::string& in_path, int width, double floor_cps,
         "({} ms arm→land)",
         fin_max_delta, fin_worst_t, fin_arm_t, fin_land_t,
         (fin_arm_t >= 0 && fin_land_t >= 0) ? fin_land_t - fin_arm_t : -1);
-    // Regression gate: a burst is a single frame that reveals more than
-    // assert_max_delta content cells. Ignored during the settle/finalize tail
-    // (finalizing frames are the deliberate land-the-tail glide, allowed to
-    // move faster). 0 = no assertion (interactive / measurement use).
+    // 退路门:爆破是单人 帧 显示的比 assert_max_delta
+    // 内容 存储单元 中忽略的 settle/finalize 末尾 (
+    // 最后敲定) 帧 究竟是那片被蓄意破坏的土地吗? -the-tail 滑翔,
+    // 允许移动更快) 0 = 无断言(交互/测量使用).
     if (assert_max_delta > 0 && max_delta > assert_max_delta) {
         std::println(stderr,
             "FAIL: max_frame_delta {} exceeds cap {} — the reveal burst "
             "instead of gliding", max_delta, assert_max_delta);
         return 1;
     }
-    // #5 positive gates. --assert-finalize-max: even the deliberate
-    // land-the-tail glide must be PACED — a finalizing frame that reveals
-    // the whole backlog at once is the end-of-turn paste the glide was
-    // built to remove. --assert-finalize-ms: the glide must actually LAND
-    // (live_ off) within the bound — catches a wedged ramp (the #2 class)
-    // and an unbounded adaptive stretch (the #1 class).
+    // 5号正门 --assert-finalize-max :甚至
+    // 故意占地的地盘 -the-tail 滑翔必须 PACED - 最终
+    // 决定 帧 发现所有积压的 立即结束 -of-turn 粘贴滑翔板
+    // 是用来清除的。 --assert-finalize-ms :滑翔机
+    // 必须实际 LAND 约束范围内的(live_off)——捕获一个楔形
+    // 斜坡(#2级)和一个无约束的适应性拉伸(#1级).
     if (assert_finalize_max > 0 && fin_max_delta > assert_finalize_max) {
         std::println(stderr,
             "FAIL: finalize-frame delta {} exceeds cap {} — the end-of-turn "
@@ -607,7 +607,7 @@ void usage() {
         "                 (production: answer 25..180, reasoning 45..280).\n");
 }
 
-} // namespace
+} // 命名空间结束。
 
 int main(int argc, char** argv) {
     if (argc < 3) { usage(); return 1; }
@@ -627,18 +627,18 @@ int main(int argc, char** argv) {
     }
     if (mode == "det") {
         int    width      = 100;
-        double floor_cps  = 90.0;   // production default
-        double drain_secs = 0.15;   // production default
+        double floor_cps  = 90.0;   // 生产默认
+        double drain_secs = 0.15;   // 生产默认
         bool   fx_on      = true;
-        int    snap_at    = -1;     // frame to fire a simulated tool-boundary snap
-        int    snap_glide = 0;      // 0 = instant snap; >0 = bounded glide ms
-        long long assert_max = 0;   // >0 = fail if a streaming frame bursts past it
-        bool   adaptive   = false;  // auto-tune floor to wire rate
-        bool   deco_on    = true;   // Reduced motion = fx on, deco off
-        int    frame_div  = 1;      // Reduced motion also thins repaints
-        long long assert_fin_max = 0;  // >0 = cap on a finalizing frame's reveal
-        long long assert_fin_ms  = 0;  // >0 = cap on arm→land wall-clock
-        double adapt_min = 20.0;       // maya's set_reveal_adaptive defaults
+        int    snap_at    = -1;     // 帧 发射模拟工具 -boundary 响亮
+        int    snap_glide = 0;      // 0 = 即时断裂; >0 = 带界滑翔仪 ms
+        long long assert_max = 0;   // >0 = 流式传输 帧 冲过时失败
+        bool   adaptive   = false;  // 自动 -tune 下至层 传输 费率
+        bool   deco_on    = true;   // 减速运动=fx 启动, 脱机
+        int    frame_div  = 1;      // 运动减少也稀疏 重绘
+        long long assert_fin_max = 0;  // >0 = 帧的逐步显示的定稿上限
+        long long assert_fin_ms  = 0;  // >0=臂墙上的盖子 -clock
+        double adapt_min = 20.0;       // maya's set_reveal_adaptive 默认
         double adapt_max = 220.0;
         for (int i = 3; i < argc; ++i) {
             std::string a = argv[i];
@@ -668,7 +668,7 @@ int main(int argc, char** argv) {
         int    width     = 100;
         double floor_cps = 120.0;
         double drain_secs = 0.8;
-        double feed_cps   = 0.0;   // 0 = unthrottled (use delta cadence)
+        double feed_cps   = 0.0;   // 0=未喉咙(使用三角洲卡登斯)
         bool   trace      = false;
         for (int i = 3; i < argc; ++i) {
             std::string a = argv[i];

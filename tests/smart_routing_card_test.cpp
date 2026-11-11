@@ -1,17 +1,17 @@
-// smart_routing_card_test — the 🧠 card must show the route the wire took.
+// smart_routing_card_test ——卡片必须显示路线 传输 被带走了
 //
-// build_smart_routing_card and launch_stream classify the turn INDEPENDENTLY.
-// The code comment on both calls says "same call as launch_stream so card ==
-// wire", but nothing enforced it: a dropped argument at one of the two sites
-// left the card advertising a route the request never took, and the suite
-// stayed green. That is precisely the failure this file exists to catch, and
-// it caught nothing until it existed — a mutation dropping
-// `m.d.smart.complex_threshold` at the card site passed 570 tests.
+// build_smart_routing_card 财务报告和已审计财务报表 launch_stream 转弯分类 INDEPENDENTLY.
+// 代码对两者的评论 调用 说 "same call as launch_stream so card == wire" ,
+// 但没有任何强制措施:两个站点之一的一次掉包的争论留下了一张卡片广告,
+// 广告上有一个请求从未走过的路线,而套房却保持绿色。
+// 这正是这个文件存在的无法捕捉的失败,它没有捕获到任何东西,直到它存在—
+// —一个突变的掉落。
+// `m.d.smart.complex_threshold` 在那家卡片店里通过了570次测试
 //
-// The card is documented pure and takes a const Model&, so the wire's answer
-// can be recomputed here from the same inputs and compared field for field.
-// The comparison is against smart::classify_turn / effort_for_score directly —
-// the functions launch_stream calls — so this fails if EITHER site drifts.
+// 牌是纯的,是用圆锥的 Model ,所以是( S)
+// 传输 答案可以从相同的输入和比较字段中重算出来。
+// 与smart::classify_turn/effort_for_score直接比较——
+// 函数为launch_stream/调用——因此,如果EITHER站点漂移,则失败。
 
 #include "agtest.hpp"
 
@@ -29,8 +29,8 @@ namespace {
 using namespace agentty;
 namespace sm = agentty::smart;
 
-// A model on the brink of a turn: Smart Mode on, one user message, the
-// classifier about to run. `tuning` is the user's configured policy.
+// 一个在转弯边缘的模型: Smart Mode 打开, 一个用户消息,
+// 即将运行的分类器. `tuning` 是用户配置的政策.
 Model turn_with(const std::string& text, sm::RoleConfig tuning) {
     Model m;
     m.d.smart = std::move(tuning);
@@ -42,14 +42,14 @@ Model turn_with(const std::string& text, sm::RoleConfig tuning) {
     return m;
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("smart card: the card's complexity is the wire's complexity") {
-    // Sweep the CONFIGURED threshold across its whole range on a turn whose
-    // classification sits near the boundary. At every setting the card must
-    // agree with what classify_turn — the wire's own call — produces for the
-    // same inputs. A card site that forgot to pass the threshold would track
-    // the shipped default and diverge as soon as the user moved it.
+    // 扫荡 CONFIGURED 其分类位于边界附近的一个转弯处,
+    // 其整个范围阈值。在每次设定牌时,必须同意什么。
+    // classify_turn - 电话 传输 属于自己的
+    // 调用 – 为相同的输入制作。 忘记通过阈值的卡片站点
+    // 会跟踪发送的默认值, 一旦用户移动它就会分化。
     const std::string probe = "update the parser and re-run the formatter";
 
     for (int cut = sm::tuning::kComplexMin; cut <= sm::tuning::kComplexMax; ++cut) {
@@ -60,9 +60,9 @@ TEST_CASE("smart card: the card's complexity is the wire's complexity") {
         const auto card = app::cmd::build_smart_routing_card(m);
         REQUIRE(card.has_value());
 
-        // What the wire will classify, computed the way launch_stream does.
+        // 或 传输 将分类,计算的方式 launch_stream 已经。
         const auto wire = sm::classify_turn(probe, m.s.smart_turn_complexity,
-                                            /*attachment_bytes=*/0, /*images=*/0,
+                                            /*attachment_bytes=*/0, /*图像=*/0,
                                             cfg.complex_threshold);
 
         CHECK(card->smart_route_complexity == std::string{sm::to_string(wire.tier)});
@@ -70,10 +70,10 @@ TEST_CASE("smart card: the card's complexity is the wire's complexity") {
 }
 
 TEST_CASE("smart card: the card's effort is the wire's effort") {
-    // Same argument for the OTHER knob. deep_margin decides whether a turn
-    // deep in its band earns the extra effort step, so a card that classified
-    // at the default margin would show a different effort from the one the
-    // request carries.
+    // 与“E”相同 OTHER 把手头 deep_margin
+    // 决定其波段的深转是否获得额外的努力步骤,
+    // 所以按默认差值分类的卡片会显示与请求所携带的卡片
+    // 不同的努力.
     const std::string probe = "redesign the auth module end to end across services";
 
     for (int deep = sm::tuning::kDeepMarginMin;
@@ -88,13 +88,13 @@ TEST_CASE("smart card: the card's effort is the wire's effort") {
         const auto wire_cx = sm::classify_turn(probe, m.s.smart_turn_complexity,
                                                0, 0, cfg.complex_threshold);
         const auto caps = ModelCapabilities::from_id(card->smart_route_model);
-        // The card names the model it routed to; the effort ladder is
-        // per-model, so the comparison has to use THAT model's capabilities.
+        // 牌上标出它所通往的模型; 努力梯级为每
+        // -model ,所以比较必须使用 该 模型的能力。
         //
-        // resolve_auto_effort mirrors what resolve_role does at the real call
-        // site: `auto` is the default now, and it anchors per model, so a
-        // recomputation that skipped this would compare against a different
-        // base than the wire used.
+        // resolve_auto_effort 镜像什么
+        // resolve_role 真实的 调用 站点 : `auto`
+        // 默认值是现在,它会锁定每个模型, 所以重算跳过这个会比起一个
+        // 不同的基数 传输 已使用。
         const auto base = resolve_auto_effort(m.d.effort, caps);
         const Effort wire_effort =
             sm::effort_for_score(base, wire_cx, caps, m.s.smart_effort_bias,
@@ -106,31 +106,31 @@ TEST_CASE("smart card: the card's effort is the wire's effort") {
 }
 
 TEST_CASE("smart card: an inserted proactive block cannot change the route") {
-    // The load-bearing assumption behind computing the routing decision ONCE
-    // per turn instead of twice.
+    // 电话 加载-bearing 计算路线决定背后的假设
+    // 一次 每转两圈。
     //
-    // On a proactive turn the launch is DEFERRED: submit_turn builds the card,
-    // then retrieval runs, a context message is spliced into the transcript,
-    // and ProactiveContextReady fires launch_stream from a different handler.
-    // If that insertion could move the classification, a decision computed at
-    // submit and read at launch would be stale — and the whole reason the two
-    // sites re-derive independently today is that re-deriving is trivially
-    // correct under transcript mutation.
+    // 发射的主动转弯是DEFERRED:submit_turn建卡,
+    // 然后进行检索,将上下文信息插入记录,
+    // ProactiveContextReady从不同的处理函数点火launch_stream.
+    // 如果插入该分类可以移动,则在提交时计算并在发射时宣读的
+    // 决定将是: 过期 - 以及这两个地点重新出现的原因
+    // -derive 独立地今天是 -deriving 记录
+    // 在突变中是微不足道的正确。
     //
-    // It cannot move it: both scans walk backward for the newest message that
-    // is `role == User && !is_proactive_context() && !smart_routing &&
-    // !fork_note`, and the inserted block is exactly a proactive-context user
-    // message. This asserts that rather than trusting the reading.
+    // 无法移动:两条扫描都往后走, is_proactive_context
+    // () && !smart_routing &&
+    // fork_note，且插入的块恰好是一条主动检索上下文用户消息。
+    // 。这说明,而不是相信阅读。
     const std::string probe = "redesign the auth module end to end across services";
 
-    // Model is move-only (it owns a ViewCache and a ScrollbackLedger), so each
-    // variant is built rather than copied.
+    // Model 正在移动 -only (拥有一个 ViewCache 和a 类 ScrollbackLedger ),
+    // 因此,每个 变体 ,而不是复制。
     const auto route_of = [&](bool with_proactive, bool with_card) {
         Model m = turn_with(probe, sm::RoleConfig{});
         if (with_proactive) {
-            // Exactly what ProactiveContextReady splices in: a retrieved-
-            // context user message carrying a large, Complex-looking payload.
-            // If the scan were not skipping it, THIS is what would classify.
+            // 确切的说 ProactiveContextReady
+            // 切换到: 带大型、 复合的用户信息 -looking 载荷.
+            // 如果扫描没有跳过,THIS就是分类.
             Message ctx;
             ctx.role = Role::User;
             ctx.proactive =
@@ -139,9 +139,9 @@ TEST_CASE("smart card: an inserted proactive block cannot change the route") {
             m.d.current.messages.push_back(std::move(ctx));
         }
         if (with_card) {
-            // The 🧠 card itself, the other thing that lands between submit and
-            // launch. Zero-text and Role::User — classifying it would produce
-            // an empty string.
+            // 另一件在提交和发射之间降落的东西 -text 财务报告
+            // 和已审计财务报表 Role::User ——分类它会
+            // 产生空字符串.
             Message card;
             card.role = Role::User;
             card.smart_routing = true;
@@ -162,10 +162,10 @@ TEST_CASE("smart card: an inserted proactive block cannot change the route") {
 }
 
 TEST_CASE("smart card: moving a knob actually moves the card") {
-    // The tests above would pass vacuously if the card were insensitive to the
-    // tuning — both sides would just be wrong together. So: at least one
-    // setting in the range must produce a DIFFERENT card from the default,
-    // proving the plumbing carries a signal at all.
+    // 如果卡片对调音不敏感,上面的测试就会空洞通过—
+    // —两边只是一起错了。 因此:在幅度中至少有
+    // 一个设置必须从默认值中产生DIFFERENT卡,
+    // 证明管道完全带有信号。
     const std::string probe = "update the parser and re-run the formatter";
 
     sm::RoleConfig at_default;

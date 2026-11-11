@@ -1,5 +1,5 @@
-// agentty::provider — ExternalAcpBackend → Provider adapter.
-// See acp_provider_adapter.hpp.
+// agentty::provider — ExternalAcpBackend → Provider 适配器。
+// 参见acp_provider_adapter.hpp。
 
 #include "agentty/provider/acp_provider_adapter.hpp"
 
@@ -11,38 +11,38 @@
 
 #include <maya/runtime.hpp>
 
-#include <acp/acp.hpp>          // acp::InitializeParams, SessionUpdate arms, match
+#include <acp/acp.hpp>          // acp::InitializeParams，SessionUpdate武器，比赛
 #include <nlohmann/json.hpp>
 
 #include "agentty/io/http.hpp"                       // http::CancelToken
-#include "agentty/mcp/client.hpp"                    // configured MCP delegation
+#include "agentty/mcp/client.hpp"                    // 已配置MCP委派
 #include "agentty/provider/acp_agents.hpp"           // resolve_acp_agent
-#include "agentty/provider/acp_backend.hpp"          // TurnSink, TurnResult
-#include "agentty/provider/external_acp_backend.hpp" // ExternalAcpBackend, spawn_acp_agent
+#include "agentty/provider/acp_backend.hpp"          // TurnSink，TurnResult
+#include "agentty/provider/external_acp_backend.hpp" // ExternalAcpBackend，spawn_acp_agent
 #include "agentty/provider/stream_epilogue.hpp"        // StreamResult
-#include "agentty/runtime/msg.hpp"                   // Stream* Msgs
-#include "agentty/tool/util/fs_helpers.hpp"          // workspace_root (for cwd)
+#include "agentty/runtime/msg.hpp"                   // 数据流* 消息
+#include "agentty/tool/util/fs_helpers.hpp"          // workspace_root (对于 CWD)
 
 namespace agentty::provider {
 
-// One spawned agent + the backend that drives it. Cached per agent id: the
-// subprocess is long-lived, its ACP session reused across requests.
+// 一个产生的代理+驱动它的后端。按代理 ID 缓存：子进程为
+// long-lived，其 ACP 会话在请求之间重用。
 //
-// Built once by acquire(), then published read-only. Teardown is the LAST
-// holder's: release_acp_agents() only drops the cache's reference, so a turn
-// still inside backend->prompt() on another thread keeps both alive until it
-// returns. It used to reset them in place under that turn.
+// 由acquire()构建一次，然后发布read-only。拆解是 最后
+// 持有者的：release_acp_agents() 只会删除 缓存 的引用，
+// 因此仍在后端 -> prompt() 内的另一个 线程 上的转弯将使两者
+// 保持活动状态，直到它返回。它用于在该回合下将它们重置到位。
 struct LiveAgent {
     std::unique_ptr<ExternalAcpBackend> backend;
-    SpawnedAcpAgent                     agent;   // owns the subprocess and peer; dies first
-    // The peer's dispatch points at the backend, so the peer goes first.
+    SpawnedAcpAgent                     agent;   // 拥有子进程和对端；先死
+    // 对端的分派指向后端，因此对端先行。
     ~LiveAgent() { agent.reset(); }
 };
 
 } // namespace agentty::provider
-// Both members are set by acquire() before the map is published and never
-// reassigned; what readers call on them is the backend's prompt() (one round
-// at a time, guarded inside) and the peer (Sync). Joins on destroy (the peer).
+// 两名成员均在地图发布前由 acquire() 设置，
+// 且从未重新分配；读卡器调用上的是后端的prompt()
+// （一次一轮，内部守卫）和对端（同步）。加入摧毁（对端）。
 MAYA_SYNC(agentty::provider::LiveAgent);
 MAYA_JOINS_ON_DESTROY(agentty::provider::LiveAgent);
 namespace agentty::provider {
@@ -51,7 +51,7 @@ namespace {
 namespace a = acp;
 using json = nlohmann::json;
 
-// Copy-on-write: readers look up without a lock, a spawn publishes a new map.
+// Copy-on-write：读者查找没有锁，重生发布新地图。
 using AgentMap = std::unordered_map<std::string, std::shared_ptr<LiveAgent>>;
 maya::published<const AgentMap>& g_cache() {
     static maya::published<const AgentMap> c;
@@ -65,8 +65,8 @@ std::shared_ptr<LiveAgent> cached(const std::string& agent_id) {
     return it == map->end() ? nullptr : it->second;
 }
 
-// Extract the plain text of a ContentBlock (text + text-resource arms only;
-// other arms contribute nothing to a streamed delta).
+// 提取ContentBlock的纯文本（仅文本+文本-resource臂；
+// 其他臂对流式增量没有贡献）。
 std::string block_text(const a::ContentBlock& b) {
     std::string out;
     a::match(b,
@@ -80,10 +80,10 @@ std::string block_text(const a::ContentBlock& b) {
     return out;
 }
 
-// Build the client's InitializeParams. We advertise the fs + terminal client
-// capabilities so a spec-conformant agent knows it may call back into us
-// (our make_handlers() wires those). acp-cpp doesn't enforce this agent-side,
-// but real agents check it.
+// 构建客户端的InitializeParams。我们宣传 fs + 终端 客户端功能，
+// 以便 spec-conformant 代理知道它可能会将 调用 返回给我们（我们
+// 的 make_handlers() 连接这些）。 acp-cpp 不强制执行此代理-side，
+// 但真正的代理会检查它。
 a::InitializeParams make_init() {
     a::InitializeParams init;
     init.clientCapabilities.fs.readTextFile  = true;
@@ -92,8 +92,8 @@ a::InitializeParams make_init() {
     return init;
 }
 
-// Get (or lazily spawn) the live agent for `agent_id`. Returns nullptr and
-// fills `err` on any launch failure.
+// 获取（或延迟生成）`agent_id` 的实时代理。如果启动失败，
+// 则返回 nullptr 并填充 `err`。
 std::shared_ptr<LiveAgent> acquire(const maya::unlocked& cap, const std::string& agent_id, std::string& err) {
     if (auto hit = cached(agent_id)) return hit;
 
@@ -145,7 +145,7 @@ std::shared_ptr<LiveAgent> acquire(const maya::unlocked& cap, const std::string&
     }
     live->backend->connect(*live->agent.connection);
 
-    // Another thread may have raced us; keep the first winner.
+    // 另一个线程可能与我们赛跑；保留第一名获胜者。
     for (;;) {
         auto cur = g_cache().current();
         if (cur) {
@@ -157,7 +157,7 @@ std::shared_ptr<LiveAgent> acquire(const maya::unlocked& cap, const std::string&
     }
 }
 
-} // namespace
+} // 命名空间结束。
 
 StreamResult stream_external_acp(const maya::unlocked& cap, const std::string& agent_id, Request req, EventSink sink) {
     sink(StreamStarted{});
@@ -170,26 +170,26 @@ StreamResult stream_external_acp(const maya::unlocked& cap, const std::string& a
         return StreamResult::failed(err.empty() ? "ACP agent spawn failed" : err);
     }
 
-    // Translate ACP's snapshot-based, agent-owned tool lifecycle into visible
-    // canonical cards. rawInput is replacement state, never an append delta.
-    // These calls have already been executed by the delegated agent;
-    // StreamObservedToolResult settles them before finalize_turn, so the host
-    // scheduler never executes them a second time.
+    // 将ACP的快照-based、agent-owned工具生命周期翻译成可见的规范卡。
+    // rawInput 是替换状态，而不是追加增量。
+    // 这些调用已经被委托代理人执行了；
+    // StreamObservedToolResult 在 finalize_turn
+    // 之前解决它们，因此主机调度程序永远不会第二次执行它们。
     std::unordered_set<std::string> open_tools;
     std::unordered_set<std::string> ended_tools;
     std::unordered_map<std::string, std::string> observed_outputs;
 
     auto tool_name = [](const a::ToolCall& call) {
-        // Claude's ACP adapter carries the executable name in metadata while
-        // title is a human label ("Edit file …"). Other agents commonly use
-        // title directly, so retain that as the protocol-neutral fallback.
+        // Claude的ACP适配器携带元数据中的可执行名称，
+        // 而标题是人类标签("Edit file …")。
+        // 其他代理通常直接使用标题，因此将其保留为协议-neutral 回退。
         try {
             if (call.meta.contains("claudeCode")
                 && call.meta["claudeCode"].contains("toolName")) {
                 auto name = call.meta["claudeCode"]["toolName"].get<std::string>();
                 if (!name.empty()) return name;
             }
-        } catch (...) { /* malformed optional metadata: use title */ }
+        } catch (...) { /* 格式错误的可选元数据：使用标题 */ }
         return call.title.empty() ? call.toolCallId.value : call.title;
     };
 
@@ -234,9 +234,9 @@ StreamResult stream_external_acp(const maya::unlocked& cap, const std::string& a
             [&](const a::SU_ToolCallUpdate& tc) {
                 const auto& update = tc.update;
                 const auto& id = update.toolCallId.value;
-                // A conforming ACP stream announces the call first. Be
-                // defensive for adapters that race a refinement ahead of it:
-                // open a stable fallback card rather than dropping the update.
+                // 一致的ACP 数据流首先公布调用。
+                // 对 竞态 之前的适配器进行防御：
+                // 开启稳定的回退卡而不是掉线更新。
                 if (!open_tools.contains(id) && !ended_tools.contains(id)) {
                     const std::string name = update.title.has_value()
                         ? update.title.value() : id;
@@ -255,32 +255,32 @@ StreamResult stream_external_acp(const maya::unlocked& cap, const std::string& a
             },
             [&](const a::SU_Usage& u) {
                 StreamUsage su2;
-                // ACP reports a single aggregate `used`; map it onto the input
-                // token field so the context-window meter advances. `size` is
-                // the agent's advertised window if it sent one.
+                // ACP报告单个聚合`used`；将其映射到输入标记字段，
+                // 以便 context-window 仪表前进。
+                // `size` 是代理的通告窗口（如果已发送）。
                 su2.input_tokens = static_cast<int>(u.used < 0 ? 0 : u.used);
                 sink(std::move(su2));
             },
-            [&](const auto&) { /* plan / commands / mode / info: not streamed */ });
+            [&](const auto&) { /* 计划/命令/模式/信息：未流式传输 */ });
     };
 
     auto cancel = std::make_shared<http::CancelToken>();
-    req.cancel  = cancel;   // the runtime trips this on Esc (see below)
+    req.cancel  = cancel;   // 运行时 在 Esc 上跳闸（见下文）
 
-    // ACP's per-round TurnResult (acp_backend.hpp) is the ADJACENT layer's
-    // outcome; fold it onto the shared provider StreamResult so the ACP arm
-    // reports through the same value type as the native transports.
+    // ACP的per-round TurnResult(acp_backend.hpp)
+    // 是ADJACENT层的结果； 归并 到共享提供程序 StreamResult 上，
+    // 因此 ACP 臂通过与本机 传输层 相同的值类型进行报告。
     TurnResult res = live->backend->prompt(cap, req, tsink, cancel);
 
-    // Some adapters omit a final status update on cancellation/early turn
-    // settlement. Close each remaining card exactly once using its latest
-    // snapshot so no Pending call is stranded forever.
+    // 一些适配器省略了关于cancellation/early回合结算的最终状态更新。
+    // 使用最新的 快照 将剩余的每张卡关闭一次，
+    // 这样就不会永远搁置 待处理 调用。
     std::vector<std::string> still_open(open_tools.begin(), open_tools.end());
     for (const auto& id : still_open) finish_tool(id);
 
     if (!res.ok()) {
         if (res.error && res.error->user_cancel) {
-            // A user cancel is a clean stop, not an error surface.
+            // 用户取消是完全停止，而不是错误表面。
             sink(StreamFinished{StopReason::EndTurn});
             StreamResult sr;
             sr.end  = StreamEnd::UserCancelled;
@@ -307,8 +307,8 @@ StreamResult stream_external_acp(const maya::unlocked& cap, const std::string& a
 }
 
 void release_acp_agents(const maya::unlocked&) noexcept {
-    // Drop the cache. Each agent is torn down by whoever holds it last (here,
-    // unless a turn is still running), bounded even for a wedged agent.
+    // 放下缓存。每个智能体都会被最后持有它的人撕毁（在这里，
+    // 除非回合仍在运行），即使对于楔入的智能体也是如此。
     auto drained = g_cache().take();
     (void)drained;
 }

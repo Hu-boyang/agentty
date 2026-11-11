@@ -1,252 +1,252 @@
-# Files allowed to use raw concurrency primitives, and which ones.
+# 允许使用原始货币原始文件的文件, 以及哪些原始文件。
 #
-# Everything else must go through jaal's safe types: a task or scope instead
-# of std::thread, guarded<T> instead of std::mutex, loop_bound<T> instead of
-# thread_local. See maya/third_party/jaal/docs/concurrency.md §7, and
-# jaal's tests/lint/banlist.cmake for the check itself.
+# 其他一切必须经过 jaal 安全类型:任务或范围而不是 std::thread 被保护 <T> 改为
+# std::mutex, loop_bound<T> 改为 thread_local。
+# 见 maya/third_party/jaal/docs/concurrency.md §7,
+# 以及 缩写: jaal's tests/lint/banlist.cmake 支票本身。。
 #
-# WHY THIS FILE EXISTS. jaal runs that check over its OWN tree, which says
-# nothing about a consumer: agentty could spawn a bare thread beside the
-# loop, park reducer state in a thread_local, or forge a Sink, and jaal
-# would never notice. Pointing the same check at agentty is what closes it.
+# 原因 此 FILE EXISTS. jaal 运行检查过它 自身 源码树
+# 上面没有写消费者的名言 agentty 可能产下一个赤裸的 线程 绕圈子边,
+# 停 状态更新函数 状态在 a thread_local 或铸造沉淀,
+# 以及 jaal 永远也不会注意到的 指着同一个支票 agentty 关闭它。
 #
-# ── Lock-order capability roots (cap_mint) ───────────────────────────────────
-# jaal makes lock order a type (jaal core/capability.hpp): taking a lock needs
-# a capability proving every held lock ranks lower, and a blocking wait needs
-# `unlocked`. Capabilities are handed out at thread entry (job/task/stream/
-# scope bodies), inside lock bodies, and nowhere else -- EXCEPT the roots
-# listed with `cap_mint` below, each a place a thread starts holding nothing
-# but whose signature a library or the language fixes. Each is a claim a
-# human checked: no agentty lock can be held when control reaches it.
-# Adding one is a review.
+# ── 锁-order 能力根( 根) cap_mint) ───────────────────────────────────
+# jaal 制造 锁 命令类型( 键盘) ( jaal
+# core/capability.hpp : 服用一个 锁 需要能力证明每
+# 个持有 锁 排序更低, 需要阻断等待 `unlocked`。
+# 在 线程 条目( job/task/stream/ 范围 正文 ),
+# 内 锁 正文 ,没有其他地方 -- EXCEPT 根数 `cap_mint` 下方,
+# 每个地方a 线程 开始无保留,但签名人a 库 或语言修补。
+# 每件都是检查过的人的索赔:否 agentty 锁 当控制到达时,可以被控制。
+# 加一是检讨.
 #
-# main(): the process root; run_main threads `cap` everywhere below it.
+# main() : 过程根; run_main 线程 `cap` 随处随处皆得.
 runtime/main.cpp: cap_mint
-# The ACP server: the URL-elicitation-complete callback (MCP transport
-# thread), tool progress / update sinks and the elicit relay (tool worker
-# thread) -- all reached from threads that hold no agentty lock.
+# 电话 ACP 服务器: URL-elicitation-complete 回
+# 调 (MCP 传输层 线程 ),工具进度/更新汇和引线继电器(工具) 工作线程
+# 线程 ) -- -- 所有达到 线程 持持不执. agentty 锁.
 acp/server.cpp: cap_mint
-# rpc::Peer's destructor joins its tasks. Peer is joins_on_destroy, so no
-# guarded can own one and it is never destroyed inside a lock body.
+# rpc::Peer 毁灭者加入它的任务 对端 谓
+# joins_on_destroy 无法拥有它 也从未在其中被摧毁 锁 正文.
 rpc/peer.cpp: cap_mint atomic
-# mcp-cpp's CapabilityProvider virtuals (execute/list/read_resource/...):
-# signatures fixed by the library; called from tool bodies and MCP
-# transports. The class holds no jaal lock at all (atomics + snapshots).
+# mcp-cpp's CapabilityProvider 虚拟( 4) execute/list/read_resource/...):
+# 由该署名所固定的签名 库 ; 从工具调用 正文 财务报告和已审计
+# 财务报表 MCP 传输层。该类持有否 jaal 锁 原子+ 快照).
 mcp/connection.cpp: atomic cap_mint
-# The Retriever's public API (tool bodies, proactive path, settings worker)
-# and its warm worker; the index lock and the memory store below it are
-# checked against this one root.
-# mcp-cpp's MemoryStore interface (no Call is passed to it).
-# mcp-cpp's StateAccess::with (the tool state gate) -- a library virtual.
-# exec.cpp: mcp-cpp's Session read virtual, run_child's feeder join,
-# and the scan Splitter mcp-cpp / rag-cpp call.
+# 利他维的公众 API (工具数) 正文 ,主动路径,
+# 设置 工作线程 及其影响 已预热的工作线程 ; 索引 锁 编辑 内存
+# 下方的存储会被对照此根检查。
+# mcp-cpp's MemoryStore 接口( 无) 调用 将交给它。
+# mcp-cpp's StateAccess::with (工具状态门) -- a 库 虚拟。
+# exec.cpp: mcp-cpp '会话读作虚拟, run_child 种子加入,
+# 扫描分解器 mcp-cpp / rag-cpp 调用.
 tool/util/exec.cpp: cap_mint atomic
 tool/mcp_tools_bridge.cpp: cap_mint
-# sandbox_netproxy.cpp's atomics: ProxyState, shared by the proxy's ONE poll
-# job and its owner (stop/refused/served from the UI thread). It is co_owned,
-# so it must be Sync: the listener fd is exchanged to -1 by stop() to wake
-# the poll, and the counters are read without a lock. No lock exists to
-# order them against -- every other field is const or job-local.
+# sandbox_netproxy.cpp 其子漫画 : ProxyState ,
+# 由代理服务器共享 一个 民意调查工作及其所有人( stop/refused/served
+# 从 UI 线程。这是 co_owned ,所以必须是同步: 收听器 fd 交换到
+# -1 by stop() 来唤醒民意调查 计数器在读时没有 锁。
+# 无 锁 存在以命令他们反对——其他每个领域都是Const或工作 -local.
 tool/util/sandbox_netproxy.cpp: atomic
-# exec.cpp's atomic: JaalSession::Core::stop, the one flag a session's stop()
-# sets without taking a lock, so stop and the destructor never block. Core
-# is co_owned, so it must be Sync; an atomic<bool> is.
+# exec.cpp 原子 : JaalSession::Core::stop ,
+# 一个 标志 届会 stop() 设定不带 锁 ,所以停止和毁灭器永远不要挡住。
+# co_owned ,所以必须是同步;原子 <bool> 就是这样
 #
-# Each entry names the primitives that file may use, so a file allowed
-# std::mutex still cannot sneak in a .detach(). Adding a line is a
-# deliberate act: it says someone checked by hand that the raw primitive IS
-# the implementation of a safe thing, not a shortcut around one.
+# 每个条目名称文件可能使用的原始文件, 因此允许使用文件
+# std::mutex 仍然不能偷偷溜进...
+# detach() 添加一条线是故意的:它说有人用手检查一下,
+# 原始的 IS 安全的东西,而不是绕着它走的捷径。
 #
-# WHAT THIS BUYS, HONESTLY. jaal grades its guarantees (concurrency.md §6):
-# Level A is "the bug cannot be written", B is "a tool catches it", C is
-# "convention". Everything on this list is Level B. A file here has been
-# READ and judged correct; nothing stops the next edit to it from adding a
-# second lock and an inversion. jaal's guarded<T> would make that Level A
-# (a second lock cannot be named inside with()/read()), and agentty uses it
-# in zero places — 44 files hold a raw std::mutex instead.
+# 内容 此 BUYS, HONESTLY. jaal 其保障等级( concurrency.md §6):
+# A级是 "the bug cannot be written" ,
+# B为 "a tool catches it" ,C为 "convention"。
+# 列表中的所有文件都是B级的。这里的文件是 READ 并判断正确;没有停止它的
+# 下一次编辑 锁 和反转。 jaal 被看守着 <T> 将A级(第二个) 锁
+# 无法在内部命名 with()/read() ),以及 agentty 在零位
+# 使用它——44份文件有原始文件 std::mutex 换成是的
 #
-# That is a deliberate position, not an oversight: most of these locks guard
-# a process-wide cache read from CLI paths that have no kernel in scope, and
-# guarded<T> binds to one. But it means the list is a promise to keep
-# checking, not a proof. Two things keep it honest:
+# 这是一个蓄意的立场,而不是一种疏忽:这些障碍大多是:
+# 锁 守护进程 -wide 缓存 读自 CLI 范围
+# 没有内核且有防护的路径 <T> 绑在一块,
+# 但名单是承诺继续检查,而不是证明。
 #
-#   tests/seam_stress_test.cpp   drives the process-wide seams (provider
-#                                selection, tool catalog, capability
-#                                registry) from many threads under TSan.
-#   allowlist_tight_*            fails the build when an entry outlives the
-#                                code that justified it.
+#   tests/seam_stress_test.cpp 驱动进程 -wide
+#                                接口边界 (提供者选择、工具) 目录 ,
+#                                能力 注册表 )来自许多 线程 下三圣门.
+#   allowlist_tight_ * 当一个条目超过证明它合理的代码时,
+#                                该构建失败。
 #
-# When a file here gains a SECOND mutex, that is the moment to reach for
-# guarded<T> or an owner thread instead of extending the grant.
+# 当这里的文件获得SECONDXXXX互斥量时,
+# 此时即为守护的<T>或拥有者线程的到达时刻,而不是延长授权.
 #
-# Paths are relative to src/ (the check runs once per scanned root).
+# 路径相对src/(检查每扫描根一次).
 
-# ── Owned background workers ─────────────────────────────────────────────
-# Three subsystems own a thread that outlives any one turn. They are NOT
-# jaal tasks because they are not part of a turn: they start at init and run
-# until teardown, while jaal's task/stream lifetimes are per-Cmd and
-# per-subscription. Each registers its own join with util::teardown, so
-# main() cannot forget one — that registration is the safety property here.
+# ── 拥有背景 工作线程 ─────────────────────────────────────────────
+# 三个子系统拥有 a 线程 任何一个人都会活得比他久 不 jaal 任务,
+# 因为它们不是转弯的一部分:它们从内转开始,一直运行到撕裂,同时 jaal's
+# task/stream 生命周期 单位 -Cmd 和每笔 -subscription。
+# 每个单位都登记自己加入的 util::teardown ,所以,
+# 我说 main() 不能忘记其中之一——登记是这里的安全财产。
 #
-# settings_cache: the write-behind settings worker; its state is
-# maya::guarded and the worker sleeps in wait_with. Nothing banned left.
-# blob_gc: the sweep moved to its own maya::pool; the walk takes the pool's
-# stop_token and the schedule is a once_flag. Nothing banned left.
-# modelsdev: same shape as blob_gc. Nothing banned left.
+# settings_cache : 写 -behind 设置 工作线程 ;
+# 状态是 maya::guarded 编辑 工作线程 睡在梦里 wait_with . . 没有被禁的了.
+# blob_gc : 扫描移到自己的位置 maya::pool ; 步行会 池's
+# stop_token 调度为 a once_flag . .。。 . 都已经没有禁忌了。
+# modelev:形状与blob_gc相同,没有禁用物存在.
 
-# ── HTTP: the turn's cancel token, and the transport ─────────────────────
-# A streaming turn is a Cmd::task holding an http::CancelToken, tripped from
-# a reducer on Esc. jaal has no effect for "cancel that specific in-flight
-# request from a later step" — its stop_token is the runtime's, and fires
-# when work stops being subscribed — so this atomic is the app's own. The
-# reasoning is written out on the Sendable opt-in in runtime/cmd.hpp.
-# http: prewarm dials run on a maya::pool, the connection pool is
-# maya::guarded. thread_local is the retry-jitter RNG; const_cast is the
-# OpenSSL C API.
+# ── HTTP 转弯 取消 符号,和 传输层 ─────────────────────
+# A 流式传输 转弯是 Cmd::task 持有 http::CancelToken ,
+# 从一个 状态更新函数 打开 Esc. jaal 没有 副作用 费用
+# "cancel that specific in-flight request from a later step"
+# ——其国家 stop_token 是那个 运行时 工作停止时会起火 所以这个原子是应用
+# 程序的 推理在可发送选项上写出来 -in 输入 runtime/cmd.hpp.
+# http: 预发拨号运行于一个 maya::pool ,连接 池 谓 maya::guarded.
+# thread_local 是那个 重试-jitter RNG; const_cast 是那个 OpenSSL
+# C API.
 io/http.cpp: thread_local const_cast atomic
 io/tls.cpp: const_cast
 
-# ── Persistence and credentials ──────────────────────────────────────────
-# Not reducer code: these run on a worker a task already put them on, or on
-# CLI paths with no loop at all.
+# ── 持久化 财务报告和已审计财务报表 凭据 ──────────────────────────────────────────
+# 没有 状态更新函数 代码: 这些运行在 a 工作线程 任务已经设置,
+# 或 CLI 路径完全没有循环。
 io/auth.cpp: const_cast
 io/keystore.cpp: const_cast
 io/cred_crypt.cpp: const_cast
 
-# ── Tools ────────────────────────────────────────────────────────────────
-# A tool runs on a worker and may spawn a child process. Its progress sink,
-# cancel, reader and nesting travel in tools::CallContext, not on the thread.
-# rag apply is synchronous now (the TUI runs it through cmd::apply_rag_settings)
-# and the subagent stream's cancel bridge is stop_callbacks on real tokens, so
-# this file starts no thread of its own. Its caches are maya::guarded or
-# published; the atomics are two sequence counters.
+# ── 工具 ────────────────────────────────────────────────────────────────
+# 一个工具运行在 工作线程 并可能会产生一个孩子的过程, 它的进化沉积,
+# 取消 ,阅读器和筑巢旅行 tools::CallContext ,不在 线程.
+# rag应用现在是同步的(TUI运行于cmd::apply_rag_settings),
+# 副代理数据流的取消桥在真符上是stop_callbacks,
+# 因此这个文件没有自发的线程开始. 它的缓存是maya::guarded或发布;
+# atmoctic是两个序列计数器.
 tool/mcp_tools_backends.cpp: atomic cap_mint
-# skills: the atomic counts discovery-cache resolutions for a test.
+# 技术:原子计数发现-cache分辨率进行测试。
 tool/skills.cpp: atomic
-# The subagent run registry. A subagent runs on a Cmd::task_isolated thread
-# and holds provider objects by reference off main's stack, so teardown has to
-# stop each live run and wait a bounded moment for it to leave the stream.
+# 副代理运行 注册表。一个子剂运行在 Cmd::task_isolated
+# 线程 并且通过主堆栈的参考物来保存提供者的物件,所以拆卸必须
+# 停止每一次直播运行,等待一个有界限的时刻,以便它离开 数据流.
 #
-# This used to be hand-rolled here (a cancel flag + done latch per run, a
-# condition variable, a rescan on every wakeup) on the grounds that the wait
+# 这曾经是手 -rolled 此处(a) 取消 标志 + 每跑一次完成批量,条件变量,
+# 每次醒时重新扫描),理由是等待
 # "cannot be expressed as a jaal task — the threads are ones jaal disowned".
-# True of a task, and exactly the gap maya::stop_group now fills:
-# cancel + wait for work on threads you don't own, with admission closing
-# at shutdown (which the old snapshot-then-wait missed). Nesting depth and the
-# inherited deadline travel in the tool call's CallContext. The installed
-# Config is maya::guarded, so nothing here needs a grant any more.
-# Windows: run_command_s tees child output while polling for exit. It used to
-# be a bare reader std::thread plus `std::mutex buf_mu` guarding four loose
-# `shared_*` variables, joined ~90 lines later with a caller-supplied
-# on_progress callback invoked in between — so a throwing callback meant
-# ~thread on a joinable thread, i.e. std::terminate with no stack.
+# 任务的真实性, 和确切的差距 maya::stop_group 现在填充:
+# 取消 +等待工作时间 线程 关闭时就关闭了(旧的) 快照
+# -then-wait。 隐藏深度和工具中继承的最后期限旅行 调
+# 用's CallContext。所安装的配置是
+# maya::guarded 所以这里不需要一个 授权 再来一次
+# Windows: run_command_s 投票时显示孩子的输出, 用于退出。 它曾经是裸体阅读
+# 器 std::thread 加号 `std::mutex buf_mu` 保护四个松散的
+# `shared_*` 变量,稍后与调用符连接到 ~90 行 -supplied
+# on_progress 回调 彼此之间,彼此之间,互相引用, 回调 意思是 ~ ~ , 意思是~ ,
+# 线程 在一个可合并的 线程, i.e. std::terminate 和没有堆叠。
 #
-# Now maya::scope() owns the reader (joined on EVERY exit path, so the [&]
-# captures are warranted rather than lucky) and maya::guarded<PipeBuf> owns
-# the buffer with its mutex, so "took the lock" is not something to remember.
-# jaal caught a real violation during the conversion: the first version
-# passed `char*` into the lock body, which it rejects because a pointer
-# argument is how a body reaches data the lock does not cover.
+# 现在 maya::scope ()拥有读者(加入) 每个 退出路径,因此[ &]捕获是正当的,
+# 而不是幸运的)和 maya::guarded<PipeBuf> 拥有 缓冲区 财务报告和审定
+# 财务报表以及审计委员会的报告 互斥量 ,所以,我说 "took the lock" 没有什么值得记住的
+# jaal 转换时发现有真实的违反: 第一个版本通过
+# `char*` 输入 锁 正文 ,它拒绝这一点,
+# 因为指针式的论据是: 正文 到达数据 锁 不包括这个
 #
-# The reader's EOF is a field in PipeBuf now, waited on with wait_with_for.
-# The sandbox mode and backend switches.
+# 读者的 EOF 是字段,请输入 PipeBuf 现在,等待着 wait_with_for.
+# 沙箱模式和后端开关.
 tool/util/sandbox.cpp: atomic
 
-# ── Workspace scans ──────────────────────────────────────────────────
-# The symbol index fans a directory walk across helpers in a maya::scope; the
-# atomic is the shared work cursor they pull file indexes from.
+# ── 工作区扫描 ──────────────────────────────────────────────────
+# 电话 符号 索引播放器 在一个目录中横跨帮助者 maya::scope ;
+# 原子是它们从文件索引中提取的共享工作光标。
 workspace/symbols.cpp: atomic
-# files.cpp: the atomic is the walk's single-flight latch. The prewarms
-# stop on their task's stop_token.
+# files.cpp 原子是行走的单体 -flight 锁,
+# 预温会停止工作 stop_token.
 workspace/files.cpp: atomic
-# checkpoint.cpp: the atomic is the "repo info is ready" latch that lets
-# the reducer read the cache without blocking.
+# checkpoint.cpp :原子是 "repo info is ready"
+# 锁住它 状态更新函数 读取 缓存 不受阻碍。
 workspace/checkpoint.cpp: atomic
 
-# ── Providers: transports and their shared state ─────────────────────────
+# ── 供应商:传输层及其共享状态 ─────────────────────────
 provider/chatgpt/responses.cpp: thread_local
 provider/copilot/copilot_oauth.cpp: atomic
 provider/kimi/kimi_oauth.cpp: atomic
 
-# ── MCP and RAG: their own servers and index workers ─────────────────────
-# bridge: the MCP connects moved to pool.submit_isolated, whose future does
-# not join in its destructor — so the detached orphan-waiter that existed only
-# to absorb that stall is gone too, along with the shared_future it needed.
-# The pool is published whole (maya::published) and the seen-tools cache is
-# maya::guarded; `atomic` is the pool's list-changed generation counter.
-# `cap_mint`: mcp_tools() is a reviewed root. Its callers (the catalog's
-# connect step, mcp_reload) run on workers and never inside a lock body;
-# its waits are maya::atomic_wait / job_result, so a lie aborts there.
+# ── MCP 财务报告和已审计财务报表 RAG : 自己的服务器和索引 工作线程 ─────────────────────
+# 桥: MCP 连接已移动到 pool.submit_isolated
+# 未来不会毁灭它,故它变成孤兒。 -waiter 仅用来吸收
+# 这个摊子的 也不见了 shared_future 需要这样
+# 电话 池 全文公布( maya::published 和所见 -tools 缓存 谓
+# maya::guarded; `atomic` 是那个 池 '列表 -changed 世代计数器。
+# `cap_mint`: mcp_tools ()是经审查的根。 目录 连接步骤,
+# mcp_reload 运行( 运行) 工作线程 永远不要在其中 锁 正文 ;它的等待是:
+# 时间 maya::atomic_wait / job_result 谎言就在那里被放弃了
 mcp/bridge.cpp: atomic cap_mint
-# http_server: POST workers are a util::WorkerGroup and the session is
-# maya::guarded. The atomic is the liveness flag the provider reads.
+# http_server: POST 工作线程 是一个 util::WorkerGroup
+# 届会为 maya::guarded 原子是活的 标志 供养者会读
 mcp/http_server.cpp: atomic
-# rag/adapter: the warm worker is a util::WorkerGroup; the index and the
-# feedback store are maya::guarded (the status row uses try_read so a frame
-# never waits on a rebuild). atomic is the warming gate and the stop flag.
+# rag/adapter:已预热的工作线程是util::WorkerGroup;
+# 指数和反馈存储器是maya::guarded(状态行使用
+# try_read所以一个帧从不等待重建). 原子是暖门和停靠的标志.
 rag/adapter.cpp: atomic cap_mint
 
-# ── Process-wide plumbing ────────────────────────────────────────────────
+# ── 流程-wide管道 ────────────────────────────────────────────────
 util/logx.cpp: atomic
 
-# ── The runtime ──────────────────────────────────────────────────────────
-# next_tool_exec_seq(): a static atomic counter minted per dispatch, echoed by
-# the worker so the reducer can drop stale results from a superseded turn.
+# ── 电话 运行时 ──────────────────────────────────────────────────────────
+# next_tool_exec_seq (:每架静态原子计数器 分派 ,
+# 并得到了 工作线程 所以,我们 状态更新函数 可以丢弃 过期 由被取代的转折产生。
 runtime/app/cmd_factory.cpp: atomic
-# run_cli: the signal watcher and the run share one co_owned<Watch>; its
-# flags are atomics because co_owned requires Sync (no plain writable field).
+# run_cli :信号监视器和运行共享 co_owned<Watch> ;
+# 其编号 标志 是因为 co_owned 需要同步( 没有可写字段 )。
 runtime/run_cli.cpp: atomic
-# acp/server.cpp has NO entry: its tool dispatch moved to pool.submit_isolated
-# and waits on a stop_token (delay_for) instead of the standard async helper
-# plus a 50 ms poll, so it uses none of the banned primitives.
-# The Windows code-block runner ticks a heartbeat title/line while a blocking
-# subprocess call runs. The helper is a maya::scope() nursery spawn now, not a
-# bare std::thread with an unguarded join (same std::terminate-on-throw bug as
-# subprocess.cpp above), and it takes its own stop_token so Esc stops the
-# spinner through the task's cancellation instead of a second ad-hoc flag.
-# "command finished" is a stop_source the spinner's delay_for waits on.
+# acp/server.cpp 已经 NO 条目: 其工具 分派 已移动至
+# pool.submit_isolated 等待着一个 stop_token (delay_for
+# )代替标准助攻加50ms的民调,因此它没有使用任何被禁原始人.
+# 电话 Windows 代码 -block 运行时跳动心跳 title/line 时,
+# 一个阻断子进程 调用 运行。帮助者是 maya::scope (现在的幼卵,不是赤裸的)
+# std::thread 与未加护的加盟(相同) std::terminate-on-throw
+# 错误为 subprocess.cpp 需要自己的力量 stop_token 这么说吧
+# Esc 停止( E) 加载动画 任务完成后 取消 而不是第二个广告 -hoc 标志.
+# "command finished" 是一个 stop_source 编号 加载动画's delay_for 等着
 
-# View-layer render caches: NO LONGER LISTED, and that is the interesting
-# part. They were four thread_locals (three LRU caches in agent_timeline.cpp,
-# the render-phase flag in tool_body_preview.cpp) whose grant read "every one
-# is a bounded LRU on the UI thread, documented at the definition;
-# thread_local is how they say 'one thread owns this' without a lock."
+# 视图 -layer 渲染 缓存: NO LONGER LISTED ,这是有趣的部分。 thread_locals (
+# 三) 将: LRU 缓存 输入 agent_timeline.cpp ,则 渲染-phase 标志 输入
+# tool_body_preview.cpp 其 人 名 号 授权 读
+# "every one is a bounded LRU on the UI thread, documented at the definition; thread_local is how they say 'one thread owns this' without a lock."
 #
-# That is exactly the claim jaal's loop_bound<T> exists to CHECK rather than
-# assert, and the failure mode it names is this one: a worker reaching a
-# render cache does not crash, it silently gets its own empty copy and paints
-# from it. A missing panel with no trace of why is worse than an abort.
 #
-# They are maya::loop_bound<T> now. Reaching the value needs proof of
-# being on the kernel's loop thread, the kernel arms that identity for its
-# whole lifetime (so view(), which runs between steps, is covered), and off
-# the loop the access aborts naming the rule. The on-loop path is unchanged:
-# still no lock, still one thread.
+# 这正是索赔 jaal's loop_bound<T> 已存在为
+# CHECK 而不是断言, 和失败模式 它命名的是这个: a
+# 工作线程 达到 a 渲染 缓存 无法崩溃, 它默默地从中获取自己
+# 的空拷贝和油漆。 缺少的面板没有痕迹说明为什么比流产更糟糕。
 #
-# Dropping these two lines is the point of the exercise. An allowlist entry
-# removed because the primitive was replaced by a checked one is the only kind
-# of progress this file can record.
+# 他们 maya::loop_bound<T> 现在,
+# 达到值需要证明内核的循环 线程 ,内核臂 身份的全 生命周期
+# (这样) view() ,它贯穿于各个步骤之间,并覆盖了这些步骤,
+# 在循环中,访问中断了规则的命名。 -loop 路径不变 :
+# 还没 锁 ,还是一个 线程.
+#
+# 将这两行删除是练习的点。 将一个 允许清单 条目删除,
+# 因为原始的被选中的条目所取代, 是该文件能够
+# 记录的唯一一类进展。
 
-# ── Lock-free by design: reached where no capability can be ──────────────────
-# The typed-lock migration replaced these files' mutexes. Each spot is a
-# single word reached from a context that can't carry a capability (a
-# std::stop_callback, a static used from every layer, a lock body that must
-# not nest another lock), so a guarded<T> would either be unreachable or
-# put a capability on half the program. Each has its reasoning in place.
-#   io/http.cpp: the connection-pool slot state (CAS-claimed, see above).
-#   rpc/peer.cpp: the cancel flag a stop_callback raises from any thread.
-#   persistence.cpp: random_hex_id's seeded counter (every layer mints ids).
-# Also cap_mint for ~AsyncWriter: a static destructor stops the drain worker
-# if no exit path flushed it (otherwise the worker waits forever and
-# ~WorkerGroup joins it). Runs on the exiting thread after main; nothing in
-# the file calls exit() from a lock body, so no agentty lock is held there.
+# ── 锁-free 设计:在无法具备能力的地方达到 ──────────────────
+# 电话 带类型的-lock 迁移取代了这些文件的变种。
+# 每个点都是从无法携带能力的背景中到达的单个单词( a)。
+# std::stop_callback ,从每层都使用一个静态,
+# a 锁 正文 绝不能再筑巢 锁 ),所以一个守护者 <T>
+# 要么无法到达,要么将能力放在一半的程序中。每个程序都有其推理。
+#   io/http.cpp : 连接 -pool 槽状态( N) CAS-claimed ,见上文)。
+#   rpc/peer.cpp : 数据 取消 标志 a stop_callback 从任何 线程.
+#   persistence.cpp: random_hex_id 种子计数器(每层薄荷ids).
+# 还有 cap_mint 用于~ AsyncWriter : 静态破坏器停止排水
+# 工作线程 如果没有退出路径冲走它(否则 工作线程 等待永远,
+# 和~ WorkerGroup 加入它。退出时运行 线程 主机后; 文件里没有 调用
+# exit() 调自 a 锁 正文 ,所以没有 agentty 锁 被困在那里,被关在那里。
 io/persistence.cpp: atomic cap_mint
-# codex_oauth: the login listener's wake fds + in-flight count, touched by
-# the cancel callback on whichever thread requests the stop.
+# codex_oauth : 登录听众的提醒 fts + in -flight 数,
+# 被触摸 取消 回调 以何为主 线程 请求停止。
 provider/chatgpt/codex_oauth.cpp: atomic
-# registry: the MCP connect phase and the reload running/pending word;
-# registry() is read from views, lock bodies and tool workers alike.
+# 注册表 : 数据 MCP 连接相位和重装 running/pending 单词;
+# registry() 是从各种观点中读取的, 锁 正文 工具 工作线程 一样
 tool/registry.cpp: atomic
-# memory_store: the per-thread id RNG, so remember() can mint an id inside
-# the store's own lock body without taking a second lock.
+# memory_store : 单 -thread 编号 RNG ,所以,
+# 我说 remember() 可以在店里装上薄荷 锁 正文 无需花点时间 锁.
 tool/memory_store.cpp: thread_local

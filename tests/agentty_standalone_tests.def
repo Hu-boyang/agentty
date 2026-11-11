@@ -1,9 +1,9 @@
-// agentty_standalone_tests.def — the fold set + each test's original main()
-// arity. Included multiple times by agentty_standalone_tests_main.cpp with
-// FOLD_NOARGS / FOLD_ARGS redefined (X-macro). Keep in sync with the
-// agentty_standalone_tests source list in cmake/AgenttyTests.cmake.
+// agentty_standalone_tests.def - 电话 归并 设置 + 每个测试的原样 main()
+// 平均性。 包含多次 agentty_standalone_tests_main.cpp 与 FOLD_NOARGS
+// / FOLD_ARGS 重新定义(X) -macro。与该程序同步。
+// agentty_standalone_tests 源列表 : cmake/AgenttyTests.cmake.
 //
-// NOARGS = original was `int main()`.   ARGS = `int main(int, char**)`.
+// NOARGS = 原为 `int main()`.   ARGS = `int main(int, char**)`.
 
 FOLD_NOARGS(persistence_race_test)
 FOLD_NOARGS(thread_index_test)
@@ -25,7 +25,7 @@ FOLD_NOARGS(catalog_cost_probe)
 FOLD_NOARGS(reveal_freeze_gate_probe)
 FOLD_NOARGS(streaming_markdown_lifetime_test)
 #if !defined(_WIN32)
-FOLD_NOARGS(test_ghost_caret_runtime)   // PTY-driven (openpty) — POSIX only
+FOLD_NOARGS(test_ghost_caret_runtime)   // PTY-driven (开口) - POSIX 仅限
 #endif
 FOLD_NOARGS(toolset_e2e_test)
 FOLD_NOARGS(subagent_report_test)
@@ -34,8 +34,8 @@ FOLD_NOARGS(tool_budget_env_test)
 FOLD_NOARGS(frozen_invariant_fuzz)
 FOLD_NOARGS(scrollback_wire_fuzz)
 #if !defined(_WIN32)
-FOLD_NOARGS(reveal_scrollback_test)     // openpty — POSIX only
-FOLD_NOARGS(scrollback_oracle_test)     // openpty — POSIX only
+FOLD_NOARGS(reveal_scrollback_test)     // 露天 - 开天辟地 - POSIX 仅限
+FOLD_NOARGS(scrollback_oracle_test)     // 露天 - 开天辟地 - POSIX 仅限
 #endif
 FOLD_NOARGS(mcp_bridge_test)
 FOLD_NOARGS(mcp_http_test)

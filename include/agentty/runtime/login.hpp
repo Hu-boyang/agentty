@@ -1,24 +1,24 @@
 #pragma once
-// agentty::ui::login — the in-app authentication modal's state machine.
+// agentty::ui::login——in-app认证弹出面板的状态机。
 //
-// Same shape as the other picker variants in `runtime/panel/common.hpp`: a
-// closed sum type so the validity of each state's data is enforced
-// by the type system rather than by hand-maintained invariants.
+// 与`runtime/panel/common.hpp`中的其他选择
+// 面板 变体形状相同：封闭的和类型，因此每个状态的数据的有效性由
+// 类型系统而不是手动-maintained 不变量强制执行。
 //
-// Five states cover the full flow:
+// 五个状态覆盖整个流程：
 //
-//   Closed         — modal not shown.
-//   Picking        — choose OAuth (1) or paste API key (2).
-//   OAuthCode      — browser opened; user is pasting the callback code.
-//                    Carries the PKCE verifier + state needed to
-//                    exchange the code on submit.
-//   OAuthExchanging — code submitted; HTTP POST to /oauth/token in flight.
-//   ApiKeyInput    — user is typing an `sk-ant-...` key.
-//   CustomHostInput — user is typing a raw `host[:port]` for an
-//                    OpenAI-compatible backend (llama.cpp, vLLM, a
-//                    remote box). No auth; submit switches the provider
-//                    to that endpoint directly.
-//   Failed         — error toast; press any key to return to Picking.
+//   关闭——弹出面板未显示。
+//   选择 — 选择 OAuth (1) 或粘贴 API 密钥 (2)。
+//   OAuthCode——浏览器打开；用户正在粘贴 回调 代码。
+//                    携带提交时交换代码所需的
+//                    PKCE验证者+状态。
+//   OAuthExchanging-提交的代码； HTTP POST 至 /oauth/token 正在飞行。
+//   ApiKeyInput —用户正在键入 `sk-ant-...` 键。
+//   CustomHostInput —用户正在为 OpenAI
+//                    -compatible 后端（llama.cpp、
+//                    vLLM、远程盒）键入原始 `host[:port]`。没有授权；
+//                    提交将提供者直接切换到该端点。
+//   失败——错误提示；按任意键返回拣货。
 
 #include <atomic>
 #include <cstdint>
@@ -33,38 +33,38 @@ namespace agentty::ui::login {
 
 struct Closed {};
 
-// Where Esc lands from a sub-modal — the ONE-LEVEL parent, modelled as a
-// FIRST-CLASS FRAME that carries its OWN context, not a lossy tag.
+// 其中Esc从子-modal登陆——一个-LEVEL父代，建模为携带其
+// OWN上下文的FIRST-CLASS FRAME，而不是有损标签。
 //
-// The login flow is a stack the user walks INTO (provider picker → account
-// list → key input); Esc walks back OUT one step, rebuilding the parent with
-// its FULL context. The old `Back` enum could only name a KIND of parent
-// ("AccountList") — it lost WHICH provider's list, so Esc from Mistral's key
-// input wrongly reopened the ACTIVE provider's accounts. By making each parent
-// carry its data, "return to the wrong provider" becomes UNREPRESENTABLE:
-// the frame that opened Mistral's key input holds `Accounts{"mistral"}`, so
-// Esc provably returns there.
+// 登录流程为用户走INTO的一个栈(提供者选择面板→账户列表→按键输入)；
+// Esc 向后退一步 OUT，用其 完整 上下文重建父级。旧的 `Back`
+// 枚举 只能命名父级的 KIND ("AccountList") - 它丢失了
+// 对应的 提供商的列表，因此来自 Mistral 密钥输入的 Esc 错误地重新
+// 打开了 活动 提供商的帐户。通过让每个父节点携带其数据，
+// "return to the wrong provider" 变为 UNREPRESENTABLE：
+// 打开 Mistral 的键输入的 帧 保存着 `Accounts{"mistral"}`，
+// 因此 Esc 可以证明返回到那里。
 namespace origin {
-    struct Nowhere {};                            // no parent — close the modal.
-    struct Providers {};                     // reopen the provider picker.
-    struct Models {};                         // reopen the fused model picker.
-    struct Accounts { std::string provider; };     // reopen THIS provider's accounts.
-    struct Method   { std::string provider; };     // the sign-in method menu (Picking).
-    struct HostInput { std::string spec; };        // restore the typed custom host.
+    struct Nowhere {};                            // 无父级——关闭弹出面板。
+    struct Providers {};                     // 重新打开提供者选择面板。
+    struct Models {};                         // 重新打开融合模型选择面板。
+    struct Accounts { std::string provider; };     // 重新打开THIS提供者的帐户。
+    struct Method   { std::string provider; };     // 签-in方法菜单(Picking)。
+    struct HostInput { std::string spec; };        // 恢复带类型的自定义主机。
 }
-// A self-contained "where I came from". Every enterable sub-state stores one;
-// LoginBack std::visits it — no side-channel params, no active-provider guess.
+// 自身-contained "where I came from"。每个可输入的 sub-state 存储一个；
+// LoginBack std::visits 它 - 没有 side-channel 参数，没有 active-provider 猜测。
 using Origin = std::variant<origin::Nowhere, origin::Providers,
                             origin::Models, origin::Accounts,
                             origin::Method, origin::HostInput>;
 
-// True when Esc should read "back" (has a parent) rather than "cancel".
+// 当 Esc 应当读取 "back" (具有父项)而不是 "cancel" 时为真。
 [[nodiscard]] inline bool has_parent(const Origin& o) noexcept {
     return !std::holds_alternative<origin::Nowhere>(o);
 }
 
-// Optional provider context keeps an "add another account" flow scoped to
-// the provider it came from. Empty means the general first-run/sign-in menu.
+// 可选的提供者上下文将"add another account"流保持在
+// 其来自的提供者的范围内。空表示一般first-run/sign-in菜单。
 struct Picking {
     std::string provider;
     Origin origin = origin::Nowhere{};
@@ -73,30 +73,30 @@ struct Picking {
 struct OAuthCode {
     agentty::auth::PkceVerifier verifier;
     agentty::auth::OAuthState   state;
-    std::string              authorize_url;   // shown to the user as a fallback
+    std::string              authorize_url;   // 向用户显示为 回退
     std::string              code_input;
     int                      cursor = 0;
 };
 
 struct OAuthExchanging {
-    // True when this login came from the account manager's "+ Add
-    // another account…" flow (origin::Accounts), i.e. the user
-    // DELIBERATELY wants a separate slot even if the derived label
-    // collides. A plain sign-in leaves this false and reuses the
-    // derived-label slot on re-auth (no "OAuth login 2/3/…" churn).
+    // 当该登录来自客户经理的"+ Add another account…"
+    // 流(origin::Accounts)、i.e时，确实如此。
+    // 用户 DELIBERATELY 想要一个单独的槽，即使派生标签发生冲突。
+    // 普通的sign-in会留下这个错误，并在re-auth上重用派生的-label槽
+    // （没有"OAuth login 2/3/…"流失）。
     bool as_new_account = false;
 };
 
-// Native ChatGPT (Codex) login is in flight. Local sessions wait for the
-// port-1455 browser callback. SSH sessions use device authorization and this
-// same state is updated with the URL + one-time code as soon as OpenAI issues
-// them.
+// 本机 ChatGPT (Codex) 登录正在进行中。本地会话等待端
+// 口 1455 浏览器 回调。 SSH 会话使用设备授权，
+// 并且一旦 OpenAI 发出它们，就会使用 URL + one-time 代码更新相同的
+// 状态。
 //
-// HOLDING THIS STATE IS WHAT RUNS THE WORKER: subscribe() returns a stream
-// keyed on attempt_id while it is set, so leaving this state (Esc, success,
-// a newer attempt) is what cancels the poll loop. There is no cancel flag —
-// there was one, and it became dead when the worker moved to a stop_token,
-// which is how Esc came to leak a thread polling for another 900 s.
+// HOLDING 此 STATE IS 内容 RUNS 该
+// WORKER:subscribe()在设置时返回在attempt_id上键入
+// 的数据流，因此离开该状态(Esc、成功、更新的尝试)是取消轮询循环的原因。
+// 没有 取消 标志 — 有一个，当 工作线程 转移到 stop_token 时，
+// 它就死了，这就是 Esc 泄漏 线程 轮询的原因又持续了 900 秒。
 struct ChatGptWaiting {
     std::uint64_t                      attempt_id = 0;
     bool                               device_auth = false;
@@ -104,88 +104,88 @@ struct ChatGptWaiting {
     std::string                        user_code;
 };
 
-// A native OAuth **device-flow** login is in flight (GitHub Copilot, Kimi, or
-// any future device-flow provider). The provider always issues a one-time code
-// (device flow only), so the modal shows the verification URL + code as soon as
-// the DeviceCodeReady message lands. `provider` is the canonical registry id
-// ("copilot", "kimi") — it drives the panel title, the completion dispatch, and
-// the account label. One state for every device-flow provider so the panel,
-// key-handling, and copy shortcuts are written once.
+// 本机 OAuth **device-flow** 登录正在进行中（GitHub
+// Copilot、Kimi 或任何未来的 device-flow 提供商）。
+// 提供商始终会发出 one-time 代码（仅限设备流），因此 DeviceCodeReady
+// 消息一到达，弹出面板 就会显示验证 URL + 代码。 `provider` 是
+// 规范的 注册表 id ("copilot", "kimi") — 它驱动面板标题、
+// 完成 分派 和帐户标签。每个 device-flow 提供程序都有一个状态，因此面板、
+// key-handling 和复制快捷方式都写入一次。
 //
-// As with ChatGptWaiting, holding this state is what runs the worker — see
-// the note there.
+// 与 ChatGptWaiting 一样，保持该状态是运行 工作线程 的原因——
+// 参见那里的注释。
 struct DeviceWaiting {
     std::string                        provider;      // "copilot" | "kimi" | …
     std::string                        provider_label; // "GitHub Copilot" | "Kimi"
     std::uint64_t                      attempt_id = 0;
-    std::string                        authorize_url;  // BARE url shown in the panel (has a code field)
-    std::string                        browser_url;     // pre-filled url auto-opened + copied by `u`
+    std::string                        authorize_url;  // 面板中显示 BARE url（有一个代码字段）
+    std::string                        browser_url;     // pre-filled url auto-opened + 由 `u` 复制
     std::string                        user_code;
 };
 
 struct ApiKeyInput {
     std::string key_input;
     int         cursor = 0;
-    // Which backend this key is for. Empty = Anthropic (saved to
-    // credentials.json). A provider id ("openai", "groq", …) routes the
-    // submit to Settings.provider_keys + a live provider switch. Carries
-    // the human label for the panel header so the view needs no registry
-    // lookup.
-    std::string provider;        // canonical id; empty = Anthropic
-    std::string provider_label;  // display name for the panel title
-    // The server already answered 401/403, so a key is required, not optional.
+    // 该密钥用于哪个后端。空 = Anthropic（已保存 至
+    // credentials.json）。提供商 ID（"openai"、
+    // "groq"，...）将提交路由到 Settings.provider_keys
+    // + 实时提供商交换机。带有面板 头文件 的人工标签，因此视图不需要 注册表
+    // 查找。
+    std::string provider;        // 规范id；空=Anthropic
+    std::string provider_label;  // 面板标题的显示名称
+    // 服务器已经回答了401/403，所以密钥是必需的，不是可选的。
     bool        key_required = false;
-    Origin origin = origin::Nowhere{};     // Esc target (one level up)
+    Origin origin = origin::Nowhere{};     // Esc目标（上一级）
 };
 
-// Free-text entry of a raw OpenAI-compatible endpoint ("host" or
-// "host:port"). Opened from the provider picker's "Custom host…" row.
-// Submit routes through provider::parse_selection(raw) — the same path
-// --provider host:port takes — so any llama.cpp / vLLM / remote server
-// is reachable from the UI without touching the CLI.
+// 原始OpenAI-compatible端点（"host"或"host:port")
+// 的Free-text条目。从提供者 选择面板 的 "Custom host…" 行打开。
+// 通过 provider::parse_selection(raw) 提交路由 — 与
+// --provider 主机:端口采用的路径相同 — 因此可以从 UI 访问任何
+// llama.cpp/vLLM/远程服务器，而无需接触 CLI。
 struct CustomHostInput {
     std::string host_input;
     int         cursor = 0;
-    Origin origin = origin::Nowhere{};     // Esc target (one level up)
+    Origin origin = origin::Nowhere{};     // Esc目标（上一级）
 };
 
-// Async connect-probe of a just-entered custom host: the modal shows
-// "probing host…" while a background worker dials the endpoint's model
-// list (configured path → /v1/models → Ollama /api/tags). HostProbed
-// resolves it: success commits the switch with the DETECTED dialect;
-// failure returns to CustomHostInput with the typed spec restored and the
-// reason shown — the user never commits to a dead endpoint blind.
-// `attempt_id` guards against a stale probe result landing after the user
-// Esc'd or resubmitted (same pattern as the OAuth attempt ids).
+// just-entered自定义主机的异步connect-probe：
+// 弹出面板显示"probing host…"，而后台工作线程拨打端点
+// 的型号列表(配置的路径→/v1/models→Ollama/api/tags)。
+// HostProbed 解决它：成功提交使用 DETECTED
+// 方言的切换；失败返回到 CustomHostInput，
+// 并恢复 带类型的 规范并显示原因 - 用户从未提交死端点盲注。
+// `attempt_id`防止在用户Esc'd或重新提交之后
+// 过期探测结果登陆（与OAuth尝试ID相同的模式）。
 struct HostProbing {
-    std::string   spec;          // canonical spec being probed
+    std::string   spec;          // 正在探索的规范规范
     std::uint64_t attempt_id = 0;
-    Origin origin = origin::Nowhere{};     // where failure/Esc returns to
+    Origin origin = origin::Nowhere{};     // failure/Esc返回到的地方
 };
 
 struct Failed {
     std::string message;
 };
 
-// One row in the account switcher.
+// 账户切换器中的一行。
 struct AccountRow {
-    std::string provider;    // canonical id
-    std::string label;       // user-facing name
+    std::string provider;    // 规范id
+    std::string label;       // 用户-facing姓名
     bool        active = false;
 };
 
-// The in-app account switcher: lists every saved account for the ACTIVE
-// provider so the user can switch who they're signed in as — or add a new
-// one / remove one — without ever leaving agentty. Selecting a row that
-// isn't the active one swaps that account's credential into the live store;
-// last row is always "+ Add another account…". ChatGPT launches its native
-// OAuth flow directly; Anthropic stays scoped to its API-key/OAuth choices.
+// in-app帐户切换器：列出ACTIVE提供商的每个已保存帐户，
+// 以便用户可以切换他们登录的身份——或者添加新帐户/删除帐户——
+// 而无需离开agentty。选择不是活动行的行会将该帐户的 凭据
+// 交换到实时存储中；最后一行始终是 "+ Add another account…"。
+// ChatGPT直接启动其原生OAuth流程；
+// Anthropic 的范围仅限于 API-key/OAuth 选择。
 struct AccountList {
-    std::string             provider;       // provider these rows belong to
-    std::string             provider_label; // display name for the header
-    std::vector<AccountRow> rows;           // saved accounts (+ synthesized add row is index == rows.size())
-    int                     cursor = 0;      // 0..rows.size() (last = add-new)
-    std::string             confirm_remove; // label awaiting a second Del/d press
+    std::string             provider;       // 这些行所属的提供者
+    std::string             provider_label; // 显示名称为头文件
+    std::vector<AccountRow> rows;           // 已保存账户(+合成添加行是索引==rows.size())
+    int                     cursor = 0;      // 0..rows.size()（最后=add-new）
+    std::string             confirm_remove; // 等待第二次按下Del/d的标签
 };
 
 using State = std::variant<Closed, Picking, OAuthCode, OAuthExchanging,
@@ -197,7 +197,7 @@ using State = std::variant<Closed, Picking, OAuthCode, OAuthExchanging,
 }
 
 [[nodiscard]] inline bool is_input_state(const State& s) noexcept {
-    // States that consume free-text key input (vs the Picking choice keys).
+    // 消耗 free-text 键输入的状态（相对于挑选选择键）。
     return std::holds_alternative<OAuthCode>(s)
         || std::holds_alternative<ApiKeyInput>(s)
         || std::holds_alternative<CustomHostInput>(s);

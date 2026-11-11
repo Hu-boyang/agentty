@@ -1,20 +1,20 @@
 #pragma once
-// agentty::smart_form — Smart Mode as a form::Form.
+// agentty::smart_form-作为form::Form的智能模式。
 //
-// Smart Mode's overlay was a hand-built Picker with its own row enum, its own
-// cursor arithmetic, its own key handling and its own "this is pinned by an
-// env var" special case. All four now come from the shared form layer, so it
-// behaves identically to the embeddings pane and to every future config
-// surface — one key map, one renderer, one interaction model.
+// 智能模式的覆盖面板是手-built 选择面板，其具有自己的行枚举、
+// 自己的游标算术、自己的键处理和自己的
+// "this is pinned by an env var"特例。现在，
+// 所有四个都来自共享表单层，因此它的行为与嵌入 面板 以及每个未来的
+// 配置表面相同 - 一个键映射、一个 渲染器、一个交互模型。
 //
-// What stays here is the only Smart-Mode-specific knowledge: which rows exist,
-// how a role slot renders, and how rows map back onto a RoleConfig.
+// 这里留下的是唯一的Smart-Mode-specific知识：存在哪些行、
+// 角色槽渲染如何以及行如何映射回RoleConfig。
 //
-// ── The three slots are `Pick`, not `Choice` ─────────────────────────────
-// A role's candidate set is the whole model catalogue: large, provider-scoped,
-// and worth searching. That is precisely the case a dropdown must NOT try to
-// serve — so Enter on a slot hands off to the fused model picker, exactly as
-// it did before. `Choice` stays reserved for genuine enums.
+// ── 三个插槽是 `Pick` ,没有 `Choice` ─────────────────────────────
+// 角色的候选集是整个模型目录：大、提供者-scoped、
+// 并且值得搜索。这正是下拉菜单不得 尝试提供服务的情况 -
+// 因此插槽上的 Enter 将交给融合模型 选择面板，就像以前一样。
+// `Choice` 保留用于真正的枚举。
 
 #include <string>
 #include <vector>
@@ -22,74 +22,74 @@
 #include "agentty/domain/smart_mode.hpp"
 #include "agentty/runtime/panel/form.hpp"
 #include "agentty/runtime/settings_registry.hpp"   // EnvSnapshot
-#include "agentty/store/store.hpp"   // Settings: what the advanced rows read
+#include "agentty/store/store.hpp"   // 设置：高级行读取的内容
 
 namespace agentty::smart_form {
 
-// Field ids — the reducer addresses rows by id, never by index, because the
-// row set is derived and an index changes meaning when it does.
+// 字段 ids — 状态更新函数 按 id 寻址行，而不是按索引，
+// 因为行集是派生的，并且索引会在发生变化时改变含义。
 inline constexpr const char* kFieldEnabled  = "enabled";
 inline constexpr const char* kFieldStrategic = "strategic";
 inline constexpr const char* kFieldImpl      = "implementation";
 inline constexpr const char* kFieldUtility   = "utility";
 
-// The advanced routing-policy rows have NO constants here on purpose. They are
-// registry rows: their ids live in settings_registry.hpp's table and are
-// reached through registry::find / the Owner::Settings walk. A second
-// spelling of "smart.complex_threshold" in this header would be a string that
-// has to agree with the table and cannot be checked against it.
+// 高级路由-policy行故意具有NO常量。它们是 注册表 行：它们的 id
+// 存在于 settings_registry.hpp 的表中，
+// 并通过 registry::find / Owner::Settings
+// 遍历到达。 头文件 中的 "smart.complex_threshold"
+// 的第二种拼写将是一个必须与表一致且无法对照表进行检查的字符串。
 
-// The resolved display label for one role, plus whether it was pinned. The
-// pane computes these (resolution needs the catalogue and the active
-// provider); this header only says what the form needs.
+// 一个角色的解析显示标签，以及它是否被固定。
+// 面板 计算这些（解析需要目录和活动提供者）；
+// 这个头文件只说明了表格需要的内容。
 struct SlotView {
-    std::string label;     // what would actually run right now
+    std::string label;     // 现在实际运行的是什么
     bool        pinned = false;
 };
 
 struct Inputs {
     bool     enabled = false;
-    // Non-empty ⇒ the master switch is pinned by AGENTTY_SMART_MODE and the
-    // row must render read-only saying so. Previously the toggle looked live
-    // and silently refused on Enter with a toast — a row that lies about
-    // being editable is worse than one that explains why it isn't.
+    // Non-empty ⇒ 主开关由 AGENTTY_SMART_MODE 固定，
+    // 并且该行必须 渲染 读取 -only 这么说。以前，
+    // 切换 看起来很活跃，但默默地拒绝了 Enter，
+    // 并举杯祝酒——谎称可编辑的一行比解释为什么不可编辑的一行更糟糕。
     std::string enabled_lock;
     SlotView strategic;
     SlotView implementation;
     SlotView utility;
 
-    // The persisted config the advanced rows are projected from. The registry
-    // reads the VALUE, the range, the label, the help and the env-override
-    // state out of this — which is why the three ints and three lock strings
-    // that used to sit here are gone: every one of them was a copy of
-    // something the table already knew.
+    // 高级行从中投影的持久配置。 注册表 从中读取 值、
+    // 范围、标签、帮助和 env-override
+    // 状态 - 这就是为什么过去放在这里的三个整数和三
+    // 个 锁 字符串消失了：它们中的每一个都是表
+    // 已经知道的内容的副本。
     smart::RoleConfig smart{};
 
-    // Which rows an env var is overriding (they render locked).
+    // 环境变量覆盖哪些行（它们被 渲染 锁定）。
     settings::registry::EnvSnapshot env{};
 
-    // Reveal the advanced rows (`a`).
+    // 逐步显示高级行(`a`)。
     bool advanced = false;
 };
 
-// Build the pane. Pure — unit-testable with no catalogue and no terminal.
+// 构建面板。纯 - 单元-testable，没有目录，也没有终端。
 [[nodiscard]] form::Form build_form(const Inputs& in);
 
-// The role a row id names, or nullopt for the master switch. Total, so a
-// caller cannot silently treat "not a slot" as a slot.
+// 角色的row id名称，或nullopt为主交换机。总计，
+// 因此调用者不能默默地将 "not a slot" 视为插槽。
 [[nodiscard]] std::optional<smart::ModelRole> role_of_field(std::string_view id) noexcept;
 
-// The field id that configures a role — the inverse of role_of_field. Total,
-// so "re-open the pane on the slot I just set" needs no index arithmetic and
-// cannot land on the wrong row when the row set changes.
+// 配置角色的字段id——role_of_field的逆。总计，
+// 因此 "re-open the pane on the slot I just set"
+// 不需要索引运算，并且当行集更改时不会落在错误的行上。
 [[nodiscard]] std::string_view field_of_role(smart::ModelRole r) noexcept;
 
-// Place the cursor on the row that configures `r`. A no-op when the row is
-// absent, which is the honest behaviour: the caller asked for a row, not an
-// index, so a missing row leaves the cursor where it was.
+// 将光标置于配置`r`的行上。当行不存在时，返回 no-op，
+// 这是诚实的行为：调用者要求一行，而不是索引，
+// 因此缺失的行会将光标保留在原来的位置。
 void focus_role(form::Form& f, smart::ModelRole r) noexcept;
 
-// Read the master switch back out of the form.
+// 从表格中读回主开关。
 [[nodiscard]] bool enabled_from_form(const form::Form& f, bool fallback) noexcept;
 
 } // namespace agentty::smart_form

@@ -1,9 +1,9 @@
-// smart_mode.cpp — the Smart Mode pane's reducer: open/close (descend/
-// ascend), the advanced-rows toggle, key dispatch through the shared form
-// layer, the slot hand-off to the model picker, and slot reset.
+// smart_mode.cpp 智能模式 面板's 状态更新函数:
+// open/close (descend/ 升华,先进者 -rows 切换 键 分派
+// 通过共享形式层,槽手 -off 切换到模型 选择面板 ,并重设档位。
 //
-// build_smart_form / apply_smart stay in meta.cpp (shared with models.cpp
-// and ascend()); declared in internal.hpp.
+// build_smart_form / apply_smart 留在原地,继续 meta.cpp (与 models.cpp 财务报告和
+// 已审计财务报表 ascend() ; 已宣布为 internal.hpp.
 
 #include "agentty/runtime/app/update/internal.hpp"
 #include "agentty/runtime/app/update.hpp"
@@ -16,7 +16,7 @@
 #include <maya/core/overload.hpp>
 
 #include "agentty/runtime/panel/smart_form.hpp"
-#include "agentty/runtime/settings_registry.hpp"   // tuning row write-back
+#include "agentty/runtime/settings_registry.hpp"   // 调制行写入-back
 
 namespace pn = agentty::ui::panel;
 
@@ -27,10 +27,10 @@ using maya::overload;
 Cmd smart_mode_update(Model& m, msg::SmartModeMsg sm) {
     return std::visit(overload{
         [&](OpenSmartMode& e) -> Cmd {
-            // descend(): whatever is open right now (palette, settings list,
-            // nothing) becomes this pane's Esc target automatically — no
-            // caller stamps an origin any more. A search hit on an advanced
-            // row opens with those rows shown.
+            // descend() : 任何打开的现在( 盘子、
+            // 设置列表、 无) 都变成这样 面板's Esc
+            // 目标自动 —— 不再使用来源的呼叫器邮票。
+            // 高级行的搜索会随显示的行开始。
             const auto* d = settings::registry::find(e.focus);
             const bool advanced = d && d->tier == settings::registry::Tier::Advanced;
             m.ui.panel.descend(pn::SmartMode{{}, build_smart_form(m, advanced), advanced});
@@ -38,9 +38,9 @@ Cmd smart_mode_update(Model& m, msg::SmartModeMsg sm) {
             return Cmd::none();
         },
         [&](SmartModeAdvanced) -> Cmd {
-            // Reveal/hide the routing-policy rows. The row SET changes, so the
-            // form is rebuilt; the cursor is kept and clamped, since hiding
-            // rows can leave it past the end.
+            // Reveal/hide 路径 -policy 排行,排行,
+            // 排行 SET 变化,所以形式重建;光标被保存和夹住,
+            // 因为隐藏行可以将其离开尾端.
             auto* o = m.ui.panel.get<pn::SmartMode>();
             if (!o) return Cmd::none();
             o->advanced = !o->advanced;
@@ -48,15 +48,15 @@ Cmd smart_mode_update(Model& m, msg::SmartModeMsg sm) {
             return Cmd::none();
         },
         [&](CloseSmartMode) -> Cmd {
-            // Esc unwinds ONE level, to whatever opened this pane — ^S from
-            // the thread closes; a palette row or the settings list is
-            // restored with its full state (query, cursor) intact.
+            // Esc 解风 一个 关卡,打开它就打开它 面板
+            // — ^S 从 线程 关闭; 调色板行或设置
+            // 列表会恢复完整状态( query, 光标)。
             ascend(m);
             return Cmd::none();
         },
         [&](SmartModePaste& e) -> Cmd {
-            // A paste lands in an edit session; it commits when that edit
-            // ends, the same as typed digits.
+            // 粘贴在编辑会话中;当编辑结束时,它会承诺,
+            // 与带类型的数字相同。
             auto* o = m.ui.panel.get<pn::SmartMode>();
             if (o) form::paste_into_focused(o->form, e.text);
             return Cmd::none();
@@ -65,8 +65,8 @@ Cmd smart_mode_update(Model& m, msg::SmartModeMsg sm) {
             auto* o = m.ui.panel.get<pn::SmartMode>();
             if (!o) return Cmd::none();
 
-            // What the cursor is on BEFORE the shared reducer runs — activate
-            // may hand off, and we need to know which row asked.
+            // 光标上的内容 之前 共享的 状态更新函数 运行——
+            // 激活可能会交接,我们需要知道要求的哪一行.
             const auto* row = o->form.focused();
             const std::string row_id = row ? row->id : std::string{};
             const auto role = smart_form::role_of_field(row_id);
@@ -74,16 +74,16 @@ Cmd smart_mode_update(Model& m, msg::SmartModeMsg sm) {
             const auto applied = form::keys::apply(o->form, e.action);
 
             if (applied.close) {
-                // Route through CloseSmartMode rather than closing here: that
-                // is where the origin is read, so a direct close would send
-                // Esc to the thread no matter how the pane was opened. Two
-                // ways to close one pane is two behaviours to keep in step.
+                // 路线通过 CloseSmartMode 而不是
+                // 在这里关闭: 读出源,所以直接关闭会发出 Esc
+                // 编号 线程 不论如何 面板 打开了,
+                // 关闭一个的两种方式 面板 两种行为是保持步调一致。
                 return smart_mode_update(m, msg::SmartModeMsg{CloseSmartMode{}});
             }
 
-            // Commit once a value settles (in-place change, or the end of a
-            // typed edit). Committing on every digit rebuilt the form mid-edit
-            // and threw the edit away.
+            // 一旦一个数值结算, 提交( 在 -place 更改,
+            // 或结束于 带类型的 编辑。提交到每个数字上重建中间的窗体
+            // -edit 并抛弃了编辑。
             const std::string settled_id = applied.settled >= 0
                 ? o->form.fields[static_cast<std::size_t>(applied.settled)].id
                 : std::string{};
@@ -98,34 +98,34 @@ Cmd smart_mode_update(Model& m, msg::SmartModeMsg sm) {
                     return save;
                 }
                 if (settled_id != smart_form::kFieldEnabled) return Cmd::none();
-                // The master toggle. Routed through apply_smart like every
-                // other config change, so the subagent router is pushed too —
-                // turning Smart Mode on while a `task` was queued used to leave
-                // that worker routing as if it were still off.
+                // 师傅 切换。通过 apply_smart
+                // 类似其他的配置变化,所以副剂路由器也被推了——
+                // 在一时打开智能模式 `task` 被排队用来离开
+                // 这个 工作线程 路由仿佛它仍然关闭。
                 smart::RoleConfig cfg = m.d.smart;
                 cfg.enabled = smart_form::enabled_from_form(o->form,
                                                             m.d.smart.enabled);
                 auto save = apply_smart(m, std::move(cfg));
-                // The slots' locked state depends on the switch, so rebuild.
+                // 槽的锁定状态取决于开关,所以重建.
                 form::rebuild(o->form, build_smart_form(m, o->advanced));
                 return Cmd::batch(std::move(save), set_status_toast(m,
                     m.d.smart.enabled ? "Smart Mode on" : "Smart Mode off"));
             }
 
-            // A slot row → hand off to the model picker. The candidate set is
-            // the whole catalogue, which is exactly what a `Pick` row means:
-            // too large and too dynamic for an inline dropdown.
+            // 插槽排 ~ 交给模型 选择面板。候选者是整个目录,
+            // 这正是一个 `Pick` 行表示:
+            // 太大了,而且太动态了,不能内在的下降。
             if (applied.hand_off && role) {
-                // descend(): the ENTIRE SmartMode pane — form, cursor,
-                // advanced flag, its own parent chain — rides in the
-                // picker's `from` snapshot; Esc or a completed pin restores
-                // it verbatim. Nothing is parked on Model::UI any more.
+                // descend() : 数据 整个 SmartMode
+                // 面板 ——窗体,光标,高级 标志 ,它自己的母链——在
+                // 选择面板's `from` 快照; Esc 或者一个完整的针
+                // 头可以逐字恢复它。没有停在 Model::UI 再来一次
                 pn::Models picker{{0, ""}, {}, *role};
                 m.ui.panel.descend(std::move(picker));
                 return models_update(m, msg::ModelsMsg{OpenModels{}});
             }
 
-            // 'x' resets the focused slot to auto.
+            // 'x' 将焦点槽重置为自动.
             if (e.action.intent == form::keys::Intent::ResetField && role) {
                 return smart_mode_update(m, msg::SmartModeMsg{SmartModeClearSlot{}});
             }
@@ -134,20 +134,20 @@ Cmd smart_mode_update(Model& m, msg::SmartModeMsg sm) {
         [&](SmartModeClearSlot) -> Cmd {
             auto* o = m.ui.panel.get<pn::SmartMode>();
             if (!o) return Cmd::none();
-            // `x` only means something on a slot row. role_of_field returns
-            // nullopt for the master switch, so "not a slot" cannot fall
-            // through into a slot the way an int comparison could.
+            // `x` 只在槽里写着什么 role_of_field
+            // 返回主开关的无选择,所以 "not a slot"
+            // 无法像一个内在比较那样陷入一个槽。
             const auto* row = o->form.focused();
             if (!row || row->locked) return Cmd::none();
             const auto role = smart_form::role_of_field(row->id);
             if (!role) return Cmd::none();
-            // Reset to auto through the ONE entry point, so the subagent
-            // router loses the pin too. Clearing a slot but leaving a worker
-            // routing on it is the same class of bug as the save-without-apply.
+            // 重置以自动通过 一个 输入点,所以子剂路由
+            // 器也会丢失标针。 工作线程 上面的路由和错误
+            // 是同一类的 保存-without-apply.
             smart::RoleConfig cfg = m.d.smart;
             cfg.slot(*role) = smart::SlotOverride{};
             auto save = apply_smart(m, std::move(cfg));
-            // The row shows the RESOLVED model, which just changed.
+            // 显示 RESOLVED 模型,它刚刚改变了。
             form::rebuild(o->form, build_smart_form(m, o->advanced));
             return Cmd::batch(std::move(save),
                               set_status_toast(m, "slot reset to auto"));

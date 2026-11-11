@@ -1,15 +1,15 @@
-// thread_blob_test — image bytes and large tool outputs must round-trip
-// through the blob store byte-for-byte, and must keep the thread JSON small.
+// thread_blob_test ——图像 字节 和大型工具产出必须圆 -trip
+// 穿过布洛布商店 字节-for-byte ,必须保留 线程 JSON 细小的。
 //
-// Why this exists: a real thread here reached 31 MB, of which 10.8 MB was
-// base64 image data and 12 MB was tool output, against 0.7 MB of actual
-// conversation text. All of it was re-read and re-parsed on every thread
-// switch, so opening a long thread stalled the UI for over a second. The
-// bytes now live in threads/blobs/<hash> and the message keeps a reference.
+// 为什么存在: 一个真正的 线程 已经达到31个了 MB 其中,10.8个
+// MB 曾经是 base64 图像数据和 12 MB 工具输出, 而不是 0.
+// 7 MB 全部是真实的谈话文本 -read 和关于 -parsed 时值
+// 线程 切换,所以打开长 线程 停止了。。 UI 超过一秒钟。 字节 现在
+// 住在这里 threads/blobs/<hash> 信息会保留一个参考信息。
 //
-// The contract has two halves and BOTH matter: the payload must come back
-// identical (a store that loses bytes is worse than a slow one), and the
-// JSON must actually shrink (or the change bought nothing).
+// 合同有两半 两者 问题: 载荷 必须是完全相同的
+// 返回( 丢失的商店) 字节 更慢的,和 JSON
+// 必须是实际缩小(或者没有购买的更改)。
 
 #include "agtest.hpp"
 
@@ -25,10 +25,10 @@
 namespace fs = std::filesystem;
 using namespace agentty;
 
-// load_thread lives on io::FsStore; persistence exposes the file-level form.
+// load_thread 过着幸福的生活 io::FsStore; 持久化 显示文件 -level 表格中。
 static std::optional<Thread> load_t(const ThreadId& id) {
-    // Through the STORE SEAM, not a hardcoded path: a saved thread now
-    // lives in the log format, and <id>.json is retired once it verifies.
+    // 通过STOREXXSEAM,不是硬码路径:一个已保存XX
+    // 线程现在以日志格式存在,<id>.JSON一旦核实,即退役.
     return persistence::load_thread_by_id(::agentty::IoAccess::grant(), id);
 }
 
@@ -40,18 +40,18 @@ namespace {
                        std::istreambuf_iterator<char>()};
 }
 
-// Bytes that are hostile to a text pipeline: NULs, a lone 0xFF, and a
-// sequence that is not valid UTF-8. A blob must not sanitise these.
+// 与文本管道敌对的 字节: NULs, 一个单独的 0xFF,
+// 以及一个无效的 UTF- 8. 序列。 blob 绝不能对这些序列进行消毒。
 [[nodiscard]] std::string binary_payload(std::size_t n) {
     std::string s;
     s.reserve(n);
-    s += "\x89PNG\r\n\x1a\n";              // real PNG magic
+    s += "\x89PNG\r\n\x1a\n";              // 真正的PNG魔法
     for (std::size_t i = s.size(); i < n; ++i)
-        s.push_back(static_cast<char>(i * 7919u));   // full 0..255 range
+        s.push_back(static_cast<char>(i * 7919u));   // 完全 0.255 范围
     return s;
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("thread blobs: images round-trip byte-exact and shrink the JSON") {
     Message user;
@@ -59,7 +59,7 @@ TEST_CASE("thread blobs: images round-trip byte-exact and shrink the JSON") {
     user.text = "look at this";
     ImageContent img;
     img.media_type = "image/png";
-    img.set_bytes(binary_payload(300u * 1024u));   // a realistic screenshot
+    img.set_bytes(binary_payload(300u * 1024u));   // 现实的截图
     const std::string original = img.bytes();
     user.images.push_back(std::move(img));
 
@@ -71,8 +71,8 @@ TEST_CASE("thread blobs: images round-trip byte-exact and shrink the JSON") {
         persistence::threads_dir() / "blobtest.json";
     const std::string json_text = read_file(file);
 
-    // The 300 KB payload must NOT be sitting in the thread JSON. Base64 of
-    // it would be ~400 KB; a reference is a few dozen bytes.
+    // 300号 KB 载荷 不得 坐在这 线程 JSON. base64
+    // 大约是400块 KB ; 参考文献有几十个 字节.
     CHECK_MESSAGE(json_text.size() < 32u * 1024u,
                   "thread JSON must not carry the image payload inline");
 
@@ -94,7 +94,7 @@ TEST_CASE("thread blobs: large tool output round-trips") {
     ToolUse tc;
     tc.id   = ToolCallId{"call_1"};
     tc.name = ToolName{"shell"};
-    // Well past the 8 KB inline threshold.
+    // 过了8KB的内线阈值
     std::string big;
     for (int i = 0; i < 4000; ++i)
         big += "line " + std::to_string(i) + " of captured output\n";
@@ -124,8 +124,8 @@ TEST_CASE("thread blobs: large tool output round-trips") {
 }
 
 TEST_CASE("thread blobs: identical payloads share one file") {
-    // Content addressing means the same screenshot pasted twice — or the
-    // same turn retried — costs one blob, not N.
+    // 内容处理意味着同一截图贴了两次——或同一转盘重复试验
+    // ——费用为1 blob,而不是N。
     const std::string payload = binary_payload(64u * 1024u);
 
     auto make = [&](const char* id) {
@@ -158,7 +158,7 @@ TEST_CASE("thread blobs: identical payloads share one file") {
     CHECK_MESSAGE(after_second == after_first,
                   "an identical payload must not create a second blob");
 
-    // Both threads still read their image back.
+    // 两者 线程 仍然读回他们的形象。
     for (const char* id : {"dedup_a", "dedup_b"}) {
         auto loaded = load_t(ThreadId{id});
         REQUIRE(loaded.has_value());
@@ -169,17 +169,17 @@ TEST_CASE("thread blobs: identical payloads share one file") {
 }
 
 TEST_CASE("thread blobs: thinking payloads round-trip") {
-    // thinking_blocks + signatures were 6.8 MB of one real 32 MB thread.
-    // They are never displayed — only replayed to the provider — but
-    // Anthropic 400s a tool_use turn whose thinking block was dropped, so
-    // they must come back EXACTLY, not merely approximately.
+    // thinking_blocks + 签名为 6.8。 MB 实际32个 MB 线程.
+    // 从未展示过这些内容,只是重新播放给提供者,
+    // 但 Anthropic 400s a tool_use
+    // 转过身来,他们必须回来 恰好 不只是约。
     Message a;
     a.role = Role::Assistant;
     a.text = "done";
     std::string reasoning;
     for (int i = 0; i < 3000; ++i)
         reasoning += "considering branch " + std::to_string(i) + "\n";
-    std::string sig(12u * 1024u, 'S');   // opaque provider signature
+    std::string sig(12u * 1024u, 'S');   // 供应商签名不透明
     a.thinking = reasoning;
     a.thinking_signature = sig;
     a.thinking_blocks.push_back(
@@ -210,9 +210,9 @@ TEST_CASE("thread blobs: thinking payloads round-trip") {
 }
 
 TEST_CASE("thread blobs: a legacy inline thread still loads") {
-    // Threads written before the blob store keep an inline base64 "data"
-    // field. They must keep working with no migration step — otherwise
-    // upgrading silently blanks every image already on disk.
+    // 线程 在blob 商店保持内线之前写入 base64
+    // "data" 字段。它们必须保持工作,没有迁移步骤,
+    // 否则,将磁盘上已经存在的每个图像都静默地升级。
     const std::string bytes = binary_payload(4096);
     Message m;
     m.role = Role::User;
@@ -222,9 +222,9 @@ TEST_CASE("thread blobs: a legacy inline thread still loads") {
     img.set_bytes(bytes);
     m.images.push_back(std::move(img));
     Thread t{ThreadId{"legacyimg"}, "legacy", {m}, {}, {}};
-    // Seed a LEGACY whole-document file directly. save_thread() migrates
-    // to the log format and retires the .json, so it can no longer be
-    // used to manufacture the old shape this test is about.
+    // 种子 a LEGACY 整体 -document 直接存档。
+    // save_thread () 向日志格式迁移,并退出。
+    // JSON ,因此它不能再用来制造这个测试所涉及的旧形状.
     const fs::path file = persistence::threads_dir() / "legacyimg.json";
     {
         auto j = persistence::thread_meta_to_json(t);
@@ -235,11 +235,11 @@ TEST_CASE("thread blobs: a legacy inline thread still loads") {
         persistence::write_json_atomic(::agentty::IoAccess::grant(), file, j.dump(2));
     }
 
-    // Rewrite the file in the OLD shape: inline data, no blob reference.
+    // 重写文件以OLD形状:内置数据,无 blob 引用.
     std::string text = read_file(file);
     const auto pos = text.find("\"blob\"");
     REQUIRE(pos != std::string::npos);
-    // Swap the reference for the inline encoding the old writer produced.
+    // 交换旧编剧制作的内置编码的参考.
     const auto end = text.find('"', text.find(':', pos) + 2);
     const auto close = text.find('"', end + 1);
     text.replace(pos, close - pos + 1,

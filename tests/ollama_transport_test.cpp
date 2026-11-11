@@ -1,18 +1,18 @@
-// ollama_transport_test — verifies the dedicated Ollama /api/chat transport's
-// pure translation layer with NO network:
+// ollama_transport_test ——核实献身者. Ollama /api/chat
+// 传输层 纯翻译层, 带有 NO 网络 :
 //
-//   1. build_messages    — Thread messages → native messages array
-//                          (assistant tool_calls with OBJECT args + id,
-//                          separate role:"tool" results with tool_name,
-//                          user images as base64 array).
-//   2. parse_ndjson_for_test — scripted NDJSON frames → the agentty Msg
-//                          sequence the reducer consumes (text deltas,
-//                          STRUCTURED tool_calls → Start/Delta/End, usage,
-//                          done_reason→StopReason). NO content-salvage:
-//                          a bare JSON object in content stays prose.
-//   3. system_prompt     — contains the recall reminder + env block.
+//   1. build_messages    — 线程 信件 – 本地信件阵列
+//                          (助理人员) tool_calls 与 OBJECT 参数+ id,
+//                          单独作用 : "tool" 结果 tool_name ,
+//                          用户图像为 base64 数组).
+//   2. parse_ndjson_for_test —已编稿 NDJSON 帧 – 已经 agentty Msg
+//                          顺序 状态更新函数 消费(文本三角洲, STRUCTURED
+//                          tool_calls → Start/Delta/End ,使用时,
+//                          done_reason→StopReason). NO 内容 -salvage:
+//                          内容中的 JSON 物体仍为流派。
+//   3. system_prompt——包含提醒+env块.
 //
-// Run: build the `ollama_transport_test` target, execute. Exit 0 = pass.
+// 运行: 构建`ollama_transport_test`目标, 执行。 退出 0 = 通过。
 
 #include <string>
 #include <string_view>
@@ -53,8 +53,8 @@ static std::string joined_text(const std::vector<Msg>& msgs) {
     return s;
 }
 
-// Concatenated reasoning text (the unified StreamThinkingDelta event every
-// provider emits). Used to assert Ollama surfaces native + inline reasoning.
+// 合并推理文本(统一 StreamThinkingDelta
+// 事件 每一个供应商都发出。 Ollama 表面原生 + 内含推理。
 static std::string joined_thinking(const std::vector<Msg>& msgs) {
     std::string s;
     for (const auto& m : msgs)
@@ -80,9 +80,9 @@ TEST_CASE("build messages text") {
 }
 
 TEST_CASE("build messages tool calls") {
-    // Assistant message with a terminal tool call → assistant msg carries
-    // tool_calls[{id, function:{name, arguments:OBJECT}}] AND a separate
-    // role:"tool" message with tool_name + content follows it.
+    // 带一个助理消息 终端 工具 调用 = 助理Msg 携带设备 tool_calls
+    // [{id, 函数 :{name, 参数 : OBJECT}}] 和 单独的
+    // 角色: "tool" 信件为 tool_name +内容随附.
     std::vector<Message> msgs;
     Message a;
     a.role = Role::Assistant;
@@ -97,26 +97,26 @@ TEST_CASE("build messages tool calls") {
 
     auto arr = oll::build_messages(msgs);
     CHECK(arr.size() == 2);
-    // assistant message
+    // 助理消息
     CHECK(arr[0]["role"] == "assistant");
     CHECK(arr[0].contains("tool_calls"));
     CHECK(arr[0]["tool_calls"].size() == 1);
     CHECK(arr[0]["tool_calls"][0]["id"] == "call_1");
     CHECK(arr[0]["tool_calls"][0]["function"]["name"] == "read");
-    // arguments must be a JSON OBJECT, not a serialized string
+    // 参数必须是JSON OBJECT,而不是序列化字符串
     CHECK(arr[0]["tool_calls"][0]["function"]["arguments"].is_object());
     CHECK(arr[0]["tool_calls"][0]["function"]["arguments"]["path"]
           == "/etc/hostname");
-    // tool result message
+    // 工具结果消息
     CHECK(arr[1]["role"] == "tool");
     CHECK(arr[1]["tool_name"] == "read");
     CHECK(arr[1]["content"] == "myhost");
 }
 
-// Age-tiered tool-result clearing (shared wire::cap_tool_result_aged). Local
-// models have the SMALLEST context windows, so a stale 60 KiB dump replaying
-// in full every turn hurts most here. Exercised on BOTH the native role:"tool"
-// path and the JSON-protocol "TOOL RESULT (name):" user-turn path.
+// 年龄 -tiered 工具 -result 清除( 分摊) wire::cap_tool_result_aged。
+// 本地模型有 SMALLEST 上下文窗口,所以 过期 60 KiB 垃圾场的重播
+// 每一转都最疼这里,锻炼 两者 本地角色: "tool" 路径和 JSON-protocol
+// "TOOL RESULT (name):" 用户 -turn 路径。
 TEST_CASE("build messages age tiering") {
     std::string big = "HEAD_SENTINEL_AAAA\n";
     big.append(60 * 1024, 'x');
@@ -138,8 +138,8 @@ TEST_CASE("build messages age tiering") {
         return msgs;
     };
 
-    // Native path: results are role:"tool" messages, in emit order (oldest
-    // first). The FIRST tool message is the oldest (faded); the LAST is newest.
+    // 原生路径:结果为角色: "tool" 信息,按发件顺序(最老的顺序)。
+    // 首次 工具消息为最古老的( 变速); ; 最后 最新消息 已经传出去了
     {
         auto arr = oll::build_messages(make(), /*json_protocol=*/false);
         std::string oldest, newest;
@@ -155,7 +155,7 @@ TEST_CASE("build messages age tiering") {
         CHECK(oldest.find("TAIL_SENTINEL_ZZZZ") != std::string::npos);
     }
 
-    // JSON-protocol path: results are role:"user" "TOOL RESULT (name):" turns.
+    // JSON-protocol 路径: 结果是角色 : "user" "TOOL RESULT (name):" 转弯
     {
         auto arr = oll::build_messages(make(), /*json_protocol=*/true);
         std::string oldest, newest;
@@ -199,14 +199,14 @@ TEST_CASE("ndjson plain text") {
     CHECK(joined_text(msgs) == "Hello Ayush");
     CHECK(count_leaf<StreamFinished>(msgs) == 1);
     CHECK(count_leaf<StreamUsage>(msgs) == 1);
-    // No tool calls leaked.
+    // 没有工具调用泄露.
     CHECK(count_leaf<StreamToolUseStart>(msgs) == 0);
 }
 
-// Native reasoning: Ollama's `message.thinking` field (populated when we send
-// think:true) must surface as the unified StreamThinkingDelta event — the SAME
-// event Anthropic/OpenAI-compat/ChatGPT emit — and must NOT leak into visible
-// prose.
+// 本地推理: Ollama's `message.thinking` 字段( 当我们发送思考时为人所
+// 聚集: true) 必须显示为统一 StreamThinkingDelta 事件 - 电话 相同
+// 事件 Anthropic/OpenAI-compat/ChatGPT 发出——必须发出—— 不 渗入
+// 可见的流言
 TEST_CASE("ndjson native thinking field") {
     const std::string nd =
         "{\"message\":{\"role\":\"assistant\",\"thinking\":\"Let me plan. \","
@@ -218,13 +218,13 @@ TEST_CASE("ndjson native thinking field") {
     auto msgs = oll::parse_ndjson_for_test(nd);
     CHECK(joined_thinking(msgs) == "Let me plan. Step two.");
     CHECK(joined_text(msgs) == "The answer.");
-    // Reasoning never appears as prose.
+    // 理性从不作为散文出现.
     CHECK(joined_text(msgs).find("plan") == std::string::npos);
 }
 
-// Inline reasoning fallback: models that dump chain-of-thought into
-// <think>…</think> in `content` (deepseek-r1, qwen3 without the native field)
-// must have it STRIPPED from prose AND surfaced as reasoning.
+// 内在推理 回退 : 倾销链的模型 -of-thought 输入 <think>
+// …</think> 输入 `content` (深处) -r1 , qwen3 没有
+// 原生田) , 必须有它 STRIPPED 从散文 和 被证明是推理
 TEST_CASE("ndjson inline think block surfaced as reasoning") {
     const std::string nd =
         "{\"message\":{\"role\":\"assistant\","
@@ -232,9 +232,9 @@ TEST_CASE("ndjson inline think block surfaced as reasoning") {
         "\"done\":true,\"done_reason\":\"stop\"}\n";
     auto msgs = oll::parse_ndjson_for_test(nd);
     CHECK(joined_text(msgs) == "Final answer.");
-    // The reasoning is surfaced (unified event), not discarded.
+    // 推理呈表面(统一为事件),没有丢弃.
     CHECK(joined_thinking(msgs).find("weigh options") != std::string::npos);
-    // And never leaks into prose.
+    // 亦不漏入道场.
     CHECK(joined_text(msgs).find("weigh") == std::string::npos);
     CHECK(joined_text(msgs).find("<think>") == std::string::npos);
 }
@@ -248,13 +248,13 @@ TEST_CASE("ndjson structured tool call") {
     auto msgs = oll::parse_ndjson_for_test(nd);
     CHECK(count_leaf<StreamToolUseStart>(msgs) == 1);
     CHECK(count_leaf<StreamToolUseEnd>(msgs) == 1);
-    // The arguments object is forwarded as the delta payload.
+    // 参数对象以 delta 载荷 转发.
     bool saw_args = false;
     for (const auto& m : msgs)
         if (const auto* d = get_leaf<StreamToolUseDelta>(m))
             if (d->partial_json.find("/tmp/f") != std::string::npos) saw_args = true;
     CHECK(saw_args);
-    // StopReason should be ToolUse.
+    // StopReason 应该 ToolUse.
     bool tool_stop = false;
     for (const auto& m : msgs)
         if (const auto* f = get_leaf<StreamFinished>(m))
@@ -263,8 +263,8 @@ TEST_CASE("ndjson structured tool call") {
 }
 
 TEST_CASE("ndjson content salvage to tool") {
-    // A weak model leaks a tool call as bare JSON in CONTENT. With the tool
-    // advertised, it is salvaged into a STRUCTURED call (not shown as text).
+    // 弱型号会泄露工具 调用 赤裸裸的 JSON 输入 CONTENT
+    // 工具被公布后,它被打捞成 STRUCTURED 调用 (不显示为文本).
     std::string nd =
         "{\"message\":{\"role\":\"assistant\",\"content\":"
         "\"{\\\"name\\\":\\\"write\\\",\\\"arguments\\\":"
@@ -279,26 +279,26 @@ TEST_CASE("ndjson content salvage to tool") {
         if (const auto* d = get_leaf<StreamToolUseDelta>(m))
             if (d->partial_json.find("/tmp/f") != std::string::npos) saw_args = true;
     CHECK(saw_args);
-    // Salvaged JSON must NOT also appear as visible prose.
+    // 牺牲 JSON 不得 也作为可见的散文出现.
     CHECK(joined_text(msgs).find("\"name\"") == std::string::npos);
 }
 
 TEST_CASE("ndjson no tools means no salvage") {
-    // With NO tools advertised, JSON-looking content is plain text — there's
-    // nothing to salvage to, so don't swallow legitimate prose.
+    // 与 NO 宣传工具, JSON-looking 内容是纯
+    // 文本——没有可挽回的,所以不要吞下合法的散文.
     std::string nd =
         "{\"message\":{\"role\":\"assistant\",\"content\":"
         "\"{\\\"name\\\":\\\"read\\\",\\\"arguments\\\":{}}\"}}\n"
         "{\"message\":{\"role\":\"assistant\",\"content\":\"\"},"
         "\"done\":true,\"done_reason\":\"stop\"}\n";
-    auto msgs = oll::parse_ndjson_for_test(nd);   // no known_tools
+    auto msgs = oll::parse_ndjson_for_test(nd);   // 无known_tools
     CHECK(count_leaf<StreamToolUseStart>(msgs) == 0);
     CHECK(joined_text(msgs).find("\"name\"") != std::string::npos);
 }
 
 TEST_CASE("ndjson footgun tool swallowed") {
-    // A leaked `remember` call (footgun tool) is NEVER auto-run AND never
-    // surfaced as garbage text — it is silently swallowed.
+    // 漏报 `remember` 调用 (脚枪工具)是 绝不 自动
+    // -run 和 从来没有像垃圾一样出现——它被默默吞没。
     std::string nd =
         "{\"message\":{\"role\":\"assistant\",\"content\":"
         "\"{\\\"name\\\":\\\"remember\\\",\\\"arguments\\\":"
@@ -306,8 +306,8 @@ TEST_CASE("ndjson footgun tool swallowed") {
         "{\"message\":{\"role\":\"assistant\",\"content\":\"\"},"
         "\"done\":true,\"done_reason\":\"stop\"}\n";
     auto msgs = oll::parse_ndjson_for_test(nd, {"remember", "write"});
-    CHECK(count_leaf<StreamToolUseStart>(msgs) == 0);   // not run
-    CHECK(joined_text(msgs).find("remember") == std::string::npos);  // not shown
+    CHECK(count_leaf<StreamToolUseStart>(msgs) == 0);   // 不运行
+    CHECK(joined_text(msgs).find("remember") == std::string::npos);  // 未显示
 }
 
 TEST_CASE("ndjson explicit memory tool salvaged") {
@@ -326,8 +326,8 @@ TEST_CASE("ndjson explicit memory tool salvaged") {
 }
 
 TEST_CASE("ndjson rescue tool from prose") {
-    // qwen narrates prose AND buries a tool call in a ```sh fenced block. The
-    // terminal rescue scan must find it and salvage it into a real call.
+    // qwen 同时输出叙述文字，并把工具调用藏在 ```sh 围栏块中。
+    // 终端 救援扫描必须找到它 并把它救活成一个真实的 调用.
     std::string nd =
         "{\"message\":{\"role\":\"assistant\",\"content\":"
         "\"Sure, I'll rename it.\\n\\n```sh\\n"
@@ -345,8 +345,8 @@ TEST_CASE("ndjson rescue tool from prose") {
 }
 
 TEST_CASE("ndjson unknown tool in prose not salvaged") {
-    // A fenced block naming a NON-advertised tool (qwen hallucinates `git`)
-    // must NOT be salvaged — there's no such tool to call.
+    // 栅栏状块命名为 NON-advertised 工具(qwen 幻觉)
+    // `git` )不得 被拯救——没有这样的工具 调用.
     std::string nd =
         "{\"message\":{\"role\":\"assistant\",\"content\":"
         "\"```sh\\n{\\\"name\\\": \\\"git\\\", \\\"arguments\\\": "
@@ -368,8 +368,8 @@ TEST_CASE("ndjson error frame") {
     CHECK(saw_err);
 }
 
-// ── 4. JSON-protocol mode (very weak models, agent-zero style) ───────────────
-// Concatenate every StreamToolUseDelta payload (the salvaged args JSON).
+// ── 4. JSON-protocol 模式(非常弱的模型,代理 -zero 样式) ───────────────
+// 调和每个 StreamToolUseDelta 载荷 (已打捞的 ⁇ ) JSON).
 static std::string joined_tool_args(const std::vector<Msg>& msgs) {
     std::string s;
     for (const auto& m : msgs)
@@ -382,7 +382,7 @@ static std::string first_tool_name(const std::vector<Msg>& msgs) {
     return {};
 }
 
-// Clean single-object {thoughts, tool_name, tool_args} → one tool call.
+// 干净的单身 -object 想想看,我从不觉得 tool_name, tool_args ~ 一个工具 ~ 调用.
 TEST_CASE("jp clean object") {
     std::string nd =
         "{\"message\":{\"role\":\"assistant\",\"content\":"
@@ -393,11 +393,11 @@ TEST_CASE("jp clean object") {
     CHECK(count_leaf<StreamToolUseStart>(msgs) == 1);
     CHECK(first_tool_name(msgs) == "shell");
     CHECK(joined_tool_args(msgs).find("ls -la") != std::string::npos);
-    // The reasoning JSON must NOT be emitted as prose.
+    // 推理 JSON 不得 以传教士身份被释放。
     CHECK(joined_text(msgs).find("thoughts") == std::string::npos);
 }
 
-// Leading narration before the object ("Sure! {...}") still salvages.
+// 在物体("Sure! {...}")之前进行铅化描述,仍然进行抢救.
 TEST_CASE("jp object with leading prose") {
     std::string nd =
         "{\"message\":{\"role\":\"assistant\",\"content\":"
@@ -410,7 +410,7 @@ TEST_CASE("jp object with leading prose") {
     CHECK(joined_tool_args(msgs).find("pwd") != std::string::npos);
 }
 
-// `tool`/`args` aliases (loose schema) are accepted.
+// `tool`/`args` 化名( 闲置) 模式定义 现予接受。
 TEST_CASE("jp tool args aliases") {
     std::string nd =
         "{\"message\":{\"role\":\"assistant\",\"content\":"
@@ -423,7 +423,7 @@ TEST_CASE("jp tool args aliases") {
     CHECK(joined_tool_args(msgs).find("/tmp/x") != std::string::npos);
 }
 
-// tool_name with a `tool:action` suffix → args.action injected.
+// tool_name 带 `tool:action` 后缀 __ args.action 注射过
 TEST_CASE("jp action suffix") {
     std::string nd =
         "{\"message\":{\"role\":\"assistant\",\"content\":"
@@ -436,7 +436,7 @@ TEST_CASE("jp action suffix") {
     CHECK(joined_tool_args(msgs).find("\"action\":\"run\"") != std::string::npos);
 }
 
-// Plain chat (no tool) in JSON-protocol mode → prose, no phantom call.
+// 普通聊天( 无工具) , 以 JSON-protocol 模式 = 传言,无幻术 调用.
 TEST_CASE("jp plain chat no tool") {
     std::string nd =
         "{\"message\":{\"role\":\"assistant\",\"content\":\"Hello! How can I help?\"},"
@@ -446,8 +446,8 @@ TEST_CASE("jp plain chat no tool") {
     CHECK(joined_text(msgs).find("How can I help") != std::string::npos);
 }
 
-// A tool_args object that itself contains a `}` inside a quoted string must
-// not truncate the balanced-object extraction.
+// A tool_args 本身包含一个对象 `}` 引用字符串中
+// 不得截断平衡 -object 提取。
 TEST_CASE("jp brace in string value") {
     std::string nd =
         "{\"message\":{\"role\":\"assistant\",\"content\":"
@@ -459,7 +459,7 @@ TEST_CASE("jp brace in string value") {
     CHECK(joined_tool_args(msgs).find("echo '}'") != std::string::npos);
 }
 
-// An unknown tool_name in JSON-protocol mode is NOT salvaged into a call.
+// 一个未知 tool_name 输入 JSON-protocol 模式为 不 被打捞成a 调用.
 TEST_CASE("jp unknown tool not salvaged") {
     std::string nd =
         "{\"message\":{\"role\":\"assistant\",\"content\":"
@@ -469,8 +469,8 @@ TEST_CASE("jp unknown tool not salvaged") {
     CHECK(count_leaf<StreamToolUseStart>(msgs) == 0);
 }
 
-// Grammar `response` pseudo-tool: tool_name=="response" with text in tool_args
-// is unwrapped into a plain text delta — no phantom tool call, no raw JSON.
+// 语法 `response` 伪 -tool: tool_name=="response" 文本
+// 输入 tool_args 被解开为纯文本三角形 – 没有幽灵工具 调用 ,无生 JSON.
 TEST_CASE("jp response pseudo tool") {
     std::string nd =
         "{\"message\":{\"role\":\"assistant\",\"content\":"
@@ -480,12 +480,12 @@ TEST_CASE("jp response pseudo tool") {
     auto msgs = oll::parse_ndjson_for_test(nd, {"shell"}, /*json_protocol=*/true);
     CHECK(joined_text(msgs).find("Hello there!") != std::string::npos);
     CHECK(count_leaf<StreamToolUseStart>(msgs) == 0);
-    // The raw protocol JSON must NOT leak into the prose.
+    // 原始协议 JSON 不得 漏入传言.
     CHECK(joined_text(msgs).find("tool_name") == std::string::npos);
 }
 
-// Grammar-forced tool call: tool_name=="shell" with command in tool_args fires
-// a real bash tool-use start/delta/end carrying the args.
+// 语法 -forced 工具 调用: tool_name=="shell" 命令在 tool_args
+// 发射一个真正的击打工具 -use start/delta/end 载 ⁇ .
 TEST_CASE("jp grammar tool call") {
     std::string nd =
         "{\"message\":{\"role\":\"assistant\",\"content\":"
@@ -499,8 +499,8 @@ TEST_CASE("jp grammar tool call") {
     CHECK(joined_tool_args(msgs).find("ls") != std::string::npos);
 }
 
-// The `response` text may also be carried under the `response` key in
-// tool_args (some models pick that alias instead of `text`).
+// 电话 `response` 案文也可在下列案文下载入: `response`
+// 键入 tool_args (有些模型选别名而不是 `text`).
 TEST_CASE("jp response alias key") {
     std::string nd =
         "{\"message\":{\"role\":\"assistant\",\"content\":"
@@ -512,15 +512,15 @@ TEST_CASE("jp response alias key") {
     CHECK(count_leaf<StreamToolUseStart>(msgs) == 0);
 }
 
-// Progressive `response` streaming: a grammar-forced chat reply object that
-// arrives across MANY content frames (the real Ollama wire) must be decoded
-// and emitted INCREMENTALLY (one delta per frame as bytes arrive) so maya's
-// reveal_fx animates the typewriter — and the full reply text must appear
-// EXACTLY ONCE (no duplication at the done/freeze handoff). This is the fix
-// for the qwen2.5-coder "Hi Ayush!Hi Ayush!" duplication + frozen-md bug.
+// 渐进式 `response` 流式传输 : 语法 -forced 到达的聊天回复
+// 对象 MANY 内容 帧 (真实的) Ollama 传输 )必须解码并排放
+// INCREMENTALLY (每桶1三角洲) 帧 以 字节 来了)所以 maya's
+// reveal_fx 动画打字机——必须出现完整回复文本 恰好 一次 (无重复)
+// done/freeze 交接。这是 Qwen2.5 的固定 -coder
+// "Hi Ayush!Hi Ayush!" 复制 + 冻结 -md 虫子,你这混蛋
 TEST_CASE("jp response streamed incrementally") {
-    // {"tool_name":"response","tool_args":{"text":"Hello Ayush!"}}
-    // delivered char-by-char like Ollama's grammar-constrained stream.
+    // {"tool_name":"response","tool_args":{"text":
+    // "Hello Ayush!" 送来的Char -by-char 喜欢 Ollama 语法 -constrained 数据流.
     auto frame = [](const std::string& c) {
         std::string esc;
         for (char ch : c) {
@@ -545,23 +545,23 @@ TEST_CASE("jp response streamed incrementally") {
           "\"done\":true,\"done_reason\":\"stop\"}\n";
 
     auto msgs = oll::parse_ndjson_for_test(nd, {"shell"}, /*json_protocol=*/true);
-    // Full reply, exactly once — no duplication.
+    // 完全答复,确切一次——没有重复。
     std::string txt = joined_text(msgs);
     CHECK(txt == "Hello Ayush!");
-    // The protocol scaffolding must NOT leak into prose.
+    // 协议脚手架不得 泄露成散文。
     CHECK(txt.find("tool_name") == std::string::npos);
     CHECK(txt.find("tool_args") == std::string::npos);
     CHECK(txt.find('{') == std::string::npos);
-    // No phantom tool call.
+    // 无幽灵工具调用.
     CHECK(count_leaf<StreamToolUseStart>(msgs) == 0);
-    // Emitted as MULTIPLE deltas (incremental reveal), not one settle dump.
+    // 被确认为 MULTIPLE 三角洲( 递增) 逐步显示 ),没有一处安顿的垃圾堆.
     CHECK(count_leaf<StreamTextDelta>(msgs) >= 2);
 }
 
-// Escaped characters inside the streamed reply (\n, \", \\) must be decoded
-// correctly even when the escape straddles a frame boundary.
+// 流回函(\n,\\)内逃逸的字符,
+// 即使越狱跨越帧边界,也必须正确解码.
 TEST_CASE("jp response streamed escapes") {
-    // tool_args.text == 'line1\nsay "hi"'  (a newline + an escaped quote)
+    // tool_args.text == 'line1\nsay "hi"' (新行+ 一条被逃出引号)
     std::string nd =
         "{\"message\":{\"role\":\"assistant\",\"content\":"
         "\"{\\\"tool_name\\\":\\\"response\\\",\\\"tool_args\\\":"
@@ -574,8 +574,8 @@ TEST_CASE("jp response streamed escapes") {
     CHECK(count_leaf<StreamToolUseStart>(msgs) == 0);
 }
 
-// A REAL tool call streamed char-by-char must NOT be hijacked by the
-// progressive-response path — it still fires a tool-use, no text leaks.
+// A 真实 工具 调用 流线字符 -by-char 不得 被进步派劫持
+// -response 路径——它仍然发射一个工具 -use ,没有文本泄露。
 TEST_CASE("jp streamed tool call not hijacked") {
     auto frame = [](const std::string& esc) {
         return "{\"message\":{\"role\":\"assistant\",\"content\":\""
@@ -594,12 +594,12 @@ TEST_CASE("jp streamed tool call not hijacked") {
     CHECK(joined_text(msgs).find("tool_name") == std::string::npos);
 }
 
-// A REAL captured qwen2.5-coder:latest grammar-constrained stream (24 frames,
-// curl /api/chat with the response pseudo-tool). The reply was
-//   { "tool_name": "response", "tool_args": { "text": "Hi Ayush!" } }
-// emitted char-by-char, INCLUDING the model's trailing " }" frame that used to
-// leak a stray brace onto the reply. This replays the exact bytes off the wire
-// so the fix is proven against the model, not just a hand-written fixture.
+// A 真实 被俘的Qwen2.5号 -coder : 最新语法 -constrained
+// 数据流 (24 帧 ,卷曲 / 缩曲 api/chat 与反应伪 -tool。
+//   答复是{ "tool_name": "response", "tool_args":
+// { "text": "Hi Ayush!" ~ 释放的字符 ~ -by-char,
+// INCLUDING 模型的后继 " }" 帧 用来在回复中泄露一个偏差的牙套。 字节 关闭
+// 传输 那样就证明 修补是和模型相对的 不仅仅是一只手 -written 固定。 固定。
 TEST_CASE("jp live capture qwen") {
     static const char* kFrames[] = {
         "{\"message\":{\"role\":\"assistant\",\"content\":\"{\"}}",
@@ -634,41 +634,41 @@ TEST_CASE("jp live capture qwen") {
 
     auto msgs = oll::parse_ndjson_for_test(nd, {"shell"}, /*json_protocol=*/true);
     std::string txt = joined_text(msgs);
-    CHECK(txt == "Hi Ayush!");                       // exact, ONCE (no dup)
-    CHECK(txt.find('{') == std::string::npos);        // no scaffolding leak
-    CHECK(txt.find('}') == std::string::npos);        // no trailing-brace leak
+    CHECK(txt == "Hi Ayush!");                       // 准确, 一次( 无 dup)
+    CHECK(txt.find('{') == std::string::npos);        // 没有脚手架漏水
+    CHECK(txt.find('}') == std::string::npos);        // 没有后端的-brace泄漏
     CHECK(txt.find("tool_name") == std::string::npos);
-    CHECK(count_leaf<StreamToolUseStart>(msgs) == 0); // it's a chat reply
-    CHECK(count_leaf<StreamTextDelta>(msgs) >= 2);     // streamed incrementally
+    CHECK(count_leaf<StreamToolUseStart>(msgs) == 0); // 是个聊天答覆
+    CHECK(count_leaf<StreamTextDelta>(msgs) >= 2);     // 流经递增
     CHECK(count_leaf<StreamUsage>(msgs) == 1);
 }
 
-// ── 5. build_options (num_ctx / num_predict / sampling) ──────────────────────
+// ── 5. build_options (num_ctx / num_predict /取样) ──────────────────────
 TEST_CASE("options unknown window default") {
-    // No probed context window → safe agent-sized default 8192, well above
-    // Ollama's 2k/4k floor that silently truncates long conversations.
+    // 无上下文窗口 ~ 安全代理 -sized 默认 8192,
+    // 远高于 Ollama's 2k/4k 地板会静静地中断长话短说
     oll::Request r;
     r.max_tokens = 16384;
     r.context_window = 0;
     auto o = oll::build_options(r);
     CHECK(o["num_ctx"].get<int>() == 8192);
-    // num_predict is clamped to half the window so the prompt always fits.
+    // num_predict 被夹在窗口的一半上,所以 提示词 总是适合。
     CHECK(o["num_predict"].get<int>() == 4096);
 }
 
 TEST_CASE("options probed window") {
-    // A real 32768-window model gets that window (clamped to the 32768 ceiling).
+    // 一台真正的327668-window型号获得该窗口(被打开到32768的天花板上).
     oll::Request r;
     r.max_tokens = 16384;
     r.context_window = 32768;
     auto o = oll::build_options(r);
     CHECK(o["num_ctx"].get<int>() == 32768);
-    CHECK(o["num_predict"].get<int>() == 16384);  // half of 32768, == max_tokens
+    CHECK(o["num_predict"].get<int>() == 16384);  // 半个32768,  ⁇ max_tokens
 }
 
 TEST_CASE("options huge window clamped") {
-    // A 128k-window model is clamped to the agent ceiling so we don't try to
-    // allocate a giant KV cache and OOM the local Ollama server.
+    // 128k-window型号被夹在代理机天花板上,这样我们就不会试图分配
+    // 一个巨大的KVXX缓存和OOM,作为本地的Ollama服务器.
     oll::Request r;
     r.max_tokens = 16384;
     r.context_window = 131072;
@@ -677,7 +677,7 @@ TEST_CASE("options huge window clamped") {
 }
 
 TEST_CASE("options small window floored") {
-    // A model that reports a tiny window still gets the agent floor.
+    // 一个报告一个小窗口的模型仍然能拿到代理地板.
     oll::Request r;
     r.max_tokens = 16384;
     r.context_window = 2048;
@@ -686,21 +686,21 @@ TEST_CASE("options small window floored") {
 }
 
 TEST_CASE("the gauge measures the window ollama will actually serve") {
-    // A local model's published window is a claim about the WEIGHTS, not
-    // about the machine. Ollama allocates a KV cache to match, so agentty
-    // clamps num_ctx to a ceiling that will load on a laptop rather than
-    // OOMing the server mid-request. That clamp is correct.
+    // 当地模型公布的窗口是声称 WEIGHTS 而不是机器的问题
+    // Ollama 分配一个 KV 缓存 来匹配,
+    // 所以 agentty 夹子 num_ctx 最高额将 加载 电脑上,
+    // 而不是服务器的操作 -request 夹子没错
     //
-    // The bug was that only the WIRE knew about it. The context gauge
-    // scored the unclamped window, so on a 131k local model the bar read a
-    // quarter of true usage and auto-compaction waited for four times the
-    // thread it should have. The model silently truncated its own prompt
-    // long before agentty thought to compact — "local models forget
-    // everything", invisible from inside because every layer was
-    // individually right and no two agreed.
+    // 虫子是那个 传输 上下文测量仪对未打开的窗口进行评分,
+    // 因此在131k的本地模型上,栏中读取了四分之一的真实使用量和
+    // 自动 -compaction 等了四遍了 等了四个月 线程
+    // 模特儿悄悄地切开自己的车 提示词 很久以前,我一直想着
+    // agentty 认为要紧凑...
+    // "local models forget everything" 内在
+    // 的隐形 因为每一层都是正确的 而且没有两层同意
     //
-    // So: one function, and the wire is DERIVED from it. This asserts they
-    // cannot drift, at every interesting point of the clamp.
+    // 所以:一个功能,和 传输 谓 派生 上面写着,
+    // 他们不能在夹子的每个有趣的地方漂流
     struct Case { int advertised; int served; const char* why; };
     static constexpr Case kCases[] = {
         {0,        8192,  "unknown window falls to the agent default"},
@@ -715,10 +715,10 @@ TEST_CASE("the gauge measures the window ollama will actually serve") {
     for (const auto& c : kCases) {
         INFO(c.why << " (advertised=" << c.advertised << ")");
 
-        // The number the gauge will use.
+        // 计数器会用到的号码。
         CHECK(oll::effective_num_ctx(c.advertised) == c.served);
 
-        // The number the wire actually sends, built independently.
+        // 号码 传输 实际发送,独立建造。
         oll::Request r;
         r.max_tokens     = 16384;
         r.context_window = c.advertised;
@@ -727,7 +727,7 @@ TEST_CASE("the gauge measures the window ollama will actually serve") {
 }
 
 TEST_CASE("options json protocol sampling") {
-    // Weak/json-protocol path gets a low temperature for tool-call reliability.
+    // Weak/json-protocol 路径获得工具的低温 -call 可靠性。
     oll::Request r;
     r.max_tokens = 16384;
     r.context_window = 8192;
@@ -735,7 +735,7 @@ TEST_CASE("options json protocol sampling") {
     auto o = oll::build_options(r);
     CHECK(o.contains("temperature"));
     CHECK(o["temperature"].get<double>() < 0.5);
-    // Capable (non-json-protocol) models keep their Modelfile defaults.
+    // Capable(not-json-protocol)型号保留其Modelfile默认.
     oll::Request r2;
     r2.max_tokens = 16384;
     r2.context_window = 8192;
@@ -743,10 +743,10 @@ TEST_CASE("options json protocol sampling") {
     CHECK(!o2.contains("temperature"));
 }
 
-// ── 6. <think> reasoning stripping ───────────────────────────────────────────
+// ── 6. <think> 推理剥离 ───────────────────────────────────────────
 TEST_CASE("think block stripped from prose") {
-    // A reasoning model inlines <think>…</think> then answers. Only the answer
-    // is shown; the reasoning never reaches the user.
+    // 推理模型内含 <think>…</think> 然后回答。
+    // 只显示答案;推理从未到达用户。
     std::string nd =
         "{\"message\":{\"role\":\"assistant\",\"content\":"
         "\"<think>let me reason</think>The answer is 42.\"}}\n"
@@ -759,8 +759,8 @@ TEST_CASE("think block stripped from prose") {
 }
 
 TEST_CASE("think then tool call salvaged") {
-    // The model thinks, then leaks a tool call in content. The <think> block
-    // must NOT defeat the hold/salvage path — the tool call still fires.
+    // 模特儿想,然后就漏了个工具 调用 内容。 <think> 块不得
+    // 击败 hold/salvage 路径——工具 调用 仍然开火。
     std::string nd =
         "{\"message\":{\"role\":\"assistant\",\"content\":"
         "\"<think>I should list files</think>"
@@ -780,16 +780,16 @@ TEST_CASE("system prompt shape") {
     CHECK(p.find("agentty") != std::string::npos);
     CHECK(p.find("CONVERSATION MEMORY") != std::string::npos);
     CHECK(p.find("ENVIRONMENT") != std::string::npos);
-    // The verbose Claude prose / big learned-memory dump must NOT be present.
+    // 动词 Claude 传言/大知识 -memory 垃圾不得 现身.
     CHECK(p.find("<file-editing>") == std::string::npos);
     CHECK(p.find("<learned-memory") == std::string::npos);
 }
 
-// ── NEW: JSON-protocol history round-trip ────────────────────────────────────
-// In JSON-protocol mode build_messages must render the tool call as the
-// model's own {tool_name,tool_args} object (assistant role) and the result as
-// a plain USER "TOOL RESULT (name):" turn — NOT the native tool_calls[]/
-// role:"tool" shape a prose-only model can't read.
+// ── 新: JSON-protocol 历史轮 -trip ────────────────────────────────────
+// 内 JSON-protocol 模式 build_messages 必须 渲染 工具 调用
+// 作为模型自己的{ tool_name,tool_args \ 对象( 辅助作用) 和结果为平面 USER
+// "TOOL RESULT (name):" 转弯... 不 本地人 tool_calls []
+// / 作用: "tool" 形状一个流言 -only 模型不会读。
 TEST_CASE("build messages json protocol roundtrip") {
     std::vector<Message> msgs;
     Message a; a.role = Role::Assistant; a.text = "";
@@ -802,25 +802,25 @@ TEST_CASE("build messages json protocol roundtrip") {
     msgs.push_back(std::move(a));
 
     auto arr = oll::build_messages(msgs, /*json_protocol=*/true);
-    // assistant prose-JSON object + user TOOL RESULT turn (no native shapes).
+    // 助理传言 -JSON 对象+用户 TOOL RESULT 转弯(无原生形状).
     CHECK(arr.size() == 2);
     CHECK(arr[0]["role"] == "assistant");
-    CHECK(!arr[0].contains("tool_calls"));               // NOT native
+    CHECK(!arr[0].contains("tool_calls"));               // 不 本地语言
     {
         auto obj = nlohmann::json::parse(arr[0]["content"].get<std::string>());
         CHECK(obj["tool_name"] == "shell");
         CHECK(obj["tool_args"]["command"] == "ls -la");
     }
-    CHECK(arr[1]["role"] == "user");                     // NOT role:"tool"
+    CHECK(arr[1]["role"] == "user");                     // 不 角色( E) : "tool"
     CHECK(arr[1]["content"].get<std::string>().find("TOOL RESULT (shell)")
           != std::string::npos);
     CHECK(arr[1]["content"].get<std::string>().find("file1") != std::string::npos);
 }
 
-// ── NEW: arg-key repair on the NATIVE structured channel ─────────────────────
-// A weak model on the native channel emits the legacy `bash` name (still an
-// alias for `shell`) with {"cmd":...} instead of {"command":...}; the parser
-// must both accept the alias and remap the key to the canonical `command`.
+// ── 新 参数( U) -key 修理 NATIVE 结构化频道 ─────────────────────
+// 本地频道的弱模式 传播遗产 `bash` 名称( 仍为 `shell` 与{}
+// 连接 "cmd" :...} 而不是{{} \fn微软雅黑 "command" :...};
+// ; : 解析器 既要接受别名,又要重新绘制峡谷的钥匙 `command`.
 TEST_CASE("ndjson native arg key repair") {
     const char* nd =
         "{\"message\":{\"role\":\"assistant\",\"content\":\"\","
@@ -832,14 +832,14 @@ TEST_CASE("ndjson native arg key repair") {
     for (const auto& m : msgs)
         if (const auto* d = get_leaf<StreamToolUseDelta>(m)) args += d->partial_json;
     auto j = nlohmann::json::parse(args);
-    CHECK(j.contains("command"));        // remapped
+    CHECK(j.contains("command"));        // 重新映射
     CHECK(j["command"] == "ls");
-    CHECK(!j.contains("cmd"));            // alias erased
+    CHECK(!j.contains("cmd"));            // 已删除的别名
 }
 
-// ── NEW: arg-key repair on the SALVAGE channel ───────────────────────────────
-// A leaked {"tool_name":"read","tool_args":{"file":"x.c"}} must land as
-// {"path":"x.c"} so the read tool actually finds its argument.
+// ── 新 参数( U) -key 修理 SALVAGE 频道 ───────────────────────────────
+// 漏水的 { } ( 发音) "tool_name":"read","tool_args":{"file":
+// "x.c" QQ 必须着陆为{ "path":"x.c" }所以读工具实际上找到了它的论据。
 TEST_CASE("jp salvage arg key repair") {
     const char* nd =
         "{\"message\":{\"role\":\"assistant\","
@@ -851,18 +851,18 @@ TEST_CASE("jp salvage arg key repair") {
     for (const auto& m : msgs)
         if (const auto* d = get_leaf<StreamToolUseDelta>(m)) args += d->partial_json;
     auto j = nlohmann::json::parse(args);
-    CHECK(j.contains("path"));           // file → path
+    CHECK(j.contains("path"));           // 文件 – 路径
     CHECK(j["path"] == "x.c");
     CHECK(!j.contains("file"));
 }
 
-// ── Never-blank-turn safety net (Aider's `if not received_content`) ──────────
-// A qwen `response` object whose `text` is empty but whose `thoughts` carry
-// the real words must surface the thoughts as prose — never a blank turn.
+// ── 永远 -blank-turn 安全网(苹果公司) `if not received_content`) ──────────
+// 个QWEN `response` 其对象 `text` 空的,
+// 但谁的 `thoughts` 带真言必须露出思想的正文——绝不是空洞的转折。
 TEST_CASE("jp response empty text falls back to thoughts") {
-    // Single content frame carrying the whole {thoughts,tool_name:response,
-    // tool_args:{text:""}} object, then a separate done frame. text is empty
-    // so the fallback must surface `thoughts` as prose.
+    // 单一内容 帧 带了整个 {想法, tool_name 答复: tool_args
+    // :{文本 : "" QQ 对象, 然后单独完成 帧 文本为空,
+    // 所以 回退 必须是表面 `thoughts` 作是说.
     std::string nd =
         "{\"message\":{\"role\":\"assistant\",\"content\":"
         "\"{\\\"thoughts\\\":[\\\"You are Ayush\\\"],\\\"tool_name\\\":"
@@ -876,9 +876,9 @@ TEST_CASE("jp response empty text falls back to thoughts") {
     CHECK(count_leaf<StreamToolUseStart>(msgs) == 0);
 }
 
-// A JSON-protocol turn that produced NOTHING usable (model emitted only
-// whitespace) must still render a visible turn: Aider's exact
-// `(empty response)` placeholder, never a silent void.
+// A JSON-protocol 转动产生 无内容 仍然可以使用( 模式只
+// 释放白空间) 渲染 可见转弯: Aider 精确
+// `(empty response)` 占位符,永远不要一个沉默的空虚。
 TEST_CASE("jp truly empty shows placeholder") {
     std::string nd =
         "{\"message\":{\"role\":\"assistant\",\"content\":\"   \"}}\n"
@@ -889,8 +889,8 @@ TEST_CASE("jp truly empty shows placeholder") {
     CHECK(count_leaf<StreamFinished>(msgs) == 1);
 }
 
-// Plain prose that merely STARTED life looking like it could be JSON but is
-// not a tool call must STILL reach the user — never a silent blank turn.
+// 纯粹的传言 STARTED 生活看起来像它可能 JSON 但不是工具,
+// 但不是一个工具 调用 必须 仍然 到达用户——永远不要静默地空转。
 TEST_CASE("prose starting with brace not dropped") {
     std::string nd =
         "{\"message\":{\"role\":\"assistant\",\"content\":"
@@ -901,10 +901,10 @@ TEST_CASE("prose starting with brace not dropped") {
     CHECK(joined_text(msgs).find("42") != std::string::npos);
 }
 
-// ── Byte-identity guard ─────────────────────────────────────────────────
-// Pin the EXACT build_messages() output over a feature-rich message list so
-// the Ollama transport can be refactored with a no-drift guarantee (same
-// discipline as the Anthropic/OpenAI golden guards).
+// ── 字节-identity 警卫 ─────────────────────────────────────────────────
+// 扣紧 EXACT build_messages () 输出于一个特性 -rich
+// 信件列表, 以至 Ollama 传输层 可用不重构 -drift 保证(
+// 与 Anthropic/OpenAI 金色的卫士).
 static std::uint64_t oll_fnv1a(const std::string& s) {
     std::uint64_t h = 1469598103934665603ull;
     for (unsigned char c : s) { h ^= c; h *= 1099511628211ull; }
@@ -941,9 +941,9 @@ TEST_CASE("wire body golden") {
       msgs.push_back(std::move(a)); }
 
     const std::string wire = oll::build_messages(msgs, /*json_protocol=*/false).dump();
-    CHECK(wire.find("FIRST_") == std::string::npos);      // superseded read collapsed
+    CHECK(wire.find("FIRST_") == std::string::npos);      // 已替换的读作已崩溃
     CHECK(wire.find("content was dropped to save context") != std::string::npos);
-    CHECK(wire.find("SECOND_") != std::string::npos);     // live read full
+    CHECK(wire.find("SECOND_") != std::string::npos);     // 现场阅读全
 
     constexpr std::uint64_t kGolden = 0x945cece785ad177full;
     const std::uint64_t got = oll_fnv1a(wire);

@@ -1,24 +1,24 @@
 #pragma once
-// agentty::tools::web_search_secret — where a web_search service's API key lives.
+// agentty::tools::web_search_secret-web_search服务的API密钥所在的位置。
 //
-// Not in settings.json, for the reason embed_secret.hpp gives: a credential in
-// a plaintext config file is a leak waiting for a screen-share or a dotfiles
-// commit. Same two tiers as the rest of agentty's credential handling:
-//   1. the OS keystore, when available and enabled (AGENTTY_USE_KEYSTORE);
-//   2. otherwise a sealed file (auth::crypt::seal, machine-bound AEAD).
+// 不在 settings.json 中，因为 embed_secret.hpp
+// 给出的原因是：明文配置文件中的 凭据 是等待 screen-share 或点
+// 文件提交的泄漏。与 agentty 的 凭据 处理的其余部分相同的两层：
+//   1. OS密钥库，当可用并启用时（AGENTTY_USE_KEYSTORE)；
+//   2.另有密封文件(auth::crypt::seal，机器-bound，AEAD)。
 //
-// Why not the provider-key vault (auth::keys): persistence rewrites that vault
-// wholesale from Model.provider_keys on every settings save, which would wipe
-// anything stored beside the provider keys, and every non-preset entry in it
-// is shown as a custom provider host. These keys are not providers.
+// 为什么不提供提供者-key保险库（auth::keys)：持久化在每
+// 个设置保存上从Model.provider_keys批量重写该保险库，
+// 这将擦除提供者密钥旁边存储的任何内容，并且其中的每个非
+// -preset条目都显示为自定义提供者主机。这些密钥不是提供者。
 //
-// Keyed by SERVICE id ("exa-api"), the catalogue id from mcp-cpp. The free
-// services have nothing to store and are never passed here.
+// 由 SERVICE id ("exa-api") 键入，来自 mcp-cpp 的目录 id。
+// 免费服务没有任何可存储的内容，并且永远不会传递到这里。
 //
-// An environment variable beats the store, so a key can come from CI or a
-// secrets manager without ever touching disk:
-//     AGENTTY_WEB_SEARCH_KEY_<ID>   with '-' turned into '_', upper case
-//     e.g. AGENTTY_WEB_SEARCH_KEY_EXA_API, AGENTTY_WEB_SEARCH_KEY_BRAVE_API
+// 环境变量胜过存储，因此密钥可以来自 CI 或
+// 秘密管理器，而无需接触磁盘：
+//     AGENTTY_WEB_SEARCH_KEY_<ID>与'-'变成'_'，大写e.g。
+//     AGENTTY_WEB_SEARCH_KEY_EXA_API、AGENTTY_WEB_SEARCH_KEY_BRAVE_API
 
 #include <string>
 
@@ -28,36 +28,36 @@
 
 namespace agentty::tools::web_search_secret {
 
-// The variable that would override `service`'s key.
+// 将覆盖`service`的密钥的变量。
 [[nodiscard]] std::string env_name(std::string_view service);
 
-// The key to use ("" when none). Environment first, then keystore, then the
-// sealed file. Never throws.
+// 使用的密钥(""，当没有时)。首先是环境，然后是密钥库，
+// 然后是密封文件。从不抛出。
 [[nodiscard]] std::string load(std::string_view service);
 
-// True when load() would return something.
+// 当 load() 将返回某些内容时为真。
 [[nodiscard]] bool has(std::string_view service);
 
-// "env: AGENTTY_WEB_SEARCH_KEY_X", "stored", or "" — for the pane's provenance
-// column. Never returns the key.
+// "env: AGENTTY_WEB_SEARCH_KEY_X"、"stored"或""-
+// 用于面板的出处列。永远不会归还钥匙。
 [[nodiscard]] std::string origin(std::string_view service);
 
-// A key we are willing to put in a request header: 8..512 bytes, no spaces and
-// no control characters. Checked before storing so a pasted line break or a
-// "Bearer " prefix is caught at the pane, not as an opaque 401 later.
+// 我们愿意在请求头文件中放入的密钥：8..512 字节，没有空格，
+// 也没有控制字符。在存储之前进行检查，以便在 面板 处捕获粘贴的换行符
+// 或 "Bearer " 前缀，而不是稍后捕获不透明的 401。
 [[nodiscard]] bool plausible(std::string_view key);
 
-// Persist. An empty key erases. Returns false if the secret could not be
-// secured — callers must treat that as "not saved", never write plaintext.
-// Also false when the sealed file exists but cannot be opened (corrupt, or
-// sealed on another machine): rewriting it would lose every other key.
+// 坚持。空键会擦除。如果无法保护秘密，则返回 false —
+// 调用者必须将其视为 "not saved"，切勿写入明文。
+// 当密封文件存在但无法打开（损坏或在另一台机器上
+// 密封）时也为假：重写它会丢失所有其他密钥。
 bool store(Io, const lock_levels::below_file_lane&, std::string_view service,
            std::string_view key);
 
-// Remove from the keystore (when enabled) and the sealed file. A key stored
-// while AGENTTY_USE_KEYSTORE was on and erased while it is off stays in the
-// OS keystore: that store is only consulted while the variable is set, and is
-// not ours to scan otherwise.
+// 从密钥库（当启用时）和密封文件中移除。
+// 在 AGENTTY_USE_KEYSTORE 开启时存储并在关闭
+// 时擦除的密钥保留在 OS 密钥库中：仅在设置变量时才查阅该存储，
+// 否则我们无法扫描该存储。
 bool erase(Io, const lock_levels::below_file_lane&, std::string_view service);
 
 } // namespace agentty::tools::web_search_secret

@@ -1,32 +1,32 @@
 #pragma once
-// build_fused_rows — the pure ranking core of the unified cross-provider model
-// picker. Given every authed provider's catalog (plus optional sign-in offers
-// for un-authed providers), the recents (MRU), the active (provider,model),
-// and the live query, it produces the ORDERED, SECTIONED FusedRow list the
-// reducer selects from and the view renders.
+// build_fused_rows——统一交叉-provider模型选择面板的纯排名核心。
+// 给定每个经过身份验证的提供商的 目录（加上为 un-authed 提供商
+// 提供的可选标志-in）、最近的（MRU）、活动（提供商、型号）和实时查询，
+// 它会生成 ORDERED、SECTIONED FusedRow 列表
+// （状态更新函数 从中选择）和视图 渲染。
 //
-// Pure and header-only so it unit-tests without a Model/deps/network. The
-// reducer assembles the inputs (which providers are authed, their catalogs)
-// via the deps/registry seams; the RANKING lives here so reducer and view
-// agree by construction (the SSOT discipline the pickers hold).
+// Pure 和 头文件-only 因此它单元 -tests 没有
+// Model/deps/network. 状态更新函数 通过 deps/registry
+// 接口边界 组装输入（哪些提供商经过验证，他们的 目录）； RANKING 住在这里，
+// 所以 状态更新函数 和视图一致（SSOT 纪律 选择面板 持有）。
 //
-// Ordering:
-//   0. FAVORITES — every starred model, in every provider, first (#99).
-//                 Filtered by the query like the rest; in search they
-//                 still lead, ranked among themselves by relevance.
-//   1. RECENT   — MRU (provider,model) the user actually toggles between,
-//                 most-recent first, active pinned at the top with `active`.
-//   2. all providers — every authed catalog, fuzzy-ranked by the query;
-//                 ties break provider order → context window.
-//   3. sign in to … — un-authed provider offers (only when the query is
-//                 empty or fuzzy-matches the provider name), dim, at the end.
+// 订购：
+//   0.FAVORITES-每个提供商中的每个加星标的模型，第一个（#99）。
+//                 像其余的一样通过查询过滤；在搜索中，
+//                 他们仍然处于领先地位，并按相关性进行排名。
+//   1. RECENT — MRU(provider,model)用户实际上在切换之间，
+//                 最-recent在前，主动固定在`active`的顶部。
+//   2.所有提供商——每个通过查询验证的目录、fuzzy-ranked；
+//                 平局中断提供者顺序→上下文窗口。
+//   3.登录……——un-authed提供商优惠（仅当查询是
+//                 空或fuzzy-matches提供者名称)，暗淡，在末尾。
 //
-// A model appears once: a favorite is shown in FAVORITES, not again in
-// RECENT or below. The active model is still marked wherever it lands.
+// 模型出现一次：收藏夹显示在FAVORITES中，
+// 不再显示在RECENT或以下。活动模型无论在何处仍然会被标记。
 //
-// Section boundaries are conveyed by `FusedRow::favorite_section`,
-// `FusedRow::recent` and `FusedRow::is_signin_offer()`; everything else is
-// section 2. The view inserts a header when the section changes.
+// 区段边界由`FusedRow::favorite_section`、
+// `FusedRow::recent`和`FusedRow::is_signin_offer()`传达；
+// 其他一切都是第 2 部分。当部分更改时，视图会插入 头文件。
 
 #include <algorithm>
 #include <string>
@@ -39,32 +39,32 @@
 
 namespace agentty::ui {
 
-using agentty::SigninOffer;   // moved to domain (catalog.hpp); alias for callers
+using agentty::SigninOffer;   // 移至域(catalog.hpp)；呼叫者的别名
 
 struct FusedInputs {
-    const std::vector<ProviderCatalog>* catalogs = nullptr;  // authed providers
+    const std::vector<ProviderCatalog>* catalogs = nullptr;  // 授权提供商
     const std::vector<SigninOffer>*     offers   = nullptr;  // un-authed
-    const std::vector<ModelRef>*        recents  = nullptr;  // MRU, newest first
-    // The user's starred model ids (settings favorite_models). The one source
-    // of truth for the star and the FAVORITES section: catalogs that never
-    // passed through the active-provider load don't carry the flag.
+    const std::vector<ModelRef>*        recents  = nullptr;  // MRU，最新的在前
+    // 用户的加星号模型 ID (设置 favorite_models)。
+    // 明星和 FAVORITES 部分的唯一真相来源：从未通过
+    // active-provider 加载 的 目录 不携带 标志。
     const std::vector<ModelId>*         favorites = nullptr;
-    ModelRef    active;                                       // current prov+model
+    ModelRef    active;                                       // 当前省份+型号
     std::string query;
     int         recent_cap = 6;
-    // Restrict the list to ONE provider. Empty (the default) = the fused,
-    // cross-provider view. Set to a provider id by Smart Mode slot-assign
-    // mode, where a pinned model is handed to whatever provider is active
-    // at turn time — so a row from another provider must not be selectable.
-    // Filtering here rather than validating at Select keeps the invalid
-    // choice unrepresentable instead of merely rejected. Sign-in offers are
-    // suppressed too: you cannot pin a model you aren't signed in to.
+    // 将列表限制为ONE提供商。空（默认）= 融合的 cross
+    // -provider 视图。通过智能模式 slot-assign
+    // 模式设置为提供者 ID，其中固定模型将被传递给在轮流中处于活动
+    // 状态的任何提供者 - 因此来自另一个提供者的行一定不能被选择。
+    // 这里过滤而不是在选择处验证使无效选择
+    // 不可表示而不是仅仅被拒绝。 Sign-in
+    // 优惠也被抑制：您无法固定未登录的模型。
     std::string only_provider;
-    // The canonical model label + fuzzy-match anchor. Injected by the
-    // view (ui::model_display_label) so the fused picker's rows read AND
-    // match identically to the per-provider picker's. Defaulted to the
-    // raw display_name-or-id so unit tests can call build_fused_rows
-    // without pulling in the view layer.
+    // 规范模型标签+fuzzy-match锚。
+    // 由视图 (ui::model_display_label) 注入，因此融合的 选择
+    // 面板 的行读取 和 与 per-provider 选择面板 的行完全相同。
+    // 默认为原始 display_name-or-id，因此 单元测试 可以 调用
+    // build_fused_rows，而无需拉入视图层。
     std::string (*label_fn)(std::string_view id, std::string_view name) =
         [](std::string_view id, std::string_view name) -> std::string {
             return std::string{name.empty() ? id : name};
@@ -73,11 +73,11 @@ struct FusedInputs {
 
 namespace detail {
 
-// The searchable text for a (provider, model) row:
-// "<provider label> <canonical model label> <raw id>". The canonical
-// label (ui::model_display_label) is what the view shows, so matching
-// and highlight offsets index the same string; the raw id is appended
-// so "gpt-5-codex" still matches even after prettification.
+// (提供商，模型）行的可搜索文本：
+// 显示格式：提供方名称、规范模型名称、原始标识。
+// 规范标签 (ui::model_display_label) 是视图
+// 显示的内容，因此匹配和突出显示偏移索引相同的字符串；附加原始 ID，
+// 因此即使在美化之后，"gpt-5-codex" 仍然匹配。
 [[nodiscard]] inline std::string fused_haystack(std::string_view label,
                                                 std::string_view model_label,
                                                 const ModelInfo& mi) {
@@ -92,15 +92,15 @@ namespace detail {
     return h;
 }
 
-// Find a model in a catalog by wire id. Exact match first; on a miss,
-// fall back to ROW IDENTITY (capkey::norm_row_id) so a recent survives
-// the provider re-spelling its id — "mistral-medium-3.5" vs
-// "mistral-medium-3-5", a case change, a stray separator. Without the
-// fallback such a recent silently vanished from the MRU on the next
-// catalog refresh even though the model was still served.
+// 通过 传输 id 查找 目录 中的模型。首先精确匹配；如果错过，
+// 则回退到 ROW IDENTITY (capkey::norm_row_id)，
+// 因此最近幸存下来的提供商 re-spelling 其 id —
+// "mistral-medium-3.5" 与 "mistral-medium-3-5"，
+// 案例更改，杂散分隔符。如果没有 回退，即使该模型仍在使用，
+// 但在下一次 目录 刷新时，这样最近的模型也会从 MRU 中悄然消失。
 //
-// Row identity (not norm_model) so a `[1m]` context variant still only
-// matches its own row, never its base model.
+// 行标识(不是norm_model)，因此`[1m]`上下文变体
+// 仍然只匹配其自己的行，而不是其基本模型。
 [[nodiscard]] inline const ModelInfo* find_model(const ProviderCatalog& c,
                                                  std::string_view model_id) {
     for (const auto& mi : c.models)
@@ -121,8 +121,8 @@ find_catalog(const std::vector<ProviderCatalog>& cats, std::string_view pid) {
 
 } // namespace detail
 
-// Build the ordered, sectioned fused row list. `catalogs`/`offers`/`recents`
-// may be null (treated as empty).
+// 构建有序、分段的融合行列表。 `catalogs`/`offers`/
+// `recents` 可能为空（视为空）。
 [[nodiscard]] inline std::vector<FusedRow> build_fused_rows(const FusedInputs& in) {
     using detail::find_catalog;
     using detail::find_model;
@@ -134,8 +134,8 @@ find_catalog(const std::vector<ProviderCatalog>& cats, std::string_view pid) {
     const auto& catalogs = in.catalogs ? *in.catalogs : kNoCatalogs;
     const auto& offers   = in.offers   ? *in.offers   : kNoOffers;
     const auto& recents  = in.recents  ? *in.recents  : kNoRecents;
-    // Starred? From the settings list when given, else the row's own flag
-    // (unit tests that build catalogs by hand).
+    // 已加星标？从给定的设置列表中，否则该行自己的 标志（
+    // 手动构建 目录 的 单元测试）。
     auto is_fav = [&](const ModelInfo& mi, std::string_view provider_id) {
         if (!in.favorites) return mi.favorite;
         return is_favorite(*in.favorites, provider_id, mi.id.value);
@@ -143,9 +143,9 @@ find_catalog(const std::vector<ProviderCatalog>& cats, std::string_view pid) {
 
     const std::string& q = in.query;
     const bool no_query = q.empty();
-    // Single-provider mode (Smart Mode slot-assign). Gates all three
-    // sections: RECENT entries from other providers, their catalog rows,
-    // and every sign-in offer.
+    // Single-provider模式(智能模式slot-assign)。
+    // 控制所有三个部分：来自其他提供商的 RECENT 条目、他们的 目录 行
+    // 以及每个标志-in 报价。
     const bool one_provider = !in.only_provider.empty();
     auto in_scope = [&](std::string_view pid) {
         return !one_provider || pid == in.only_provider;
@@ -161,44 +161,44 @@ find_catalog(const std::vector<ProviderCatalog>& cats, std::string_view pid) {
                                              mi), q);
     };
 
-    // The visible model NAME the view puts in the row's leading cell —
-    // the canonical, provider-uniform label (ui::model_display_label via
-    // in.label_fn), so matching + highlighting index the SAME string the
-    // view renders. Returns by value (label_fn normalizes), so callers
-    // bind it to a local before taking offsets against it.
+    // 视图的可见模型NAME放入行的前导存储单元——规范的提供者
+    // -uniform标签（ui::model_display_label通过in.label_fn)，
+    // 因此匹配+突出显示索引SAME字符串和视图渲染。
+    // 按值返回（label_fn 标准化），
+    // 因此调用者在对其进行偏移之前将其绑定到本地。
     auto name_of = [&](const ModelInfo& mi) -> std::string {
         return in.label_fn(mi.id.value, mi.display_name);
     };
-    // Byte offsets of the query within the NAME, for fzf-style highlighting.
-    // Empty when no query, or when the row matched only on the provider name.
+    // 查询在NAME内的字节偏移量，用于fzf-style突出显示。
+    // 当没有查询时或者当行仅与提供者名称匹配时为空。
     auto name_positions = [&](std::string_view name) -> std::vector<int> {
         if (no_query) return {};
         return fuzzy::score(name, q).positions;
     };
 
-    // ── Section 1: RECENT (MRU) ──────────────────────────────────────────
-    // The active row is pinned first even if not literally the newest MRU
-    // entry, so `●` always leads. De-dup against what we emit here so the
-    // "all providers" section never repeats a recent row. Identity is the
-    // capkey-FOLDED (provider, model): providers alias one model under
-    // several spellings (mistral-medium-3-5 / -3.5), and a recent pick of
-    // one spelling must suppress the catalog's twin — not sit above it.
+    // ── 第1节: RECENT (MRU) ──────────────────────────────────────────
+    // 活动行被首先固定，即使实际上不是最新的 MRU 条目，因此 `●`
+    // 总是领先。 De-dup 与我们在这里发出的内容相对应，
+    // 因此 "all providers" 部分永远不会重复最近的行。
+    // 身份是 capkey-FOLDED（提供者，模型）：提供者在多种拼写（
+    // mistral-medium-3-5 / -3.5）下给一个模型起别名，
+    // 并且最近选择的一种拼写必须抑制 目录 的双胞胎 - 而不是位于它之上。
     //
-    // norm_ROW_id, not norm_model: the latter folds `[1m]`/`[2m]` away
-    // (right for capability lookups, wrong for row identity), which made
-    // every 1M-context variant look like an alias of its base model and
-    // vanish from the list. Row identity keeps the marker while folding
-    // genuine spelling aliases.
+    // norm_ROW_id，而不是norm_model:后者归
+    // 并 `[1m]`/`[2m]`离开(对于能力查找是正确的，
+    // 对于行标识是错误的)，这使得每个1M-context 变体
+    // 看起来像其基本模型的别名并且从列表中消失。行标识保留标记，
+    // 同时折叠真正的拼写别名。
     //
-    // Hash-set on "<provider>\n<folded-id>" — the old O(seen) linear scan
-    // re-folded BOTH sides per probe (two allocations × candidates × seen:
-    // ~200k allocs/keystroke on a 450-model list). Catalog rows use the
-    // precomputed c.row_keys fold when present.
+    // "<provider>\n<folded-id>"上的Hash-set —旧的
+    // O(已见)线性扫描re-folded BOTH侧每个探针(两个分配×候选×已见：
+    // 450-model列表上的〜200k allocs/keystroke)。
+    // 目录 行使用预先计算的 c.row_keys 归并（如果存在）。
     std::unordered_set<std::string> seen;
     int emitted_recent = 0;
     std::vector<FusedRow> recent_rows;
-    // One scratch buffer for probe keys — contains() takes it by const ref,
-    // so probing never allocates once the buffer's capacity is warm.
+    // 用于探测键的一个临时缓冲区——contains()通过常量
+    // 引用来获取它，因此一旦缓冲区的容量变热，探测就不再分配。
     std::string probe;
     auto seen_key = [&probe](std::string_view pid,
                              std::string_view folded) -> const std::string& {
@@ -207,15 +207,15 @@ find_catalog(const std::vector<ProviderCatalog>& cats, std::string_view pid) {
         probe += pid; probe += '\n'; probe += folded;
         return probe;
     };
-    // Second dedup axis, keyed on the same seen set with a distinct
-    // separator (\x01 instead of \n) so one hash lookup covers both
-    // probes. Row-id folding catches spelling aliases (foo-3-5/foo-3.5);
-    // label folding catches DISTINCT ids whose canonical display label
-    // collides -- Copilot's /models can emit `claude-opus-4-5` plus a
-    // snapshot/preview sibling that normalize_id renders the same way,
-    // which is how "Opus" and "Kimi K2 (GitHub)" ended up listed twice
-    // in the picker (issue #68). The surviving row is deterministic:
-    // stable_sort downstream is key-stable.
+    // 第二个去重轴，以具有不同分隔符（\x01 而不是 \n）的相同可见
+    // 集为键控，因此一次散列查找涵盖两个探测器。 Row-id 折叠捕获
+    // 拼写别名 (foo-3-5/foo-3.5)；标签折叠捕获规范显示标签
+    // 冲突的 DISTINCT id - Copilot 的 /models
+    // 可以以同样的方式发出 `claude-opus-4-5` 和
+    // snapshot/preview 兄弟，即 normalize_id 渲染，
+    // 这就是 "Opus" 和 "Kimi K2 (GitHub)" 最终
+    // 在 选择面板（问题 #68）中列出两次的原因。幸存的行是确定性的：
+    // stable_sort 下游是密钥-stable。
     auto label_seen_key = [&probe](std::string_view pid,
                                    std::string_view label_fold) -> const std::string& {
         probe.clear();
@@ -231,10 +231,10 @@ find_catalog(const std::vector<ProviderCatalog>& cats, std::string_view pid) {
         if (already(r)) return false;
         if (!in_scope(r.provider_id)) return false;
         const ProviderCatalog* c = find_catalog(catalogs, r.provider_id);
-        if (!c) return false;                              // provider signed out
+        if (!c) return false;                              // 提供商已退出
         const ModelInfo* mi = find_model(*c, r.model_id);
-        if (!mi) return false;                             // model gone from catalog
-        if (is_fav(*mi, r.provider_id)) return false;      // shown in FAVORITES
+        if (!mi) return false;                             // 型号从 目录 消失
+        if (is_fav(*mi, r.provider_id)) return false;      // 所示为FAVORITES
         if (!matches(c->label, *mi)) return false;
         FusedRow row;
         row.provider_id = r.provider_id;
@@ -253,9 +253,9 @@ find_catalog(const std::vector<ProviderCatalog>& cats, std::string_view pid) {
         row.match_positions = name_positions(row.model_label);
         recent_rows.push_back(std::move(row));
         seen.insert(seen_key(r.provider_id, capkey::norm_row_id(r.model_id)));
-        // Also fence the label axis: a recent "Opus 4.5" must suppress
-        // the catalog's `claude-opus-4-5-20250929` snapshot sibling in
-        // Section 2 (same label, different folded id).
+        // 还围栏标签轴：最近的"Opus 4.5"必须抑制第2部分
+        // 中的目录的`claude-opus-4-5-20250929`
+        // 快照同级（相同标签，不同折叠id）。
         seen.insert(label_seen_key(r.provider_id,
             capkey::norm_row_id(recent_rows.back().model_label)));
         ++emitted_recent;
@@ -268,36 +268,36 @@ find_catalog(const std::vector<ProviderCatalog>& cats, std::string_view pid) {
         push_recent(r);
     }
 
-    // RECENT is emitted in MRU order: active model first (push_recent(
-    // in.active) ran before any MRU entry), then newest-first. That IS the
-    // section's meaning, so there is nothing to sort.
+    // RECENT以MRU顺序发出：首先是活动模型(push_recent
+    // (in.active)在任何MRU条目之前运行)，然后是最新的-first。
+    // IS 该部分的含义，因此没有什么可排序的。
     //
-    // It used to be alphabetised while browsing, active provider's recents
-    // first. That put the model you picked ten seconds ago below one you
-    // last touched a week back, which makes the list you reach for most
-    // read as arbitrary -- the section says "recent" and didn't order by
-    // recency. Ordering by construction also means no future comparator can
-    // displace the active row: a sort it never receives can't reorder it.
+    // 过去在浏览时按字母顺序排列，首先是活动提供商的最近内容。
+    // 这使得你十秒前选择的模型低于你一周前最后一次接触的模型，
+    // 这使得你到达的大多数阅读列表都是任意的——
+    // 该部分显示 "recent" 并且没有按新近度排序。
+    // 按构造排序还意味着未来的比较器无法替换活动
+    // 行：它从未接收到的排序无法对其重新排序。
     for (auto& r : recent_rows) out.push_back(std::move(r));
 
-    // ── Section 2: all providers, fuzzy-ranked ───────────────────────
-    // HOT LOOP — runs per keystroke over every model of every catalog (an
-    // OpenRouter catalog alone is 300+). Three costs are deliberately kept
-    // OUT of it:
-    //   • ModelInfo copies: score first, materialise the FusedRow only for
-    //     rows that MATCH (with no query every row matches, but that path
-    //     runs once per open, not per keystroke).
-    //   • fuzzy re-scoring: score once against the cached haystack; reuse
-    //     the SAME result's positions when the match lies inside the name
-    //     prefix (the common case) instead of re-scoring the bare name.
-    //   • resolved_caps: 3 registry map-lookups behind a shared_mutex per
-    //     call — memoised per (provider, model) for the duration of this
-    //     build; catalogs repeat ids across rebuilds but never within one.
-    // `tier` is precomputed per row rather than derived inside the
-    // comparator: ModelCapabilities::tier_for tokenises the id and runs
-    // several substring scans, and a comparator is called O(n log n) times.
-    // On an aggregator's few-hundred-model catalog that was thousands of
-    // redundant scans per keystroke. 0 when browsing is off (unused).
+    // ── 第2节:所有供应商,模糊-ranked ───────────────────────
+    // HOT LOOP —在每个 目录 的每个模型上每次击键运行（仅
+    // OpenRouter 目录 就超过 300）。三项费用是刻意保留的
+    // OUT的吧：
+    //   ·ModelInfo份：得分第一，按需加载、FusedRow仅用于
+    //     MATCH 的行（没有每行匹配的查询，但该路径每次打开运行一次，
+    //     而不是每次击键运行一次）。
+    //   ·模糊re-scoring:针对缓存的干草堆得分一次；重用
+    //     当匹配位于名称前缀（常见情况）内时，
+    //     SAME结果的位置而不是re-scoring裸名称。
+    //   ·resolved_caps:每个shared_mutex后面有3个注册表映射-lookups
+    //     调用-在该构建期间按（提供者、模型）记忆；
+    //     目录 在重建过程中重复 ID，但绝不在重建过程中重复 ID。
+    // `tier`是按行预先计算的，而不是在比较器内部导出的：
+    // ModelCapabilities::tier_for标记id并运行多次子字符串扫描，
+    // 并且比较器被调用O(n log n)次。
+    // 在聚合器的few-hundred-model 目录上，
+    // 每次击键有数千次冗余扫描。 0 当浏览关闭（未使用）时。
     struct Scored { FusedRow row; int score; int prov_ord; int tier; std::string akey; };
     std::vector<Scored> scored;
     scored.reserve(64);
@@ -307,12 +307,12 @@ find_catalog(const std::vector<ProviderCatalog>& cats, std::string_view pid) {
         const std::size_t nkeys = c.search_keys.size();
         for (std::size_t i = 0; i < c.models.size(); ++i) {
             const auto& mi = c.models[i];
-            // Dedup (in RECENT, or an alias spelling of an emitted row —
-            // catalogs list twins like mistral-medium-3-5 AND -3.5) via the
-            // catalog's precomputed fold when present: zero allocations on
-            // the per-keystroke path. (Two-step, not a ternary: a mixed
-            // lvalue/prvalue conditional materialises a COPY of the cached
-            // key, which would put the allocation right back.)
+            // 通过 目录 的预先计算的 归并（当存在时）进行 Dedup
+            // （在 RECENT 中，或者发出的行的别名拼写 — 目录 列出孪生，
+            // 如 mistra-medium-3-5 和 -3.5）：
+            // per-keystroke 路径上的零 分配。
+            // （两个-step，不是三元：混合的lvalue/prvalue条件按需加载和缓存密钥的COPY，
+            // 这会将分配放回去。）
             std::string folded_tmp;
             std::string_view folded;
             if (i < c.row_keys.size()) folded = c.row_keys[i];
@@ -320,18 +320,18 @@ find_catalog(const std::vector<ProviderCatalog>& cats, std::string_view pid) {
             if (seen.contains(seen_key(c.provider_id, folded))) continue;
             int mscore = 0;
             std::vector<int> positions;
-            // Cached canonical label when the catalog has one (production);
-            // materialise via label_fn only on the fallback path. Deferred
-            // past the fuzzy gate so a narrow query never pays label cost
-            // for eliminated rows.
+            // 目录有时缓存的规范标签（生产）； 按需加载 仅
+            // 在 回退 路径上通过 label_fn。
+            // 推迟通过模糊门，因此狭窄的查询永远不会为已消除的
+            // 行支付标签成本。
             const bool have_label_cache = i < c.display_labels.size();
             std::string model_label;
             if (!no_query) {
-                // Prefer the catalog's PRECOMPUTED lowercased haystack (built
-                // once per catalog change), so a keystroke never re-allocates
-                // or re-lowercases a haystack per model. Fall back to composing
-                // it inline only when the cache isn't populated (e.g. unit
-                // tests that call build_fused_rows directly).
+                // 优选 目录 的 PRECOMPUTED 小写干草堆（每次
+                // 目录 更改构建一次），因此击键永远不会为每个模型 re
+                // -allocates 或 re-lowercases 干草堆。
+                // 仅当 缓存 未填充时（直接 调用 build_fused_rows
+                // 的 e.g.单元测试），才回退到内联编写它。
                 std::string tmp;
                 std::string_view h;
                 if (i < nkeys) {
@@ -346,13 +346,13 @@ find_catalog(const std::vector<ProviderCatalog>& cats, std::string_view pid) {
                 if (model_label.empty())
                     model_label = have_label_cache ? c.display_labels[i]
                                                    : name_of(mi);
-                // Highlight offsets index the visible label, which is a
-                // SUBSTRING of the haystack ("<provider> <label> <id>") at a
-                // known start. Map by that offset when every matched char
-                // lands inside the label span; otherwise the query matched
-                // the provider name or the raw id — re-score just the label
-                // so we only ever highlight what's on screen (empty result
-                // is fine: nothing to light up).
+                // 高亮偏移索引可见标签，其是已知开始处的干草堆(
+                // "<provider> <label> <id>")
+                // 的SUBSTRING。当每个匹配的字符落在标签范围内时，
+                // 按该偏移量进行映射；否则，查询与提供者名称或
+                // 原始 ID 匹配 - re-score 只是标签，
+                // 因此我们只突出显示屏幕上的内容（空结果很好：
+                // 没有任何东西可以点亮）。
                 const std::size_t label_off = c.label.size() + 1;  // "<provider> "
                 const std::size_t label_end = label_off + model_label.size();
                 bool all_in_label = !sc.positions.empty();
@@ -382,28 +382,28 @@ find_catalog(const std::vector<ProviderCatalog>& cats, std::string_view pid) {
                                && mi.id.value == in.active.model_id);
             row.recent      = false;
             row.favorite_section = row.model.favorite;
-            // Prefer the catalog's MEMOISED reasoning flag (built once per
-            // catalog/capability change); resolve live only when the cache
-            // isn't populated (unit tests calling build_fused_rows raw).
+            // 优选目录的MEMOISED推理标志（每次catalog/capability变化构建一次）；
+            // 仅当未填充 缓存 时才实时解析（单元测试 调用
+            // build_fused_rows 原始）。
             row.reasons     = i < c.reason_flags.size()
                 ? static_cast<bool>(c.reason_flags[i])
                 : effort_capable(resolved_caps(mi.id.value, c.provider_id));
             row.match_positions = std::move(positions);
-            // Tier: read by the browse-mode sort below AND by the view (which
-            // hues the provider badge by it, so the strongest-first ordering
-            // is legible). Computed once here rather than per-comparison or
-            // per-frame — tier_for tokenises the id and runs substring scans.
+            // 层：通过浏览-mode读取，按视图排序在AND下方（通过它对
+            // 提供商徽章进行调色，因此最强的-first排序清晰可见）。
+            // 此处计算一次，而不是 per-comparison 或 per
+            // -frame — tier_for 标记 id 并运行子字符串扫描。
             const int tier = static_cast<int>(
                 ModelCapabilities::tier_for(mi.id.value));
             row.tier = static_cast<std::uint8_t>(tier);
             row.tool_capable  = mi.supports_tools.value_or(true);
-            // Register AFTER the query gate: a filtered-out twin must not
-            // suppress its matching sibling.
-            // Label-axis dedup: a different id whose canonical label
-            // folds to one we've already emitted (within the same
-            // provider) is the Copilot-catalog duplicate pattern. Done
-            // after the fuzzy match so an eliminated row still can't
-            // block its visible-label sibling.
+            // 注册查询门AFTER：filtered
+            // -out孪生不得抑制其匹配的兄弟。
+            // Label-axis dedup：一个不同的 ID，
+            // 其规范标签 归并 与我们已经发出的（在同一
+            // 提供者内）是 Copilot-catalog 重复模式。
+            // 在模糊匹配之后完成，因此被消除的行仍然无法阻止
+            // 其可见的-label同级。
             const std::string label_fold = capkey::norm_row_id(model_label);
             if (seen.contains(label_seen_key(c.provider_id, label_fold))) continue;
             seen.insert(seen_key(c.provider_id, folded));
@@ -416,31 +416,31 @@ find_catalog(const std::vector<ProviderCatalog>& cats, std::string_view pid) {
     }
     std::stable_sort(scored.begin(), scored.end(),
         [no_query](const Scored& a, const Scored& b) {
-            // FAVORITES lead every mode (#99): starred models are the ones
-            // the user picks between, so they sit above everything else.
+            // FAVORITES 领先于每个模式（#99）：带星号的
+            // 模型是用户在其中选择的模型，因此它们位于其他所有模型之上。
             if (a.row.favorite_section != b.row.favorite_section)
                 return a.row.favorite_section;
-            // CAN'T-DO-THE-JOB SINKS. A model the provider says has no tool
-            // support cannot drive the agent at all, so it must never
-            // outrank a model that can — ranking is about "what should I
-            // pick", and these are only pickable for plain chat.
+            // CAN'T-DO-THE-JOBSINKS。提供商表示没有
+            // 工具支持的模型根本无法驱动代理，因此它的排名绝不能
+            // 超过可以驱动代理的模型——排名约为 "what should I pick"，
+            // 并且这些只能用于普通聊天。
             if (a.row.tool_capable != b.row.tool_capable)
                 return a.row.tool_capable;
             if (no_query) {
-                // Browsing: one flat "all providers" section, sorted
-                // alphabetically by normalized model label; context window
-                // is the final tie-break.
+                // 浏览：一个平面"all providers"部分，
+                // 按规范化模型标签按字母顺序排序；上下文窗口最终是
+                // tie-break。
                 if (a.akey  != b.akey)  return a.akey < b.akey;
                 return a.row.model.context_window > b.row.model.context_window;
             }
-            // FILTERING: relevance order — fuzzy score is the intent signal
-            // and must not be re-ranked behind anything else. Provider
-            // registry order then wider context break ties.
+            // FILTERING:相关性顺序——模糊分数是意图信号并且不能
+            // re-ranked在其他任何东西后面。 Provider
+            // 注册表 命令然后更广泛的上下文断开联系。
             if (a.score != b.score) return a.score > b.score;
             if (a.prov_ord != b.prov_ord) return a.prov_ord < b.prov_ord;
             return a.row.model.context_window > b.row.model.context_window;
         });
-    // FAVORITES go first, ahead of RECENT (#99); the rest follow the recents.
+    // FAVORITES先行，领先于RECENT(#99)；其余的遵循最近的情况。
     auto fav_end = std::stable_partition(scored.begin(), scored.end(),
         [](const Scored& s) { return s.row.favorite_section; });
     std::vector<FusedRow> favs;
@@ -450,18 +450,18 @@ find_catalog(const std::vector<ProviderCatalog>& cats, std::string_view pid) {
                std::make_move_iterator(favs.end()));
     for (auto it = fav_end; it != scored.end(); ++it) out.push_back(std::move(it->row));
 
-    // ── Section 3: sign-in offers (un-authed providers) ────────────────────
-    // QUERY-GATED: with no query the browse view stays clean (no "sign in"
-    // clutter); a query that fuzzy-matches an un-authed provider's name
-    // surfaces its offer so searching for a provider you haven't added is
-    // never a dead end — the row IS the next step.
+    // ── 第3节:签 -in 提议(不计 -authed 供应商) ────────────────────
+    // QUERY-GATED:在没有查询的情况下，浏览视图保持干净（没有
+    // "sign in"混乱）； fuzzy-matches 和 un
+    // -authed 提供商的名称会显示其报价，因此搜索您尚未添加的提供
+    // 商永远不会是死胡同 - 下一步是 IS 行。
     for (const auto& off : offers) {
-        if (one_provider) break;    // can't pin a model you aren't signed in to
+        if (one_provider) break;    // 无法固定您未登录的模型
         if (no_query || !fuzzy::matches(off.label, q)) continue;
         FusedRow row;
         row.provider_id = off.provider_id;
         row.label       = off.label;
-        row.authed      = false;               // model.id stays empty ⇒ offer
+        row.authed      = false;               // model.id 留空 ⇒ 报价
         out.push_back(std::move(row));
     }
 

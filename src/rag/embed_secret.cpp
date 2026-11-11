@@ -1,19 +1,19 @@
-// embed_secret.cpp — where the embeddings API key lives.
+// embed_secret.cpp-嵌入API密钥所在的位置。
 //
-// Not in settings.json. A credential in a plaintext config file is a leak
-// waiting for a screen-share, a dotfiles commit, or a bug-report attachment,
-// and this one is pasted by users who are explicitly working around a locked
-// -down environment — exactly the population that can least afford it.
+// 不在settings.json中。纯文本配置文件中的 凭据
+// 是等待 screen-share、点文件提交或 bug
+// -report 附件的泄漏，而此文件是由明确在锁定的 -down
+// 环境中工作的用户粘贴的 - 正是那些最负担不起的人群。
 //
-// Two tiers, same shape as the rest of agentty's credential handling:
-//   1. the OS keystore (libsecret / macOS Keychain) when it is available and
-//      enabled, so the secret never touches agentty's own files;
-//   2. otherwise a sealed file under the config dir (auth::crypt::seal —
-//      machine-bound AEAD), which is what credentials.json already uses.
+// 两层，与agentty的凭据处理的其余部分相同的形状：
+//   1.OS密钥库(libsecret/macOS钥匙串)可用时，并且
+//      启用，因此秘密永远不会触及agentty自己的文件；
+//   2.否则配置目录下的密封文件(auth::crypt::seal-
+//      machine-bound AEAD)，这是credentials.json已经使用的。
 //
-// Keyed by ENDPOINT, not by "the embeddings key": a user may point different
-// projects at different gateways, and the key that authenticates one must not
-// leak into a request to another.
+// 由ENDPOINT而不是"the embeddings key"
+// 加密：用户可以将不同的项目指向不同的网关，并且验证一个项目的密钥
+// 不得泄漏到对另一个的请求中。
 
 #include "agentty/rag/embed_secret.hpp"
 
@@ -32,7 +32,7 @@ namespace {
 
 namespace fs = std::filesystem;
 
-// One file for every endpoint's key, sealed as a unit.
+// 每个端点的密钥有一个文件，作为一个单元密封。
 [[nodiscard]] fs::path secrets_path() {
     return auth::config_dir() / "embed_keys.json";
 }
@@ -44,7 +44,7 @@ namespace fs = std::filesystem;
 [[nodiscard]] nlohmann::json parse_all(const std::optional<std::string>& file) {
     if (!file || file->empty()) return nlohmann::json::object();
     const std::string& raw = *file;
-    // Sealed envelope, or (legacy/hand-written) plaintext JSON.
+    // 密封信封，或(legacy/hand-written)明文JSON。
     if (auto opened = auth::crypt::unseal(raw)) {
         try { return nlohmann::json::parse(*opened); } catch (...) { }
         return nlohmann::json::object();
@@ -58,15 +58,15 @@ namespace fs = std::filesystem;
 
 [[nodiscard]] nlohmann::json read_all() { return parse_all(persistence::peek_file(secrets_path())); }
 
-// Set (or with an empty key, drop) one endpoint's key: the whole file is read,
-// changed and rewritten in its shared-file section, so two agentty windows
-// saving different endpoints both keep theirs. Sealed, 0600, atomic; an
-// unsealable secret is refused rather than written plain. True when the file
-// now holds what was asked (dropping an absent key is a no-op success).
+// 设置（或使用空密钥、删除）一个端点的密钥：整个文件在其共享
+// -file部分中被读取、更改和重写，因此保存不同端点的两个
+// agentty窗口都保留它们的。密封，0600，原子；
+// 无法密封的秘密会被拒绝，而不是明文地写出来。当文件现在包含所
+// 要求的内容时为真（删除不存在的密钥是 no-op 成功）。
 bool update_key(Io io, const lock_levels::below_file_lane& cap, const std::string& endpoint,
                 const std::string& key) {
-    // Sealed inside the section (the body depends on what's on disk now). An
-    // unsealable result writes nothing: a secret is never stored plain.
+    // 密封在该部分内（正文取决于现在磁盘上的内容）。
+    // 不可密封的结果不会写入任何内容：秘密永远不会以明文形式存储。
     const auto r = persistence::update_shared(io, cap, secrets_path(),
         {.durability = persistence::Durability::Durable, .mode = 0600},
         [](std::optional<std::string> cur, std::string ep, std::string k)
@@ -77,12 +77,12 @@ bool update_key(Io io, const lock_levels::below_file_lane& cap, const std::strin
             return auth::crypt::seal(all.dump());
         }, endpoint, key);
     if (r == persistence::Update::Written) return true;
-    // Unchanged is success only for dropping a key that wasn't there; for a
-    // set it means sealing failed.
+    // 不变是仅在丢弃不存在的密钥时成功；对于一套，
+    // 这意味着密封失败。
     return r == persistence::Update::Unchanged && key.empty();
 }
 
-} // namespace
+} // 命名空间结束。
 
 std::string load_key(const std::string& endpoint) {
     if (endpoint.empty()) return {};
@@ -104,8 +104,8 @@ bool store_key(Io io, const lock_levels::below_file_lane& cap, const std::string
 
     if (auth::keystore::available()
         && auth::keystore::store(keystore_key(endpoint), key) == auth::keystore::Status::Ok) {
-        // Belt and braces: drop any stale sealed copy so there is exactly one
-        // home for this secret.
+        // 腰带和背带：放下任何 过期 密封副本，
+        // 这样这个秘密就有一个归宿。
         (void)update_key(io, cap, endpoint, {});
         return true;
     }

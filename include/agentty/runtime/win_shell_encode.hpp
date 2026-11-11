@@ -1,30 +1,30 @@
 #pragma once
-// win_shell_encode — the pure, platform-independent PowerShell command
-// encoder used by the Ctrl+G code-block runner's Windows path.
+// win_shell_encode-Ctrl+G代码
+// -block运行者的Windows路径使用的纯平台-independent PowerShell命令编码器。
 //
-// A PowerShell block is run via `powershell -EncodedCommand <base64>`, where
-// the base64 is of the UTF-16LE (little-endian) bytes of the script. This is
-// PowerShell's documented contract: -EncodedCommand sidesteps every layer of
-// cmd.exe / argv quoting (nested quotes, newlines, `$vars`, `&|<>` all pass
-// through untouched) because the whole script is one opaque base64 argument.
+// PowerShell块经由`powershell -EncodedCommand <base64>`运行，
+// 其中base64是脚本的UTF-16LE(little-endian)字节。
+// 这是 PowerShell 的记录合约：-EncodedCommand 避开了
+// cmd.exe / argv 引用的每一层（嵌套引号、换行符、`$vars`、
+// `&|<>` 都未受影响地通过），因为整个脚本是一个不透明的 base64 参数。
 //
-// This lives in a header \u2014 not buried #if _WIN32 in codeblock.cpp \u2014 so the
-// encoder can be unit-tested on ANY platform. A bug here (wrong endianness,
-// bad base64 padding) would silently corrupt EVERY PowerShell block on
-// Windows, and that branch can't be compiled on the Linux/macOS dev+CI hosts;
-// making the transform pure + testable is the honest way to cover it.
+// 这存在于 头文件 中，而不是在 codeblock.cpp 中埋藏 #if _WIN32，
+// 因此编码器可以是 任意 平台上的单元 -tested。这里的一个错误（错误
+// 的字节序、错误的 base64 填充）会默默地损坏 Windows 上
+// 的 每个 PowerShell 块，并且该分支无法在 Linux/macOS
+// dev+CI 主机上编译；使转换变得纯粹+可测试是覆盖它的诚实方法。
 
 #include <cstddef>
 #include <string>
 
 namespace agentty::win_shell {
 
-// Base64-encode `bytes` (standard alphabet, '=' padded). Pure; no deps.
-// `constexpr` so the whole transform is compile-time evaluable, which lets
-// the known-answer self-check at the bottom of this header run at build time
-// on EVERY platform (see the static_assert block) — the Windows runner path
-// can't be compiled on the Linux/macOS CI hosts, so a compile-time proof is
-// the only cross-platform guard against silently corrupting encoded scripts.
+// base64-encode `bytes`（标准字母表，'=' 填充）。纯的;没有部门。
+// `constexpr`所以整个转换是编译-time可评估的，
+// 这使得该头文件底部的已知-answer self-check在构建时在EVERY平台上运行
+// （参见static_assert块）——Windows运行器路径不能在Linux/macOS
+// CI主机上编译，因此编译-time 证明是唯一的 cross
+// -platform 防范措施，防止默默地破坏编码脚本。
 [[nodiscard]] constexpr std::string base64(const std::string& bytes) {
     static constexpr char kB64[] =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -43,41 +43,41 @@ namespace agentty::win_shell {
     return enc;
 }
 
-// Widen `body` (treated as a stream of raw bytes, one char = one UTF-16 code
-// unit \u2014 which is exactly right for ASCII scripts, and byte-faithful for the
-// rest) to UTF-16LE bytes: low byte then high byte per code unit.
+// 将 `body` (视为原始 字节 的 数据流，一个字符 = 一个 UTF-16
+// 代码单元，这对于 ASCII 脚本完全正确，对于其余的 字节-faithful)
+// 扩大到 UTF-16LE 字节：低 字节 然后高 字节每个代码单元。
 [[nodiscard]] constexpr std::string to_utf16le_bytes(const std::string& body) {
     std::string bytes;
     bytes.reserve(body.size() * 2);
     for (unsigned char c : body) {
-        bytes.push_back(static_cast<char>(c));   // low byte
-        bytes.push_back('\0');                    // high byte (LE)
+        bytes.push_back(static_cast<char>(c));   // 低字节
+        bytes.push_back('\0');                    // 高字节(LE)
     }
     return bytes;
 }
 
-// The full `-EncodedCommand` payload (base64 of UTF-16LE), no `powershell`
-// prefix \u2014 so tests can assert the payload directly.
+// 完整的 `-EncodedCommand` 载荷 (UTF-16LE 的 base64)，
+// 没有 `powershell` 前缀，因此测试可以直接断言 载荷。
 [[nodiscard]] constexpr std::string encoded_command(const std::string& body) {
     return base64(to_utf16le_bytes(body));
 }
 
-// The complete command line the Windows runner spawns for a PowerShell block.
+// Windows运行者为PowerShell块生成的完整命令行。
 [[nodiscard]] constexpr std::string powershell_command(const std::string& body) {
     return "powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand "
          + encoded_command(body);
 }
 
 // ---------------------------------------------------------------------------
-// Compile-time known-answer test. These vectors were generated with the
-// documented ground truth
+// 编译-time已知-answer测试。这些向量是用记录的真实值 python3 -c
+// 'import base64;print(base64.b64encode(S.encode("utf-16-le")))'
 //     python3 -c 'import base64;print(base64.b64encode(S.encode("utf-16-le")))'
-// which is byte-identical to PowerShell's
-//     [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes(S))
-// Because encoded_command is constexpr, these static_asserts FAIL THE BUILD
-// — on Linux, macOS, and Windows alike — if the endianness or base64 padding
-// ever regresses. No ctest run required; a plain `cmake --build` proves it,
-// since this header is included by the always-compiled codeblock.cpp TU.
+// ToBase64String([Text.Encoding]::
+//     Unicode.GetBytes(S)) 因为 encoded_command
+// 是 constexpr，所以这些 static_asserts FAIL 该 BUILD —
+// 上Linux、macOS 和 Windows 类似 — 如果字节序或 base64 填充发生倒退。
+// 无需运行 ctest；一个简单的 `cmake --build` 证明了这一点，
+// 因为这个 头文件 包含在always-compiled codeblock.cpp TU 中。
 namespace detail {
 consteval bool kat(const char* body, const char* want) {
     return encoded_command(std::string(body)) == std::string(want);

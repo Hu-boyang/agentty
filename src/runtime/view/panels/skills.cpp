@@ -1,32 +1,32 @@
-// skills.cpp — the read-only skills viewer.
+// skills.cpp - 读数 -only 技术观看者。
 //
-// Pure adapter: builds maya::Panel::Config from Model state; the widget
-// owns every chrome decision. Shared scaffolding: panels_prologue.hpp.
+// 纯适配器: 构建 maya::Panel::Config 发件人 Model 状态;
+// 部件拥有每个铬决定。 共享脚手架 : panels_prologue.hpp.
 //
-// ── What this panel is for ───────────────────────────────────────────────
+// ── 这个面板是用来做什么的 ───────────────────────────────────────────────
 //
-// It answers four questions without the user leaving the TUI:
+// 它在用户不离开TUI的情况下回答了四个问题:
 //
-//   what is installed?          the list
-//   what did it declare?        the effects chips
-//   is it approved?             the trust marker
-//   what did agentty notice?    the findings, in the detail footer
+//   装了什么?
+//   它申报了什么?
+//   副作用 标签 信封上写着什么?
+//   agentty 发现,在详细页脚
 //
-// It does NOT approve anything. That is a deliberate omission, not a gap:
-// Anthropic measured 93% approval on Claude Code permission prompts, and
-// an approve key one keystroke from a list you are already scrolling is
-// the fastest possible route to a habituated yes. Approval lives behind
-// `agentty skill approve NAME`, where the consent screen can show the
-// findings AND the body.
+// 不错 不 批准任何事情,这是故意的遗漏,而不是空隙:
+// Anthropic 批准率93% Claude 代码 权限
+// 提示词 ,而您已经滚动的列表中一个键盘的批复是实现惯用“是
+// ”的最快途径。批复的后面是 `agentty skill approve NAME` ,
+// 在同意屏幕上可以显示结果 和
+// 编号 正文.
 //
-// ── Row layout ───────────────────────────────────────────────────────────
+// ── 行布局 ───────────────────────────────────────────────────────────
 //
-//   leading    ! name            — the ! only when something needs a human
-//   trailing   exec net · PENDING
+//   名称 只有当某物需要人类后继执行官网时才使用
+//   名称 PENDING
 //
-// Colour carries severity, but never alone: every state also has a word or
-// a glyph, because a colourblind user and a `theme::native` terminal both
-// have to be able to read this.
+// 色彩带有严重性,但绝不是单独:每个州都有一个单词或格言,
+// 因为一个色彩盲用户和一个`theme::native`
+// 终端都不得不能够读到这个.
 
 #include "panels_prologue.hpp"
 
@@ -46,8 +46,8 @@ Element skills_panel(const Model& m) {
     cfg.scroll     = &o->scroll;
     cfg.selected   = o->rows.empty() ? -1 : o->index;
 
-    // Accent follows the worst state present, so the border itself carries
-    // the headline before a single row is read.
+    // ACCENT遵循最糟糕的状态现今,因此边界本身
+    // 在读完单行之前就携带了头条.
     const auto flagged = o->flagged_count();
     const auto pending = o->pending_count();
     cfg.accent = flagged ? danger : (pending ? warn : highlight);
@@ -56,9 +56,9 @@ Element skills_panel(const Model& m) {
     for (const auto& r : o->rows) {
         Panel::Item row;
 
-        // A glyph, not just a colour: "!!" for something screening flagged,
-        // "!" for unapproved-but-clean, two spaces for the ordinary case so
-        // the names stay aligned in a monospace column.
+        // 格言,不只是一种颜色: "!!" 以示纪念,
+        // "!" 未核准 -but-clean ,普通字的两处空格,
+        // 所以名称在单空格列中保持对齐。
         const char* mark = r.has_critical          ? "!! "
                          : r.shadow_conflict       ? "!! "
                          : (r.gated && !r.trusted) ? " ! "
@@ -68,9 +68,9 @@ Element skills_panel(const Model& m) {
                           : (r.gated && !r.trusted) ? fg_of(warn)
                                                     : fg_of(fg);
 
-        // Trailing: what it declared, then its trust state. Prose skills
-        // say "prose" rather than nothing — an empty column reads as
-        // missing data, and "declares nothing" is a real answer.
+        // 追踪:它所宣称的,然后是它的信任状态。 "prose"
+        // 而不是一无所有——一栏空栏读作缺失数据,
+        // "declares nothing" 是个真正的答案。
         std::string decl = tools::skills::effects_to_frontmatter(r.effects);
         if (decl.empty()) decl = "prose";
 
@@ -86,24 +86,24 @@ Element skills_panel(const Model& m) {
         cfg.items.push_back(std::move(row));
     }
 
-    // ── Detail for the selected row ──────────────────────────────────────
-    // The list answers "what is installed"; the footer answers "what is
-    // THIS one", so the user never has to leave the panel to find out why a
-    // row is marked.
+    // ── 选定行的详情 ──────────────────────────────────────
+    // 列表的答案 "what is installed" ; 页脚回答
+    // "what is THIS one" ,因此用户从不必离开面板来找出为什么
+    // 一行被标记.
     cfg.footer.push_back(text(""));
 
     if (const auto* sel = o->selected()) {
         if (!sel->description.empty()) {
-            // Already sanitised at scan time — safe to render inside our
-            // own chrome. (A description that can open a new line can
-            // impersonate the headings around it.)
+            // 扫描时已经消毒——安全 渲染。
+            // (可以打开新线的描述可以
+            // 冒充周围的标题。)
             cfg.footer.push_back(text("  " + sel->description, fg_dim(muted)));
             cfg.footer.push_back(text(""));
         }
 
-        // Provenance. "you wrote this" vs "this arrived from elsewhere" is
-        // the single most decision-relevant fact about a skill, so it gets
-        // a plain sentence rather than a field label.
+        // 证义. "you wrote this" 数字
+        // "this arrived from elsewhere" 是一个最决定 -relevant
+        // 说到技能,所以它得到一个简单的句子,而不是一个字段标签。
         if (!sel->origin.empty())
             cfg.footer.push_back(text("  from " + sel->origin, fg_dim(muted)));
         else if (sel->source == "project")
@@ -113,8 +113,8 @@ Element skills_panel(const Model& m) {
 
         cfg.footer.push_back(text("  " + sel->dir, fg_dim(muted)));
 
-        // A name collision hides a whole skill, so it is said plainly and
-        // before the findings — the user cannot discover it any other way.
+        // 一个名字碰撞隐藏了一个完整的技能,所以在发现之前,
+        // 人们就直言不讳地说——用户无法以其他方式发现它.
         if (sel->shadow_conflict) {
             cfg.footer.push_back(text(""));
             cfg.footer.push_back(
@@ -125,8 +125,8 @@ Element skills_panel(const Model& m) {
                      fg_dim(muted)));
         }
 
-        // What screening saw. Capped at four lines: a footer nobody can
-        // read is a footer nobody reads, and the CLI shows the full set.
+        // 观众看到什么?
+        // CLI 显示完整的组合。
         if (!sel->findings.empty()) {
             cfg.footer.push_back(text(""));
             cfg.footer.push_back(text("  agentty noticed:", fg_of(fg)));
@@ -150,8 +150,8 @@ Element skills_panel(const Model& m) {
                              " more \xe2\x80\x94 agentty skill list",
                          fg_dim(muted)));
 
-            // The honest caveat, every time findings are shown. Without it
-            // an empty findings list reads as a clean bill of health.
+            // 诚实的警告是,每次发现都显示。 没有这些,
+            // 一份空白的发现清单就成为了健康方面的一个干净的法案。
             cfg.footer.push_back(text(""));
             cfg.footer.push_back(
                 text("  pattern matching, not proof \xe2\x80\x94 and no findings"
@@ -159,8 +159,8 @@ Element skills_panel(const Model& m) {
                      fg_dim(muted)));
         }
 
-        // The action, named but not bound. Saying WHERE the decision lives
-        // is more useful than a key that makes it too easy.
+        // 动作,命名但不受约束,说 WHERE 决策的生命
+        // 比一个使决策变得太容易的关键更有用。
         if (sel->gated && !sel->trusted) {
             cfg.footer.push_back(text(""));
             cfg.footer.push_back(
@@ -180,8 +180,8 @@ Element skills_panel(const Model& m) {
             text("  agentty skill add ./path", fg_dim(muted)));
     }
 
-    // Summary line: the headline count, only when there is something to
-    // count. Silence is the right output for a healthy set.
+    // 摘要行:头条数,只有在有东西需要计算时才会进行.
+    // 沉默是健康集的正确输出.
     if (flagged || pending) {
         cfg.footer.push_back(text(""));
         std::string sum = "  ";

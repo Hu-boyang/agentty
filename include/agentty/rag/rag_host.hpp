@@ -1,10 +1,10 @@
 #pragma once
-// agentty/rag/rag_host.hpp — what rag-cpp needs from agentty, in one place.
+// agentty/rag/rag_host.hpp-rag-cpp需要从agentty得到什么，在一处。
 //
-// rag-cpp owns no threads, sockets, processes or clocks. Its parallel
-// regions split through a Splitter, its network and bridge backends talk
-// through HostIo, and its document loader runs converters through a RunFn.
-// These build each of those on agentty's runtime.
+// rag-cpp不拥有线程、套接字、进程或时钟。
+// 其并行区域通过 Splitter 进行分割，其网络和桥接后端通过
+// HostIo 进行通信，其文档加载器通过 RunFn 运行转换器。
+// 这些构建在agentty的运行时上。
 
 #include <rag/loaders/extract.hpp>
 #include <rag/plugin/builder.hpp>
@@ -12,18 +12,18 @@
 
 namespace agentty::rag {
 
-// No parallel Splitter here on purpose: every rag-cpp engine agentty owns runs
-// inside the RAG index lock, and a splitter that joins helper threads can't
-// run under a lock (#112). Those engines use an inline ::rag::util::Splitter{}.
+// 这里故意没有并行分离器：agentty拥有的每个rag-cpp引擎都在RAG索引锁内运行，
+// 并且连接助手线程的分离器不能在锁下运行（#112）。
+// 这些引擎使用内联 ::rag::util::Splitter{}。
 
-// HTTP through agentty's client (TLS, proxy, SSRF guard off: these are the
-// user's configured endpoints) and processes through util::ChildProcess.
+// HTTP通过agentty的客户端（TLS、代理、SSRF防护：这些是
+// 用户配置的端点）并通过util::ChildProcess进行处理。
 [[nodiscard]] ::rag::plugin::HostIo host_io();
 
-// The built-in backends with host_io().
+// 内置-in后端具有host_io()。
 [[nodiscard]] const ::rag::plugin::Registries& registries();
 
-// Converters (pdftotext, antiword, …) run as child processes, stdout captured.
+// 转换器（pdftotext、antiword等）作为子进程运行，捕获标准输出。
 [[nodiscard]] ::rag::loaders::RunFn converter_runner();
 
 }  // namespace agentty::rag

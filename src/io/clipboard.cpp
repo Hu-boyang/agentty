@@ -1,5 +1,5 @@
-// The system clipboard. Reads go through richpaste; writes use the
-// platform tool. See include/agentty/io/clipboard.hpp.
+// 系统剪贴板。读取经过richpaste；使用平台工具编写。
+// 参见include/agentty/io/clipboard.hpp.
 
 #include "agentty/io/clipboard.hpp"
 #include "agentty/util/logx.hpp"
@@ -14,7 +14,7 @@
 #include <vector>
 
 #if !defined(_WIN32)
-#  include <unistd.h>   // access/X_OK (tool_in_path), getuid
+#  include <unistd.h>   // access/X_OK (tool_in_path)，getuid
 #endif
 
 #include <maya/runtime.hpp>
@@ -24,12 +24,12 @@
 #include <rp/armor.hpp>
 #include <rp/cli.hpp>
 #include <rp/clipboard.hpp>  // rp::write_clipboard_text
-#include <rp/inband.hpp>     // leaked OSC 5522 replies
+#include <rp/inband.hpp>     // 泄露OSC 5522条回复
 #include <rp/store.hpp>      // rp::store
 
 namespace agentty {
 
-// ── Reading ────────────────────────────────────────────────────────────────
+// ── 阅读 ────────────────────────────────────────────────────────────────
 
 namespace {
 
@@ -47,7 +47,7 @@ ClipboardItem to_item(const rp::Item& it) {
     return out;
 }
 
-// The installed settings: swapped whole on a Settings change, read per paste.
+// 安装的设置：在设置改变时整个交换，每次粘贴读取。
 util::AtomicSnapshot<paste_cfg::Config>& cfg_slot() {
     static util::AtomicSnapshot<paste_cfg::Config> s;
     return s;
@@ -65,7 +65,7 @@ rp::TerminalMode terminal_mode(std::string_view s) {
     return rp::TerminalMode::automatic;
 }
 
-} // namespace
+} // 命名空间结束。
 
 namespace {
 
@@ -92,7 +92,7 @@ ClipboardWalk from_rp(const rp::Walk& w) {
     return out;
 }
 
-// One step of the walk, as the composer sees it.
+// 正如作曲家所见，步行的一步。
 ClipboardContents settle(rp::Walk w) {
     ClipboardContents out;
     auto clip = rp::advance(w);
@@ -109,9 +109,9 @@ ClipboardContents settle(rp::Walk w) {
         case rp::Code::needs_terminal:
             out.miss = ClipboardMiss::AskTerminal;
             out.ask  = w.situation.images == rp::Images::yes ? TerminalAsk::Images : TerminalAsk::Text;
-            // Our wrapped query has to get through tmux to the terminal.
-            // tmux's default is to drop it; open this pane up (pane-only, so
-            // it goes with the pane). Done here, on the worker, before asking.
+            // 我们的包装查询必须通过tmux到达终端。
+            // tmux默认是丢弃它；打开这个面板（面板-only，
+            // 所以它与面板一起）。在询问之前，在 工作线程 上完成这里。
             if (w.situation.tmux) (void)rp::inband::tmux_allow_passthrough();
             out.walk = from_rp(w);
             break;
@@ -124,7 +124,7 @@ ClipboardContents settle(rp::Walk w) {
     return out;
 }
 
-} // namespace
+} // 命名空间结束。
 
 ClipboardContents read_clipboard() {
     auto w = rp::start();
@@ -152,7 +152,7 @@ void clipboard_configure(const paste_cfg::Config& c) {
                            std::clamp(c.max_mb, paste_cfg::kMaxMbMin, paste_cfg::kMaxMbMax)) << 20;
     r.socket         = c.socket;
     r.save_dir       = c.save_dir;
-    // Both are swapped whole; a paste already running keeps what it read.
+    // 两者整体交换；已经运行的粘贴会保留它所读取的内容。
     cfg_slot().store(c);
     rp::set_config(std::move(r));
 }
@@ -188,7 +188,7 @@ bool armored_partial(std::string_view text) noexcept {
 
 ArmoredProgress armored_progress(std::string_view text) noexcept {
     const auto p = rp::armor::progress(text);
-    return {p.have, p.need, p.state == rp::armor::Progress::State::partial};   // need>0 when complete: a cut block
+    return {p.have, p.need, p.state == rp::armor::Progress::State::partial};   // 完成时需要>0：切割块
 }
 
 LeakedReply leaked_reply(std::string_view text) noexcept {
@@ -207,7 +207,7 @@ std::vector<ClipboardItem> decode_leaked_reply(std::string_view text, std::strin
         if (error) *error = items.error().what;
         return out;
     }
-    // An image copied as text arrives as itself, as on every other route.
+    // 作为文本复制的图像本身到达，就像在所有其他路线上一样。
     std::vector<std::string> errs;
     auto expanded = rp::config().decode_text ? rp::armor::expand(std::move(*items), &errs) : std::move(*items);
     if (error && !errs.empty()) *error = errs.front();
@@ -230,7 +230,7 @@ std::vector<ClipboardItem> decode_armored(std::string_view text, std::string* er
             any = true;
         }
     }
-    if (!any) out.clear();   // every block was bad: the caller pastes the text as is
+    if (!any) out.clear();   // 每个块都是坏的：调用者按原样粘贴文本
     return out;
 }
 
@@ -242,7 +242,7 @@ void settle_clipboard_items(std::vector<ClipboardItem>& items) {
             it.kind = ClipboardItem::Kind::Image;
             continue;
         }
-        // A small UTF-8 file with no NULs goes in as its text.
+        // 没有NUL的小UTF-8文件作为其文本进入。
         const bool texty = inline_bytes > 0 && it.bytes.size() <= inline_bytes
                         && it.bytes.find('\0') == std::string::npos
                         && rp::valid_utf8(it.bytes);
@@ -251,7 +251,7 @@ void settle_clipboard_items(std::vector<ClipboardItem>& items) {
             it.bytes = "// file: " + it.name + "\n" + it.bytes;
             continue;
         }
-        // Anything else is saved, and the path goes in the box.
+        // 其他都是 已保存，并且路径进入框中。
         rp::Item ri = rp::File{rp::FileName::sanitize(it.name),
                                rp::Mime::parse(it.mime).value_or(rp::mime_for_name(it.name)),
                                rp::to_bytes(it.bytes)};
@@ -264,14 +264,14 @@ void settle_clipboard_items(std::vector<ClipboardItem>& items) {
                 it.saved_path = true;
             }
         } else {
-            it.bytes = it.name;   // couldn't save: at least say what it was
+            it.bytes = it.name;   // 不能保存：至少说一下它是什么
             AGT_LOG(Ui, Warn, "clipboard.save_failed", "name={} why={}", it.name,
                     stored ? std::string{"empty"} : stored.error().what);
         }
     }
 }
 
-// ── agentty paste ──────────────────────────────────────────────────────────
+// ── agentty 粘贴 ──────────────────────────────────────────────────────────
 
 int clipboard_cli(std::span<const std::string> args) { return rp::cli::run(args); }
 
@@ -284,13 +284,13 @@ ClipboardForward clipboard_ssh_forward(std::string* error) {
     return {std::move(f->first), std::move(f->second)};
 }
 
-// ── Writing ────────────────────────────────────────────────────────────────
+// ── 写入 ────────────────────────────────────────────────────────────────
 
 namespace {
 
 #if !defined(_WIN32)
 
-// Run a clipboard tool and feed it `data` on stdin. True iff it exited 0.
+// 运行剪贴板工具并在标准输入上向其提供`data`。当且仅当它退出 0 时为真。
 bool popen_write(const char* cmd, std::string_view data) {
     tools::util::ChildRun run;
     run.argv = {"/bin/sh", "-c", cmd};
@@ -304,7 +304,7 @@ bool popen_write(const char* cmd, std::string_view data) {
 
 #if defined(__linux__)
 
-// Is `name` an executable on PATH? No shell, and no names with a slash.
+// `name`是PATH上的可执行文件吗？没有外壳，也没有带斜杠的名称。
 bool tool_in_path(const char* name) {
     if (!name || !*name) return false;
     const std::string_view n{name};
@@ -334,13 +334,13 @@ std::string shell_quote(std::string_view s) {
     return out;
 }
 
-// Inside tmux, WAYLAND_DISPLAY/DISPLAY are whatever the tmux server started
-// with, often nothing. So find the display by its socket and pass it to the
-// one child that needs it (setenv would race other threads' getenv).
+// 在tmux内部，WAYLAND_DISPLAY/DISPLAY是tmux服务器以什么开始的，
+// 通常什么也没有。因此，通过其套接字找到显示器并将其传递给需要它的子级
+// （setenv 将 竞态 other 线程' getenv）。
 struct DisplayEnv {
     bool        wayland = false;
     bool        x11     = false;
-    std::string prefix;   // "env VAR=... " or empty
+    std::string prefix;   // "env VAR=... "或空
     [[nodiscard]] std::string cmd(std::string_view base) const {
         return prefix + std::string{base};
     }
@@ -401,7 +401,7 @@ DisplayEnv discover_display() {
 
 #endif // !_WIN32
 
-} // namespace
+} // 命名空间结束。
 
 bool write_clipboard_text(std::string_view text, std::string* error_out) {
     auto fail = [&](const char* msg) -> bool {
@@ -415,8 +415,8 @@ bool write_clipboard_text(std::string_view text, std::string* error_out) {
 
 #elif defined(__linux__)
     const DisplayEnv disp = discover_display();
-    // Try every installed tool; detection only orders them. wl-copy first on
-    // Wayland: xclip reaches it only through XWayland.
+    // 尝试每个已安装的工具；检测只是命令它们。 wl-copy 首先在 Wayland
+    // 上：xclip 仅通过 XWayland 到达它。
     auto attempt = [&](const char* tool, const char* base) {
         if (!tool_in_path(tool)) return false;
         const bool ok = popen_write(disp.cmd(base).c_str(), text);
@@ -432,7 +432,7 @@ bool write_clipboard_text(std::string_view text, std::string* error_out) {
     return fail("no clipboard tool — install wl-clipboard or xclip");
 
 #elif defined(_WIN32)
-    // Win32 CF_UNICODETEXT directly: clip.exe mangles non-ASCII text.
+    // Win32 CF_UNICODETEXT直接：clip.exe破坏非-ASCII文本。
     auto r = rp::write_clipboard_text(text);
     if (r) return true;
     return fail(r.error().what.c_str());

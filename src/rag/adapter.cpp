@@ -1,17 +1,17 @@
-// agentty::rag adapter — the retrieval engine, powered by rag-cpp (rag::Engine).
+// agentty::rag适配器——检索引擎，由rag-cpp (rag::Engine)提供动力。
 //
-// This is the ONLY translation unit in agentty that includes <rag/rag.hpp>.
-// It maps agentty's compact retrieval boundary (rag_adapter.hpp) onto rag-cpp's
-// production hybrid engine: contextual chunking, BM25 + dense/HNSW, RRF fusion,
-// rerank, GraphRAG, and .ragdb persistence — so `search_docs`, `search_code`
-// and the proactive pre-turn path "just work" and stay fast.
+// 这是包括<rag/rag.hpp>的agentty中的ONLY 编译单元。
+// 它将 agentty 的紧凑检索边界 (rag_adapter.hpp) 映射到 rag-cpp
+// 的生产混合引擎上：上下文分块、BM25 + dense/HNSW、RRF 融合、重新排序、
+// GraphRAG 和 .ragdb 持久化 — 因此 `search_docs`、
+// `search_code` 和主动 pre-turn 路径"just work" 并保持快速。
 //
-// Knowledge sources are unified into ONE Engine and distinguished by a URI
-// prefix so provenance survives search():
-//     docs://<rel-path>      the docs / knowledge folder (code-aware chunking)
-//     skill://<name>         installed Agent-Skills bodies
-//     memory://<id>          learned facts (JSONL memory store)
-//     mcp://<uri>            this session's MCP resources (opt-in)
+// 知识源被统一到 一个 引擎中，并通过 URI 前缀进行区分，
+// 因此来源保留 search()：
+//     docs://<rel-path> 文档/知识文件夹（code-aware 分块）
+//     Skill://<name> 安装了 Agent-Skills
+//     正文 内存://<id> 学到的事实（JSONL 内存 存储）
+//     mcp://<uri> 此会话的 MCP 资源（opt-in）
 
 #include "agentty/rag/rag_adapter.hpp"
 #include "agentty/util/callback.hpp"
@@ -23,11 +23,11 @@
 #include "agentty/util/sendable.hpp"
 #include "agentty/util/logx.hpp"
 
-// agentty's retrieval engine is rag-cpp. On platforms where rag-cpp isn't
-// buildable yet (MSVC — see CMakeLists.txt), AGENTTY_HAS_RAGCPP is 0 and this
-// TU compiles to a tiny no-op implementation of the public boundary so the
-// rest of agentty links and every non-retrieval feature works. The full engine
-// ships in the Linux/macOS binaries.
+// agentty的检索引擎是rag-cpp。在 rag-cpp 尚未可构建的平台上（
+// MSVC — 请参阅 CMakeLists.txt），AGENTTY_HAS_RAGCPP
+// 为 0，并且此 TU 编译 是公共边界的一个微小的 no-op 实现，
+// 因此 agentty 链接 的其余部分和每个非 -retrieval 功能都可以工作。完整的发动机装
+// 在 Linux/macOS 二进制程序 中。
 #ifndef AGENTTY_HAS_RAGCPP
 #  define AGENTTY_HAS_RAGCPP 1
 #endif
@@ -54,7 +54,7 @@
 #include <rag/rag.hpp>
 
 #include "agentty/dirs/dirs.hpp"
-#include "agentty/config/inventory.hpp"   // kRagSpec — the one declaration
+#include "agentty/config/inventory.hpp"   // kRagSpec——唯一声明
 #include "agentty/io/http.hpp"
 #include "agentty/mcp/client.hpp"
 #include "agentty/tool/skills.hpp"
@@ -67,61 +67,61 @@ namespace fs = std::filesystem;
 namespace agentty::rag {
 namespace {
 
-// ── Where the persisted indexes live ─────────────────────────────────────
+// ── 持续指数所居之处 ─────────────────────────────────────
 //
-// Root::Project, so storage follows the CODE and is anchored to the project
-// marker rather than the shell's cwd. The old `fs::current_path()` form gave
-// `cd src/ && agentty` a second 82 MB index (#61).
+// Root::Project，因此存储遵循CODE并且锚定到项目标记而不是外壳的cwd。
+// 旧的 `fs::current_path()` 形式为 `cd src/ && agentty`
+// 提供了第二个 82 MB 索引 (#61)。
 //
-// $AGENTTY_RAG_DIR relocates all three. A relative value resolves against
-// <anchor>/.agentty, never the cwd, so it names one directory rather than a
-// different one per launch dir — the rule dirs inherits from user_root.
+// $AGENTTY_RAG_DIR重新安置所有三个。相对值解析为 <anchor>/.
+// agentty，而不是 cwd，因此它为每个启动目录命名一个目录
+// 而不是不同的目录 - 规则 dirs 继承自 user_root。
 //
-// rebuildable: a .ragdb is derived data. Deleting one costs a re-index, not
-// history, which is what lets #62's sweep be aggressive where blobs::gc has
-// to be careful. keep_last=1 keeps the previous embedder's index so A/B-ing
-// two backends doesn't force a full rebuild on every switch — the whole
-// point of putting the identity tag in the filename.
+// 可重建：.ragdb是导出数据。删除一个会花费re-index，
+// 而不是历史，这就是让#62的横扫变得激进的原因，而blobs::
+// gc必须小心。 keep_last=1 保留前一个嵌入器的索引，
+// 因此 A/B-ing 两个后端不会强制在每个交换机上完全
+// 重建 - 将身份标记放入文件名的全部意义。
 //
-// The sweep itself is #62 and not wired yet; these declare the intent so the
-// policy lives next to the path instead of in whatever code gets written later.
+// 扫描本身是#62并且尚未接线；这些声明了意图，
+// 因此策略位于路径旁边，而不是在以后编写的任何代码中。
 //
-// Declared ONCE in config/inventory.hpp (kRagSpec) and aliased here, so
-// `agentty config rag` reports the same root, override and lifecycle this
-// actually uses -- no second definition to drift from it.
+// 在 config/inventory.hpp (kRagSpec) 中声明
+// 一次 并在此处使用别名，因此 `agentty config rag` 报告
+// 实际使用的相同根、覆盖和生命周期——没有第二个定义偏离它。
 constexpr ::agentty::dirs::Spec kDocsIndexSpec = ::agentty::config::kRagSpec;
 
 constexpr ::agentty::dirs::Spec kCodeIndexSpec = kDocsIndexSpec;
 
-// Retrieval feedback: the learning loop's tallies. Same root and override as
-// the indexes (it is the same kind of derived, project-scoped data), but NOT
-// rebuildable — it is accumulated from real usage and nothing regenerates it,
-// so no sweep may ever collect it. That distinction is exactly what the
-// Lifecycle field exists to make explicit rather than implicit.
+// 检索反馈：学习循环的计数。与索引相同的根和覆盖（它是
+// 相同类型的派生项目-scoped数据），但NOT可重建
+// ——它是从实际使用中积累的，没有任何东西可以重新生成它，
+// 所以没有扫描可能会收集它。这种区别正是 Lifecycle
+// 字段的存在，使之变得明确而不是隐含。
 constexpr ::agentty::dirs::Spec kFeedbackSpec = ::agentty::config::kFeedbackSpec;
 
-// Resolve the directory the indexes live in.
+// 解析索引所在的目录。
 //
-// When $AGENTTY_RAG_DIR is NOT set this is <anchor>/.agentty, and being
-// inside the project is itself what keeps two checkouts apart.
+// 当 $AGENTTY_RAG_DIR 为 不 时，设置为 <anchor>/.
+// agentty，并且位于项目内部本身就是将两个结帐分开的原因。
 //
-// An override removes that property: point two projects at one directory and
-// they land on the same rag_docs.<tag>.ragdb. The meta's `root` guard means
-// that is not CORRUPTION -- each project rejects the other's index and
-// rebuilds -- but it is a thrash that silently costs a full re-index on every
-// switch, which is worse than the disk it was meant to save.
+// 覆盖移除该属性：将两个项目指向一个目录并且它们落在相同的rag_docs.
+// <tag>.ragdb上。元的 `root` 防护意味着这
+// 不是 CORRUPTION——每个项目都会拒绝对方的索引
+// 并重建——但它是一个在每个交换机上默默地花费完整 re-index
+// 的鞭打，这比它本来要 保存 的磁盘更糟糕。
 //
-// So an overridden location gets a per-project subdirectory. The basename
-// keeps it readable; the hash of the absolute anchor keeps it unique. Same
-// reasoning as the embedder tag: machine identity for correctness, a human
-// prefix so you can tell what you are looking at.
+// 因此，被覆盖的位置获得per-project子目录。
+// 基本名称使其可读；绝对锚点的哈希值使其保持唯一。
+// 与嵌入标签的推理相同：机器身份确保正确性，
+// 人类前缀让你可以知道你在看什么。
 [[nodiscard]] fs::path rag_store_dir(const ::agentty::dirs::Spec& spec) {
     auto d = ::agentty::dirs::resolve(spec);
     if (!d) return {};
 
-    // Indexes used to sit flat in <project>/.agentty; they live under cache/
-    // now. Move what is there rather than orphaning a 38 MB index nobody can
-    // name, which is what #62 was about.
+    // 指数曾经在<project>/.agentty中持平；
+    // 他们现在住在cache/下。移动现有的内容，而不是孤立一个无人能命名的 38
+    // MB 索引，这就是 #62 的目的。
     std::error_code mec;
     if (!d->root.empty() && fs::is_directory(d->path, mec)) {
         for (const auto& e : fs::directory_iterator(d->root, mec)) {
@@ -136,15 +136,15 @@ constexpr ::agentty::dirs::Spec kFeedbackSpec = ::agentty::config::kFeedbackSpec
     return d->path;
 }
 
-// Sweep superseded variants of an index we just rewrote.
+// Sweep取代了我们刚刚重写的索引的变体。
 //
-// Called AFTER a successful save, which is the only moment the live filename
-// is known for certain -- sweeping on startup would have to guess, and
-// guessing is how you delete the index you are about to load.
+// 将 之后 称为成功的 保存，这是唯一已知的实时
+// 文件名的时刻——在启动时进行扫描就必须猜测，
+// 并且猜测是如何删除你将要 加载 的索引。
 //
-// `include_untagged` is on: a legacy `rag_code.ragdb` (no embedder tag) can
-// be named by no current code path, so it is unreadable dead weight rather
-// than a file someone might still want. That is the 47 MB in #62.
+// `include_untagged`开启：遗留的`rag_code.ragdb`
+// （无嵌入器标签）不能由当前代码路径命名，因此它是不可读的自重而不是
+// 某人可能仍然想要的文件。那是#62 中的 47 MB。
 void sweep_variants(const ::agentty::dirs::Spec& spec,
                     std::string_view stem,
                     const fs::path& live_db) {
@@ -167,17 +167,17 @@ void sweep_variants(const ::agentty::dirs::Spec& spec,
 
 bool truthy_default_on(const char* var) {
     const char* v = std::getenv(var);
-    if (!v || !v[0]) return true;                 // unset ⇒ ON
+    if (!v || !v[0]) return true;                 // 未设置 ⇒ ON
     return !(v[0] == '0' || v[0] == 'f' || v[0] == 'F' || v[0] == 'n' || v[0] == 'N');
 }
 
-// The index only runs on the retriever's own workers and tool threads, never
-// in a reducer (the RAG pane reads it through cmd::read_rag_embed_status).
+// 索引仅在检索器自己的工作线程和工具线程上运行，从不在状态更新函数中运行（RAG
+// 面板通过cmd::read_rag_embed_status读取它）。
 inline Io index_io() { return IoAccess::grant(); }
 
 bool truthy_default_off(const char* var) {
     const char* v = std::getenv(var);
-    if (!v || !v[0]) return false;                // unset ⇒ OFF
+    if (!v || !v[0]) return false;                // 未设置 ⇒ OFF
     return !(v[0] == '0' || v[0] == 'f' || v[0] == 'F' || v[0] == 'n' || v[0] == 'N');
 }
 
@@ -189,9 +189,9 @@ float env_float(const char* var, float dflt) {
 }
 
 fs::path resolve_docs_root(const std::string& configured) {
-    // Env wins and is re-read EVERY call: AGENTTY_DOCS_DIR can change between
-    // retrievals (tests, or a user who repoints it), and a cached root would
-    // silently serve the wrong corpus.
+    // Env 获胜并且是 re-read 每个 调用:AGENTTY_DOCS_DIR
+    // 可以在检索（测试或重新指向它的用户）之间改变，并且缓存的根
+    // 将默默地提供错误的语料库。
     if (const char* d = std::getenv("AGENTTY_DOCS_DIR"); d && d[0])
         return fs::path{d};
     if (!configured.empty()) return fs::path{configured};
@@ -205,7 +205,7 @@ fs::path resolve_docs_root(const std::string& configured) {
     return {};
 }
 
-// Split a "docs://path" uri back into (source-tag, bare-path).
+// 将"docs://path" uri拆分回(source-tag，bare-path)。
 std::pair<std::string, std::string> split_uri(const std::string& uri) {
     auto pos = uri.find("://");
     if (pos == std::string::npos) return {"docs", uri};
@@ -213,7 +213,7 @@ std::pair<std::string, std::string> split_uri(const std::string& uri) {
 }
 
 std::size_t retrieval_output_budget() {
-    std::size_t value = 12 * 1024; // about 3k tokens across the whole result
+    std::size_t value = 12 * 1024; // 整个结果大约有 3k 个令牌
     if (const char* v = std::getenv("AGENTTY_RAG_OUTPUT_BYTES"); v && v[0]) {
         try { value = std::clamp<std::size_t>(std::stoull(v), 2048, 64 * 1024); }
         catch (...) {}
@@ -221,12 +221,12 @@ std::size_t retrieval_output_budget() {
     return value;
 }
 
-// Fraction of the TOP score below which a tail passage is dropped rather than
-// compressed into the context. The low-confidence tail is what the model
-// ignores anyway, so paying flagship input price for it is pure waste. A hit at
-// score s survives only if s >= floor_frac * top_score. 0 disables the floor
-// (keep every hit); the default trims the obvious tail without touching the
-// meat of a good retrieval. Tunable via AGENTTY_RAG_RELEVANCE_FLOOR.
+// TOP分数的分数，低于该分数的末尾段落被丢弃而不是被压缩到上下文中。
+// 无论如何，低-confidence 末尾是该模型忽略的东西，
+// 因此为其支付旗舰输入价格纯粹是浪费。仅当 s >= floor_frac *
+// top_score 时，得分 s 的命中才会存活。 0 禁用楼层（保留每次命中）；
+// 默认情况下会修剪明显的 末尾 而不触及良好检索的实质。
+// 可通过 AGENTTY_RAG_RELEVANCE_FLOOR 进行调整。
 float relevance_floor_frac() {
     float f = 0.30f;
     if (const char* v = std::getenv("AGENTTY_RAG_RELEVANCE_FLOOR"); v && v[0]) {
@@ -235,13 +235,13 @@ float relevance_floor_frac() {
     return f;
 }
 
-// Water-filling budget allocator: split `total` bytes across passages in
-// proportion to their score^gamma (gamma>1 concentrates budget on the
-// confident head), but never below `floor` per passage so even a kept tail hit
-// stays a legible excerpt. This replaces the flat total/n split, which handed a
-// rank-8 hit at confidence 0.11 the same byte allowance as the rank-1 hit at
-// 0.88 — i.e. spent the same tokens on signal and noise. Returns one allowance
-// per input score, summing to <= total. Tunable via AGENTTY_RAG_BUDGET_GAMMA.
+// Water-filling预算分配器:按照其得分^gamma的比例将
+// `total` 字节分摊到各个段落中(伽马>1将预算集中在自信的头上)，
+// 但每次段落决不会低于`floor`，因此即使保留的末尾命中也仍然是清晰的摘录。
+// 这取代了固定的 total/n 分割，后者为 0.11 置信度的 8 级
+// 命中提供了与 0.88 的 1 级命中相同的 字节 容差 — i.e。
+// 在信号和噪声上花费了相同的代币。针对每个输入分数返回一项津贴，总和 <= 总计。
+// 可通过 AGENTTY_RAG_BUDGET_GAMMA 进行调整。
 std::vector<std::size_t> allocate_budget(const std::vector<double>& scores,
                                          std::size_t total,
                                          std::size_t floor = 768) {
@@ -252,8 +252,8 @@ std::vector<std::size_t> allocate_budget(const std::vector<double>& scores,
     if (const char* v = std::getenv("AGENTTY_RAG_BUDGET_GAMMA"); v && v[0]) {
         try { gamma = std::clamp(std::stof(v), 0.5f, 4.0f); } catch (...) {}
     }
-    // If every passage can't get the floor, fall back to an even split so we
-    // don't starve later passages to overfeed the first.
+    // 如果每个通道都不能到达地板，则返回到均匀分布，
+    // 这样我们就不会因为第一个通道而使后面的通道挨饿。
     if (total < floor * n) {
         std::size_t each = total / n;
         for (auto& a : out) a = each;
@@ -267,7 +267,7 @@ std::vector<std::size_t> allocate_budget(const std::vector<double>& scores,
         sum += weight[i];
     }
     if (sum <= 0.0) { for (auto& w : weight) w = 1.0; sum = static_cast<double>(n); }
-    // Reserve the floor for everyone, distribute the remainder by weight.
+    // 为所有人保留席位，剩余的按重量分配。
     const std::size_t reserved = floor * n;
     const std::size_t extra = total - reserved;
     for (std::size_t i = 0; i < n; ++i)
@@ -276,22 +276,22 @@ std::vector<std::size_t> allocate_budget(const std::vector<double>& scores,
     return out;
 }
 
-// Scale the TOTAL byte budget by retrieval confidence. A retrieval that barely
-// clears the relevance bar (conf ~0.3) shouldn't reserve the same ~3k tokens as
-// a slam-dunk (conf ~0.9) — the marginal passages it would spend that budget on
-// are exactly the ones the model is least likely to use. We linearly ramp the
-// budget from a floor fraction at conf=floor_conf to 100% at conf=1.0, so weak
-// retrievals inject a tight, cheap block and strong ones get full room. conf<0
-// (unknown) keeps the full budget — we don't penalise a path that never graded.
-// Tunable via AGENTTY_RAG_CONF_BUDGET_FLOOR (min fraction, default 0.45).
+// 通过检索置信度缩放TOTAL 字节预算。勉强清除相关性栏（
+// conf ~0.3）的检索不应保留与 slam-dunk（
+// conf ~0.9）相同的 ~3k 标记 - 它将花费预算的边缘
+// 段落正是模型最不可能使用的那些。我们将预算从conf=
+// floor_conf的下限分数线性增加到conf=1.0的100%，
+// 因此弱检索注入了一个紧凑、廉价的块，而强检索则获得了完整的空间。
+// conf<0（未知）保留全部预算——我们不会惩罚从未评分的路径。
+// 可通过 AGENTTY_RAG_CONF_BUDGET_FLOOR 进行调整（最小分数，默认 0.45）。
 std::size_t confidence_scaled_budget(std::size_t total, double conf) {
-    if (conf < 0.0) return total;                 // ungraded → full budget
+    if (conf < 0.0) return total;                 // 未分级 → 全部预算
     float floor_frac = 0.45f;
     if (const char* v = std::getenv("AGENTTY_RAG_CONF_BUDGET_FLOOR"); v && v[0]) {
         try { floor_frac = std::clamp(std::stof(v), 0.1f, 1.0f); } catch (...) {}
     }
     const double c = std::clamp(conf, 0.0, 1.0);
-    // frac = floor + (1-floor) * c, clamped to [floor, 1].
+    // frac=floor+(1-floor)*c，夹紧到[floor，1]。
     const double frac = std::clamp(
         static_cast<double>(floor_frac) + (1.0 - floor_frac) * c,
         static_cast<double>(floor_frac), 1.0);
@@ -323,11 +323,11 @@ std::size_t utf8_boundary(std::string_view text, std::size_t at) {
     return at;
 }
 
-// Re-read an exact 1-based inclusive line range [start,end] from live disk.
-// Powers RAG result verification: the index can lag an edit, but disk is
-// always current — so search_code re-reads the cited lines and serves the
-// disk truth. Returns "" on any error (missing file, out-of-range) so the
-// caller falls back to the indexed text.
+// Re-read是来自现场磁盘的精确的1-based包含行范围[开始，结束]。
+// 加强RAG结果验证：索引可以滞后于编辑，但磁盘始终是最新的——
+// 因此search_code重新-reads引用的行并服务于磁盘真相。
+// 如果出现任何错误（缺少文件、out-of-range），
+// 则返回 ""，以便调用者退回到索引文本。
 std::string read_disk_lines(const std::string& path, int start, int end) {
     if (start < 1 || end < start) return {};
     std::error_code ec;
@@ -352,15 +352,15 @@ std::string compress_passage(std::string_view query, std::string_view text,
     if (text.size() <= budget) return std::string{text};
     const auto terms = query_terms(query);
 
-    // Extractive sentence selection (model-free LLMLingua-style) for PROSE.
-    // Score each sentence by rare-term-weighted query overlap, greedily keep
-    // the highest-scoring ones until the budget fills, then emit them in
-    // original order. This drops irrelevant filler BETWEEN relevant sentences
-    // — something the contiguous line-window below cannot do — so the same
-    // budget carries more answer-bearing text. We only take this path for
-    // natural-language passages (few newlines relative to length); code and
-    // config keep the contiguous window path, where inter-line contiguity is
-    // load-bearing for readability. Disable via AGENTTY_RAG_EXTRACTIVE=0.
+    // PROSE的提取句子选择(model-free LLMLingua-style)。
+    // 通过rare-term-weighted查询重叠对每个句子进行评分，
+    // 贪婪地保留最高的-scoring直到预算填满，然后按原始顺序发出它们。
+    // 这会删除不相关的填充物 BETWEEN 相关句子 - 这是下面的连续行
+    // -window 无法做到的 - 因此相同的预算包含更多的答案-bearing 文本。
+    // 我们只对natural-language段落采用这条路径（相
+    // 对于长度而言，很少有换行符）；代码和配置保留连续的窗口路径，
+    // 其中 inter-line 连续性为 加载-bearing 以提高可读性。
+    // 通过 AGENTTY_RAG_EXTRACTIVE=0 禁用。
     auto extractive_enabled = [] {
         const char* v = std::getenv("AGENTTY_RAG_EXTRACTIVE");
         return !(v && (v[0] == '0' || v[0] == 'f' || v[0] == 'F'));
@@ -369,10 +369,10 @@ std::string compress_passage(std::string_view query, std::string_view text,
         static_cast<std::size_t>(std::count(text.begin(), text.end(), '\n'));
     const bool prose_shaped =
         !terms.empty() && text.size() > 0
-        && newline_count * 40 < text.size();   // avg line > 40 chars ⇒ prose
+        && newline_count * 40 < text.size();   // 平均行 > 40 个字符 ⇒ 散文
     if (extractive_enabled() && prose_shaped) {
-        // Split into sentences on ., !, ? and hard newlines. Keep the
-        // delimiter with its sentence so reassembly reads naturally.
+        // 分成关于.、!、?的句子和硬换行符。
+        // 保留分隔符及其句子，以便重新汇编时读起来自然。
         struct Sent { std::size_t begin, end; };
         std::vector<Sent> sents;
         std::size_t s = 0;
@@ -388,10 +388,10 @@ std::string compress_passage(std::string_view query, std::string_view text,
         if (s < text.size()) sents.push_back({s, text.size()});
 
         if (sents.size() > 2) {
-            // Rarer query terms are more discriminative: weight a term by
-            // 1/(1+corpus-frequency-in-this-passage). Cheap in-passage IDF
-            // proxy — no global stats needed, and it stops a common term
-            // ('the', 'code') from dominating the score.
+            // 越罕见的查询术语更具区分性：通过1/(1+语料库
+            // -frequency-in-this-passage)对术语进行加权。
+            // 便宜的 in-passage IDF 代理 — 不需要全局统计数据，
+            // 并且它可以阻止常用术语（'the'、'code'）主导分数。
             std::vector<std::size_t> tf(terms.size(), 0);
             std::string lowered{text};
             for (char& c : lowered)
@@ -411,8 +411,8 @@ std::string compress_passage(std::string_view query, std::string_view text,
                 for (std::size_t ti = 0; ti < terms.size(); ++ti)
                     if (low.find(terms[ti]) != std::string::npos)
                         sc += 1.0 / (1.0 + static_cast<double>(tf[ti]));
-                // Length-normalise lightly so a long sentence doesn't win on
-                // surface area alone, but don't over-penalise (sqrt).
+                // 长度-normalise轻，因此长句子不能仅在表面积上取胜，
+                // 但不要超过-penalise(sqrt)。
                 return sc / std::sqrt(static_cast<double>(seg.size()) + 1.0);
             };
             std::vector<std::size_t> order(sents.size());
@@ -421,19 +421,19 @@ std::string compress_passage(std::string_view query, std::string_view text,
                 [&](std::size_t a, std::size_t b) {
                     return sent_score(sents[a]) > sent_score(sents[b]);
                 });
-            // Greedily admit top sentences until the budget fills. If the very
-            // top sentence scores 0 (no query overlap anywhere), bail to the
-            // contiguous path — extraction has no signal to work with.
+            // 贪婪地接纳最上面的句子，直到预算填满。
+            // 如果最上面的句子得分为 0（任何地方都没有查询重叠），
+            // 则保留到连续路径 - 提取没有可用的信号。
             if (sent_score(sents[order[0]]) > 0.0) {
                 std::vector<char> keep(sents.size(), false);
                 std::size_t used = 0;
-                const std::size_t sep = 1;   // newline between kept sentences
+                const std::size_t sep = 1;   // 保留句子之间的换行符
                 for (std::size_t k = 0; k < order.size(); ++k) {
                     const auto& se = sents[order[k]];
                     std::size_t len = se.end - se.begin;
                     if (used + len + sep > budget) {
-                        if (used == 0) break;   // first is already over budget
-                        continue;               // skip, try a smaller one
+                        if (used == 0) break;   // 首先已经超出预算
+                        continue;               // 跳过，尝试较小的一个
                     }
                     keep[order[k]] = true;
                     used += len + sep;
@@ -450,7 +450,7 @@ std::string compress_passage(std::string_view query, std::string_view text,
                     }
                     std::string_view seg = text.substr(sents[i].begin,
                                                         sents[i].end - sents[i].begin);
-                    // Trim a leading space the split may have left attached.
+                    // 修剪裂口可能留下的前导空间。
                     while (!seg.empty() && (seg.front() == ' ' || seg.front() == '\n'))
                         seg.remove_prefix(1);
                     out.append(seg);
@@ -463,7 +463,7 @@ std::string compress_passage(std::string_view query, std::string_view text,
         }
     }
 
-    // ── Contiguous line-window fallback (code / config / no-signal prose) ──
+    // ── 毗连线 -window 回退 (代码 / 配置 / 无) -signal 说词). ──
     std::vector<std::pair<std::size_t, std::size_t>> lines;
     for (std::size_t start = 0; start < text.size();) {
         auto end = text.find('\n', start);
@@ -497,8 +497,8 @@ std::string compress_passage(std::string_view query, std::string_view text,
     std::size_t begin = lines[first].first;
     std::size_t end = lines[last - 1].second;
     if (end - begin > budget) {
-        // A minified/generated single line: center the excerpt on the first
-        // query term rather than blindly keeping an unrelated prefix.
+        // minified/generated单行：将摘录集中
+        // 在第一个查询项上，而不是盲目地保留不相关的前缀。
         std::string lower{text};
         for (char& c : lower)
             c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -525,31 +525,31 @@ std::string compress_passage(std::string_view query, std::string_view text,
 }
 
 // ── FeedbackStore ─────────────────────────────────────────────────────────
-//   The learning loop, made real. A single process-wide store backs BOTH the
-//   write side (feedback::note_surfaced / note_file_opened free functions) and
-//   the read side (Retriever::Impl::feedback_boost). It persists an append-only
-//   TSV of `use`/`win` events to <project>/.agentty/rag_feedback.tsv and folds
-//   the Beta-smoothed per-path win-rate back into ranking as a BOUNDED nudge.
+//   学习循环成为现实。单个进程-wide存储支持BOTH写入侧（feedback::note_surfaced
+//   / note_file_opened自由功能）和读取侧（Retriever::Impl::feedback_boost）。
+//   它坚持将`use`/`win` 事件的-only TSV追加到<project>
+//   /.agentty/rag_feedback.tsv和归并 Beta-smoothed
+//   per-path win-rate回到排名作为BOUNDED助推。
 //
-//   Signal semantics (matches docs/website/retrieval.md):
-//     use — search_docs surfaced this path (denominator).
-//     win — the agent then `read` a path that was RECENTLY surfaced
-//           (numerator). A read of a never-surfaced file is NOT a win: it
-//           carries no relevance judgment about retrieval.
+//   信号语义（匹配docs/website/retrieval.md):
+//     使用 —search_docs 浮现这条路径（分母）。
+//     获胜——代理然后`read`出现一条路径，
+//           即RECENTLY（分子）。读取 never-surfaced
+//           文件不是 的胜利：它不带有有关检索的相关性判断。
 //
-//   The nudge is a multiplicative factor in [1-kMax, 1+kMax] centred on 1.0,
-//   scaled by how far the smoothed win-rate sits from the neutral prior and by
-//   a confidence term that grows with sample count. Paths with no history are
-//   untouched, so the loop can only help once it has evidence.
-// The tallies and the session's surfaced set, as one guarded value. The
-// operations below are free functions over it, so nothing in the locked
-// region reaches anything but the data it was handed.
+//   微调是[1-kMax，1+kMax]中以1.0为中心的乘法因子，
+//   通过平滑后的win-rate距中性先验的距离以及通过随着样本计数而增长的置信项来缩放。
+//   没有历史的路径不会受到影响，
+//   因此循环只有在有证据时才能提供帮助。
+// 计数和会话的表面集合，作为一个受保护的值。
+// 下面的操作是对其的自由函数，因此锁定区域中的
+// 任何内容都只能到达它所传递的数据。
 struct FeedbackState {
     struct Tally { double uses = 0.0; double wins = 0.0; };
     bool loaded = false;
-    std::string loaded_for;                    // anchor the TSV was loaded for
+    std::string loaded_for;                    // 锚定TSV为已加载
     std::unordered_map<std::string, Tally> counts;
-    std::unordered_set<std::string> recent;    // surfaced this session
+    std::unordered_set<std::string> recent;    // 本次会议浮出水面
 };
 
 class FeedbackStore {
@@ -559,13 +559,13 @@ public:
         return s;
     }
 
-    // Lock order: the store is a LEAF (its bodies only update counts; the TSV
-    // append runs after). boost() is called from ranking inside the index
-    // body (held<rag_index> converts: leaf ranks above it); the note_* write
-    // side runs from tool bodies via feedback::note_*.
+    // 锁顺序：存储是LEAF（其正文仅更新计数；TSV追加在其后运行）。
+    // boost() 从索引 正文 内的排名中调用（held<rag_index>
+    // 转换：叶排名在其上方）； note_* 写入端通过
+    // feedback::note_* 从工具 正文 运行。
 
-    // Ranking nudge for `path`, in roughly [0.85, 1.15]. 1.0 (neutral) when
-    // learning is off, the path is unseen, or it has too little evidence.
+    // `path`的排名微调，大约在[0.85，1.15]。
+    // 1.0（中性）当学习停止、路径看不见或证据太少时。
     float boost(const maya::below<maya::leaf>& cap, const std::string& path) {
         return st_.with(cap, [](FeedbackState& st, std::string p, std::string tsv) {
             ensure_loaded(st, tsv);
@@ -574,10 +574,10 @@ public:
             const double uses = it->second.uses;
             const double wins = it->second.wins;
             if (uses <= 0.0) return 1.0f;
-            // Beta(1,1) smoothing: (wins+1)/(uses+2) — a bounded win-rate
-            // that starts at the 0.5 prior and moves only as evidence accrues.
+            // Beta(1，1)平滑：(wins+1)/(uses+2)-
+            // 有界win-rate，其从0.5先验开始并且仅随着证据增加而移动。
             const double rate = (wins + 1.0) / (uses + 2.0);
-            // Confidence in the estimate grows with sample count (saturating).
+            // 对估计的置信度随着样本数量的增加而增加（饱和）。
             const double conf = uses / (uses + kPriorN);
             const double delta = (rate - 0.5) * 2.0;         // → [-1, 1]
             double factor = 1.0 + kMax * delta * conf;
@@ -587,8 +587,8 @@ public:
         }, path, tsv_path().string());
     }
 
-    // Record that these paths were surfaced by a retrieval (each a "use"), and
-    // remember them as recently-surfaced so a following read can be a win.
+    // 记录这些路径是通过检索出现的（每个路径是"use")，
+    // 并将它们记住为最近-surfaced，因此接下来的读取可以是胜利。
     void note_surfaced(const maya::below<maya::leaf>& cap, const std::vector<std::string>& paths) {
         const std::string tsv = tsv_path().string();
         auto to_write = st_.with(cap,
@@ -607,9 +607,9 @@ public:
         append(tsv, "use", to_write);
     }
 
-    // Record that `path` was opened. It is a WIN only if it (or its basename)
-    // was recently surfaced — otherwise the read tells us nothing about
-    // retrieval quality and is ignored (no denominator inflation either).
+    // 记录`path`被打开。仅当它（或其基本名称）最近出现时，
+    // 它才是 WIN - 否则读取内容不会告诉我们任何有关
+    // 检索质量的信息，并且会被忽略（也不会出现分母膨胀）。
     void note_opened(const maya::below<maya::leaf>& cap, const std::string& path) {
         if (path.empty()) return;
         const std::string tsv = tsv_path().string();
@@ -625,8 +625,8 @@ public:
     }
 
 private:
-    static constexpr double kMax    = 0.15;   // max ±15% ranking nudge
-    static constexpr double kPriorN = 4.0;    // uses needed for ~half confidence
+    static constexpr double kMax    = 0.15;   // 最大±15%排名微调
+    static constexpr double kPriorN = 4.0;    // 〜半置信度所需的用途
 
     maya::guarded<FeedbackState> st_;
 
@@ -636,13 +636,13 @@ private:
         return dir / "rag_feedback.tsv";
     }
 
-    // Load (once per PROJECT) the persisted counts so nudges survive restarts.
+    // 加载 (每PROJECT一次)持续计数，因此轻推在重新启动后仍然存在。
     //
-    // Keyed on the resolved directory, not the cwd. Keying on cwd was correct
-    // only while the path was cwd-derived; now that storage is anchored to the
-    // project marker, `cd src/` resolves to the SAME file, and a cwd key would
-    // reload it on every chdir — discarding the in-memory `recent` set and
-    // with it this session's win signal.
+    // 键入已解析的目录，而不是cwd。仅当路径为 cwd-derived 时，
+    // 键入 cwd 才是正确的；现在存储已锚定到项目标记，
+    // `cd src/` 解析为 相同 文件，并且 cwd 键将在每个
+    // chdir 上重新加载它 — 丢弃 in-memory `recent`
+    // 集以及此会话的获胜信号。
     static void ensure_loaded(FeedbackState& st, const std::string& tsv) {
         const fs::path p{tsv};
         const std::string key = tsv.empty() ? std::string{} : p.parent_path().string();
@@ -668,8 +668,8 @@ private:
         }
     }
 
-    // Appends run outside the lock: every line goes out in ONE write(2) with
-    // O_APPEND, so concurrent agentty processes never splice mid-line.
+    // 追加在锁之外运行：每一行在ONE write(2)中与O_APPEND
+    // 一起出去，因此并发agentty进程从不拼接mid-line。
     static void append(const std::string& tsv, const char* kind,
                        const std::vector<std::string>& paths) {
         if (paths.empty() || tsv.empty()) return;
@@ -681,9 +681,9 @@ private:
         (void)persistence::append_atomic(::agentty::IoAccess::grant(), tsv, lines);
     }
 
-    // A read matches a surfaced passage if the exact path is recent, or if a
-    // recent path ends with the same basename (docs://foo/bar.md surfaced,
-    // agent reads foo/bar.md or an absolute .../foo/bar.md).
+    // 如果精确路径是最近的，或者如果最近的路径以相同的基本名称结束（docs:
+    // //foo/bar.md浮出，代理读取foo/bar.md或绝对.../foo/bar.md），
+    // 则读取与浮出的段落匹配。
     static std::string match_recent(const FeedbackState& st, const std::string& opened) {
         if (st.recent.contains(opened)) return opened;
         auto slash = opened.find_last_of("/\\");
@@ -693,7 +693,7 @@ private:
         for (const auto& r : st.recent) {
             if (r.size() >= base.size() &&
                 r.compare(r.size() - base.size(), base.size(), base) == 0) {
-                // Guard against a bare-basename false match on a longer name.
+                // 防止较长名称上的 bare-basename 错误匹配。
                 if (r.size() == base.size() ||
                     r[r.size() - base.size() - 1] == '/' ||
                     r[r.size() - base.size() - 1] == '\\')
@@ -704,13 +704,13 @@ private:
     }
 };
 
-} // namespace
+} // 命名空间结束。
 
 Config Config::from_env() {
     Config c;
     if (const char* d = std::getenv("AGENTTY_DOCS_DIR"); d && d[0]) c.docs_root = d;
-    // Embedder selection + endpoint, including the legacy AGENTTY_OLLAMA_HOST /
-    // AGENTTY_EMBED_MODEL names. One owner for the parsing.
+    // 嵌入器选择+端点，包括旧的AGENTTY_OLLAMA_HOST/AGENTTY_EMBED_MODEL名称。
+    // 解析 的一位拥有者。
     ::agentty::rag::embed::apply_env(index_io(), c.embed);
     c.skills        = truthy_default_on("AGENTTY_RAG_SKILLS");
     c.memory        = truthy_default_on("AGENTTY_RAG_MEMORY");
@@ -727,35 +727,35 @@ Config Config::from_env() {
     if (const char* f = std::getenv("AGENTTY_RAG_FUSION"); f && f[0]) {
         std::string fv{f};
         for (char& ch : fv) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-        // Accept only the two modes we implement; anything else keeps the
-        // convex default rather than silently disabling fusion.
+        // 仅接受我们实施的两种模式；其他任何东西都会
+        // 保持凸默认值，而不是默默地禁用融合。
         if (fv == "rrf" || fv == "convex") c.fusion = fv;
     }
     c.adaptive_fusion = truthy_default_on("AGENTTY_RAG_ADAPTIVE");
     c.prf         = truthy_default_off("AGENTTY_RAG_PRF");
     c.corrective  = truthy_default_off("AGENTTY_RAG_CORRECT");
     c.graph       = truthy_default_off("AGENTTY_RAG_GRAPH");
-    // Generative query expansion has a measurable latency cost even when its
-    // model is local. It is an explicit power-mode, not a tax on every turn.
+    // 即使当其模型是本地的时，生成查询扩展也具有可测量的等待时间成本。
+    // 这是一种明确的权力-mode，而不是每回合都征税。
     c.expand      = truthy_default_off("AGENTTY_RAG_EXPAND");
     c.hyde        = truthy_default_off("AGENTTY_RAG_HYDE");
     if (const char* g = std::getenv("AGENTTY_RAG_GEN_MODEL"); g && g[0]) c.gen_model = g;
     c.persist     = truthy_default_on("AGENTTY_RAG_PERSIST");
     c.learn       = truthy_default_off("AGENTTY_RAG_LEARN");
-    // The per-stage retrieval trace is the engine's "show your work": it powers
-    // the funnel the tool card renders, so it is ON by default. AGENTTY_RAG_TRACE=0
-    // suppresses it (compact one-line mode header only).
+    // per-stage检索轨迹是引擎的"show your work"：它为工具
+    // 卡渲染的漏斗提供动力，因此默认为ON。 AGENTTY_RAG_TRACE=0
+    // 抑制它（仅限紧凑型 one-line 模式 头文件）。
     c.trace       = truthy_default_on("AGENTTY_RAG_TRACE");
     c.dense_weight = env_float("AGENTTY_RAG_DENSE_WEIGHT", 1.0f);
     c.bm25_weight  = env_float("AGENTTY_RAG_BM25_WEIGHT", 1.0f);
-    // Proactive / "fork" behaviour (consumed by the tools backend).
-    // Pre-turn injection is an EXPLICIT opt-in: it spends model-context
-    // tokens before every knowledge-shaped turn without the user asking,
-    // so it defaults OFF (matching the docs and the submit gate, which
-    // reads Model::env / m.d.persisted.rag). The
-    // user turns it on via the Ctrl+K → RAG picker (persisted, which sets
-    // configured=true so this env default no longer governs) or
-    // AGENTTY_RAG_PROACTIVE=1 for a one-off run.
+    // 主动/"fork"行为（由工具后端消耗）。
+    // Pre-turn注入是EXPLICIT opt-in：它在每次知识
+    // -shaped转动之前花费model-context代币而无需用户询问，
+    // 因此它默认OFF（匹配文档和提交门，其读取Model::env /
+    // m.d.persisted.rag）。
+    // 用户通过 Ctrl+K → RAG 选择面板 （持续，设置configured=true，
+    // 因此此环境默认值不再起作用）或 AGENTTY_RAG_PROACTIVE
+    // =1（对于 one-off 运行）打开它。
     c.proactive          = truthy_default_off("AGENTTY_RAG_PROACTIVE");
     c.proactive_min_conf = static_cast<double>(env_float("AGENTTY_RAG_PROACTIVE_MIN", 0.35f));
     c.proactive_bytes    = static_cast<int>(env_float("AGENTTY_RAG_PROACTIVE_BYTES", 6144.0f));
@@ -763,14 +763,14 @@ Config Config::from_env() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Dense-embedder availability. Three states, spelled as three types:
+// Dense-embedder可用性。三种状态，拼写为三种类型：
 //
-//   Unprobed    — no probe has run yet for the current config.
-//   Ready       — an embedder answered; carries the MEASURED dimension, the
-//                 vector-space identity, and the observed latency.
-//   Unavailable — carries WHY. This is the whole point: retrieval silently
-//                 degrading to BM25 with no user-visible signal was this
-//                 subsystem's worst failure mode.
+//   未探测——当前配置尚未运行探测。
+//   就绪——嵌入器应答；携带 MEASURED 维度、
+//                 向量-space 身份和观察到的延迟。
+//   不可用 — 带有 原因。这就是重点：在没有 user-visible
+//                 信号的情况下，检索默默地降级到 BM25 是
+//                 该子系统最严重的故障模式。
 namespace dense {
 struct Unprobed {};
 struct Ready {
@@ -783,53 +783,53 @@ struct Unavailable { std::string reason; };
 using DenseState = std::variant<dense::Unprobed, dense::Ready, dense::Unavailable>;
 
 // ─────────────────────────────────────────────────────────────────────────
-// Everything a retrieval reads or rebuilds. Lives in Impl::index, a
-// maya::guarded: every method below runs inside index.with(), so the lock is
-// implied by the receiver. Held across whole rebuilds on purpose; the UI's
-// status row uses try_read so a frame never waits on one.
+// 检索读取或重建的所有内容。存在于 Impl::index 中，
+// 一个 maya::guarded 中：下面的每个方法都在 index.with
+// () 中运行，因此 锁 是由接收者隐含的。有意在整个重建过程中举行；
+// UI 的状态行使用 try_read，因此 帧 永远不会等待状态行。
 //
-// Lock order: the index is ranked lock_levels::rag_index. Its body reads the
-// learned-memory store (memory_store, ranked above it) through
-// memory_fingerprint() and reindex(). Each body takes the `held<rag_index>`
-// it is handed and parks its address in `held_` for the body's duration
-// (IndexBody, below), and the two memory reads use it. held_ is only ever
-// set inside the lock and cleared before it is released, so a capability
-// never outlives the body that proved it.
+// 锁顺序：索引排名为lock_levels::rag_index。它的正文通过
+// memory_fingerprint()和reindex()读取已
+// 学习的-memory存储（memory_store，排在它上面）。每个 正文
+// 都会获取它所收到的 `held<rag_index>`，并将其地址存放在
+// `held_` 中，持续 正文 的持续时间（IndexBody，如下），
+// 并且两个 内存 读取会使用它。 held_ 仅在 锁 内部设置并在释放之前清除，
+// 因此功能永远不会比证明它的 正文 寿命更长。
 struct Index {
     using held_t = maya::held<lock_levels::rag_index>;
     const held_t* held_ = nullptr;
     [[nodiscard]] const held_t& held() const { return *held_; }
 
-    // The warm worker's cancel flag, owned by Impl (outside the lock, so
-    // shutdown can trip it while a rebuild holds the index). refresh_docs()
-    // and reindex() poll it at every loop boundary so a multi-second embed
-    // pass unwinds promptly. Declared first: the ctor below needs it set.
+    // 已预热的工作线程的取消 标志，由Impl拥有（在锁之外，
+    // 因此关闭可以在重建保持索引时使其脱扣）。 refresh_docs()
+    // 和 reindex() 在每个循环边界轮询它，以便 multi
+    // -second 嵌入传递立即展开。首先声明：下面的 ctor 需要设置它。
     const std::atomic<bool>* warm_stop = nullptr;
 
     Config cfg = Config::from_env();
 
     ::rag::Engine engine;
     bool   embedder_ready = false;
-    // The dense-embedder state machine. Was `ollama_probed` + `ollama_ready`:
-    // two bools encoding three states, with the invariants living only in
-    // comments. Now a sum type whose failure arm carries the reason string the
-    // picker and `agentty diagnostics` render.
+    // 密集-embedder状态机。是 `ollama_probed` + `ollama_ready`：
+    // 两个布尔值编码三种状态，不变量仅存在于注释中。现在是 和类型，
+    // 其故障臂带有原因字符串 选择面板 和
+    // `agentty diagnostics` 渲染。
     DenseState dense{dense::Unprobed{}};
-    // Freshness of the docs index: (root, fingerprint) it was built for.
+    // 文档索引的新鲜度：(root，指纹)它是为其构建的。
     std::string indexed_root;
     std::uint64_t indexed_fp = 0;
     bool docs_initialized = false;
     std::unordered_map<std::string, std::uint64_t> docs_files;
     std::string persist_checked_for;
-    // Content fingerprints, not item counts: editing a skill or replacing a
-    // memory record without changing cardinality must invalidate retrieval.
+    // 内容指纹，而不是项目计数：编辑技能或
+    // 替换内存记录而不改变基数必须使检索无效。
     std::uint64_t skills_gen = 0;
     std::uint64_t memory_gen = 0;
     std::uint64_t mcp_gen = 0;
 
-    // Skills/memory-only engine for latency-budgeted proactive retrieval. It is
-    // deliberately separate so a cold warm-only query can never walk, rebuild,
-    // or discard the docs corpus.
+    // 用于延迟-budgeted主动检索的Skills/memory-only引擎。
+    // 它是故意分开的，因此冷的 Warm-only 查询永远无法遍历、
+    // 重建或丢弃文档语料库。
     ::rag::Engine warm_engine;
     bool warm_initialized = false;
     std::uint64_t warm_skills_gen = 0;
@@ -840,9 +840,9 @@ struct Index {
     }
 
 
-    // Separate engine for search_code (cwd source tree), with its own
-    // edit-drift fingerprint. Kept apart from the docs engine so a docs
-    // reindex never disturbs code search and vice-versa.
+    // search_code (cwd 源码树)的独立引擎，
+    // 具有其自己的编辑-drift 指纹。与文档引擎分开，因此文档重新
+    // 索引永远不会干扰代码搜索和vice-versa。
     ::rag::Engine code_engine{::rag::index::CorpusConfig{}};
     bool          code_embedder_ready = false;
     bool          code_initialized = false;
@@ -851,22 +851,22 @@ struct Index {
 
     explicit Index(const std::atomic<bool>* stop) : warm_stop(stop), engine(make_engine_config()) {
         probe_embedder();
-        // The probe may have picked the model (Auto), which sets the prefixes.
+        // 探测器可能已经选择了设置前缀的模型（自动）。
         if (!auto_model.empty()) engine = ::rag::Engine(make_engine_config());
         attach_embedder();
         apply_pipeline(engine);
     }
 
-    // Install a ZERO-COST local generator for HyDE / multi-query: a tiny model
-    // on a local Ollama. No cloud tokens, no auth, no provider plumbing. If
-    // Ollama isn't up the call fails fast and HyDE/expand no-op (plain hybrid
-    // still runs) — free when unavailable, a recall win when present. An
-    // explicit set_generator() overrides it.
+    // 为 HyDE/multi-query 安装 ZERO-COST 本地生成器：
+    // 本地 Ollama 上的微型模型。没有云令牌，没有身份验证，没有提供商管道。
+    // 如果 Ollama 没有启动，调用 会快速失败，而 HyDE/expand
+    // no-op（普通混合动力仍然运行）——不可用时免费，存在时召回获胜。
+    // 显式的 set_generator() 会覆盖它。
     //
-    // Note this is deliberately INDEPENDENT of the embedding backend: you can
-    // embed through a corporate endpoint while a local Ollama (if any) does
-    // query expansion. It dials the embed endpoint only when that endpoint is
-    // itself an Ollama, otherwise the historical localhost default.
+    // 注意，这是故意的嵌入后端的INDEPENDENT：您
+    // 可以通过企业端点嵌入，同时本地Ollama（如果有）
+    // 进行查询扩展。仅当该端点本身是 Ollama 时，
+    // 它才会拨打嵌入端点，否则为历史本地主机默认值。
     [[nodiscard]] static Retriever::Generator default_generator(const Config& cfg) {
         namespace eb = ::agentty::rag::embed;
         const bool embed_is_ollama =
@@ -893,56 +893,56 @@ struct Index {
                     req.host      = host;
                     req.port      = port;
                     req.path      = "/api/generate";
-                    req.plaintext = true;   // local Ollama speaks plain HTTP/1.1
+                    req.plaintext = true;   // 本地Ollama讲普通话HTTP/1.1
                     req.headers.push_back({"content-type", "application/json"});
                     req.body      = body.dump();
                     req.max_body_bytes = 512 * 1024;
 
                     ::agentty::http::Timeouts to;
-                    to.connect = std::chrono::milliseconds(600);   // Ollama absent → fail fast
-                    to.total   = std::chrono::milliseconds(4000);  // hard cap per hypothetical
+                    to.connect = std::chrono::milliseconds(600);   // Ollama缺席 → 快速失败
+                    to.total   = std::chrono::milliseconds(4000);  // 每个假设的硬上限
                     auto res = ::agentty::http::default_client(::agentty::IoAccess::grant()).send(req, to);
-                    if (!res || res->status != 200) break;   // Ollama down → give up
+                    if (!res || res->status != 200) break;   // Ollama下来→放弃
                     auto j = ::rag::plugin::Json::parse(res->body, nullptr, false);
                     if (j.is_discarded() || !j.contains("response")) continue;
                     std::string text = j["response"].get<std::string>();
                     if (!text.empty()) outs.push_back(std::move(text));
                 }
-            } catch (...) { /* best-effort; empty → plain hybrid */ }
+            } catch (...) { /* 最佳-effort;空→普通混合 */ }
             return outs;
         };
     }
 
     ::rag::index::CorpusConfig make_engine_config(bool source_code = false) {
         ::rag::index::CorpusConfig cc;
-        // Index bodies hold rag_index while building and searching, and
-        // joining helper threads under a lock is what jaal forbids (#112:
-        // thread_root aborted mid-retrieve). So this engine's work runs
-        // inline. The cost is a cold embed pass done one batch at a time;
-        // a warm index (persisted, or already built) pays nothing.
+        // 索引正文在构建和搜索时持有rag_index，
+        // 并且在锁下加入助手线程是jaal所禁止的（#112:
+        // thread_root 在 -retrieve 中期中止）。
+        // 所以这个引擎的工作是内联运行的。成本是一次完成一批冷嵌入；
+        // 温暖的索引（持续的或已经建立的）不需要支付任何费用。
         cc.split      = ::rag::util::Splitter{};
         cc.contextual = cfg.contextual;
         std::tie(cc.query_prefix, cc.doc_prefix) = ::agentty::rag::embed::prefixes(effective_embed());
         if (source_code) {
             cc.chunking = ::rag::index::CorpusConfig::Chunking::source;
-            // Questions about code use words ("clipboard read"); the code
-            // uses identifiers (on_clipboard_read). Index both.
+            // 关于代码使用字的问题("clipboard read")；
+            // 该代码使用标识符 (on_clipboard_read)。两者都索引。
             cc.tokenize.split_identifiers = !(std::getenv("AGENTTY_RAG_SPLIT_IDENT")
                                               && std::getenv("AGENTTY_RAG_SPLIT_IDENT")[0] == '0');
         }
         return cc;
     }
 
-    // Compose the FULL-POWER retrieval pipeline agentty drives, per Config.
-    // This mirrors rag-cpp's own Pipeline::best() funnel, adapted to agentty's
-    // per-stage toggles:
-    //   [PRF expand] → hybrid(adaptive-convex fusion) → filter
-    //   → feature-rerank → [dedup] → [MMR diversity] → [parent stitch]
-    //   → [autocut] → top-k
-    // Convex (TM2C2) fusion is rag-cpp's measured-better default over RRF; the
-    // adaptive variant additionally re-weights per query toward whichever
-    // retriever is more confident. dedup folds near-duplicate passages and
-    // autocut trims the low-relevance tail — both straight from best().
+    // 根据配置组成FULL-POWER检索管道agentty驱动器。
+    // 这镜像了rag-cpp自己的Pipeline::best()漏斗，适应于agentty的per
+    // -stage 切换：
+    //   [PRF展开]→混合(自适应-convex融合)→过滤器
+    //   →特征-rerank→[去重]→[MMR多样性]→[父缝合]→[
+    //   自动剪切]→top
+    // -k凸(TM2C2)融合是rag-cpp在RRF上测量的-better默认值；
+    // 自适应 变体 还会针对每个检索器更有信心的每次查询 re-weights。
+    // 对 归并 附近 -duplicate 段落进行重复数据删除，
+    // 并自动剪切修剪低 -relevance 末尾 — 均直接来自 best()。
     void apply_pipeline(::rag::Engine& eng) {
         namespace pl = ::rag::pipeline;
         pl::HybridRetrieveConfig hy;
@@ -951,13 +951,13 @@ struct Index {
         hy.bm25_weight  = std::max(0.0f, cfg.bm25_weight);
         hy.dense_weight = std::max(0.0f, cfg.dense_weight);
         if (cfg.fusion == "rrf") {
-            // Weighted reciprocal-rank fusion — the ONLY mode that honours the
-            // public bm25/dense weights (convex ignores them by design).
+            // 加权倒数-rank融合——尊重公共bm25/dense权重的ONLY模式
+            // （凸面在设计上忽略它们）。
             hy.fusion = pl::HybridRetrieveConfig::Fusion::rrf;
         } else {
-            // Convex (TM2C2) is the default: preserves score distributions RRF
-            // discards. Adaptive shifts alpha per query toward the retriever
-            // with the sharper (more confident) score curve.
+            // 凸(TM2C2)是默认值：保留RRF丢弃的得分分布。
+            // 自适应将每个查询的 alpha 值向具有更尖锐
+            // （更自信）的分数曲线的检索器移动。
             hy.fusion            = pl::HybridRetrieveConfig::Fusion::convex;
             hy.convex.adaptive   = cfg.adaptive_fusion;
         }
@@ -967,11 +967,11 @@ struct Index {
             p.add(std::make_shared<pl::PrfExpandStage>(pl::ExpandConfig{}));
         p.add(std::make_shared<pl::HybridRetrieveStage>(hy));
         p.add(std::make_shared<pl::FilterStage>());
-        // The exact accuracy-preserving feature reranker the built-in
-        // standard()/quality()/context() pipelines use (deterministic, no model).
+        // 内置-in standard()/quality()/context()
+        // 管道使用的精确精度-preserving特征重新排序（确定性，无模型）。
         p.add(pl::make_feature_rerank_stage());
-        // Fold near-duplicate passages BEFORE diversity/stitch so an LLM context
-        // window isn't spent re-reading paraphrased copies of the same content.
+        // 归并接近-duplicate段落BEFORE diversity/stitch，
+        // 因此LLM上下文窗口不用于重新-reading解释相同内容的副本。
         if (cfg.dedup) {
             ::rag::rerank::DedupConfig dc;
             dc.threshold = cfg.dedup_threshold;
@@ -981,9 +981,9 @@ struct Index {
             p.add(::rag::rerank::make_mmr_stage(cfg.mmr_lambda));
         if (cfg.stitch)
             p.add(std::make_shared<pl::ParentStitchStage>(1));
-        // Autocut runs on the FINAL relevance order, right before top-k: it
-        // trims the low-relevance tail at the score knee so a query with three
-        // strong answers returns three, not k padded with weak matches.
+        // 自动剪切在 FINAL 相关性顺序上运行，就在 top-k
+        // 之前：它在分数拐点处修剪 low-relevance 末尾，
+        // 因此具有三个强答案的查询返回三个，而不是用弱匹配填充 k。
         if (cfg.autocut) {
             ::rag::rerank::AutocutConfig ac;
             ac.sensitivity = cfg.autocut_sensitivity;
@@ -998,8 +998,8 @@ struct Index {
         return s ? ::rag::plugin::Json::parse(*s) : ::rag::plugin::Json{};
     }
 
-    // The embed config as it should be DIALLED right now: the configured one,
-    // with the model Auto's probe chose (if it chose another).
+    // 嵌入配置现在应该是DIALLED：已配置的配置，
+    // 其中选择了模型汽车的探针（如果它选择了另一个）。
     std::string auto_model;
     [[nodiscard]] ::agentty::rag::embed::EmbedConfig effective_embed() const {
         auto e = cfg.embed;
@@ -1007,21 +1007,21 @@ struct Index {
         return e;
     }
 
-    // Probe the configured embedder once per config. Replaces the old
-    // `ollama_probed`/`ollama_ready` bool pair: the outcome is a sum type that
-    // CARRIES ITS REASON, so a failure can be shown in the UI instead of
-    // silently degrading retrieval to BM25 forever (the single worst failure
-    // mode this subsystem had).
+    // 每个配置探测配置的嵌入器一次。替换旧的 `ollama_probed`
+    // /`ollama_ready` 布尔对：结果是 和类型，
+    // 即 CARRIES ITS REASON，因此可以在 UI
+    // 中显示故障，而不是永远默默地将检索降级到 BM25（该子系统具有
+    // 的单一最坏故障模式）。
     void probe_embedder() {
         if (!std::holds_alternative<dense::Unprobed>(dense)) return;
-        apply_probe(run_probe(cfg.embed));   // Auto picks its model afresh
+        apply_probe(run_probe(cfg.embed));   // 汽车重新选型
     }
 
-    // The probe in two halves. run_probe dials a network endpoint (or
-    // memory-maps a model file) and touches no index state, so apply_config
-    // and reprobe run it with the index UNLOCKED: holding the lock across a
-    // multi-second timeout stalls every reader. apply_probe writes the
-    // result, under the lock.
+    // 探针分成两半。 run_probe 拨打网络端点（或 内存-maps
+    // 模型文件）并且不触及任何索引状态，因此 apply_config
+    // 并重新使用索引 UNLOCKED 运行它：将 锁 跨过 multi
+    // -second 超时 会停止每个读取器。 apply_probe
+    // 将结果写入 锁 下。
     static ::agentty::rag::embed::ProbeResult
     run_probe(const ::agentty::rag::embed::EmbedConfig& ec) {
         namespace eb = ::agentty::rag::embed;
@@ -1033,18 +1033,18 @@ struct Index {
     void apply_probe(const ::agentty::rag::embed::ProbeResult& r) {
         namespace eb = ::agentty::rag::embed;
         if (const auto* ok = std::get_if<eb::ProbeOk>(&r)) {
-            // The MEASURED dimension is authoritative — pin it so every
-            // subsequent spec (and the identity hash) carries it.
+            // MEASURED维度是权威的——固定它，
+            // 以便每个后续规范（和身份哈希）都携带它。
             cfg.embed.dim = ok->dim;
-            // Auto may have picked a better model than the configured one.
-            // Kept apart from cfg.embed so apply_config still compares what
-            // the user configured.
+            // Auto可能选择了比配置的模型更好的模型。
+            // 与cfg.embed分开，因此apply_config仍然
+            // 比较用户配置的内容。
             const std::string picked = ok->model != cfg.embed.model ? ok->model : std::string{};
             const bool switched = picked != auto_model;
             auto_model = picked;
             dense = dense::Ready{eb::identity(effective_embed()), ok->dim, ok->latency_ms};
-            // Another model means other vectors and prefixes: start the docs
-            // engine cold (reset_embedder handles code and warm).
+            // 另一种模型意味着其他向量和前缀：冷启动文档引擎（
+            // reset_embedder处理代码并热启动）。
             if (switched && docs_initialized) {
                 engine = ::rag::Engine(make_engine_config());
                 embedder_ready = false;
@@ -1069,18 +1069,18 @@ struct Index {
         return std::holds_alternative<dense::Ready>(dense);
     }
 
-    // Vectors embedded outside the index lock (VectorCache, #112). The
-    // engines' embedder reads from it; Retriever fills it before each locked
-    // build or search. shared_ptr<const>: the cache syncs itself, so the
-    // index can hand it out of a lock body.
+    // 嵌入索引锁外部的向量(VectorCache，#112)。
+    // 引擎的嵌入器从中读取；检索器在每次锁定构建或搜索之前填充它。
+    // shared_ptr<const>：缓存 自行同步，
+    // 因此索引可以将其从 锁 正文 中取出。
     std::shared_ptr<const ::agentty::rag::VectorCache> vectors =
         std::make_shared<const ::agentty::rag::VectorCache>();
-    // The real embedder for the current config, for prefetch to call. Built
-    // with the engines' one; empty when dense is off.
+    // 当前配置的真实嵌入器，用于预取到调用。
+    // 与发动机一起建造；当密集关闭时为空。
     std::optional<::rag::dense::AnyEmbedder> real_embedder;
 
-    // Give `eng` the cache-backed embedder. One place for all three engines,
-    // so none of them can end up doing network IO under the lock by default.
+    // 将 缓存-backed 嵌入器给予 `eng`。所有三个引擎
+    // 都放在一处，因此默认情况下它们都不能在 锁 下执行网络 IO。
     bool attach_cached_embedder(::rag::Engine& eng) {
         if (!dense_ready()) return false;
         if (!real_embedder) {
@@ -1098,21 +1098,21 @@ struct Index {
         embedder_ready = attach_cached_embedder(engine);
     }
 
-    // The embed config changed (apply_config, a re-probe): rebuild the real
-    // embedder and start a new cache. A backend's identity is only its model
-    // name, so the same name on another host must not get the old vectors.
-    // Not called on a plain rebuild: pass 1 of a retrieve reindexes and
-    // needs the vectors pass 0 fetched.
+    // 嵌入配置改变(apply_config，
+    // re-probe)：重建真正的嵌入器并启动新的缓存。
+    // 后端的身份只是其模型名称，因此另一台主机上的相同名称不得获得旧向量。
+    // 不调用普通重建：检索的传递1重新索引并且
+    // 需要获取向量传递0。
     void reset_embedder() {
         real_embedder.reset();
-        // Cleared in place, not replaced: every engine's CachedEmbedder holds
-        // this same cache, so a new object would leave the older engines
-        // reading a cache nothing fills any more.
+        // 就地清除，而不是替换：每个引擎的CachedEmbedder
+        // 都持有相同的缓存，因此新对象将使旧引擎读取缓存，
+        // 不再填充任何东西。
         vectors->clear();
         attach_embedder();
-        // The warm and code engines hold the old backend inside their
-        // CachedEmbedder: give them the new one, and mark them cold so the
-        // next call re-embeds in the new model's space.
+        // 热引擎和代码引擎将旧后端保存在它们的 CachedEmbedder
+        // 中：给它们新的后端，并将它们标记为冷的，以便在新模型的
+        // 空间中下一个 调用 re-embeds。
         if (warm_initialized) {
             warm_initialized = false;
             warm_engine = ::rag::Engine(make_engine_config());
@@ -1126,32 +1126,32 @@ struct Index {
         attach_code_embedder();
     }
 
-    // How the lock and the network are kept apart (#112). A retrieve runs
-    // its locked body twice at most:
+    // 锁和网络如何保持分离(#112)。检索最多运行
+    // 其锁定的 正文 两次：
     //
-    //   pass 0  does everything as usual, but where it would embed (a build
-    //           with chunks the cache can't answer, or a query vector) it
-    //           records the texts in `wanted` and skips the build/search,
-    //           so no network IO happens under the lock.
-    //   (unlocked) the Retriever embeds `wanted` into the cache, with as
-    //           many requests in flight as the backend wants.
-    //   pass 1  does it all again; every vector is a cache hit now. It never
-    //           defers: anything still missing (the backend failed for a
-    //           batch) is fetched the slow way, so the result is always right.
+    //   pass 0 照常做一切，但是在它嵌入的地方（带有 缓存
+    //           无法应答的块的构建，或者查询向量），
+    //           它记录 `wanted` 中的文本并跳过 build/search，
+    //           因此在 锁 下不会发生网络 IO。
+    //   (解锁)检索器将 `wanted` 嵌入到 缓存 中，
+    //           并根据后端的需要发送尽可能多的请求。
+    //   第 1 遍再次执行所有操作；现在每个向量都是 缓存 命中。
+    //           它永远不会延迟：任何仍然丢失的东西（后端批量
+    //           失败）都会以缓慢的方式获取，因此结果总是正确的。
     //
-    // Pass 1 repeats the cheap work (file walk, chunking: milliseconds), not
-    // the embedding (seconds). A warm call needs no vectors and makes one pass.
+    // 第 1 遍重复廉价工作（文件遍历、分块：毫秒），
+    // 而不是嵌入（秒）。温暖的 调用 不需要向量并且可以通过一次。
     std::vector<std::string> wanted;
     int pass = 0;
-    // HyDE / multi-query: the prompt pass 0 wants generated (empty: none),
-    // and on pass 1 what the generator answered, already embedded. The
-    // generator is a model call, so like the embedder it runs unlocked.
+    // HyDE/multi-query：提示词通道0想要生成（
+    // 空：无），并且在通道1上生成器回答的内容已经嵌入。
+    // 生成器的型号为 调用，因此与嵌入器一样，它可以解锁运行。
     std::string              gen_prompt;
     int                      gen_n = 1;
     std::vector<std::string> gen_outputs;
 
-    // True when pass 0 should stop before work that needs these texts
-    // embedded (it has noted them in `wanted`). Cache hits don't count.
+    // 当第 0 遍应该在需要嵌入这些文本的工作之前停止时为真（
+    // 已在 `wanted` 中注明它们）。 缓存 命中不算数。
     [[nodiscard]] bool defer_for(std::vector<std::string> texts) {
         if (pass != 0 || !real_embedder) return false;
         const std::string_view model = real_embedder->identity();
@@ -1162,7 +1162,7 @@ struct Index {
                       std::make_move_iterator(texts.end()));
         return true;
     }
-    // Same, for an engine about to build().
+    // 同样，对于大约build()的发动机。
     [[nodiscard]] bool defer_build(const ::rag::Engine& eng) {
         return eng.corpus().has_embedder() && defer_for(eng.corpus().pending_texts());
     }
@@ -1224,8 +1224,8 @@ struct Index {
                         (void)warm_engine.add("memory://" + r.id, r.text,
                             {{"kind", "memory"},
                              {"scope", std::string(tools::memory::to_string(scope))}});
-        // Pass 0 with chunks to embed: leave warm_initialized false, so
-        // pass 1 rebuilds this engine and finds every vector cached.
+        // 通过要嵌入的块的0：将warm_initialized
+        // 保留为假，因此通过1重建该引擎并找到缓存的每个向量。
         if (defer_build(warm_engine)) return;
         (void)warm_engine.build();
         apply_pipeline(warm_engine);
@@ -1234,21 +1234,21 @@ struct Index {
         warm_initialized = true;
     }
 
-    // Rebuild the whole engine from scratch for the current source set. Called
-    // under `mu`. `skip_docs` means "don't WALK the docs folder" — but any docs
-    // already indexed for `indexed_root` are preserved (re-loaded from that
-    // folder without a freshness walk), so the warm/proactive path never loses
-    // the docs corpus. Cheap paths (unchanged fp/gen) return early via
-    // needs_reindex().
+    // 针对当前源集从头开始重建整个引擎。在 `mu` 下调用。 `skip_docs`
+    // 表示 "don't WALK the docs folder" — 但已为
+    // `indexed_root` 编入索引的任何文档都将被保留（从该文件夹中重新获取
+    // -loaded，无需进行新鲜度遍历），因此 warm/proactive 路径永远不会
+    // 丢失文档语料库。廉价路径（未更改 fp/gen）通过 needs_reindex
+    // () 提前返回。
     void reindex(const fs::path& root, bool skip_docs) {
         engine = ::rag::Engine(make_engine_config());
         embedder_ready = false;
         attach_embedder();
 
-        // Docs / knowledge folder. On the warm path (skip_docs) we still index
-        // the LAST KNOWN docs root if there was one — we just skip the
-        // fingerprint walk that would detect drift. This keeps docs available
-        // to proactive retrieval without paying the freshness scan.
+        // Docs/知识文件夹。在温暖路径 (skip_docs) 上，
+        // 我们仍然索引 最后 KNOWN 文档根（如果有
+        // 的话）——我们只是跳过会检测漂移的 指纹 行走。
+        // 这使得文档可以主动检索，而无需支付新鲜度扫描费用。
         fs::path docs_root = root;
         if (skip_docs && docs_root.empty() && !indexed_root.empty())
             docs_root = fs::path{indexed_root};
@@ -1265,7 +1265,7 @@ struct Index {
             }
         }
 
-        // Skills.
+        // 技能。
         if (cfg.skills) {
             for (const auto& s : tools::skills::all(index_io())) {
                 if (s.body.empty()) continue;
@@ -1273,7 +1273,7 @@ struct Index {
             }
         }
 
-        // Learned memory (both scopes).
+        // 学习了内存(两个范围)。
         if (cfg.memory) {
             for (auto scope : {tools::memory::Scope::User, tools::memory::Scope::Project}) {
                 for (const auto& r : tools::memory::load_all(held(), scope)) {
@@ -1284,8 +1284,8 @@ struct Index {
             }
         }
 
-        // Connected MCP resources are explicitly opt-in because reading them
-        // may involve server I/O. Failures are isolated per resource.
+        // 连接的MCP资源被显式地opt-in，
+        // 因为读取它们可能涉及服务器I/O.，每个资源的故障是隔离的。
         if (cfg.mcp_resources) {
             for (const auto& r : ::agentty::mcp::mcp_resources()) {
                 if (warm_cancelled()) return;
@@ -1298,11 +1298,11 @@ struct Index {
             }
         }
 
-        // The embed pass below can take seconds on a large corpus; bail here
-        // so process teardown / a re-seated warm doesn't block on it.
+        // 下面的嵌入过程在大型语料库上可能需要几秒钟；在这里保释，
+        // 以便进程拆卸/re-seated 温暖不会阻止它。
         if (warm_cancelled()) return;
-        // Pass 0: the vectors are fetched outside the lock first, then pass 1
-        // reindexes again and builds from the cache (nothing recorded yet).
+        // 传递0：首先在锁之外获取向量，然后传递1再次
+        // 重新索引并从缓存构建（尚未记录任何内容）。
         if (defer_build(engine)) return;
         auto built = engine.build();
         if (!built)
@@ -1322,50 +1322,50 @@ struct Index {
         memory_gen = memory_fingerprint();
         mcp_gen = mcp_fingerprint();
 
-        // Persist the built corpus and a source/config manifest. The manifest
-        // prevents a warm open from serving an index built for another root,
-        // source generation, chunking profile, or embedding model.
+        // 保留构建的语料库和source/config清单。
+        // 该清单可防止热打开为另一个根、源生成、
+        // 分块配置文件或嵌入模型构建的索引提供服务。
         persist_index();
     }
 
-    // Atomically publish text to `dest`: write a sibling temp file, flush, and
-    // rename over the target. rename(2) is atomic on the same filesystem, so a
-    // reader never observes a half-written .meta.json and a crash mid-write
-    // leaves the previous good file (or none) intact — never a truncated one
-    // that would desync the meta from its .ragdb.
-    // A derived cache, so no fsync: a power cut costs a rebuild, never a torn file.
+    // 原子地将文本发布到`dest`：写入同级临时文件、刷新并重命名目标。
+    // rename(2) 在同一文件系统上是原子的，因此读者永远不会观察到
+    // half-written .meta.json，并且 mid-write
+    // 崩溃会使前一个好文件（或没有）完好无损 - 永远不会出现一个会导致
+    // 元与其 .ragdb 不同步的截断文件。
+    // 派生的缓存，因此没有fsync：断电需要重建，而不是损坏的文件。
     static bool atomic_write(const fs::path& dest, const std::string& body) {
         if (dest.empty()) return false;
         return persistence::write_atomic(::agentty::IoAccess::grant(), dest, body,
                                          {.durability = persistence::Durability::Atomic});
     }
 
-    // Where the persisted docs index lives (under the workspace .agentty/).
-    // The persisted index path carries the EMBEDDER IDENTITY. Two reasons,
-    // one of them a correctness bug this fixes:
+    // 持久化文档索引所在的位置（在工作区 .agentty/下）。
+    // 持久化索引路径携带EMBEDDER IDENTITY。
+    // 有两个原因，其中之一是修复了正确性错误：
     //
-    //  1. A .ragdb is only reusable by an embedder producing the SAME vector
-    //     geometry. The manifest used to record `embed_model` — a NAME, which
-    //     stops identifying the space the moment the backend is pluggable
-    //     ("nomic-embed-text" served by Ollama vs loaded in-process as GGUF
-    //     differ in pooling/normalization). Reopening one with the other gave
-    //     silently wrong cosines: no crash, no warning, just bad retrieval.
+    //  1..ragdb只能由生成SAME向量的嵌入器重用
+    //     几何学。用于记录 `embed_model` 的清单 - 一个 NAME，
+    //     一旦后端可插入，它就停止识别空间（"nomic-embed-text"
+    //     由 Ollama 提供服务，与加载到 -process 中，
+    //     因为 GGUF 与 pooling/normalization 不同）。
+    //     重新打开一个与另一个会默默地给出错误的余弦：没有崩溃，没有警告，只是糟糕的检索。
     //
-    //  2. Because it is in the FILENAME rather than only the manifest,
-    //     switching backends SWITCHES between warm indexes instead of
-    //     invalidating one — free A/B between a local model and an endpoint.
+    //  2.因为它是在FILENAME中而不是仅仅在舱单中，
+    //     在热索引之间切换后端 SWITCHES，
+    //     而不是使本地模型和端点之间的空闲 A/B 无效。
     //
-    // WHERE it lives is dirs::Root::Project, not the cwd. The old
-    // `fs::current_path() / ".agentty"` meant `cd src/ && agentty` built a
-    // SECOND index (#61) because the path moved with the shell. The anchor
-    // walks up to the project marker instead, so one checkout has one index
-    // regardless of which subdirectory you launch from.
+    // WHERE它所在的是dirs::Root::Project，
+    // 而不是cwd。旧的 `fs::current_path() / ".agentty"`
+    // 意味着 `cd src/ && agentty` 构建了 第二 索引
+    // （#61），因为路径随 shell 移动。相反，锚点会走到项目标记处，
+    // 因此无论您从哪个子目录启动，一次签出都有一个索引。
     //
-    // Note this does NOT migrate an index written by an older build: the
-    // meta carries the corpus `root` and refuses a load when it differs, so
-    // a stale file at the old location would have been rejected anyway
-    // rather than silently reused. It is left on disk for #62's sweep to
-    // collect.
+    // 请注意，这确实 不 迁移由旧版本编写的索引：元
+    // 携带语料库 `root` 并在不同时拒绝 加载，
+    // 因此旧位置的 过期 文件无论如何都会被拒绝，
+    // 而不是默默地重用。它留在磁盘上供 #62 的扫描
+    // 收集。
     fs::path ragdb_path() {
         auto dir = rag_store_dir(kDocsIndexSpec);
         if (dir.empty()) return {};
@@ -1389,13 +1389,13 @@ struct Index {
         if (!saved) return;
         ::rag::plugin::Json j = {
             {"version", 3}, {"root", indexed_root}, {"docs_fp", indexed_fp},
-            // Per-file stamps, so a later open can update just the files that
-            // changed instead of rebuilding.
+            // Per-file 标记，因此稍后打开可以仅更新
+            // 改变的文件而不是重建。
             {"files", docs_files},
             {"skills_fp", skills_gen}, {"memory_fp", memory_gen},
             {"contextual", cfg.contextual},
-            // Identity of the VECTOR SPACE, not the model's name. See
-            // ragdb_path() for why a name is not sufficient.
+            // VECTOR SPACE的身份，而不是型号的名称。
+            // 请参阅 ragdb_path() 了解名称不够的原因。
             {"embed_identity", ::agentty::rag::embed::identity(effective_embed())},
             {"dense", dense_ready()},
         };
@@ -1421,9 +1421,9 @@ struct Index {
             const auto current_docs = manifest_fingerprint(current_files);
             const auto current_skills = skills_fingerprint();
             const auto current_memory = memory_fingerprint();
-            // Changed doc files don't reject the index: we adopt its stored
-            // file list and refresh_docs updates the ones that differ. Without
-            // a stored list (older meta) the fingerprint has to match.
+            // 改变的文档文件不拒绝索引：我们采用其存储的文件
+            // 列表并且refresh_docs更新不同的文件列表。
+            // 如果没有存储列表（旧元），指纹 必须匹配。
             auto stored = j.value("files", FileManifest{});
             const bool docs_ok = !stored.empty()
                 || j.value("docs_fp", std::uint64_t{}) == current_docs;
@@ -1440,7 +1440,7 @@ struct Index {
             auto opened = ::rag::Engine::open(db.string());
             if (!opened) return false;
             engine = std::move(*opened);
-            // load() can't restore the splitter; it is ours, not the file's.
+            // load()无法恢复分路器；这是我们的，不是文件的。
             engine.corpus().set_parallelism(::rag::util::Splitter{}, nullptr);
             embedder_ready = false;
             attach_embedder();
@@ -1455,9 +1455,9 @@ struct Index {
             docs_initialized = true;
             skills_gen = current_skills;
             memory_gen = current_memory;
-            // Persisted indexes never hold MCP resources (cfg.mcp_resources
-            // skips persistence), so this is the empty fingerprint. Left at 0
-            // it made needs_reindex() true and every warm open rebuilt.
+            // 持久索引从不保存MCP资源(cfg.mcp_resources跳过持久化)，
+            // 因此这是空的指纹。保留为 0 会使 needs_reindex
+            // () 为真，并且每个热打开都会重建。
             mcp_gen = mcp_fingerprint();
             ::agentty::util::dbglog("rag.persist", "opened warm index " + db.string());
             return true;
@@ -1467,9 +1467,9 @@ struct Index {
     }
 
     bool needs_reindex(const fs::path& root, bool skip_docs) {
-        // A changed docs root ALWAYS forces a rebuild — even on the warm path —
-        // so proactive retrieval can never serve a stale corpus after the
-        // folder is repointed.
+        // 改变的文档根ALWAYS强制重建——即使在热路径上
+        // ——因此在重新指向文件夹之后主动检索永远不能服务
+        // 于过期语料库。
         if (!root.empty() && indexed_root != root.string()) return true;
         if (!skip_docs) {
             ::rag::loaders::DirOptions opts = docs_dir_options();
@@ -1483,27 +1483,27 @@ struct Index {
 
     using FileManifest = std::unordered_map<std::string, std::uint64_t>;
 
-    // Bounded, build-aware DirOptions for the docs / knowledge corpus.
+    // 有界，为文档/知识语料库构建-aware DirOptions。
     //
-    // The rag-cpp DEFAULT DirOptions is UNBOUNDED (max_files = 0) with a 4 MB
-    // per-file cap and an exclude list that only knows the common VCS/package
-    // dirs. When AGENTTY_DOCS_DIR is pointed at a large repo root (a supported
-    // config) the defaults walk and load the ENTIRE tree — vendored deps under
-    // _deps/, generated CMakeFiles/, build output, the .agentty cache — into
-    // the HNSW dense store, whose backing vector grows to n_chunks * dim. On a
-    // very large codebase that allocation is what the OS OOM-kills, and an
-    // OOM-kill can't be caught by the try/catch guarding every retrieval entry
-    // point. Cap the walk (files + bytes) and skip build/vendor dirs so the
-    // docs path is as bounded as the search_code path already is.
+    // rag-cpp DEFAULT DirOptions 是 UNBOUNDED
+    // (max_files = 0)，每个 -file 上限为 4 MB，
+    // 并且排除列表仅知道常见的 VCS/package 目录。当 AGENTTY_DOCS_DIR
+    // 指向一个大的 仓库 根（受支持的配置）时，默认行走和 加载 整个 源码树 —
+    // 在 _deps/ 下供应的 deps，生成 CMakeFiles/，
+    // 构建输出，.agentty 缓存 — 进入 HNSW 密集存储，其支持向量增长
+    // 到 n_chunks * 暗淡。在非常大的 代码库 上，分配 就是 OS
+    // OOM-kills，而 OOM-kill 不能被守卫每个检索入口点的
+    // try/catch 捕获。限制路径（文件 + 字节）并跳过 build/vendor 目录，
+    // 以便文档路径与 search_code 路径一样有界。
     static ::rag::loaders::DirOptions docs_dir_options() {
-        ::rag::loaders::DirOptions opts;   // inherit rag-cpp include_ext
+        ::rag::loaders::DirOptions opts;   // 继承rag-cpp include_ext
         opts.extractors.run = ::agentty::rag::converter_runner();
         opts.exclude_dirs = {
             ".git",".hg",".svn","node_modules","build","dist","out",
             "target","venv",".venv","__pycache__",".cache","_deps",
             "CMakeFiles",".agentty","vendor","third_party"};
-        opts.max_file_bytes = 1 * 1024 * 1024;   // 1 MB: docs, not blobs
-        opts.max_files = 6000;                    // hard ceiling on corpus size
+        opts.max_file_bytes = 1 * 1024 * 1024;   // 1 MB：文档，而不是 blob
+        opts.max_files = 6000;                    // 语料库大小的硬上限
         return opts;
     }
 
@@ -1531,16 +1531,16 @@ struct Index {
             auto size = e.file_size(ec);
             if (ec || size > opts.max_file_bytes) { ec.clear(); continue; }
             if (opts.max_files > 0 && out.size() >= opts.max_files) {
-                // Say so. The ceiling is a real decision (an unbounded walk
-                // on a monorepo is a startup stall), but a corpus silently
-                // missing most of a repo makes retrieval look broken rather
-                // than bounded -- the user asks about a file that IS there
-                // and gets nothing, with no way to tell why.
+                // 这么说吧。上限是一个真正的决定（在 monorepo
+                // 上无界行走是一个启动停滞），但是一个语料库默默地
+                // 丢失了 仓库 的大部分内容，这使得检索看起来是破碎
+                // 的而不是有界的——用户询问一个 IS 存在的文件，
+                // 但什么也没有得到，没有办法告诉为什么。
                 //
-                // Logged rather than surfaced in the UI: unlike an oversized
-                // SKILL.md or an inert hook, nothing here is BROKEN, and the
-                // fix is "narrow the root or raise the cap" rather than
-                // "edit this file". A diagnostics line is the right weight.
+                // 记录在UI中而不是浮出水面：与超大的SKILL.md或惰性
+                // 钩子不同，这里没有BROKEN，
+                // 并且修复是"narrow the root or raise the cap"
+                // 而不是"edit this file"。诊断线的重量合适。
                 AGT_LOG(Persist, Warn, "rag",
                         "corpus hit the {} file ceiling under {} — indexing "
                         "only part of it", opts.max_files, root.string());
@@ -1570,8 +1570,8 @@ struct Index {
         return h;
     }
 
-    // Same identity discipline as the docs index — see ragdb_path(), which
-    // also explains why this is dirs-resolved rather than cwd-relative.
+    // 与文档索引相同的身份规则——参见ragdb_path()，
+    // 这也解释了为什么这是dirs-resolved而不是cwd-relative。
     fs::path code_ragdb_path() const {
         auto dir = rag_store_dir(kCodeIndexSpec);
         if (dir.empty()) return {};
@@ -1595,10 +1595,10 @@ struct Index {
             ::rag::plugin::Json j;
             in >> j;
             const auto stored = j.value("files", FileManifest{});
-            // 3: code is indexed with split identifiers. An index written
-            // before that has postings for whole identifiers only: rebuild.
-            // Changed files don't reject the index: we adopt its stored file
-            // list and retrieve_code updates just the files that differ.
+            // 3:用分割标识符对代码进行索引。
+            // 之前编写的索引仅包含整个标识符的记录：重建。
+            // 改变的文件不拒绝索引：我们采用其存储的文件列表
+            // 并且retrieve_code仅更新不同的文件。
             if (j.value("version", 0) != 3
                 || j.value("root", std::string{}) != root.string()
                 || stored.empty()
@@ -1665,9 +1665,9 @@ struct Index {
         }
 
         auto remove_uri = [&](const std::string& rel) {
-            // O(1) URI→id lookup instead of a linear scan over every document
-            // in the corpus — which made incremental docs updates O(changed ×
-            // corpus_size) and pathological on large corpora.
+            // O(1)URI→id查找而不是对语料库中的每个文档进行
+            // 线性扫描——这使得增量文档更新O(改变×
+            // corpus_size)并且在大型语料库上是病态的。
             auto& corpus = engine.corpus();
             if (auto id = corpus.find_by_uri("docs://" + rel))
                 (void)corpus.remove_document(*id);
@@ -1683,18 +1683,18 @@ struct Index {
             auto loaded = ::rag::loaders::load_file(root / fs::path{path}, docs_dir_options().extractors);
             if (!loaded) continue;
             loaded->meta["rel"] = path;
-            // upsert_document atomically replaces any live doc with this uri,
-            // so a changed file can't leave a stale duplicate even if the
-            // remove_uri above missed a tombstoned entry.
+            // upsert_document自动地用该uri替换任何实时文档，
+            // 因此即使上面的remove_uri错过了逻辑删除条目，
+            // 改变的文件也不能留下过期重复项。
             (void)engine.corpus().upsert_document("docs://" + path,
                              std::move(loaded->text),
                              loaded->meta, loaded->title);
         }
         if (warm_cancelled()) return;
-        // Pass 0: stop before embedding. docs_files isn't updated yet, so
-        // pass 1 sees the same files as changed and upserts them again
-        // (replacing each doc with an identical one), and this build then
-        // finds every vector in the cache.
+        // 通过0：嵌入之前停止。 docs_files 尚未更新，
+        // 因此第 1 遍看到已更改的相同文件并再次插入
+        // 它们（用相同的文档替换每个文档），然后此构建会
+        // 找到 缓存 中的每个向量。
         if (defer_build(engine)) return;
         auto built = engine.build();
         if (!built) {
@@ -1715,31 +1715,31 @@ struct Index {
 };
 
 
-// What the warm worker shares with the Retriever: the index, plus (outside
-// its lock) the one-at-a-time gate and the cancel flag shutdown trips while
-// a rebuild holds the index.
-// Parks a body's held<rag_index> on the Index for the body's duration, so
-// Index methods that read the memory store (ranked above the index) can pass
-// it. Exclusive bodies only: a shared (read) body never sets it.
+// 已预热的工作线程 与检索器共享的内容：索引，加上（在其 锁
+// 之外）one-at-a-time 门和 取消 标志 在重建
+// 保存索引时关闭跳闸。
+// 将正文的持有<rag_index>停放在索引上持续正文的持续时间，
+// 因此读取内存存储（排名在索引上方）的索引方法可以通过它。
+// 仅独占 正文：共享（读取）正文 永远不会设置它。
 struct IndexBody {
     Index& ix;
-    // `pass` is which run of a two-pass call this is (Index::defer_for).
+    // `pass`是两个-pass的运行，调用是(Index::defer_for)。
     IndexBody(Index& i, const Index::held_t& h, int pass = 1) : ix(i) {
         ix.held_ = std::addressof(h);
         ix.pass = pass;
         ix.wanted.clear();
         ix.gen_prompt.clear();
     }
-    // gen_outputs is set by the caller before pass 1 and used during it;
-    // cleared after so it can't leak into the next retrieve.
+    // gen_outputs由调用者在第1遍之前设置并在第1遍期间使用；
+    // 之后清除，这样它就不会泄漏到下一次检索中。
     ~IndexBody() { ix.held_ = nullptr; ix.pass = 1; ix.gen_outputs.clear(); }
     IndexBody(const IndexBody&)            = delete;
     IndexBody& operator=(const IndexBody&) = delete;
 };
 
-// What a pass 0 body hands out of the lock when it needs work done unlocked:
-// texts to embed, and maybe a prompt to generate from (HyDE / multi-query).
-// Neither: `result` is final.
+// 当 0正文 需要解锁完成工作时，它从 锁 中发出了多么好的通行证：
+// 要嵌入的文本，并且可能是要从(HyDE/multi-query)生成的提示词。
+// 两者都不是：`result`是最终的。
 template <class R>
 struct Pass {
     R                        result{};
@@ -1749,7 +1749,7 @@ struct Pass {
     [[nodiscard]] bool done() const noexcept { return texts.empty() && gen_prompt.empty(); }
 };
 
-// After a body ran: package the result, plus what it deferred (pass 0 only).
+// 在正文运行之后：打包结果，加上它推迟的内容（仅传递0）。
 template <class R>
 Pass<R> finish_pass(Index& ix, R r) {
     Pass<R> p{std::move(r), {}, {}, 1};
@@ -1761,23 +1761,23 @@ Pass<R> finish_pass(Index& ix, R r) {
     return p;
 }
 
-// The real embedder and the cache, read from the index for an unlocked
-// prefetch. Both are shared handles to things that sync themselves.
+// 真实嵌入器和从索引读取的缓存用于解锁预取。
+// 两者都是自行同步的共享句柄。
 struct EmbedHandles {
     std::optional<::rag::dense::AnyEmbedder>           embedder;
     std::shared_ptr<const ::agentty::rag::VectorCache> cache;
 };
 
 } // namespace agentty::rag
-// AnyEmbedder is a shared, immutable handle to a backend that is safe to call
-// from any thread (rag-cpp's contract: embed() is const and reentrant), and the
-// cache syncs itself. Handing them out of the lock shares nothing writable.
+// AnyEmbedder是对来自任何线程的调用安全的后端的共享
+// 不可变句柄（rag-cpp的契约：embed()是常量且可重入的），
+// 并且缓存自身同步。将它们从 锁 中取出并共享任何可写内容。
 MAYA_SENDABLE(agentty::rag::EmbedHandles);
 namespace agentty::rag {
 
-// The unlocked middle of a two-pass call (Index::defer_for): embed `texts`
-// into the cache with as many requests in flight as the backend takes. No
-// lock is held, so other retrievals, the warm worker and the UI go on.
+// 两个-pass 调用 (Index::defer_for)的解锁中间：
+// 将`texts`嵌入到缓存中，其中与后端所处理的请求数量一样多。
+// 没有保存 锁，因此其他检索、已预热的工作线程 和 UI 继续进行。
 void prefetch_unlocked(const maya::unlocked& cap, maya::guarded<Index, lock_levels::rag_index>& index,
                        const std::vector<std::string>& texts) {
     const auto h = index.read(cap, [](const Index& ix) {
@@ -1796,14 +1796,14 @@ void prefetch_unlocked(const maya::unlocked& cap, maya::guarded<Index, lock_leve
         + (r ? std::string{} : " (error: " + std::string(::rag::to_string(r.error().code)) + ")"));
 }
 
-// The Retriever's public API is called from tool bodies, the proactive
-// pre-turn path and the RAG settings worker -- never from inside an agentty
-// lock body (those are captureless over their own value and can't reach a
-// Retriever). Its methods are also behind a stable public interface used by
-// tests and the rag host. So each re-states "no lock held" here, the one
-// reviewed root for the retriever (tests/lint/allowlist.txt), and everything
-// below it -- the index lock, the memory store, the warm worker -- is
-// checked against it.
+// 检索器的公共API是从工具正文、
+// 主动pre-turn路径和RAG设置工作线程调用的——绝不会从agentty
+// 锁 正文内部调用(这些对于它们自己的值是无法捕获的并且不能到达检索器)。
+// 它的方法也位于测试和 rag 主机使用的稳定公共接口后面。因此，
+// 这里的每个 re-states "no lock held"、
+// 检索器的审查根 (tests/lint/allowlist.txt)
+// 以及它下面的所有内容（索引 锁、内存 存储、已预热的工作线程）
+// 都会根据它进行检查。
 template <class F>
 auto api_root(F&& f) -> decltype(maya::thread_root(std::forward<F>(f))) {
     return maya::thread_root(std::forward<F>(f));
@@ -1816,7 +1816,7 @@ struct WarmState {
 };
 using WarmRef = maya::co_owned<WarmState>;
 
-// The HyDE / multi-query generator as published: invoked, never reassigned.
+// 已发布的HyDE/multi-query生成器：被调用，从未被重新分配。
 using GeneratorFn = util::Callback<std::vector<std::string>(const std::string&, int)>;
 
 struct Retriever::Impl {
@@ -1825,9 +1825,9 @@ struct Retriever::Impl {
     std::atomic<bool>&    warm_stop = warm->warm_stop;
     maya::guarded<Index, lock_levels::rag_index>& index = warm->index;
 
-    // Optional LLM seam for HyDE / multi-query. Outside the index: it is a
-    // closure that may dial out, so retrieve() takes a snapshot of it and
-    // never calls user code it can't see through the lock's own rules.
+    // 可选的LLM 接口边界用于HyDE/multi-query。
+    // 在索引之外：它是一个可能拨出的闭包，因此 retrieve() 会取
+    // 其中的 快照 而不会是 调用 用户代码，它无法看穿 锁 自己的规则。
     maya::published<const GeneratorFn> generator;
 
     Impl() {
@@ -1836,16 +1836,16 @@ struct Retriever::Impl {
                 return index.read(c, [](const Index& ix) { return ix.cfg; }); }))}));
     }
 
-    // LAST data member ON PURPOSE: members destroy in reverse order, so the
-    // group's destructor (a barrier) runs FIRST in ~Impl and the warm worker
-    // can never see a half-destroyed Impl. Keep it last. A WorkerGroup
-    // because warm_async() and shutdown() reach it from different threads.
+    // LAST数据成员ON PURPOSE:成员以相反的顺序销毁，因此组的析构函数
+    // (屏障)在~Impl中运行FIRST并且已预热的工作线程永远不能看到半
+    // -destroyed Impl。留到最后。 WorkerGroup，
+    // 因为 warm_async() 和 shutdown() 从不同的 线程 到达它。
     util::WorkerGroup warmer{"rag.warm"};
 
     ~Impl() {
-        // stop() requests stop through the token, which trips warm_stop, so
-        // a warm in flight bails at its next batch.
-        // The group's own destructor (last member) stops and joins it.
+        // stop()通过令牌请求停止，该令牌跳闸warm_stop，
+        // 因此飞行中的温暖在其下一批中逃逸。
+        // 该组自己的析构函数(最后一个成员)停止并加入它。
     }
 };
 
@@ -1856,17 +1856,17 @@ void Retriever::set_generator(Generator g) {
     impl_->generator.publish(std::make_shared<const GeneratorFn>(GeneratorFn{std::move(g)}));
 }
 
-// A shared handle on the current HyDE generator, handed into the index lock.
-// The generator is a user closure: the default one dials a local Ollama and
-// touches no agentty lock; a set_generator() one is the caller's, and was
-// always called under the index lock, so this keeps that contract as is.
+// 当前HyDE生成器上的共享句柄，被移交给索引锁。
+// 生成器为用户关闭：默认拨打本地Ollama，
+// 不碰agentty 锁； set_generator() 是调用者的，
+// 并且始终在索引 锁 下调用，因此这会保持该合同不变。
 struct GeneratorRef { std::shared_ptr<const GeneratorFn> fn; };
 } // namespace agentty::rag
 MAYA_SENDABLE(agentty::rag::GeneratorRef);
 namespace agentty::rag {
 
 namespace {
-// The body of retrieve(), run with the index locked.
+// retrieve()的正文，索引锁定运行。
 Retrieval retrieve_locked(Index& ix, const std::string& query, int kk, bool skip_docs,
                           const GeneratorRef& gref) {
     const auto* generator = gref.fn.get();
@@ -1883,8 +1883,8 @@ Retrieval retrieve_locked(Index& ix, const std::string& query, int kk, bool skip
     }
 
     auto& active_engine = skip_docs ? ix.warm_engine : ix.engine;
-    // Pass 0 deferred a build: stop here, the Retriever fetches the vectors
-    // outside the lock and runs this again.
+    // 通道0推迟了构建：在此停止，检索器获取锁
+    // 之外的向量并再次运行它。
     if (!ix.wanted.empty()) return out;
     const bool any = active_engine.corpus().chunk_count() > 0;
     if (!any) {
@@ -1894,12 +1894,12 @@ Retrieval retrieve_locked(Index& ix, const std::string& query, int kk, bool skip
         return out;
     }
 
-    // HyDE / multi-query: the generator is a model call and its outputs get
-    // embedded, so both run OUTSIDE the lock (Index::defer_for). Pass 0
-    // records the prompt; the Retriever generates, embeds the outputs, and
-    // pass 1 hands rag-cpp a generator that just returns them. SKIPPED on
-    // the warm/proactive path (skip_docs): that path is latency-budgeted (a
-    // pre-turn hedge) and must not wait on generation.
+    // HyDE/multi-query:生成器是型号调用并且其输出被嵌入，
+    // 因此两者都运行OUTSIDE和锁 (Index::defer_for)。
+    // Pass 0记录的是提示词； Retriever 生成、嵌入输出，并将 1 只手
+    // rag-cpp 传递给一个生成器，生成器仅返回它们。 warm/proactive
+    // 路径 (skip_docs) 上的 SKIPPED：该路径是 Latency
+    // -budgeted（前 -turn 对冲），并且不得等待生成。
     const bool use_llm = !skip_docs && generator && *generator && (ix.cfg.hyde || ix.cfg.expand);
     const int gen_n = ix.cfg.expand ? 3 : 1;
     if (use_llm && ix.pass == 0) {
@@ -1907,17 +1907,17 @@ Retrieval retrieve_locked(Index& ix, const std::string& query, int kk, bool skip
             ? "Generate 3 alternative phrasings of the following question, one per line.\n\nQuestion: " + query
             : "Write a short passage that directly answers the question.\n\nQuestion: " + query + "\nPassage:";
         ix.gen_n = gen_n;
-        (void)ix.defer_for({active_engine.corpus().query_text(query)});   // its vector comes along
+        (void)ix.defer_for({active_engine.corpus().query_text(query)});   // 其向量随之而来
         return out;
     }
-    // The query's own vector is a network call too: fetch it outside the lock.
+    // 查询自己的向量也是网络调用：在锁之外获取它。
     if (active_engine.corpus().has_embedder()
         && ix.defer_for({active_engine.corpus().query_text(query)})) return out;
 
     // ── RETRIEVE ──────────────────────────────────────────────────
-    // 1. Base hybrid retrieval through the full pipeline (PRF → convex
-    //    fusion → filter → feature-rerank → MMR → parent-stitch → top-k).
-    //    Optionally trace each stage for the mode header.
+    // 1.通过全流程的基础混合检索（PRF→凸
+    //    融合→过滤器→特征-rerank→MMR→parent-stitch→top-k)。
+    //    可选地跟踪模式头文件的每个阶段。
     std::vector<std::string> trace;
     std::vector<std::string>* tracep = ix.cfg.trace ? &trace : nullptr;
     const std::size_t want = static_cast<std::size_t>(kk);
@@ -1926,17 +1926,17 @@ Retrieval retrieve_locked(Index& ix, const std::string& query, int kk, bool skip
     std::string retriever_mode = active_engine.corpus().has_embedder()
                                ? "hybrid+ctx" : "bm25+ctx";
 
-    // 2. LLM-assisted retrieval (HyDE / multi-query) when a Generator is
-    //    wired AND enabled — closes the query↔document asymmetry gap and
-    //    lifts recall. Degrades gracefully to plain search when absent.
-    //    (Generated before this pass, outside the lock: see above.)
+    // 2. 当生成器处于运行状态时，LLM-assisted 检索（HyDE / multi-query）
+    //    有线AND启用——关闭查询↔文档不对称间隙并
+    //    提升召回率。不存在时优雅地降级为普通搜索。
+    //    （在此通道之前生成，在 锁 之外：见上文。）
     bool used_llm = false;
     if (use_llm) {
         ::rag::query::Generator gen =
             [&](std::string_view) -> ::rag::Result<std::vector<std::string>> {
-                // What the unlocked step generated for this query (and
-                // already embedded). Empty when the model was unreachable:
-                // HyDE then falls back to the plain query, as before.
+                // 解锁步骤为此查询生成了什么（并且
+                // 已经嵌入）。当模型无法访问时为空：
+                // HyDE然后回到普通查询，如之前一样。
                 return ix.gen_outputs;
             };
         ::rag::Result<std::vector<::rag::Hit>> lh =
@@ -1958,10 +1958,10 @@ Retrieval retrieve_locked(Index& ix, const std::string& query, int kk, bool skip
         hits = std::move(*res);
     }
 
-    // 3. Optional GraphRAG expansion. Fuse by reciprocal rank because graph
-    // and base scores have different scales; appending after an already-k
-    // base list made graph hits either dominate incorrectly or get trimmed
-    // without ever surfacing.
+    // 3.可选配GraphRAG扩展。按倒数等级熔断，因为图
+    // 和基础分数具有不同的尺度；
+    // 在已经-k的基本列表之后追加使得图表命中要么不正确地占主导地位，
+    // 要么在没有出现的情况下被修剪。
     if (ix.cfg.graph) {
         try {
             auto g = active_engine.graph_local(query, want);
@@ -1991,13 +1991,13 @@ Retrieval retrieve_locked(Index& ix, const std::string& query, int kk, bool skip
                     });
                 retriever_mode += "+graph";
             }
-        } catch (...) { /* graph optional */ }
+        } catch (...) { /* 图可选 */ }
     }
 
-    // 4. CRAG corrective grading: a model-free retrieval evaluator that
-    //    drops passages graded irrelevant and yields a real confidence in
-    //    [0,1]. This turns retrieval from "always inject whatever came
-    //    back" into a self-checking step.
+    // 4.CRAG校正分级：型号-free检索评估器，
+    //    删除分级不相关的段落并产生对[0，1]的真实置信度。
+    //    这会将 "always inject whatever came back" 的
+    //    检索变成 self-checking 步骤。
     double crag_conf = -1.0;
     if (ix.cfg.corrective && !hits.empty()) {
         try {
@@ -2010,13 +2010,13 @@ Retrieval retrieve_locked(Index& ix, const std::string& query, int kk, bool skip
             auto corr = ::rag::crag::correct(active_engine.corpus(), query, raw, cc);
             crag_conf = static_cast<double>(corr.confidence);
             if (!corr.kept.empty()) {
-                // Re-resolve only the kept chunks, preserving CRAG's order.
+                // Re-resolve仅保留的块，保留CRAG的顺序。
                 std::vector<::rag::SearchResult> kept;
                 for (const auto& h : corr.kept)
                     kept.push_back(active_engine.corpus().resolve(h));
                 if (!kept.empty()) { hits = std::move(kept); retriever_mode += "+crag"; }
             }
-        } catch (...) { /* grading optional */ }
+        } catch (...) { /* 分级可选 */ }
     }
 
     if (hits.empty()) {
@@ -2025,11 +2025,11 @@ Retrieval retrieve_locked(Index& ix, const std::string& query, int kk, bool skip
     }
     if (hits.size() > want) hits.resize(want);
 
-    // 5. Learning-loop read side: nudge each hit by its historical
-    //    Beta-smoothed win-rate (bounded ±15%), then re-sort so a passage
-    //    that has repeatedly proven useful in THIS workspace edges ahead of
-    //    a near-tied one that hasn't. Neutral (×1.0) for unseen paths, so
-    //    this can only refine — never invent — ranking. Off with
+    // 5.学习-loop阅读面：通过其历史推动每个命中
+    //    Beta-smoothed win-rate (限制为±15%)，
+    //    然后是re-sort，因此在THIS 工作区中反复证明有用的段落
+    //    领先于near-tied中无用的段落。对于看不见的路径为中性（
+    //    ×1.0），因此这只能细化（而不是发明）排名。关闭与
     //    AGENTTY_RAG_LEARN=0.
     bool learned = false;
     if (ix.cfg.learn) {
@@ -2055,17 +2055,17 @@ Retrieval retrieve_locked(Index& ix, const std::string& query, int kk, bool skip
     std::vector<std::string> surfaced;
     surfaced.reserve(hits.size());
 
-    // Relevance floor: drop the low-confidence tail before spending any
-    // tokens on it. The top hit always survives; a later hit survives only
-    // if it scores within floor_frac of the top. This is where the token
-    // saving comes from — the model ignores 0.1-confidence passages, so we
-    // don't pay to inject them.
+    // 相关性下限：在花费任何代币之前降低低-confidence 末尾。
+    // 最热门的作品总是能生存下来；仅当其得分在顶部的 floor_frac
+    // 范围内时，后面的命中才会幸存。这就是节省代币的来源——
+    // 模型忽略了 0.1-confidence 段落，
+    // 因此我们不需要付费来注入它们。
     {
         double hi = 0.0;
         for (const auto& r : hits) hi = std::max(hi, static_cast<double>(r.score.value));
         const double floor = hi * relevance_floor_frac();
         if (hi > 0.0 && floor > 0.0) {
-            std::size_t keep = 1; // always keep the best
+            std::size_t keep = 1; // 永远保持最好的
             while (keep < hits.size()
                    && static_cast<double>(hits[keep].score.value) >= floor)
                 ++keep;
@@ -2073,11 +2073,11 @@ Retrieval retrieve_locked(Index& ix, const std::string& query, int kk, bool skip
         }
     }
 
-    // Score-proportional (water-filling) budget: confident passages get
-    // room to be complete; kept tail passages get a tight excerpt — instead
-    // of the old flat total/n split that spent equal tokens on signal and
-    // noise. The TOTAL is first scaled down by CRAG confidence so a
-    // barely-passing retrieval injects a cheap block, not the full ~3k tok.
+    // Score-proportional (water-filling)
+    // 预算：有信心的段落有完成的空间；保留 末尾 段落得到紧凑的摘录 -
+    // 而不是旧的扁平 total/n 分割，在信号和噪声上花费相同的标记。
+    // TOTAL 首先按 CRAG 置信度缩小，
+    // 因此勉强 -passing 检索注入了一个便宜的块，而不是完整的约 3k tok。
     const std::size_t total_budget =
         confidence_scaled_budget(retrieval_output_budget(), crag_conf);
     std::vector<double> pre_scores;
@@ -2112,21 +2112,21 @@ Retrieval retrieve_locked(Index& ix, const std::string& query, int kk, bool skip
         surfaced.push_back(path);
         out.passages.push_back(std::move(p));
     }
-    // Learning-loop write side (denominator): record what we surfaced so a
-    // later `read` of one of these can be scored as a win.
+    // 学习-loop写方（分母）：记录我们所浮现的内容，
+    // 以便其中一个稍后的`read`可以得分为胜利。
     if (ix.cfg.learn && !surfaced.empty())
         FeedbackStore::instance().note_surfaced(ix.held(), surfaced);
-    // Prefer CRAG's calibrated confidence when available; else top score.
+    // 优选CRAG的校准置信度（当可用时）；否则得分最高。
     out.confidence = crag_conf >= 0.0 ? crag_conf : top;
 
-    // ── The retrieval funnel: show the engine's actual working ──────
-    // `mode` is what the tool card renders. We build a compact one-line
-    // headline (retriever + fusion + confidence) followed by an OPTIONAL
-    // multi-line "funnel" that walks the candidate set through every stage
-    // it actually passed through, with the counts rag-cpp itself recorded.
-    // The funnel is the UX centrepiece: a user (and the model) can SEE that
-    // 47 candidates were retrieved, reranked to 30, deduped to 24, and
-    // autocut to 8 — instead of trusting an opaque black box.
+    // ── 检索漏斗:显示引擎实际工作 ──────
+    // `mode`是工具卡渲染。我们构建一个紧凑的 one-line
+    // 标题（检索器 + 融合 + 置信度），然后是 OPTIONAL
+    // multi-line "funnel"，引导候选集完成其
+    // 实际经历的每个阶段，并记录 rag-cpp 本身的计数。
+    // 漏斗是UX的核心：用户（和模型）可以SEE检索到47个候选者，
+    // 将其重新排名为30，删除重复数据为24，
+    // 并自动剪切为8——而不是信任不透明的黑匣子。
     std::string headline = retriever_mode;
     headline += ix.cfg.fusion == "rrf"
                   ? ", rrf-fusion"
@@ -2141,23 +2141,23 @@ Retrieval retrieve_locked(Index& ix, const std::string& query, int kk, bool skip
 
     std::string m = headline;
     if (ix.cfg.trace && !trace.empty()) {
-        // rag-cpp emits two kinds of trace line: diagnostic lines that
-        // carry counts ("hybrid: 47 candidates", "dedup 30 -> 24") and bare
-        // stage markers ("→ dedup") that just echo the stage name. Keep the
-        // former — they show the funnel narrowing — and drop the latter,
-        // which are noise once the diagnostics are present.
+        // rag-cpp发出两种跟踪线：携带计数的诊断线（
+        // "hybrid: 47 candidates"，
+        // "dedup 30 -> 24")和仅回显阶段名称的裸阶段
+        // 标记（"→ dedup")。保留前者——它们显示漏斗变窄—
+        // —并放弃后者，一旦诊断出现，后者就会成为噪音。
         std::vector<std::string> steps;
         steps.reserve(trace.size());
         for (const auto& t : trace) {
             if (t.empty()) continue;
-            // Bare "→ stagename" markers begin with the arrow; skip them.
+            // 裸露的"→ stagename"标记以箭头开始；跳过它们。
             if (t.rfind("→ ", 0) == 0 || t.rfind("-> ", 0) == 0) continue;
             steps.push_back(t);
         }
         if (!steps.empty()) {
-            // Render as an indented funnel the card shows verbatim. Each
-            // rung is one stage; the arrow prefix reads top-to-bottom as
-            // the query flowing down the pipeline.
+            // 渲染作为锯齿漏斗，卡片逐字显示。每个梯级都是一个阶段；
+            // 箭头前缀读取 top-to-bottom
+            // 作为沿着管道流动的查询。
             m += "\n  funnel:";
             for (const auto& s : steps)
                 m += "\n    ↳ " + s;
@@ -2167,7 +2167,7 @@ Retrieval retrieve_locked(Index& ix, const std::string& query, int kk, bool skip
     out.mode = std::move(m);
     return out;
 }
-} // namespace
+} // 命名空间结束。
 
 Retrieval Retriever::retrieve(const std::string& query, int k, bool skip_docs) {
     Retrieval out;
@@ -2183,9 +2183,9 @@ Retrieval Retriever::retrieve(const std::string& query, int k, bool skip_docs) {
                 return finish_pass(ix, retrieve_locked(ix, query, kk, skip_docs, g));
             };
             const GeneratorRef g{impl_->generator.current()};
-            // Pass 0, then (only if it asked) the slow parts with no lock:
-            // the HyDE/multi-query generation, and embedding everything the
-            // second pass will look up. Then pass 1 (Index::defer_for).
+            // 传递0，然后（仅当它询问时）没有锁的慢速部分：
+            // HyDE/multi-query生成，并嵌入第二遍将查找的所有内容。
+            // 然后传递1（Index::defer_for）。
             auto p = impl_->index.with(cap, locked, 0, query, kk, skip_docs, g, std::vector<std::string>{});
             if (p.done()) return std::move(p.result);
             std::vector<std::string> generated;
@@ -2193,10 +2193,10 @@ Retrieval Retriever::retrieve(const std::string& query, int k, bool skip_docs) {
                 try {
                     generated = (*g.fn)(p.gen_prompt, p.gen_n);
                 } catch (...) {
-                    generated.clear();   // unreachable model: plain hybrid, as before
+                    generated.clear();   // 无法到达的模型：普通混合型，如前所述
                 }
                 p.texts.insert(p.texts.end(), generated.begin(), generated.end());
-                p.texts.push_back(query);   // HyDE fuses the raw query in too
+                p.texts.push_back(query);   // HyDE也融合了原始查询
             }
             if (!p.texts.empty()) prefetch_unlocked(cap, impl_->index, p.texts);
             return impl_->index.with(cap, locked, 1, query, kk, skip_docs, g, std::move(generated)).result;
@@ -2206,10 +2206,10 @@ Retrieval Retriever::retrieve(const std::string& query, int k, bool skip_docs) {
     } catch (...) {
         out.error = "retrieval error";
     }
-    // Retrieval quietly returning nothing looks identical to "the docs have
-    // no answer", so a broken index / missing embedder / unreachable Ollama
-    // reads as a model failure. Record the outcome and the pipeline that
-    // produced it.
+    // 安静地检索没有返回任何内容，
+    // 看起来与"the docs have no answer"相同，
+    // 因此损坏的索引/丢失的嵌入器/无法到达的Ollama读取为模型失败。记录结果以及
+    // 产生该结果的管道。
     AGT_LOGL(Rag, out.error.empty() ? ::agentty::logx::Level::Debug
                                     : ::agentty::logx::Level::Warn,
              "rag.retrieve", "k={} passages={} mode={} err={}",
@@ -2221,8 +2221,8 @@ Retrieval Retriever::retrieve(const std::string& query, int k, bool skip_docs) {
 
 namespace {
 
-// Lowercase words of a query, minus filler, for matching against paths and
-// definition names.
+// 查询的小写单词，减去填充符，用于与路径和定义
+// 名称匹配。
 std::vector<std::string> query_words(std::string_view q) {
     static const std::unordered_set<std::string> filler = {
         "the", "a", "an", "of", "to", "in", "on", "for", "and", "or", "is", "are", "how",
@@ -2242,23 +2242,23 @@ std::vector<std::string> query_words(std::string_view q) {
     return out;
 }
 
-// Reorders search_code's over-fetched candidates the way someone looking for
-// an implementation would, then keeps `k`. Measured on tests/rag_eval (40
-// questions about this repo); each signal is there because the eval said so:
+// 按照寻找实现的人的方式重新排序 search_code 的 over-fetched
+// 候选者，然后保留 `k`。在 tests/rag_eval 上测量（关于
+// 此 仓库 的 40 个问题）；每个信号都在那里，因为 eval 是这样说的：
 //
-//   * role: a question about code wants the code. Tests, docs and build
-//     files are down-weighted unless the question asks for them ("test",
-//     "doc", "cmake"...). Headers rank just below their .cpp.
-//   * path: a query word in the file name or directory ("clipboard" ->
-//     src/io/clipboard.cpp) is strong evidence, the way a person reads a
-//     tree.
-//   * spread: a file's second chunk counts less and its third less again,
-//     so eight results cover several files instead of one file eight times.
-//   * pair: a header in the pool lifts its .cpp to just above it.
+//   *作用：关于代码的问题想要代码。测试、文档和构建
+//     文件已关闭-weighted，除非问题要求它们（"test"、"doc"、
+//     "cmake"...）。 头文件 的排名仅低于其 .cpp。
+//   *路径：文件名或目录中的查询字（"clipboard"->
+//     src/io/clipboard.cpp)是强有力的证据，就像一个人读取源码树的方式
+//     一样。
+//   * 传播：文件的第二个块计数较少，第三个块计数又较少，
+//     因此八个结果覆盖了多个文件而不是一个文件八次。
+//   *对：池中的头文件将其.cpp提升到其正上方。
 std::vector<::rag::SearchResult> code_rerank(const std::string& query, std::vector<::rag::SearchResult> in,
                                              std::size_t k) {
     if (in.empty()) return in;
-    // AGENTTY_RAG_CODE_RERANK=0: the engine's order as is (for A/B evals).
+    // AGENTTY_RAG_CODE_RERANK=0:引擎的顺序按原样(对于A/B评估)。
     if (const char* e = std::getenv("AGENTTY_RAG_CODE_RERANK"); e && e[0] == '0') {
         if (in.size() > k) in.resize(k);
         return in;
@@ -2286,7 +2286,7 @@ std::vector<::rag::SearchResult> code_rerank(const std::string& query, std::vect
         (void)src;
         std::string lp = path;
         std::ranges::transform(lp, lp.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        double s = (r.score.value - lo) / range;   // engine's relevance, 0..1
+        double s = (r.score.value - lo) / range;   // 引擎的相关性，0..1
 
         const bool is_test  = lp.starts_with("tests/") || lp.contains("/tests/") || lp.contains("_test.")
                            || lp.contains("test_") || lp.contains(".test.");
@@ -2300,12 +2300,12 @@ std::vector<::rag::SearchResult> code_rerank(const std::string& query, std::vect
         if (is_build && !wants_build) s *= 0.5;
         if (is_header) s *= 0.9;
 
-        // Query words in the path: file name counts most, directories less.
+        // 路径中的查询词：文件名最多，目录较少。
         const auto slash = lp.rfind('/');
         const std::string_view base = slash == std::string::npos ? std::string_view{lp} : std::string_view{lp}.substr(slash + 1);
         double path_hits = 0;
         for (const auto& w : words) {
-            const std::string stem = w.size() > 5 ? w.substr(0, w.size() - 1) : w;   // "clipboards" ~ "clipboard"
+            const std::string stem = w.size() > 5 ? w.substr(0, w.size() - 1) : w;   // "clipboards"~"clipboard"
             if (base.contains(stem)) path_hits += 1.0;
             else if (std::string_view{lp}.contains(stem)) path_hits += 0.4;
         }
@@ -2313,9 +2313,9 @@ std::vector<::rag::SearchResult> code_rerank(const std::string& query, std::vect
         v.push_back({std::move(r), s, path});
     }
 
-    // Pair: a header ranked well lifts its own .cpp just above it, since the
-    // question is usually about the implementation. Keyed on the bare stem:
-    // headers and sources often sit in different dirs (auth/ vs io/).
+    // 对：排名良好的头文件将其自己的.cpp提升到其上方，
+    // 因为问题通常是关于实现的。锁在裸露的茎上：
+    // 头文件和源通常位于不同的目录中(auth/与io/)。
     auto stem_of = [](std::string_view p) {
         const auto sl = p.rfind('/');
         if (sl != std::string_view::npos) p = p.substr(sl + 1);
@@ -2335,8 +2335,8 @@ std::vector<::rag::SearchResult> code_rerank(const std::string& query, std::vect
     }
     std::ranges::stable_sort(v, std::greater{}, &Scored::s);
 
-    // Spread: walk in order, discounting each further chunk from a file, and
-    // re-sort once. (A single pass is enough: the discount only lowers.)
+    // 传播：按顺序行走，从文件中折扣每个进一步的块，
+    // 并且re-sort一次。 （一张通行证就足够了：折扣只会降低。）
     std::unordered_map<std::string, int> seen;
     for (auto& x : v) {
         const int n = seen[x.file]++;
@@ -2349,14 +2349,14 @@ std::vector<::rag::SearchResult> code_rerank(const std::string& query, std::vect
     out.reserve(std::min(k, v.size()));
     for (auto& x : v) {
         if (out.size() >= k) break;
-        // Keep the score the rest of the code reads in the same 0..1 range.
+        // 将其余代码读取的分数保持在相同的0..1范围内。
         x.r.score = ::rag::Score{static_cast<float>(std::clamp(x.s, 0.0, 1.0))};
         out.push_back(std::move(x.r));
     }
     return out;
 }
 
-// The body of retrieve_code(), run with the index locked.
+// retrieve_code()的正文，索引锁定运行。
 Retrieval retrieve_code_locked(Index& ix, const std::string& query, int kk) {
     Retrieval out;
     std::error_code ec;
@@ -2408,14 +2408,14 @@ Retrieval retrieve_code_locked(Index& ix, const std::string& query, int kk) {
                                              std::move(d.text), d.meta, d.title);
             }
         }
-        // Pass 0: stop before embedding (see Index::defer_for).
+        // 通过0:在嵌入之前停止(参见Index::defer_for)。
         if (ix.defer_build(ix.code_engine)) return out;
         auto built = ix.code_engine.build();
         if (!built) { out.error = "search_code: index build failed"; return out; }
         ix.apply_pipeline(ix.code_engine);
     } else if (changed > 0) {
         auto remove_uri = [&](const std::string& rel) {
-            // O(1) URI→id lookup, not a full-corpus linear scan.
+            // O(1)URI→id查找，不是完整的-corpus线性扫描。
             auto& corpus = ix.code_engine.corpus();
             if (auto id = corpus.find_by_uri("code://" + rel))
                 (void)corpus.remove_document(*id);
@@ -2432,12 +2432,12 @@ Retrieval retrieve_code_locked(Index& ix, const std::string& query, int kk) {
             auto loaded = ::rag::loaders::load_file(root / fs::path{path});
             if (!loaded) continue;
             loaded->meta["rel"] = path;
-            // upsert = dedup-safe replace (see docs path).
+            // upsert = dedup-safe 替换（参见文档路径）。
             (void)ix.code_engine.corpus().upsert_document("code://" + path,
                 std::move(loaded->text), loaded->meta, loaded->title);
         }
-        // Pass 0: stop before embedding. code_files isn't updated, so pass 1
-        // upserts the same files again and builds from the cache.
+        // 通过0：嵌入之前停止。 code_files 未更新，
+        // 因此第 1 遍再次插入相同的文件并从 缓存 构建。
         if (ix.defer_build(ix.code_engine)) return out;
         auto built = ix.code_engine.build();
         if (!built) { out.error = "search_code: incremental update failed"; return out; }
@@ -2455,18 +2455,18 @@ Retrieval retrieve_code_locked(Index& ix, const std::string& query, int kk) {
 
     std::vector<std::string> code_trace;
     std::vector<std::string>* code_tracep = ix.cfg.trace ? &code_trace : nullptr;
-    // The query's vector is a network call too: fetch it outside the lock.
+    // 查询的向量也是网络调用：在锁之外获取它。
     if (ix.code_engine.corpus().has_embedder()
         && ix.defer_for({ix.code_engine.corpus().query_text(query)}))
         return out;
-    // Over-fetch, then rerank with what a code question actually wants (see
-    // code_rerank): the engine's ranking alone puts tests, docs and three
-    // chunks of one file above the implementation the question is about.
+    // Over-fetch，然后用代码问题实际想要的重新
+    // 排名（参见code_rerank)：仅引擎的排名将测试、
+    // 文档和一个文件的三个块置于问题所涉及的实现之上。
     const std::size_t pool = static_cast<std::size_t>(std::max(kk * 4, 32));
     auto res = ix.code_engine.search(query, pool, {}, code_tracep);
     if (!res) { out.error = "search_code failed"; return out; }
-    // AGENTTY_RAG_DUMP_POOL=<file>: append the candidate pool as JSON lines,
-    // for offline reranker experiments.
+    // AGENTTY_RAG_DUMP_POOL=<file>:将候选池附加
+    // 为JSON行，用于离线重排序实验。
     if (const char* dp = std::getenv("AGENTTY_RAG_DUMP_POOL"); dp && *dp) {
         auto pooled = code_rerank(query, *res, res->size());
         ::rag::plugin::Json j;
@@ -2478,9 +2478,9 @@ Retrieval retrieve_code_locked(Index& ix, const std::string& query, int kk) {
         (void)persistence::append_atomic(::agentty::IoAccess::grant(), dp, j.dump() + "\n");
     }
     double top = 0.0;
-    // Relevance floor + score-proportional budget (same rationale as the
-    // docs path): don't pay tokens for the low-confidence tail, and give
-    // the confident head room to be complete.
+    // 相关性下限+score-proportional预算（与文档
+    // 路径相同的基本原理）：不为low-confidence 末尾
+    // 支付代币，并给予自信的空间来完成。
     std::vector<::rag::SearchResult> ranked = code_rerank(query, std::move(*res), static_cast<std::size_t>(kk));
     {
         double hi = 0.0;
@@ -2520,12 +2520,12 @@ Retrieval retrieve_code_locked(Index& ix, const std::string& query, int kk) {
         const std::size_t allowance = std::min(want_bytes, remaining_budget);
         ++idx;
         if (allowance < 256) break;
-        // ── Disk verification: RAG proposes, live disk disposes. ────────
-        // The index can lag an unindexed edit; re-read the cited line range
-        // from the CURRENT file on disk and serve that (the truth). Only
-        // fall back to the indexed chunk text when the disk read fails
-        // (file moved/deleted since the walk). Keeps search_code results
-        // correct-on-bytes, not just approximately-ranked.
+        // ── 磁盘验证:RAG提议,直播磁盘处理. ────────
+        // 索引可以滞后于未索引的编辑； re-read 引用的行范围
+        // 来自磁盘上的 当前 文件并提供该服务（事实）。仅当磁盘读取
+        // 失败时才回退到索引块文本（自遍历后的文件 moved/deleted）。
+        // 保持 search_code 结果正确-on-bytes，
+        // 而不仅仅是大约-ranked。
         std::string verified = read_disk_lines(
             (root / fs::path{path}).string(), p.line_start, p.line_end);
         const std::string& source_text = !verified.empty() ? verified : r.text;
@@ -2563,7 +2563,7 @@ Retrieval retrieve_code_locked(Index& ix, const std::string& query, int kk) {
     out.mode = std::move(cm);
     return out;
 }
-} // namespace
+} // 命名空间结束。
 
 Retrieval Retriever::retrieve_code(const std::string& query, int k) {
     Retrieval out;
@@ -2575,8 +2575,8 @@ Retrieval Retriever::retrieve_code(const std::string& query, int k) {
                 IndexBody body{ix, h, pass};
                 return finish_pass(ix, retrieve_code_locked(ix, query, kk));
             };
-            // Same two passes as retrieve(): embedding a cold source tree
-            // happens outside the lock, in parallel.
+            // 与retrieve()相同的两次通过：嵌入
+            // 冷源码树并行地发生在锁外部。
             auto p = impl_->index.with(cap, locked, 0, query, kk);
             if (p.done()) return std::move(p.result);
             prefetch_unlocked(cap, impl_->index, p.texts);
@@ -2607,10 +2607,10 @@ bool Retriever::code_warm() const {
     return api_root([&](const maya::unlocked& cap) {
       return impl_->index.read(cap, [](const Index& ix) {
         if (ix.code_initialized) return true;
-        // A persisted code index from a prior session counts as warm: loading
-        // it is Engine::open() + a manifest stat-walk, not an embed-everything
-        // build. Its absence means an opportunistic query would pay the full
-        // cold build — refuse; only an explicit search_code call should.
+        // 来自先前会话的持久代码索引算作热的：加载它是Engine::
+        // open()+清单stat-walk，而不是embed-everything构建。
+        // 它的缺失意味着机会主义查询将支付全部冷构建费用——拒绝；
+        // 只有明确的 search_code 调用 才应该。
         std::error_code ec;
         return fs::exists(ix.code_ragdb_path(), ec) && !ec;
       });
@@ -2620,27 +2620,27 @@ bool Retriever::code_warm() const {
 void Retriever::warm_async() {
     bool expected = false;
     if (!impl_->warming.compare_exchange_strong(expected, true)) return;
-    // The CAS allows one LOGICAL warm at a time. There is no handle handoff
-    // to synchronize any more: the old jthread had to be joined and reseated
-    // under mu, and the group's post() is safe from any thread on its own.
-    // Fresh warm pass: clear any stale cancellation from a prior worker. The
-    // CAS above means no other warm is running, so nothing reads this yet.
+    // CAS允许一次加热一个LOGICAL。不再需要句柄切换来
+    // 同步：旧的 jthread 必须在 mu 下加入和重新安装，
+    // 并且该组的 post() 本身不受任何 线程 的影响。
+    // 新热传递：从先前的工作线程中清除任何过期 取消。上面的 CAS
+    // 意味着没有其他热机正在运行，因此还没有任何内容读取此内容。
     impl_->warm_stop.store(false, std::memory_order_relaxed);
     impl_->warmer.post([](const maya::unlocked& cap, std::stop_token st, WarmRef state) {
-        // Bridge the group's stop_token to the flag the deep index functions
-        // poll, so a shutdown interrupts the embed pass.
+        // 将组的stop_token桥接至深度索引功能轮询的标志，
+        // 因此关闭会中断嵌入传递。
         std::stop_callback on_stop(st, [&state] {
             state->warm_stop.store(true, std::memory_order_relaxed);
         });
-        // Clear the gate however this exits; the group's wrapper catches a
-        // throw, but only after this frame unwinds.
+        // 清除门，然而该出口；该组的包装器捕获一次投掷，
+        // 但仅在 帧 展开之后。
         struct ClearWarming {
             WarmState& s;
             ~ClearWarming() { s.warming.store(false); }
         } clear{*state};
-        // Two passes like retrieve(): the embedding for a cold docs folder
-        // runs between them with no lock held, so a search_docs call (or the
-        // UI) isn't kept waiting while the warm worker talks to the embedder.
+        // 像retrieve()这样的两个通道：冷文档文件夹的嵌入在
+        // 它们之间运行，没有保留锁，因此当已预热的工作线程与嵌入器对话时，
+        // search_docs 调用 (或UI)不会保持等待。
         constexpr auto locked = [](const Index::held_t& h, Index& ix, int pass) {
             IndexBody body{ix, h, pass};
             auto root = resolve_docs_root(ix.cfg.docs_root);
@@ -2657,46 +2657,46 @@ void Retriever::warm_async() {
     }, impl_->warm);
 }
 
-// Stop any in-flight warm promptly and reclaim the worker. Called early in
-// process teardown so ^C is instant. Deliberately does NOT touch the index: the
-// warm worker holds it for its whole run, so waiting on it here would stall
-// teardown. Only the flag and the worker group, both safe from any thread.
+// 立即停止任何in-flight热并回收工作线程。在进程拆卸的
+// 早期调用，因此 ^C 是即时的。 不 故意接触索引：已预热的
+// 工作线程 在整个运行过程中都保留它，因此在这里等待它会阻止拆卸。
+// 只有 标志 和 工作线程 组，两者都不受任何 线程 的影响。
 void Retriever::shutdown() {
-    // 1. Trip the cooperative flag so refresh_docs()/reindex() bail at their
-    //    next loop boundary (and before the expensive engine.build()).
+    // 1. 使合作社 标志 跳闸，以便 refresh_docs()/reindex() 保释在他们的
+    //    下一个循环边界（并且在昂贵的engine.build()之前）。
     impl_->warm_stop.store(true, std::memory_order_relaxed);
-    // 2. Stop the group: requests stop (fires the stop_callback too) and
-    //    waits. Bounded in practice because the worker checks the flag
-    //    between network batches, so the worst case is one in-flight batch.
-    //    Safe from any thread, and idempotent with ~Impl's own stop.
+    // 2.停止组：请求停止（也触发stop_callback）并且
+    //    等待。在实践中受到限制，因为 工作线程 检查网络批次
+    //    之间的 标志，因此最坏的情况是 -flight 批次中的一个。
+    //    对于任何 线程 和 幂等 都是安全的，具有 ~Impl 自己的停止。
     api_root([&](const maya::unlocked& cap) { impl_->warmer.stop(cap); });
 }
 
-// Replace the live configuration. Anything that changes the CORPUS shape
-// (sources, contextual chunking, embed model, persistence, fusion, pipeline
-// stages) must invalidate the built indexes so the next retrieve() rebuilds
-// from the new config; pure ranking/labelling toggles (learn, trace,
-// proactive*) take effect on the very next call with no rebuild. We take the
-// conservative route: if ANY corpus-affecting field differs, drop all three
-// engines back to cold so refresh_docs/retrieve_code rebuild cleanly. The docs
-// root is preserved (docs_root is not picker-exposed). The EMBEDDER is now
-// picker-owned, so unlike docs_root it is taken from the incoming config and
-// a change to it forces a re-probe + cold rebuild.
+// 替换实时配置。任何改变 CORPUS 形状的东西（源、上下文分块、
+// 嵌入模型、持久化、融合、管道阶段）都必须使构建的索引无效，以便下一个
+// retrieve() 从新配置重建；纯 ranking/labelling
+// 切换（学习、跟踪、主动*）在下一个 调用 上使用 副作用，无需重建。
+// 我们采取保守路线：如果 任意 corpus-affecting 字段不同，
+// 则将所有三个引擎恢复为冷状态，以便 refresh_docs/retrieve_code
+// 干净地重建。保留文档根目录（docs_root 不是 选择面板-exposed）。
+// EMBEDDER 现在是 选择面板-owned，
+// 因此与 docs_root 不同，它是从传入配置中获取的，对其进行更改
+// 会强制重新进行 re-probe + 冷重建。
 void Retriever::apply_config(const Config& cfg) {
   api_root([&](const maya::unlocked& cap) {
     try {
-        // Step 1, locked: install the new config, and report whether the
-        // embedder changed (its probe must then run unlocked) and whether the
-        // corpus shape changed.
+        // 步骤1，锁定：安装新的配置，
+        // 并报告嵌入器是否改变（其探针必须解锁运行）以及语料
+        // 库形状是否改变。
         struct Change { bool embedder = false; bool corpus = false;
                         ::agentty::rag::embed::EmbedConfig embed; };
         const Change ch = impl_->index.with(cap, [](Index& ix, Config cfg) {
             const Config& old = ix.cfg;
             Change c;
-            // A different embedder means a different VECTOR SPACE: every
-            // persisted vector is incomparable, so this is always a cold
-            // rebuild (and the .ragdb path changes with the identity, so the
-            // old index survives on disk for when the user switches back).
+            // 不同的嵌入器意味着不同的VECTOR
+            // SPACE：每个持久向量都是不可比较的，
+            // 因此这始终是冷重建（并且.ragdb路径随着身份而改变，
+            // 因此当用户切换回来时旧索引在磁盘上保留）。
             c.embedder = ::agentty::rag::embed::identity(old.embed)
                       != ::agentty::rag::embed::identity(cfg.embed);
             c.corpus =
@@ -2714,28 +2714,28 @@ void Retriever::apply_config(const Config& cfg) {
                 || old.bm25_weight   != cfg.bm25_weight
                 || old.persist       != cfg.persist
                 || c.embedder;
-            // Preserve only what the picker genuinely never touches.
+            // 仅保留 选择面板 真正从未触及的部分。
             cfg.docs_root = old.docs_root;
             ix.cfg = std::move(cfg);
             if (c.embedder) ix.dense = dense::Unprobed{};
-            c.embed = ix.cfg.embed;   // probe what's configured; Auto re-picks
+            c.embed = ix.cfg.embed;   // 探测配置了什么；汽车改装-picks
             return c;
         }, cfg);
 
-        // Step 2, UNLOCKED: the probe dials a network endpoint (or maps a
-        // model). Holding the index across a multi-second timeout is what
-        // made every reader, the UI's status row included, stall behind it.
-        // Readers see Unprobed until the result lands.
+        // 步骤2，UNLOCKED：探针拨打网络端点（或映射型号）。
+        // 在 multi-second 超时 上保存索引是让
+        // 每个读者（包括 UI 的状态行）停滞在其后面的原因。
+        // 读者看到Unprobed直到结果出现。
         std::optional<::agentty::rag::embed::ProbeResult> probed;
         if (ch.embedder) probed = Index::run_probe(ch.embed);
 
-        // Step 3, locked: land the probe, then reset or re-pipeline.
+        // 步骤3、锁定：将探头着陆，然后复位或re-pipeline。
         impl_->index.with(cap, [](Index& ix, Change c,
                              std::optional<::agentty::rag::embed::ProbeResult> pr) {
             if (pr) ix.apply_probe(*pr);
             if (c.corpus) {
-                // Cold-start every engine; the pipeline is rebuilt from the
-                // new toggles on the next reindex/refresh.
+                // Cold-start每台发动机；管道是在下一个 reindex/refresh.
+                // 上从新的 切换 重建的
                 ix.engine = ::rag::Engine(ix.make_engine_config());
                 ix.embedder_ready = false;
                 ix.docs_initialized = false;
@@ -2750,17 +2750,17 @@ void Retriever::apply_config(const Config& cfg) {
                 ix.code_files.clear();
                 ix.reset_embedder();
             } else {
-                // Ranking-only change: re-apply the pipeline in place so cheap
-                // re-labels (fusion label) refresh without a rebuild.
+                // Ranking-only变化：re-apply管道就位，
+                // 因此便宜的re-labels（融合标签）刷新而无需重建。
                 ix.apply_pipeline(ix.engine);
             }
         }, ch, std::move(probed));
-        // The default generator dials the embed host when that is an
-        // Ollama, so a new embedder means a new default generator.
+        // 默认生成器在为Ollama时拨打嵌入主机，
+        // 因此新的嵌入器意味着新的默认生成器。
         if (ch.embedder)
             impl_->generator.publish(std::make_shared<const GeneratorFn>(
                 GeneratorFn{Index::default_generator(snapshot_config())}));
-    } catch (...) { /* best-effort; keep the old config live on failure */ }
+    } catch (...) { /* 最佳-effort;在失败时保持旧配置不变 */ }
   });
 }
 
@@ -2771,13 +2771,13 @@ Config Retriever::snapshot_config() const {
 Retriever::EmbedStatus Retriever::embed_status() const {
     EmbedStatus out;
 
-    // NEVER blocks. This is called from the UI thread to render a status row,
-    // and the index is held across whole rebuilds. A blocking read here meant
-    // the UI froze, animations included, for as long as a rebuild took.
+    // NEVER块。这从 UI 线程 到 渲染 称为状态行，
+    // 索引在整个重建过程中保持不变。这里的阻塞读取意味着
+    // UI 冻结（包括动画），只要重建花费了很长的时间。
     //
-    // A status readout is advisory by nature: if the retriever is busy being
-    // reconfigured, "reconfiguring" IS the true answer, and it costs nothing
-    // to say so. The next frame picks up the real state.
+    // 状态读数本质上是建议性的：如果检索器正忙于重新配置，
+    // 则 "reconfiguring" IS 是真实答案，
+    // 并且这样说不需要任何成本。下一个 帧 拾取真实状态。
     auto now = api_root([&](const maya::unlocked& cap) { return impl_->index.try_read(cap, [](const Index& ix) {
         EmbedStatus st_out;
         st_out.describe = ::agentty::rag::embed::describe(ix.effective_embed());
@@ -2805,9 +2805,9 @@ Retriever::EmbedStatus Retriever::embed_status() const {
 }
 
 Retriever::EmbedStatus Retriever::reprobe_embedder() {
-    // Same discipline as apply_config: the probe itself runs UNLOCKED, because
-    // it dials a network endpoint. Only the state write and the re-attach take
-    // the lock, and both are cheap.
+    // 与apply_config相同的规则：探测器本身运行UNLOCKED，
+    // 因为它拨打网络端点。只有state write和re-attach走锁，
+    // 而且都很便宜。
     return api_root([&](const maya::unlocked& cap) {
     const auto ec = impl_->index.with(cap, [](Index& ix) {
         ix.dense = dense::Unprobed{};
@@ -2822,77 +2822,77 @@ Retriever::EmbedStatus Retriever::reprobe_embedder() {
     });
 }
 
-// ── Learning loop (write side) ─────────────
-// Both halves delegate to the process-wide FeedbackStore, which owns the TSV
-// and the read-side nudge. Best-effort; never throws.
+// ── 学习循环( 写侧) ─────────────
+// 两个半部都委托给进程-wide FeedbackStore，该进程拥有TSV和
+// read-side微移。最佳-effort；从不抛出。
 namespace feedback {
 void note_surfaced(const maya::below<maya::leaf>& cap, const std::vector<std::string>& paths) {
     if (paths.empty()) return;
     try {
         if (truthy_default_off("AGENTTY_RAG_LEARN"))
             FeedbackStore::instance().note_surfaced(cap, paths);
-    } catch (...) { /* best-effort */ }
+    } catch (...) { /* 最佳-effort */ }
 }
 void note_file_opened(const maya::below<maya::leaf>& cap, const std::string& path) {
-    // A `read` of a file a recent passage pointed at is an IMPLICIT relevance
-    // judgment. FeedbackStore credits a "win" ONLY if the path was recently
-    // surfaced by retrieval — a read of a never-surfaced file is not a signal
-    // and is dropped, so the win-rate stays attributable.
+    // 最近一段所指向的文件的`read`是IMPLICIT相关性判断。
+    // 如果该路径最近通过检索出现，则 FeedbackStore 会记入
+    // "win" 仅 — 读取 never-surfaced 文件不是一个
+    // 信号并且会被丢弃，因此 win-rate 仍可归因。
     if (path.empty()) return;
     try {
         if (truthy_default_off("AGENTTY_RAG_LEARN"))
             FeedbackStore::instance().note_opened(cap, path);
-    } catch (...) { /* best-effort */ }
+    } catch (...) { /* 最佳-effort */ }
 }
 } // namespace feedback
 
 // ── CLI: `agentty rag-bench <root>` ────────────────────────────────────
-// A pipeline you can't measure is a pile of vibes. rag-bench evaluates the
-// retrieval funnel ON YOUR OWN CORPUS, offline, in milliseconds — no LLM, no
-// network, fully deterministic.
+// 你无法测量的管道是一堆振动。 rag-bench 评估检索漏斗
+// ON YOUR 自身 CORPUS，离线，以毫秒为单位 - 无 LLM，
+// 无网络，完全确定性。
 //
-// Method (known-item retrieval):
-//   1. Index the corpus (BM25 + local hash-dense fallback if Ollama is down).
-//   2. Sample chunks; for each, synthesize a query from its most
-//      DISCRIMINATIVE terms (top BM25 term contributions, via Corpus::explain).
-//      The chunk the query was minted from is that query's known GOLD answer.
-//   3. Run every query through the retrieval LADDER — one stage added per rung:
-//        bm25-only → hybrid+prf → +feature-rerank → +mmr
-//      and report recall@k, MRR, and nDCG@10 per rung. Because each rung adds
-//      exactly one stage, a metric that DROPS at a rung points at the stage
-//      worth tuning — and every AGENTTY_RAG_* knob can be set against numbers.
+// 方法（已知-item检索）：
+//   1.对语料库进行索引（BM25 +本地哈希-dense 回退，如果Ollama已关闭）。
+//   2.样本块；对于每个，从其最接近的位置合成一个查询
+//      DISCRIMINATIVE 条款（最高 BM25 条款贡献，通过 Corpus::explain）。
+//      生成查询的块是该查询的已知GOLD答案。
+//   3.通过检索LADDER运行每个查询——每个梯级添加一个阶段：
+//        bm25-only→混合+prf→+feature
+//      -rerank→+mmr并报告每个梯级的recall@k、MRR和nDCG@10。
+//      因为每个梯级恰好添加一个阶段，所以梯级上的 DROPS 表示值得调整的
+//      阶段 — 并且每个 AGENTTY_RAG_* 旋钮都可以根据数字进行设置。
 namespace bench {
 namespace {
 
 struct Query {
     std::string text;
-    std::uint32_t gold;   // ChunkId value of the source chunk
+    std::uint32_t gold;   // 源块的ChunkId值
 };
 
 struct Metrics {
     double recall = 0.0, mrr = 0.0, ndcg = 0.0;
     std::size_t n = 0;
-    void add(int rank /* 1-based, 0 = miss */, std::size_t k) {
+    void add(int rank /* 1-based，0 = 未命中 */, std::size_t k) {
         ++n;
         if (rank >= 1 && static_cast<std::size_t>(rank) <= k) {
             recall += 1.0;
             mrr    += 1.0 / rank;
         }
-        // Single relevant doc ⇒ IDCG = 1; DCG = 1/log2(rank+1) when in top-10.
+        // 单个相关文档 ⇒ IDCG = 1;进入前 10 名时，DCG = 1/log2(排名+1)。
         if (rank >= 1 && rank <= 10)
             ndcg += 1.0 / std::log2(static_cast<double>(rank) + 1.0);
     }
     void finalize() { if (n) { recall /= n; mrr /= n; ndcg /= n; } }
 };
 
-// 1-based rank of the gold chunk in a hit list, or 0 if absent.
+// 黄金块在命中列表中的排名为1-based，或者如果不存在则为0。
 int rank_of(const std::vector<::rag::Hit>& hits, std::uint32_t gold, std::size_t k) {
     for (std::size_t i = 0; i < hits.size() && i < k; ++i)
         if (hits[i].chunk.value == gold) return static_cast<int>(i) + 1;
     return 0;
 }
 
-// Split a chunk's text into distinct alphanumeric terms (deterministic order).
+// 将块的文本分割成不同的字母数字术语（确定性顺序）。
 std::vector<std::string> distinct_terms(const std::string& text) {
     std::vector<std::string> out;
     std::unordered_set<std::string> seen;
@@ -2910,7 +2910,7 @@ std::vector<std::string> distinct_terms(const std::string& text) {
     return out;
 }
 
-} // namespace
+} // 命名空间结束。
 
 int run(const std::string& root) {
     fs::path r = resolve_docs_root(root);
@@ -2922,8 +2922,8 @@ int run(const std::string& root) {
         auto cfg = Config::from_env();
         ::rag::Engine engine;
         bool have_dense = false;
-        // Same SSOT the adapter uses — this site used to mint its own
-        // {"type":"ollama"} literal and had already drifted from it.
+        // 适配器使用相同的 SSOT — 该站点曾经创建自己的 {
+        // "type":"ollama"} 文字，并且已经偏离了它。
         if (const auto spec = ::agentty::rag::embed::spec_json(cfg.embed);
             spec && engine.with_embedder_spec(::rag::plugin::Json::parse(*spec), ::agentty::rag::registries())) {
             auto probe = engine.corpus().embed_text("rag benchmark availability probe");
@@ -2933,9 +2933,9 @@ int run(const std::string& root) {
 
         auto t0 = std::chrono::steady_clock::now();
         ::rag::loaders::DirOptions opts;
-        // Match the interactive docs path: skip build/vendor dirs and cap the
-        // corpus so `rag-bench` on a huge tree can't OOM the way an unbounded
-        // walk would.
+        // 匹配交互式文档路径：跳过build/vendor目录并限制语料库，
+        // 使得巨大的源码树上的`rag-bench`不能像无界行走
+        // 那样OOM。
         opts.exclude_dirs = {
             ".git",".hg",".svn","node_modules","build","dist","out",
             "target","venv",".venv","__pycache__",".cache","_deps",
@@ -2958,8 +2958,8 @@ int run(const std::string& root) {
                     have_dense ? "ollama" : "bm25-only");
         if (nchunks == 0) { std::fprintf(stderr, "rag-bench: empty corpus\n"); return 1; }
 
-        // 2. Synthesize known-item queries. Sample up to ~200 chunks evenly so a
-        //    large corpus still benches in milliseconds and reproducibly.
+        // 2.合成known-item查询。均匀采样约 200 个块，以便
+        //    大型语料库仍然以毫秒为单位并且可重复地运行。
         const std::size_t kQueryBudget = 200;
         const std::size_t stride = nchunks > kQueryBudget ? nchunks / kQueryBudget : 1;
         std::vector<Query> queries;
@@ -2969,8 +2969,8 @@ int run(const std::string& root) {
                 const auto& ch = lease[i];
                 auto terms = distinct_terms(ch.text);
                 if (terms.size() < 3) continue;
-                // Rank terms by their BM25 contribution to THIS chunk, keep the
-                // top few most discriminative — the known-item query.
+                // 根据术语对 此 块的 BM25 贡献对术语进行排名，
+                // 保留前几个最具辨别力的 — 已知的 -item 查询。
                 std::vector<std::pair<float, std::string>> scored;
                 scored.reserve(terms.size());
                 for (const auto& t : terms) {
@@ -2991,16 +2991,16 @@ int run(const std::string& root) {
         }
         if (queries.empty()) { std::fprintf(stderr, "rag-bench: no queries synthesized\n"); return 1; }
 
-        // 3. Assemble the ladder — one stage added per rung.
+        // 3.组装梯子——每梯级添加一级。
         namespace pl = ::rag::pipeline;
         auto hybrid_cfg = [&](bool dense) {
             pl::HybridRetrieveConfig hy;
             hy.candidate_k  = 60;
             hy.bm25_weight  = 1.0f;
             hy.dense_weight = dense ? 1.0f : 0.0f;
-            // convex fusion IGNORES the per-retriever weights (it uses
-            // convex.alpha), so to actually isolate BM25 for the first rung we
-            // fall back to weighted RRF, which honours dense_weight=0.
+            // 凸融合IGNORES每个-retriever权重（它使用
+            // convex.alpha)，因此为了实际上隔离第一个梯级的BM25，
+            // 我们回退到加权RRF，这遵循dense_weight = 0。
             hy.fusion = dense ? pl::HybridRetrieveConfig::Fusion::convex
                               : pl::HybridRetrieveConfig::Fusion::rrf;
             return hy;
@@ -3013,14 +3013,14 @@ int run(const std::string& root) {
             p.add(std::make_shared<pl::TopKStage>());
             ladder.push_back({"bm25-only", std::move(p)});
         }
-        {   // hybrid + prf
+        {   // 混合+prf
             pl::Pipeline p;
             p.add(std::make_shared<pl::PrfExpandStage>(pl::ExpandConfig{}));
             p.add(std::make_shared<pl::HybridRetrieveStage>(hybrid_cfg(true)));
             p.add(std::make_shared<pl::TopKStage>());
             ladder.push_back({"hybrid+prf", std::move(p)});
         }
-        {   // + feature-rerank
+        {   // + 特征-rerank
             pl::Pipeline p;
             p.add(std::make_shared<pl::PrfExpandStage>(pl::ExpandConfig{}));
             p.add(std::make_shared<pl::HybridRetrieveStage>(hybrid_cfg(true)));
@@ -3028,7 +3028,7 @@ int run(const std::string& root) {
             p.add(std::make_shared<pl::TopKStage>());
             ladder.push_back({"+feature-rerank", std::move(p)});
         }
-        {   // + mmr (the full quality funnel, PRF-prepended)
+        {   // + mmr (完整质量漏斗，PRF-prepended)
             pl::Pipeline p = pl::Pipeline::quality_with(hybrid_cfg(true), cfg.mmr_lambda);
             ladder.push_back({"+mmr", std::move(p)});
         }
@@ -3056,13 +3056,13 @@ int run(const std::string& root) {
                     "A metric that DROPS at a rung is the stage to tune.\n",
                     queries.size(), nchunks);
 
-        // 4. TOKEN-COST measurement (opt-in via AGENTTY_RAG_MEASURE=1). Runs the
-        //    synthesized queries through the REAL Retriever::retrieve() output
-        //    path — the one that applies the relevance floor, water-fill,
-        //    confidence-scaled budget and extractive compression — and tallies
-        //    the bytes/tokens actually injected into a model turn. Run the
-        //    binary twice (levers on vs off via env) and diff to see the real
-        //    saving. Token estimate: bytes/4 (Claude/GPT English heuristic).
+        // 4.TOKEN-COST测量（opt-in经由AGENTTY_RAG_MEASURE = 1)。运行
+        //    通过REAL Retriever::retrieve()输出路径
+        //    合成查询——该输出路径应用相关性下限、water-fill、
+        //    confidence-scaled预算和提取压缩——
+        //    并统计实际注入到模型回合中的bytes/tokens。
+        //    运行 二进制程序 两次（通过 env 打开或关闭控制杆）并比较以查看真正的节省。
+        //    代币估算：bytes/4（Claude/GPT 英文启发式）。
         if (const char* mv = std::getenv("AGENTTY_RAG_MEASURE"); mv && mv[0] == '1') {
             Retriever ret;
             std::size_t total_bytes = 0, total_passages = 0, empty = 0;
@@ -3095,7 +3095,7 @@ int run(const std::string& root) {
                         est_tokens,
                         est_tokens / static_cast<double>(std::max<std::size_t>(sampled, 1)));
             std::printf("  retrieve latency : %.2f ms/query\n", per_ms);
-            // Emit a machine-readable line for scripted before/after diffing.
+            // 发出用于脚本化before/after比较的machine-readable行。
             std::printf("  MEASURE\ttokens=%.0f\tbytes=%zu\tpassages=%zu\tqueries=%zu\n",
                         est_tokens, total_bytes, total_passages, sampled);
         }
@@ -3106,8 +3106,8 @@ int run(const std::string& root) {
     }
 }
 
-// Normalise a passage path to repo-relative with forward slashes, so it can
-// be compared to the eval's gold paths.
+// 使用正斜杠将通道路径标准化为仓库-relative，
+// 因此可以将其与评估的黄金路径进行比较。
 static std::string rel_path(const std::string& p, const fs::path& root) {
     std::string s = p;
     for (const char* pre : {"code://", "docs://"})
@@ -3132,8 +3132,8 @@ int eval(const std::string& eval_file, int k) {
         std::fprintf(stderr, "rag-eval: %s is not JSON\n", eval_file.c_str());
         return 2;
     }
-    // A bare array is search_code cases; {"tool":"search_docs","cases":[...]}
-    // runs search_docs, with gold paths relative to the docs root.
+    // 裸阵列为search_code例； {"tool":"search_docs","cases":
+    // [...]} 运行 search_docs，具有相对于文档根目录的黄金路径。
     const bool docs = cases.is_object() && cases.value("tool", std::string{}) == "search_docs";
     if (cases.is_object()) {
         ::rag::plugin::Json inner = cases.value("cases", ::rag::plugin::Json::array());
@@ -3149,7 +3149,7 @@ int eval(const std::string& eval_file, int k) {
         return docs ? ret.retrieve(q, kk) : ret.retrieve_code(q, kk);
     };
     const auto t0 = std::chrono::steady_clock::now();
-    // First call builds the index; time it separately from the queries.
+    // 首先调用建立索引；与查询分开计时。
     (void)search("warm up", 1);
     const auto build_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - t0).count();
@@ -3157,7 +3157,7 @@ int eval(const std::string& eval_file, int k) {
     int n = 0, hit1 = 0, hitk = 0;
     double mrr = 0;
     std::vector<std::string> misses;
-    // AGENTTY_RAG_EVAL_ALL=1 prints every case's rank and every result of a miss.
+    // AGENTTY_RAG_EVAL_ALL=1打印每个案例的排名和每个未命中的结果。
     const char* all_env = std::getenv("AGENTTY_RAG_EVAL_ALL");
     const std::size_t show = (all_env && all_env[0] == '1') ? SIZE_MAX : 3;
     const auto q0 = std::chrono::steady_clock::now();
@@ -3168,7 +3168,7 @@ int eval(const std::string& eval_file, int k) {
         if (q.empty() || gold.empty()) continue;
         ++n;
         const auto r = search(q, k);
-        // File-level rank: the first passage from any gold file.
+        // 文件-level排名：任何黄金文件的第一段。
         int rank = 0;
         std::vector<std::string> got;
         for (std::size_t i = 0; i < r.passages.size(); ++i) {
@@ -3208,10 +3208,10 @@ int eval(const std::string& eval_file, int k) {
 
 #else  // !AGENTTY_HAS_RAGCPP  ─────────────────────────────────────────────
 
-// Retrieval unavailable on this platform (e.g. MSVC, until rag-cpp is
-// Windows-portable). Every public symbol from rag_adapter.hpp is defined here
-// as a no-op so agentty links and runs; search_docs/search_code surface a
-// clear "unavailable" message instead of crashing or returning stale data.
+// 在该平台上无法检索(e.g.MSVC，直到rag-cpp为Windows-portable)。
+// 来自 rag_adapter.hpp 的每个公共 符号 在这里被定义为 no-op，
+// 因此 agentty 链接 并运行； search_docs/search_code
+// 显示清晰的 "unavailable" 消息，而不是崩溃或返回 过期 数据。
 
 #include <cstdio>
 #include <cstdlib>
@@ -3219,12 +3219,12 @@ int eval(const std::string& eval_file, int k) {
 namespace agentty::rag {
 
 Config Config::from_env() {
-    // A default-constructed Config is fine; nothing reads it in the no-op build,
-    // but tests and callers may still construct one.
+    // 默认-constructed配置即可；在 no-op 构建中没有任何内容读取它，
+    // 但测试和调用者仍然可以构建一个。
     return Config{};
 }
 
-// Impl is empty — the header stores an opaque pointer we simply leave null.
+// Impl是空的——头文件存储不透明的指针，我们简单地将其保留为空。
 struct Retriever::Impl {};
 
 Retriever::Retriever() : impl_(nullptr) {}
@@ -3240,16 +3240,16 @@ static Retrieval unavailable_() {
     return r;
 }
 
-Retrieval Retriever::retrieve(const std::string& /*query*/, int /*k*/,
+Retrieval Retriever::retrieve(const std::string& /*查询*/, int /*k*/,
                               bool /*skip_docs*/) {
     return unavailable_();
 }
 
-Retrieval Retriever::retrieve_code(const std::string& /*query*/, int /*k*/) {
+Retrieval Retriever::retrieve_code(const std::string& /*查询*/, int /*k*/) {
     return unavailable_();
 }
 
-bool Retriever::warm() const { return true; }  // nothing to build → always warm
+bool Retriever::warm() const { return true; }  // 无事可建→永远温暖
 void Retriever::warm_async() {}
 void Retriever::shutdown() {}
 void Retriever::apply_config(const Config& /*cfg*/) {}
@@ -3264,12 +3264,12 @@ Retriever::EmbedStatus Retriever::embed_status() const {
 Retriever::EmbedStatus Retriever::reprobe_embedder() { return embed_status(); }
 
 namespace feedback {
-void note_surfaced(const std::vector<std::string>& /*paths*/) {}
-void note_file_opened(const maya::below<maya::leaf>&, const std::string& /*path*/) {}
+void note_surfaced(const std::vector<std::string>& /*路径*/) {}
+void note_file_opened(const maya::below<maya::leaf>&, const std::string& /*路径*/) {}
 }  // namespace feedback
 
 namespace bench {
-int run(const std::string& /*root*/) {
+int run(const std::string& /*根*/) {
     std::fprintf(stderr,
                  "rag-bench: the retrieval engine is not built on this "
                  "platform (rag-cpp is not yet Windows-portable).\n");

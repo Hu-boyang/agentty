@@ -1,78 +1,78 @@
 #pragma once
-// Small, pure helpers shared between the thread renderer and the tool-card
-// renderer. Kept separate from helpers.hpp because these all operate on
-// ToolUse/args shape — they don't belong with generic color/UTF-8 stuff.
+// 在线程 渲染器和工具-card 渲染器之间共享的小型、纯助手。
+// 与 helpers.hpp 分开，因为它们都在 ToolUse/args
+// 形状上运行 - 它们不属于通用 color/UTF-8 东西。
 
 #include <initializer_list>
 #include <string>
 #include <string_view>
 
-#include <nlohmann/json_fwd.hpp>  // only const json& params below; full type lives in the .cpp
+#include <nlohmann/json_fwd.hpp>  // 仅const JSON&以下参数；完整类型位于 .cpp 中
 
 #include "agentty/domain/conversation.hpp"
 
 namespace agentty::ui {
 
-// Safe string read — empty when the key is missing or non-string.
+// 安全字符串读取——当密钥丢失或非-string时为空。
 [[nodiscard]] std::string safe_arg(const nlohmann::json& args, const char* key);
 
-// Pick the first non-empty string under any of the listed keys. Mirrors
-// the alias-tolerant parsing the tool implementations do (write/edit accept
-// `path | file_path | filepath | filename`, `display_description | description`
-// etc.). Without this the view reads one canonical key and a model that
-// picks an alias renders as a blank card even though the tool ran fine.
+// 选择任意列出的键下的第一个非-empty字符串。镜像工具实现的别名
+// -tolerant 解析（write/edit接受
+// `path | file_path | filepath | filename`、
+// `display_description | description`等）。如果没有这个，
+// 即使该工具运行良好，视图也会读取一个规范密钥和一个选择别名 渲染 作为空白卡的模型。
 [[nodiscard]] std::string pick_arg(const nlohmann::json& args,
                                    std::initializer_list<const char*> keys);
 
-// The file path a tool is acting on, resolved to be visible AS EARLY AS
-// possible. During streaming the parsed `tc.args` lags the wire (it's
-// re-parsed from partial JSON on a ~120 ms throttle), so a card can show a
-// bare "…" for the first fraction of a second of an edit/write even though
-// the path bytes have already arrived. This first tries the parsed args
-// (path | file_path | filepath | filename), then falls back to scraping the
-// value straight out of tc.args_streaming so the filename appears the instant
-// its bytes land. Empty only when no path has been streamed at all yet.
+// 工具正在作用的文件路径，被解析为可见的 AS EARLY AS 可能。
+// 在 流式传输 期间，解析的 `tc.args` 滞后于 传输
+// （它是在约 120 毫秒油门上从部分 JSON 重新生成的 re
+// -parsed），因此即使路径 字节 已经到达，卡也可以在
+// edit/write 的前几分之一秒内显示裸露的 "…"。
+// 首先尝试解析的参数（路径 | file_path | 文件路径 | 文件名），
+// 然后回退到直接从 tc.args_streaming 中抓取值，
+// 以便文件名在其 字节 着陆时立即出现。仅当尚未传输任何路径时才为空。
 [[nodiscard]] std::string tool_path_arg(const ToolUse& tc);
 
-// Scrape the first string value for `key` out of a (possibly partial) JSON
-// document without parsing it — finds `"key"` then the next `: "..."`,
-// honouring backslash escapes and stopping at the closing quote (or the end
-// of a truncated buffer). Returns "" when the key or its value hasn't
-// streamed yet. Cheap: a single left-to-right scan, no allocation until a
-// value is found.
+// 从（可能是部分的）JSON文档中刮取`key`的第一个字符串值，
+// 而没有解析——找到`"key"`，然后找到下一个`: "..."`，
+// 遵循反斜杠转义并在结束引号处停止（或截断的缓冲区的末尾）。
+// 当键或其值尚未流式传输时返回 ""。
+// 便宜：一次 left-to-right 扫描，没有 分配，
+// 直到找到值。
 [[nodiscard]] std::string pick_streaming_string(std::string_view raw_json,
                                                 std::string_view key);
 
-// Int read with default when missing / wrong type.
+// 当类型缺失/错误时，以默认值读取 Int。
 [[nodiscard]] int safe_int_arg(const nlohmann::json& args, const char* key, int def);
 
-// Newline count + 1 for trailing non-newline line. Zero for empty input.
+// 尾随非-newline行的换行计数+1。零表示空输入。
 [[nodiscard]] int count_lines(std::string_view s);
 
-// Seconds spent on this tool call so far. Running → now - started;
-// terminal → finished - started; returns 0 when started_at is unset.
-// Called every Tick while a tool runs so the card updates live.
+// 到目前为止，在该工具上花费了 调用 秒。运行→现在-开始；
+// 终端→完成-开始；当 started_at 未设置时返回 0。
+// 在工具运行时调用每个Tick，以便卡实时更新。
 [[nodiscard]] float tool_elapsed(const ToolUse& tc);
 
-// Strip the ```…``` fence and trailing metadata bash wraps its captured
-// stdout/stderr in. The fence lets the model see an unambiguous "literal
-// output" boundary but is visual noise inside the widget's own frame.
+// 去掉 bash 输出外层的 ```…``` 围栏及末尾元数据，
+// stdout/stderr in。栅栏让模型看到明确的
+// "literal output"边界，但在小部件自己的帧内是视觉噪声。
 [[nodiscard]] std::string strip_bash_output_fence(std::string_view s);
 
-// Pull the exit code out of bash/diagnostics tool output — recognizes
-// both "failed with exit code N" (Zed-style) and "[exit code N]" (legacy).
-// Returns 124 for a timeout marker, 0 when none of those patterns match.
+// 从 bash/diagnostics 工具输出中提取退出代码 — 识别
+// "failed with exit code N" (Zed-style) 和 "[exit code N]" (旧版)。
+// 对于 超时 标记返回 124，当这些模式都不匹配时返回 0。
 [[nodiscard]] int parse_exit_code(std::string_view output);
 
-// The tool's output as the card should read it. Most tools echo the call's
-// `display_description` as line 1; that's already the card title, and left
-// in it breaks every "Found N"/"HTTP ..." parse and shows as body line 1.
+// 卡应读取该工具的输出。大多数工具将 调用 的 `display_description`
+// 回显为第 1 行；这已经是卡片标题，留在其中会破坏每个 "Found N"
+// /"HTTP ..." 解析 并显示为 正文 第 1 行。
 [[nodiscard]] std::string_view card_output(const ToolUse& tc);
 
-// Output text as a person should read it: drops the notes a tool writes for
-// the model (`[output capped …]`, `[showing lines …]`, `[... N chars
-// elided]`, `[extracted text from …]`), ANSI escapes and \r redraws, and
-// collapses blank-line runs. For display only; parsers keep card_output.
+// 输出文本作为人应该阅读的文本：丢弃工具为模型写入的注释（`[output capped …]`、
+// `[showing lines …]`、`[... N chars elided]`、
+// `[extracted text from …]`)、ANSI转义并\r重绘，
+// 并且折叠blank-line运行。仅供展示； 解析器 保留 card_output。
 [[nodiscard]] std::string clean_output(std::string_view s);
 
 } // namespace agentty::ui

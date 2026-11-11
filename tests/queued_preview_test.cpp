@@ -1,14 +1,14 @@
-// queued_preview_test — a queued message says WHEN it will be sent.
+// queued_preview_test ——一个排队的消息说 WHEN 将送去。
 //
-// Steering mid-task is what the queue is for: type while the agent works,
-// and the message goes out the moment the turn ends. The cues used to be a
-// `❚ N queued` count and a transcript row that looks exactly like a sent
-// message, so pressing Enter mid-turn read as "it sent" or "nothing
-// happened" rather than "this fires when the turn finishes".
+// 中转 -task 队列是用来:在代理工作时键入,然后在转弯结束的时刻发出消息。
+// 提示曾经是 `❚ N queued` 数和记录一行 看上去就像一个发送的消息,
+// 如此紧迫 Enter 中点 -turn 读为 "it sent" 或 或
+// 时 间 "nothing happened" 而不是说
+// 轮次结束时触发。
 //
-// Rendered through the real view, because the claim is about what reaches
-// the screen; a source-text assertion could not tell you the line is
-// actually visible.
+// 透过真实的视图渲染,因为索赔涉及的是到达屏幕的内容;
+// 一个源
+// -text断言无法告诉你该线实际上可见.
 
 #include "agtest.hpp"
 
@@ -26,8 +26,8 @@ using namespace agentty;
 
 namespace {
 
-// Non-ASCII folds to a space: the line under test is ASCII, and the chrome
-// around it is not what is being asserted.
+// 无 -ASCII 归并 改为空格: 测试中的行是 ASCII
+// 环绕的铬不是人们所主张的
 std::string render(const Model& m, int width = 100) {
     auto root = maya::Conversation{ui::conversation_config(m)}.build();
     maya::StylePool pool;
@@ -53,7 +53,7 @@ Model with_queued(std::string text) {
     return m;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("queued preview: mid-turn, it says when it sends") {
     Model m = with_queued("actually, use the other approach");
@@ -67,9 +67,9 @@ TEST_CASE("queued preview: mid-turn, it says when it sends") {
 }
 
 TEST_CASE("queued preview: idle, it does not promise a turn that isn't running") {
-    // Nothing is streaming, so there is no "this turn" to end -- the queue
-    // drains on the next submit instead. Saying otherwise would be a lie,
-    // and a hint that is sometimes wrong is worse than no hint.
+    // 什么都没有 流式传输 ,所以没有 "this turn"
+    // 以结束。 排队排在下一个提交时会排出排队。 否则的话会
+    // 是一个谎言, 有时错误的提示比没有提示更糟糕。
     Model m = with_queued("later");
     REQUIRE(!m.s.active());
 
@@ -80,10 +80,10 @@ TEST_CASE("queued preview: idle, it does not promise a turn that isn't running")
 }
 
 TEST_CASE("composer footer: typing mid-turn says Enter will queue") {
-    // The placeholder that teaches "type to queue" is gone the moment there
-    // IS text -- exactly when the user is deciding whether to press Enter.
-    // The footer carries it from then on, beside the model badge rather
-    // than instead of it.
+    // 教书的占位符 "type to queue" 已经走了,
+    // 那一刻 IS 文本 - 确切的用户决定是否按 Enter.
+    // 脚印从那时起就携带它,在模范徽章旁边
+    // 而不是代替它.
     auto footer = [](const Model& m, int width = 100) {
         auto root = maya::Composer{ui::composer_config(m)}.build();
         maya::StylePool pool;
@@ -101,8 +101,8 @@ TEST_CASE("composer footer: typing mid-turn says Enter will queue") {
         return s;
     };
 
-    {   // Mid-turn with text: say it, briefly. The long form lives on the
-        // transcript row; the footer is ambient and already crowded.
+    {   // 中-turn 有文本:简单说,长的形态存在于
+        // 记录排;脚印是环境的,已经挤满了。
         Model m;
         m.ui.composer.text = "wait, do it the other way";
         m.ui.composer.cursor = static_cast<int>(m.ui.composer.text.size());
@@ -111,8 +111,8 @@ TEST_CASE("composer footer: typing mid-turn says Enter will queue") {
         INFO(s);
         CHECK(s.find("queues") != std::string::npos);
     }
-    {   // Idle with text: Enter sends immediately, so the hint must not
-        //  appear -- it would describe a queue that is not happening.
+    {   // 与文本闲置: Enter 立即发送, 所以提示不能
+        //  显示 - 它将描述一个没有发生的队列。
         Model m;
         m.ui.composer.text = "a normal message";
         m.ui.composer.cursor = static_cast<int>(m.ui.composer.text.size());
@@ -124,8 +124,8 @@ TEST_CASE("composer footer: typing mid-turn says Enter will queue") {
 }
 
 TEST_CASE("queued preview: the promise is made once, not per row") {
-    // Three queued items state it once. Repeating it on every row is
-    // nagging, and the rows are adjacent so one line covers them all.
+    // 三个排队的项目声明一次,每行重复一次都是在抱怨,
+    // 而各行相邻,所以一行都覆盖了它们.
     Model m = with_queued("first");
     for (const char* t : {"second", "third"}) {
         ComposerState::QueuedMessage q;

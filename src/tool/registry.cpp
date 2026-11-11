@@ -73,33 +73,33 @@ std::string to_string(EffectSet e) {
 
 namespace {
 
-// Assemble every tool. Order matters: the protocol treats the set as
-// unordered but the model has a strong recall bias toward earlier-listed
-// tools. Putting `edit` ahead of `write` is the cheapest single nudge to
-// stop the model from rewriting whole files when a targeted substitution
-// would do — and edit's tiny input_json_delta bodies sidestep the long
-// mid-stream pause Anthropic's edge applies to multi-KB tool_use content.
-// Assemble the local tool set. The implementations live in mcp-cpp's
-// batteries-included toolset (mcp::tools::make_provider): build_mcp_tool_defs()
-// re-wraps each advertised tool as a ToolDef whose execute() dispatches into
-// the provider and reads the typed effects + FileChange off each Result back
-// into ToolOutput. The host-coupled SHELLS (remember/forget/wipe/todo/skill/
-// search_docs/task) are backed by agentty adapters injected via HostServices.
-// mcp-cpp is the SOLE source of truth for tools — there is no native path.
+// 集合每个工具。 命令事项: 协议将集视为未排序,
+// 但模型对更早的重现偏差 -listed 工具。
+// 设置 `edit` 提前 `write` 最便宜的单一块块块
+// 阻止模型在目标替代时 重写整个文件 —— 编辑的微小
+// input_json_delta 正文 绕过长中路 -stream
+// 暂停 Anthropic 边缘适用于多 -KB tool_use 内容。
+// 集合本地工具集。 执行程序以 mcp-cpp 电池 -included 工具集( 选项)
+// mcp::tools::make_provider): build_mcp_tool_defs (a) 调用
+// -wraps 每个被公布的工具都作为 ToolDef 其 人 名 execute() 发送到提供者并读取
+// 带类型的 副作用 + FileChange 关闭每个结果返回到 ToolOutput。东道主 -coupled
+// 宿主保留的外壳工具，包括 remember/forget/wipe/todo/skill/search_docs/task，
+// ) 由下列因素支持: agentty 通过下列途径注入的适配器 HostServices.
+// mcp-cpp 是那个 SOLE 工具的真相来源——没有本土路径.
 std::vector<ToolDef> build_native_registry() {
     return build_mcp_tool_defs();
 }
 
-// Connect external MCP exactly once, on first catalog access. The returned
-// ToolDefs are not made part of the immutable native baseline: every later
-// generation is rebuilt from the MCP pool's current authoritative snapshot.
+// 连接外部 MCP 一次,第一次,我问他 目录 访问。
+// 返回 ToolDefs 不属于 不可变 本土基
+// 线:每一代从 MCP 池 当前的权威性 快照.
 std::vector<ToolDef> connect_initial_mcp() {
     if (!mcp::mcp_config_present()) return {};
     static mcp::PoolHandle s_pool;
     return mcp::mcp_tools(s_pool);
 }
 
-} // namespace
+} // 命名空间结束。
 
 const std::vector<ToolDef>& native_registry() {
     static const std::vector<ToolDef> r = build_native_registry();
@@ -107,25 +107,25 @@ const std::vector<ToolDef>& native_registry() {
 }
 
 namespace {
-// One build of the catalog. Immutable once published; readers hold the
-// Catalog handle for as long as they use a ToolDef, so a rebuild never
-// invalidates anything and the old build dies with its last reader.
+// 一块 目录. 不可变 已出版; 读者持有 目录
+// 只要它们使用一个 ToolDef ,所以重建永远
+// 不会使任何东西失效 旧建筑与它的最后一个读者死亡。
 struct Snapshot {
     Catalog tools;
-    std::unordered_map<std::string, std::size_t> idx;   // name -> index in *tools
+    std::unordered_map<std::string, std::size_t> idx;   // 名称 - > *工具中的索引
     unsigned long generation = 0;
-    bool stale = false;   // marker published by invalidation; never served
+    bool stale = false;   // 标记通过无效发布; 从未服务
 };
 
 enum class Phase { Idle, Connecting, Connected };
-// Lock-free: the catalog is read from everywhere (views, lock bodies, tool
-// workers), so the connect claim is one atomic and the first connect's
-// result is published once. No capability on the catalog path.
+// 锁-free : 数据 目录 各地的教诲, 锁 正文 ,
+// 工具 工作线程 ),所以连接的主张是一个原子,
+// 第一个连接的结果公布一次。 目录 路径。
 std::atomic<Phase>& connect_phase() { static std::atomic<Phase> p{Phase::Idle}; return p; }
-// The two slots are leaked: a tool worker abandoned at the shutdown grace
-// may still read them while statics are torn down. What they point at is
-// refcounted and dies with its last reader, so this is one allocation each,
-// not a growing chain.
+// 两个槽都漏掉了: 一个工具 工作线程 被关闭的恩典所抛弃的,
+// 在静态被撕裂的时候,他们仍然会读到它们。他们所要看到的,
+// 是重新计算,用最后的读物来读取,所以这是其中的一本。
+// 分配 而不是不断增长的链条
 maya::published<const std::vector<ToolDef>>& initial_mcp() {
     static auto* s = new maya::published<const std::vector<ToolDef>>;
     return *s;
@@ -136,9 +136,9 @@ maya::published<const Snapshot>& catalog() {
 }
 
 std::shared_ptr<const Snapshot> make_snapshot(std::vector<ToolDef> tools, unsigned long generation) {
-    // tool_search is always dispatchable (#98). Whether it rides the wire is
-    // the planner's call; whether it RUNS must not depend on what was sent,
-    // or a model that saw it last turn gets "unknown tool".
+    // tool_search 总是可以发送的(#98)。它是否骑着 传输
+    // 是计划员的 调用 ; 是否为 RUNS 一定不取决于寄出什么 或
+    // 看到它最后转弯的模型 "unknown tool".
     if (std::none_of(tools.begin(), tools.end(), [](const ToolDef& t) {
             return t.name.value == plan::kSearchToolName; }))
         tools.push_back(tool_loading::search_tool());
@@ -149,26 +149,26 @@ std::shared_ptr<const Snapshot> make_snapshot(std::vector<ToolDef> tools, unsign
         Snapshot{Catalog::make(std::move(tools)), std::move(idx), generation, false});
 }
 
-// Served while another thread is mid-connect, so nobody waits on it.
+// 服务于另一个人 线程 中间 -connect 所以没人会等着你
 std::shared_ptr<const Snapshot> native_only() {
     static const std::shared_ptr<const Snapshot> s = make_snapshot(native_registry(), 0);
     return s;
 }
 
-// Whether this call may be the one that connects external MCP (spawns every
-// configured server, up to 15 s). find() is called from reducers on the UI
-// thread (tool scheduling, the permission prompt), so it must never be the
-// caller that connects: it froze the UI when it beat init's warm-up task to
-// the first access. A find() before the connect sees the native tools, the
-// same as any caller arriving mid-connect. Every other access may connect:
-// on ACP and `agentty run` the first wire_tools() on a turn worker is
-// what brings MCP up.
+// 是否为此 调用 可能是连接外部的 MCP (每个配置的服务器都喷发,
+// 最多15秒). find() 调用自 状态更新函数 自动
+// 调试 UI 线程 (工具排程, 权限 提示词 ),
+// 所以绝对不是打电话者连接:它冻结了 UI 等它被打倒的时候,
+// 它会很温暖 -up 任务,以获取第一个访问。 find()
+// 和任何来电的中途一样 -connect。其他访问可以连接:
+// 打开 ACP 财务报告和已审计财务报表 `agentty run` 第一次 第一次 wire_tools (转)
+// 工作线程 是什么带来 MCP 起来
 enum class Connect { May, Never };
 
 std::shared_ptr<const Snapshot> refresh_wire_cache(Connect may = Connect::May) {
-    // The first caller connects external MCP; anyone arriving meanwhile gets
-    // the native tools right away (it may be the UI thread, and the connect
-    // can take up to 15 s).
+    // 第一个呼叫者连接外部 MCP ; 任何同时到达的
+    // 人立即得到本地工具(可能是 UI 线程 ,
+    // 而连接可达15秒。
     enum class Claim { Mine, Busy, Done };
     const Claim claim = [may] {
         Phase expect = Phase::Idle;
@@ -182,8 +182,8 @@ std::shared_ptr<const Snapshot> refresh_wire_cache(Connect may = Connect::May) {
     }();
     if (claim == Claim::Busy) return native_only();
     if (claim == Claim::Mine) {
-        // Back to Idle on ANY throw between the claim and Connected (the
-        // connect or the publish), or no later call would ever connect.
+        // 继续继续 任意 将权利要求和连接(连接或
+        // 发布)之间丢弃,或不再拖动 调用 永远连接。
         try {
             auto ext = connect_initial_mcp();
             initial_mcp().publish(
@@ -202,11 +202,11 @@ std::shared_ptr<const Snapshot> refresh_wire_cache(Connect may = Connect::May) {
 
         std::vector<ToolDef> external;
         if (generation != 0 && may == Connect::Never && cur && !cur->stale) {
-            // Only the generation moved: a server sent list_changed, and the
-            // rebuild would run tools/list on it. The UI thread doesn't wait
-            // on that; it keeps this snapshot and the next worker access
-            // rebuilds. (An explicit invalidation, a tool toggled off, still
-            // rebuilds here: that reads cached lists, no network.)
+            // 仅移动的一代: 服务器已发送 list_changed ,
+            // 重建将会运行 tools/list 上面,那个 UI
+            // 线程 等不及了,它留着这个 快照 下一个 工作线程
+            // 访问重建。 (一个明确的无效, 一个切换的工具,
+            // 仍然在这里重建: 读取缓存列表, 没有网络。)
             return cur;
         }
         if (generation == 0) {
@@ -219,8 +219,8 @@ std::shared_ptr<const Snapshot> refresh_wire_cache(Connect may = Connect::May) {
         tools.reserve(native_registry().size() + external.size());
         tools.insert(tools.end(), native_registry().begin(), native_registry().end());
 
-        // External names are namespaced, but still drop duplicates rather
-        // than send ambiguous schemas to a provider.
+        // 外部名称被命名为空格,但仍会丢掉重复,而不是将模棱
+        // 两可的模式定义发送给一个提供者.
         std::unordered_map<std::string, bool> names;
         names.reserve(tools.capacity());
         for (const auto& tool : tools) names.emplace(tool.name.value, true);
@@ -230,11 +230,11 @@ std::shared_ptr<const Snapshot> refresh_wire_cache(Connect may = Connect::May) {
         }
         auto out = make_snapshot(std::move(tools), generation);
         if (catalog().publish_if(cur, out)) return out;
-        // Someone else published (a rebuild or an invalidation); re-check.
+        // 其他人发表(重建或无效);re-check.
     }
 }
 
-// Mark the current catalog stale so the next access rebuilds it.
+// 标记当前 目录 过期 所以下一个通道重建了它
 void invalidate_catalog() {
     for (;;) {
         auto cur = catalog().current();
@@ -244,23 +244,23 @@ void invalidate_catalog() {
         if (catalog().publish_if(cur, std::move(marker))) return;
     }
 }
-} // namespace
+} // 命名空间结束。
 
-// Legacy tool-name aliases → canonical registry name. The exec tool was renamed
-// bash → shell, but `bash` is so dominant in model training data (it is Claude
-// Code's actual tool name — commonly emitted as "Bash", capital B) that a model
-// reliably calls it by the old name on the FIRST turn, before it internalises
-// our schema. Without this the call 404s ("unknown tool: Bash"), the model
-// burns a wasted failed call, then retries as `shell`. Canonicalising here —
-// the ONE lookup every dispatch path (agent loop, subagent, ACP, mcp-serve,
-// permission check) funnels through — absorbs that misfire so the legacy name
-// just works.
+// 遗留工具 -name 异名 – 犬科 注册表 名称。执行工具被重新命名为
+// shash ~ shell, 但是 `bash` 模式培训数据中占主导
+// 地位(在 Claude 代码的实际工具名称——通常作为 "Bash" ,
+// 资本B),该模型可靠 调用 上面的旧名 首次 转身,在它内化我们 模式
+// 定义 没有这个 调用 404s ("unknown tool: Bash" ),
+// 模型烧掉了一个浪费的失败 调用 ,则 重试 以 `shell` .
+// 此处的加固—— 一个 查找每个 分派 路径(代理环路、子代理 ACP ,
+// mcp 数据 -serve, 权限 ——吸收误火,
+// 故遗留名称才有效.
 //
-// The match is CASE-INSENSITIVE and whitespace-trimmed: models emit "bash",
-// "Bash", and "BASH" interchangeably, and the exact-case check was the bug that
-// let "Bash" slip through to a hard failure.
+// 比赛是 CASE-INSENSITIVE 和空白空间 -trimmed : 模型
+// 发射 "bash", "Bash" ,和 "BASH" 交替,准确的 -case
+// 检查是错误让 "Bash" 滑到一个艰难的失败。
 [[nodiscard]] static std::string_view canonical_tool_name(std::string_view name) noexcept {
-    // Trim surrounding whitespace without allocating.
+    // 绕行白空间而不分配。
     auto b = name.find_first_not_of(" \t\r\n");
     if (b == std::string_view::npos) return name;
     auto e = name.find_last_not_of(" \t\r\n");
@@ -275,8 +275,8 @@ void invalidate_catalog() {
         return true;
     };
     if (ieq(trimmed, "bash")) return "shell";
-    // Renamed off the `mcp_` prefix Anthropic OAuth rejects; saved threads
-    // and habit still call the old names.
+    // 已取消名称 `mcp_` 前缀 Anthropic 拒绝;
+    // 已保存 线程 习惯还原 调用 旧名.
     if (ieq(trimmed, "mcp_read_resource")) return "mcp__resources__read";
     if (ieq(trimmed, "mcp_get_prompt")) return "mcp__prompts__get";
     return name;
@@ -301,7 +301,7 @@ Found find(std::string_view name) {
     const auto snapshot = refresh_wire_cache(Connect::Never);
     if (auto it = snapshot->idx.find(std::string{name}); it != snapshot->idx.end())
         return Found{snapshot->tools, &(*snapshot->tools)[it->second]};
-    // Miss: retry once under the canonical name so a legacy alias resolves.
+    // 女士:重试曾经在犬科名下,所以一个遗产别名解决.
     if (auto canon = canonical_tool_name(name); canon != name)
         if (auto it = snapshot->idx.find(std::string{canon}); it != snapshot->idx.end())
             return Found{snapshot->tools, &(*snapshot->tools)[it->second]};
@@ -325,13 +325,13 @@ unsigned long mcp_generation() noexcept {
 }
 
 std::size_t reload_mcp_plugins() {
-    // One reload at a time. Each plugin toggle fires this on its own thread
-    // and a reconnect can take seconds, so a request that lands mid-reload
-    // just sets `pending` and returns; the running reload loops once more to
-    // pick up the newer config. Checking `pending` and clearing `running`
-    // happen in one CAS, so no request is lost.
-    // Both flags live in one atomic word, so each step is a single CAS and
-    // no lock (or capability) is needed on this path.
+    // 一次重装一次。 每个插件 切换 自己开的 线程 重新连接需要几秒钟,
+    // 所以请求 降落在中点 -reload 刚刚设置 `pending` 返回;
+    // 运行中的重新加载循环以再次抓取更新的配置。
+    // 正在检查 `pending` 和清除 `running`
+    // 发生在一个 CAS ,所以没有丢失请求。
+    // 两者 标志 在一个原子词里生活 所以每个步骤都是单数 CAS
+    // 且无 锁 这条道路上需要(或能力).
     constexpr unsigned kRunning = 1u, kPending = 2u;
     static std::atomic<unsigned> state{0};
 
@@ -340,10 +340,10 @@ std::size_t reload_mcp_plugins() {
         const unsigned want = (cur & kRunning) ? (cur | kPending) : kRunning;
         if (state.compare_exchange_weak(cur, want)) break;
     }
-    if (cur & kRunning) return 0;   // someone else is reloading; they'll loop
+    if (cur & kRunning) return 0;   // 别人在重新装填,他们会循环
 
-    // A throw out of the reload must still clear `running`, or every later
-    // reload sees one in progress and returns without doing anything.
+    // 重新装入的抛出物仍必须清除`running`,
+    // 或者每次后来重新装入物时都会看到在进行中,返回时不做任何事情.
     struct Clear {
         std::atomic<unsigned>& s;
         bool armed = true;
@@ -359,7 +359,7 @@ std::size_t reload_mcp_plugins() {
         bool again = false;
         for (;;) {
             again = (s & kPending) != 0;
-            if (again) break;   // keep running; the next pass clears pending
+            if (again) break;   // 继续运行; 下一个通过 待处理
             if (state.compare_exchange_weak(s, s & ~kRunning)) break;
         }
         if (!again) break;
@@ -369,9 +369,9 @@ std::size_t reload_mcp_plugins() {
 }
 
 void invalidate_mcp_catalog(Io) {
-    // No re-spawn: bump the pool generation and mark the catalog stale.
-    // project_tools re-reads tools.exclude on the rebuild, so an
-    // enable/disable toggle lands on the next access with no server churn.
+    // 没有 -spawn : 撞伤 池 生成并标记 目录 过期.
+    // project_tools 内容 -reads tools.exclude 重建,
+    // 所以一个 enable/disable 切换 降落在下一个访问中,没有服务器的 churn。
     mcp::mcp_bump_generation();
     invalidate_catalog();
 }

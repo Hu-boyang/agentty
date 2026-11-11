@@ -1,16 +1,16 @@
 #pragma once
-// #symbol picker — opens above the composer when the user types `#`
-// at a word boundary. Same shape as the `@` picker, over workspace
-// symbols instead of file paths. Symbol = (name, path, line) — the chip
-// we attach on select carries all three so submit-time expansion can
-// splice an excerpt of the file around the declaration.
+// #符号 选择面板 — 当用户在字边界键入 `#` 时在编辑器上方打开。
+// 与 `@` 选择面板 形状相同，在 工作区 符号 上而不是文件路径。
+// 符号 = (name, path, line) — 我们在
+// select 上附加的 标签 包含所有三个，因此 Submit
+// -time 扩展可以在声明周围拼接文件的摘录。
 //
-// The state is a FilteredPicker (panel/filtered_picker.hpp): query, cursor,
-// snapshot, filter memo and cold-open refill are all inherited from that one
-// primitive. This header declares only what is specific to `#`.
+// 状态是FilteredPicker (panel/filtered_picker.hpp):查询、
+// 游标、快照、过滤器记忆缓存和冷-open填充均继承自该原语。
+// 此 头文件 仅声明 `#` 特有的内容。
 //
-// The workspace scanner that produces SymbolEntry (and the filter helper)
-// live in `workspace/symbols.hpp`; this header is UI-state-only.
+// 产生SymbolEntry (和过滤助手）的工作区扫描仪位于`workspace/symbols.hpp`；
+// 这个头文件是UI-state-only。
 
 #include <string>
 #include <tuple>
@@ -46,9 +46,9 @@ struct Open {
     ui::FilteredPicker<SymbolEntry> picker;
 };
 
-// See mention.hpp: the picker owns every visible axis, and Open's
-// user-provided constructor makes it a non-aggregate, so the parts list is
-// explicit and the trust claim is stated next to the type it covers.
+// 参见mention.hpp：选择面板拥有每个可见轴，
+// 并且Open的user-provided构造函数使其成为非-aggregate，
+// 因此部件列表是明确的并且信任声明在其覆盖的类型旁边陈述。
 inline auto visual_parts(const Open& p) {
     return std::make_tuple(visual::ref(p.picker));
 }

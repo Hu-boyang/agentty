@@ -1,13 +1,13 @@
-// save_bench <thread-id> [rounds] — per-round save cost on a real thread.
+// save_bench <thread-id> [圆 ——按 -round 保存 实际成本 线程.
 //
-// Loads a thread from the user's store into a scratch AGENTTY_HOME, then
-// simulates an agent loop: each round appends one message and calls
-// save_thread + flush. Round 1 is the full write (first save of the
-// process); later rounds take the incremental tail path. Prints both so a
-// regression back to whole-thread saves is obvious.
+// 加载 a 线程 从用户的商店到刮伤 AGENTTY_HOME ,
+// 然后模拟代理环:每个圆形附件一个消息和 调用
+// save_thread + 冲。 第1轮是全写( 第1轮)。
+// 保存 ) ; 以后各轮采用递增的 末尾 路径。打印两个都这样
+// 返回到整个 -thread 保存 很明显
 //
-// Build: part of agentty_standalone_tests (LABELS perf).
-// Run:   agentty_standalone_tests save_bench 1c6fff4258e07787 10
+// 构建: 部分 agentty_standalone_tests (LABELS 报告(第1段)
+// 运行时间: agentty_standalone_tests save_bench 1c6fff4258e07787 10
 
 #include <agentty/io/persistence.hpp>
 #include "agtest_cap.hpp"
@@ -36,8 +36,8 @@ int main(int argc, char** argv) {
     const fs::path src{argv[1]};
     const int rounds = argc > 2 ? std::atoi(argv[2]) : 8;
 
-    // The test main sandboxes AGENTTY_HOME, so take the source by path
-    // (read-only) and let every write land in the sandbox.
+    // 测试主沙盒 AGENTTY_HOME ,因此按路径选择
+    // 源(读) -only 让每个人写土地 沙箱.
     std::optional<Thread> loaded;
     if (src.extension() == ".jsonl") {
         if (auto log = ThreadLog::open_path(src)) loaded = log->load_thread();
@@ -53,10 +53,10 @@ int main(int argc, char** argv) {
 
     std::printf("%s: %zu messages\n", src.filename().string().c_str(), t.messages.size());
 
-    // Where does the reducer-side cost actually go? Time the two halves of
-    // enqueue() separately: hashing every message to find what changed, vs
-    // copying the changed tail. Reported before the round table so a
-    // regression in either half is attributable.
+    // 哪里有这个? 状态更新函数-side 花掉一半的时间
+    // enqueue() 单独: 将每封信件都散开查找更改,
+    // 相对于复制更改 末尾 圆桌会议前报告,因此,
+    // 其中一半的倒退可以归咎于圆桌会议。
     {
         std::size_t bytes = 0;
         for (const auto& m : t.messages) {
@@ -81,9 +81,9 @@ int main(int argc, char** argv) {
         t.messages.push_back(std::move(m));
 
         const auto a = clk::now();
-        persistence::save_thread(::agentty::IoAccess::grant(), agtest::cap(), t);            // reducer-side cost
+        persistence::save_thread(::agentty::IoAccess::grant(), agtest::cap(), t);            // 状态更新函数-side 费用
         const auto b = clk::now();
-        persistence::flush_pending_saves(::agentty::IoAccess::grant(), agtest::cap());     // + writer-side cost
+        persistence::flush_pending_saves(::agentty::IoAccess::grant(), agtest::cap());     // + 写作 -side 费用
         const auto c = clk::now();
         auto ms_local = [](auto d) {
             return std::chrono::duration<double, std::milli>(d).count();
@@ -91,9 +91,9 @@ int main(int argc, char** argv) {
         std::printf("round %2d  %-4s  enqueue %8.2f ms   total %9.2f ms\n",
                     r, r == 0 ? "full" : "tail", ms_local(b - a), ms_local(c - a));
     }
-    // What the loop thread pays per save now: describe the delta against the
-    // last save (reducer), queue it (host). Next to it, the whole-Thread copy
-    // a save used to cost before anything was written.
+    // 何等为回转 线程 工资/月 保存 现在:描述三角洲对上一个
+    // 保存 (状态更新函数 ,排队(主机),旁边是整个 -Thread
+    // 复制一个 保存 之前就已经花费了多少钱
     {
         std::vector<std::uint64_t> saved;
         auto first = persistence::describe_save(t, saved);
@@ -110,7 +110,7 @@ int main(int argc, char** argv) {
             saved = d.fps;
             const bool ok = persistence::save_thread_delta(::agentty::IoAccess::grant(), agtest::cap(), std::move(d));
             const auto b = clk::now();
-            Thread copy = t;   // what SaveThread{m.d.current} used to do
+            Thread copy = t;   // 什麽 SaveThread{m.d.current 曾经做
             const auto c = clk::now();
             persistence::flush_pending_saves(::agentty::IoAccess::grant(), agtest::cap());
             std::printf("delta %2d  loop-thread %6.2f ms (queued=%d)   old whole copy %7.2f ms\n",

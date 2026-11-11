@@ -1,73 +1,73 @@
 #pragma once
-// agentty::Cmd — the effect row, declared once.
+// agentty::Cmd——副作用行，声明一次。
 //
-// jaal puts a program's effects IN ITS TYPE (D2): `Cmd<Msg, a, b, c>` says
-// which effects this program may return, and a host must handle every one
-// of them or the program won't compile against it. That is the property
-// that makes the ACP host tractable — the compiler lists what it still owes
-// instead of us finding out at runtime.
+// jaal放置程序的副作用 IN ITS TYPE (D2)：
+// `Cmd<Msg, a, b, c>`表示该程序可能返回哪个副作用，
+// 并且主机必须处理其中的每一个，否则程序不会针对它编译。
+// 这就是使 ACP 主机易于处理的属性 - 编译器 列出了它仍然欠下的内容，
+// 而不是我们在 运行时 上查找。
 //
-// So the row lives here, in one place, and everything else says `Cmd`.
+// 因此，该行位于此处，在一个地方，其他所有内容均表示 `Cmd`。
 //
-// Three groups:
+// 三组：
 //
-//   jaal core     quit, send, after, task, now, random — always available,
-//                 no need to name them (D6: the core row is always in).
-//   maya terminal set_title, commit_scrollback, write_clipboard, suspend,
-//                 ... — things only a TERMINAL can do. A non-terminal host
-//                 (ACP) will not serve these, which is exactly why they are
-//                 listed: the compiler will say so.
-//   agentty's own save_settings, save_thread, ... — things only THIS app
-//                 does. Added as the Deps seam is dismantled (step 7 in
-//                 docs/design/jaal-rewrite.md).
+//   jaal核心退出、发送、之后、任务、现在、随机——始终可用，
+//                 无需命名它们（D6：核心行始终在）。
+//   maya、终端、set_title、commit_scrollback、
+//                 write_clipboard、暂停、……——只有 TERMINAL
+//                 才能做的事情。非 -terminal 主机 (ACP) 不会为这些服务提供服务，
+//                 这正是列出它们的原因：编译器 会这么说。
+//   agentty自己的save_settings、save_thread……——只有THIS应用程序
+//                 才能做的事情。在拆除 Deps 接口边界 时添加（docs/design/jaal-rewrite.md
+//                 中的步骤 7）。
 
 #include <maya/runtime.hpp>
 #include <maya/host/effects.hpp>
-#include <maya/host/sources.hpp>   // maya::KeyEvent / PasteEvent / ...
+#include <maya/host/sources.hpp>   // maya::KeyEvent/PasteEvent/...
 
 #include <string>
 #include <string_view>
 
 #include "agentty/domain/conversation.hpp"   // ImageContent
 #include "agentty/domain/id.hpp"
-#include "agentty/util/sendable.hpp"       // Id<Tag>, fs::path, EffectSet
+#include "agentty/util/sendable.hpp"       // Id<Tag>、fs::path、EffectSet
 #include "agentty/util/io.hpp"
 #include "agentty/io/http.hpp"               // http::CancelTokenPtr
 #include "agentty/provider/selection.hpp"    // provider::Selection
 #include "agentty/runtime/msg.hpp"
-#include "agentty/runtime/store_fx.hpp"   // save_thread, write_file, …
+#include "agentty/runtime/store_fx.hpp"   // save_thread、write_file、……
 
-// ── agentty's value types, as jaal sees them ──────────────────────────────
-// Id<Tag>, fs::path and EffectSet are opted in by util/sendable.hpp, which
-// any guarded value can include. The ones below need heavier headers, so
-// they live with the Msg tree that carries them.
+// ── agentty的值类型,如jaal所见 ──────────────────────────────
+// Id<Tag>、fs::path和EffectSet由util/sendable.hpp选择加入，
+// 任何受保护的值都可以包括这些。下面的需要更重的 头文件，
+// 因此它们与携带它们的 Msg 源码树 一起生活。
 
-// LazyBytes and ImageContent are opted in next to ImageContent
-// (domain/conversation.hpp), so the io layer can queue them too.
+// LazyBytes和ImageContent被选择加入到ImageContent
+// (domain/conversation.hpp)旁边，因此I/O层也可以将它们排队。
 
 
-// http::CancelTokenPtr is opted in next to the type (io/http.hpp).
+// 在类型(io/http.hpp)旁边选择http::CancelTokenPtr。
 
-// provider::Selection is opted in next to its definition (selection.hpp).
+// 在其定义(selection.hpp)旁边选择provider::Selection。
 
-// ── the message tree, as jaal routes it ───────────────────────────────
-// Msg is a variant of 24 DOMAIN variants, not one flat list of leaves.
-// agentty grouped
-// them because a flat Msg pinned sizeof(Msg) to the heaviest leaf and cost
-// ~19 s to rebuild after touching one. jaal's D36 is that shape, measured on
-// this app: one domain TU rebuilds in 1.19 s, the loop TU went 6.9 s -> 1.77 s.
+// ── 消息( I) 源码树 ,作为 jaal 路经它 ───────────────────────────────
+// Msg是24个DOMAIN 变体的变体，不是一个扁平的叶子列表。
+// agentty将
+// 它们分组，因为平坦的Msg将尺寸(Msg)固定到最重的叶子上，并且在接触叶子后
+// 花费约19秒来重建。 jaal 的 D36 就是这种形状，在此应用程序上测量：一个
+// 域 TU 在 1.19 秒内重建，循环 TU 花了 6.9 秒 -> 1.77 秒。
 //
-// jaal descends the tree on its own, so by default it wants an update() for
-// every LEAF and says so, one diagnostic per missing case with the path it
-// took (Msg -> AppearanceMsg -> AppearanceThemeCommit). We don't want that:
-// each domain has ONE reducer that takes the whole domain variant and visits
-// it itself, in its own TU. That is what handled_as_group declares.
+// jaal自身沿源码树下降，因此默认情况下它想要每个LEAF有一个update()，
+// 并且如此说，每个丢失病例及其所采取的路径（Msg -> AppearanceMsg
+// -> AppearanceThemeCommit）有一个诊断。我们不希望这样：
+// 每个域具有ONE 状态更新函数，其获取整个域变体并在其自己的TU中访问它本身。
+// 这就是 handled_as_group 所声明的内容。
 //
-// It opts in BY NAME rather than being inferred, and D36 explains why: a
-// catch-all `template <class M> update(Model&, M)` matches a group type as
-// happily as a leaf, so inferring it would let a catch-all silently claim
-// every domain and switch off the exhaustiveness check underneath. Naming
-// each one keeps the check on for every leaf we HAVEN'T grouped.
+// 它选择BY NAME而不是被推断，并且D36解释了原因：catch
+// 所有 template <class M> update(Model&, M) 重载。
+// 像叶子一样愉快地匹配组类型，因此推断它会让catch
+// -all默默地声明每个域并关闭下面的穷举性检查。
+// 命名每个叶子可以检查我们 HAVEN'T 分组的每片叶子。
 #define AGENTTY_MSG_GROUP(T) \
     template <> inline constexpr bool maya::handled_as_group<::agentty::msg::T> = true;
 
@@ -100,9 +100,9 @@ AGENTTY_MSG_GROUP(MetaMsg)
 
 #undef AGENTTY_MSG_GROUP
 
-// Every top-level domain must be a declared group. A missed one still
-// compiles (jaal descends and each leaf converts back up to the domain
-// handler), which is how SandboxMsg went unregistered unnoticed.
+// 每个top-level域必须是声明的组。漏掉的仍然是 编译
+// （jaal 下降，每片叶子都转换回域 处理函数），
+// 这就是 SandboxMsg 在未被注意到的情况下未注册的原因。
 namespace agentty::msg_groups {
 template <class V> struct all_domains_grouped;
 template <class... Ds> struct all_domains_grouped<std::variant<Ds...>> {
@@ -114,38 +114,38 @@ static_assert(all_domains_grouped<::agentty::MsgBase>::value,
 
 namespace agentty {
 
-/// Every effect an agentty reducer may return.
+/// 每副作用，agentty 状态更新函数可能返回。
 ///
-/// Add to this row when you add an effect; the host that can't run it stops
-/// compiling, with `require_host_for` naming the effect and the program.
+/// 添加副作用时添加到该行；无法运行的主机停止编译，
+/// `require_host_for` 命名 副作用 和程序。
 using Cmd = maya::Cmd<Msg,
     // ── maya's terminal effects ──────────────────────────────────
-    maya::commit_scrollback,   // hand inline rows to the terminal's scrollback
-    maya::write_clipboard,     // OSC 52 write
-    maya::query_clipboard,     // OSC 52 read; reply arrives as a paste
-    maya::emit_host_sequence,  // a formed control sequence (editor hooks)
-    maya::reset_inline,        // drop the inline frame, start fresh below it
-    maya::force_redraw,        // repaint from scratch
-    maya::set_mouse,           // mouse reporting on/off
-    maya::suspend,             // hand the tty to a child (editor, pager)
-    // ── agentty's own: persistence ───────────────────────────────
-    // These were calls through the Deps seam, which made every reducer that
-    // saved impure. As effects they are values the reducer returns and the
-    // host runs — see runtime/store_fx.hpp.
+    maya::commit_scrollback,   // 将内联行交给终端的回滚缓冲区
+    maya::write_clipboard,     // OSC 52 写入
+    maya::query_clipboard,     // OSC 52 读；回复以粘贴形式到达
+    maya::emit_host_sequence,  // 形成的控制序列（编辑器挂钩）
+    maya::reset_inline,        // 删除内联帧，在其下方重新开始
+    maya::force_redraw,        // 重绘从头开始
+    maya::set_mouse,           // 鼠标报告on/off
+    maya::suspend,             // 将 tty 交给孩子（编辑器、寻呼机）
+    // ── agentty的自有:持久化 ───────────────────────────────
+    // 这些是调用到Deps 接口边界，这使得每个状态更新函数和已保存都是不纯的。
+    // 作为 副作用，它们是 状态更新函数 返回且主机运行的值 — 请参阅
+    // runtime/store_fx.hpp.
     save_thread,
     delete_thread,
     rename_thread,
     write_file,
     save_settings,
-    // ── agentty's own: publishing Model-derived state to worker threads ──
-    // Returned by the dispatch seam, never by a reducer — see Model::
-    // published_subagent for why syncing isn't a step a reducer performs.
+    // ── agentty 自己的:出版 Model-derived 状态为 工作线程 线程 ──
+    // 由 分派 接口边界 返回，从未由 状态更新函数 返回 — 参见 Model::
+    // published_subagent解释为什么同步不是状态更新函数执行的步骤。
     publish_subagent,
     publish_selection,
     publish_web_search_policy,
     publish_paste_config,
     publish_tool_loading,
-    // ── agentty's own: credentials ───────────────────────────────
+    // ── agentty的自有:凭据 ───────────────────────────────
     install_auth,
     save_credentials,
     save_codex_credentials,
@@ -153,22 +153,22 @@ using Cmd = maya::Cmd<Msg,
     account_op
 >;
 
-/// agentty's subscriptions: only jaal's core sources (every, stream).
-/// Terminal input isn't a subscription any more (jaal D43); it arrives
-/// through AgenttyApp::on(model, event), see app/program.hpp.
+/// agentty的事件订阅:仅jaal的核心源(每，数据流)。
+/// 终端输入不再是事件订阅(jaal D43)；它通过 AgenttyApp::on（型号，
+/// 事件）到达，请参阅 app/program.hpp.
 using Sub = maya::Sub<Msg>;
 
-// ── spelling the terminal effects ──────────────────────────────────────
-// jaal builds an effect by handing its PAYLOAD to the Cmd: `Cmd(SetTitle{s})`.
-// That reads fine at one call site and poorly at forty, and the old runtime
-// spelled these as named factories (`Cmd<Msg>::write_clipboard(s)`), so keep
-// the names. They're free — each is one constructor call.
+// ── 字母拼写 终端 副作用 ──────────────────────────────────────
+// jaal通过将其PAYLOAD交给Cmd:`Cmd(SetTitle{s})`来构建副作用。
+// 在一个 调用 站点上读起来很好，在 40 个站点上读起来很差，旧的 运行时 将这些
+// 拼写为命名工厂 (`Cmd<Msg>::write_clipboard(s)`)，
+// 所以保留这些名称。它们是免费的——每一个都是一个构造函数 调用。
 //
-// These live in agentty::app::cmd, the same namespace as the app's own effect
-// factories (runtime/app/cmd_factory.hpp): a reducer says `cmd::run_tool(...)`
-// and `cmd::write_clipboard(...)` without caring which side of the seam an
-// effect comes from. That is the point of a row — the program lists what it
-// needs and the host's and the app's own effects sit together.
+// 它们位于 agentty::app::cmd 中，与应用程序自己的 副作用 工厂 (
+// runtime/app/cmd_factory.hpp) 相同的命名空间：状态更新函数
+// 表示 `cmd::run_tool(...)` 和 `cmd::write_clipboard(...)`，
+// 而不关心 副作用 来自 接口边界 的哪一侧。这就是一行的重点——程序
+// 列出了它需要的内容，主机和应用程序自己的 副作用 坐在一起。
 namespace app::cmd {
 
 [[nodiscard]] inline Cmd write_clipboard(std::string text) {
@@ -193,21 +193,21 @@ namespace app::cmd {
     return Cmd(maya::SetMouse{on});
 }
 
-/// Commit a harvested scrollback debt; nothing to do when it's empty.
-/// The typed ScrollbackDebt is the point — only maya's ledger can mint one,
-/// so a reducer can't commit a row count that drifts from the wire.
+/// 承担收获的回滚缓冲区债务；空的时候无事可做。
+/// 带类型的 ScrollbackDebt 是重点——只有 maya 的账本
+/// 可以铸造一个，因此 状态更新函数 不能提交偏离 传输 的行计数。
 [[nodiscard]] inline Cmd commit_scrollback(maya::ScrollbackDebt debt) {
     return maya::commit_from<Cmd>(debt);
 }
 
-// ── effects that do IO ──────────────────────────────────────────────────────────
-// A task whose body gets an Io: body(Io, Sink<Msg>, stop_token, args...),
-// or, when it takes locks, body(Io, const maya::unlocked&, Sink<Msg>,
-// stop_token, args...). Same rules as Cmd::task (captureless, Sendable
-// args). This is how a reducer asks for IO: it returns the task, and the
-// worker gets the Io -- and, because a worker thread starts holding no lock,
-// the `unlocked` capability that lets it take locks in rank order. The
-// reducer itself never gets either.
+// ── 副作用 就是这样 IO ──────────────────────────────────────────────────────────
+// 正文获得I/O:正文(I/O，Sink<Msg>，stop_token，
+// args...)的任务，或者，当它需要锁，正文(I/O，const
+// maya::unlocked&，Sink<Msg>，stop_token，
+// args...)时。与 Cmd::task 相同的规则（无捕获，可发送参数）。
+// 这就是 状态更新函数 请求 IO 的方式：它返回任务，工作线程 获取 I/O ——并且，
+// 因为 工作线程 线程 开始不持有 锁，所以 `unlocked` 功能使其能够按排名顺序获取 锁。
+// 状态更新函数 本身也永远不会得到。
 namespace io_detail {
 template <class Body, class... Args>
 concept IoCapBody =
@@ -217,10 +217,10 @@ template <class Body, class... Args>
 concept IoPlainBody =
     std::is_convertible_v<Body, void (*)(Io, maya::Sink<Msg>, std::stop_token, Args...)>;
 
-// The task body jaal runs: a captureless lambda (so it converts to a function
-// pointer, which is jaal's task contract), taking the fresh worker thread's
-// `unlocked` first (core/fx.hpp). It adds the Io, and forwards the capability
-// to bodies that take locks.
+// 任务正文 jaal运行：无捕获的lambda（因此它转换为函数指针，
+// 其是jaal的任务契约），首先获取新的工作线程 线程的
+// `unlocked`（core/fx.hpp）。它添加了 I/O，
+// 并将 锁 的能力转发到 正文。
 template <class Body, class... Args>
 inline constexpr auto run_io = [](const maya::unlocked& cap, maya::Sink<Msg> out,
                                   std::stop_token st, Args... args) {
@@ -239,14 +239,14 @@ template <class Body, class... Args>
     return Cmd::task(io_detail::run_io<Body, Args...>, std::move(args)...);
 }
 
-/// io_task on a thread of its own, for work that may never return.
+/// io_task在其自己的线程上，用于可能永远不会返回的工作。
 template <class Body, class... Args>
     requires io_detail::IoBody<Body, Args...>
 [[nodiscard]] Cmd io_task_isolated(Body, Args... args) {
     return Cmd::task_isolated(io_detail::run_io<Body, Args...>, std::move(args)...);
 }
 
-/// A Sub::stream whose body gets an Io: body(Io, Sink<Msg>, stop_token, args...).
+/// Sub::stream，其正文获得I/O:正文(I/O，Sink<Msg>，stop_token，args...)。
 template <class Body, class... Args>
     requires io_detail::IoBody<Body, Args...>
 [[nodiscard]] Sub io_stream(std::string key, Body, Args... args) {

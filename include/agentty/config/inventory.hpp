@@ -1,18 +1,18 @@
 #pragma once
-// agentty::config — every place agentty reads config from or writes bytes to,
-// declared once.
+// agentty::config — 每个 agentty 读取配置或写入 字节 的位置，
+// 声明一次。
 //
-// The model: two roots, one anchor each.
+// 模型：两个根，各一个锚。
 //
-//     ~/.agentty           follows the HUMAN   $AGENTTY_HOME
-//     <project>/.agentty   follows the CODE    $AGENTTY_PROJECT_DIR
+//     ~/.agentty遵循HUMAN $AGENTTY_HOME <project>/.
+//     agentty遵循CODE $AGENTTY_PROJECT_DIR
 //
-// Everything else is a leaf under one of those, so the anchor moves it.
+// 其他所有东西都是其中一个下面的叶子，因此锚移动它。
 //
-// Each constant below is THE definition for its feature. The feature reads
-// it and `agentty config` prints it, so the printed answer cannot drift from
-// the real one. config_inventory_test fails the build if any other file
-// declares its own Layout or Spec.
+// 下面的每个常数是THE对其特征的定义。该功能读取它并
+// `agentty config`打印它，因此打印的答案不会偏离真实的答案。
+// config_inventory_test如果任何其他文件声明了
+// 自己的布局或规范，则构建失败。
 
 #include "agentty/dirs/dirs.hpp"
 #include "agentty/scope/scope.hpp"
@@ -26,17 +26,17 @@
 
 namespace agentty::config {
 
-// ── Read: what each feature looks for, and where ─────────────────────────
+// ── 读取:每个功能的外观和位置 ─────────────────────────
 //
-// Layout::dialects is the per-feature choice: kPortable where the same bytes
-// are valid in another tool, kNativeOnly (the default) for a format we own.
+// Layout::dialects是每个-feature的选择：kPortable，
+// 其中相同的字节在另一个工具中有效，kNativeOnly（默认）对于我们拥有的格式。
 
-// mcp.json is not an .agents/.claude convention and the schema is ours.
+// mcp.json不是.agents/.claude约定，模式定义是我们的约定。
 inline constexpr scope::Layout kMcpLayout{
     .leaf = "mcp.json", .explicit_env = "AGENTTY_MCP_CONFIG"};
 
-// Markdown with frontmatter — valid in other tools, so reading theirs is
-// free compatibility.
+// 具有 frontmatter 的 Markdown — 在其他工具中有效，
+// 因此阅读它们的工具是免费的兼容性。
 inline constexpr scope::Layout kSkillsLayout{
     .leaf = "skills", .dialects = scope::kPortable};
 inline constexpr scope::Layout kAgentsLayout{
@@ -46,18 +46,18 @@ inline constexpr scope::Layout kCommandsLayout{
 
 inline constexpr scope::Layout kMemoryLayout{.leaf = "memory.jsonl"};
 
-// Does acting on this content spawn a process? Only MCP does, and that is
-// what makes a cloned repo's config Pending until a human vouches for its
-// exact bytes. A function rather than a Layout field: scope owns the read
-// algebra and must not learn what callers do with the bytes.
+// 对该内容进行操作是否会产生一个过程？只有 MCP 可以，
+// 这就是克隆 仓库 的配置 待处理 的原因，直到有人担保
+// 其确切的 字节。函数而不是布局字段：作用域拥有读取代数，
+// 并且不得了解调用者对 字节 执行的操作。
 [[nodiscard]] constexpr bool executable(std::string_view name) noexcept {
     return name == "mcp";
 }
 
-// ── Write: where bytes land, and for how long ────────────────────────────
+// ── Write : 地点 字节 土地,以及多久的 ────────────────────────────
 //
-// Every directory has its own variable, AGENTTY_<NAME>_DIR. Storage is set
-// by environment only. docs/website/storage.md lists them.
+// 每个目录都有自己的变量AGENTTY_<NAME>_DIR。存储仅由环境决定。
+// docs/website/storage.md 列出了它们。
 
 inline constexpr dirs::Spec kThreadsSpec{
     .root = dirs::Root::User, .leaf = "threads",
@@ -77,22 +77,22 @@ inline constexpr dirs::Spec kStateSpec{
     .root = dirs::Root::User, .leaf = "state", .env = "AGENTTY_STATE_DIR",
     .retention = "approval hashes, kept until revoked"};
 
-// Derived: a sweep may reclaim it. keep_last=1 spares the previous
-// embedder's index so switching backends doesn't force a full rebuild.
+// 推导：一扫即可回收它。 keep_last=1 会
+// 保留先前嵌入器的索引，因此切换后端不会强制完全重建。
 inline constexpr dirs::Spec kRagSpec{
     .root = dirs::Root::Project, .leaf = "cache", .env = "AGENTTY_RAG_DIR",
     .life = {.rebuildable = true, .keep_last = 1,
              .min_age = std::chrono::seconds{3600}}};
 
-// Accumulated from use, nothing regenerates it, so never swept. A separate
-// leaf from the indexes because the retention differs.
+// 由于使用而积累，没有任何东西可以再生它，因此从未被清扫过。
+// 与索引分开的叶子，因为保留不同。
 inline constexpr dirs::Spec kFeedbackSpec{
     .root = dirs::Root::Project, .leaf = "state",
     .env = "AGENTTY_PROJECT_STATE_DIR",
     .life = {}, .retention = "search learning tallies, delete to forget"};
 
-// Both roots resolve their anchor in dirs::root_for, so no Spec declares
-// one — which keeps a new category from advertising itself as an anchor.
+// 两个根都在 dirs::root_for 中解决了它们的锚点，
+// 因此没有规范声明一个——这使得新类别无法将自己宣传为锚点。
 [[nodiscard]] constexpr bool moves_whole_root(const dirs::Spec&) noexcept {
     return false;
 }
@@ -100,57 +100,57 @@ inline constexpr dirs::Spec kFeedbackSpec{
     return r == dirs::Root::User ? "AGENTTY_HOME" : "AGENTTY_PROJECT_DIR";
 }
 
-// ── Approval stores ──────────────────────────────────────────────────────
+// ── 核准用品 ──────────────────────────────────────────────────────
 //
-// Content hashes a human vouched for. In the user state dir, so a cloned
-// repo can never vouch for itself.
+// 内容散列人类所担保的。在用户状态目录中，因此克隆的
+// 仓库 永远无法证明自己。
 inline constexpr std::string_view kSkillsApprovals = "skills_approved.json";
 inline constexpr std::string_view kHooksApprovals  = "hooks_approved.json";
 inline constexpr std::string_view kMcpApprovals    = "mcp_approvals.json";
 
-// ── One concern, both halves ─────────────────────────────────────────────
+// ── 其中一个问题,两个都一半 ─────────────────────────────────────────────
 //
-// Pointers, not values: a copy would be a second definition.
+// 指针，而不是值：副本将是第二定义。
 struct Entry {
-    std::string_view     name;    // what you type: `agentty config mcp`
-    std::string_view     what;    // one line, for the table
-    const scope::Layout* read  = nullptr;   // null ⇒ not read as config
-    const dirs::Spec*    write = nullptr;   // null ⇒ writes nothing
+    std::string_view     name;    // 您输入的内容：`agentty config mcp`
+    std::string_view     what;    // 一行，用于表格
+    const scope::Layout* read  = nullptr;   // null ⇒ 不读取为配置
+    const dirs::Spec*    write = nullptr;   // null ⇒ 不写任何内容
 };
 
 [[nodiscard]] std::span<const Entry> inventory() noexcept;
 [[nodiscard]] const Entry* find(std::string_view name) noexcept;
 
-// ── The resolved view ────────────────────────────────────────────────────
+// ── 决心 ────────────────────────────────────────────────────
 //
-// Folded from the same functions the resolvers fold — scope::plan for the
-// ladder, dirs::resolve_dry for the write path. Nothing here re-derives a
-// location.
+// 由相同功能折叠而成的解析器归并-scope::plan用于梯形图，
+// dirs::resolve_dry用于写入路径。这里没有任何内容 re-derives
+// 位置。
 
 struct ReadRow {
     scope::Locus   locus{};
     scope::Dialect dialect{};
     std::string    path;
     bool           exists = false;
-    // Set only for an executable concern with a present file. Computed by
-    // the same trust_of the spawn gate calls.
+    // 仅针对当前文件的可执行关注点进行设置。
+    // 由相同的 trust_of 计算生成门 调用。
     std::string    trust;
 };
 
-// A dialect this feature does not read. Derived as the set difference
-// against the layout's own `dialects`, so it cannot disagree with what IS
-// read.
+// 该特征不读取方言。派生为与布局自己的 `dialects`
+// 的设置差异，因此它不能与 IS 读取的内容
+// 不一致。
 struct SkippedDialect {
     scope::Dialect dialect{};
-    std::string    dir;          // ".claude", ".agents"
+    std::string    dir;          // ".claude"，".agents"
 };
 
-// Another tool's config, found on this machine and deliberately not read:
-// these vary in file name and nesting, so they are not a dialect, and
-// reading executable config we don't own would let someone else's edit
-// change what we spawn. Printed with the command that adopts it.
+// 在本机上找到的另一个工具的配置，故意不读取：
+// 这些在文件名和嵌套方面有所不同，因此它们不是方言，
+// 并且读取我们不拥有的可执行配置将让其他人的
+// 编辑改变我们产生的内容。用采用它的命令打印。
 struct ForeignSource {
-    std::string tool;       // "junie", "claude", …
+    std::string tool;       // "junie"，"claude"，……
     std::string path;
     std::string adopt_with;
 };
@@ -158,20 +158,20 @@ struct ForeignSource {
 struct WriteRow {
     std::string      path;
     dirs::Origin     origin = dirs::Origin::Default;
-    std::string_view env;        // this spec's own variable, if any
-    std::string_view anchor;     // the variable that moves its whole root
+    std::string_view env;        // 该规范自身的变量，如果有的话
+    std::string_view anchor;     // 移动其整个根的变量
     bool             env_moves_root = false;
     bool             rebuildable = false;
     unsigned         keep_last = 0;
-    std::string_view retention;  // Spec::retention, for the printout
-    std::string      error;      // non-empty when the spec would not resolve
+    std::string_view retention;  // Spec::retention，用于打印输出
+    std::string      error;      // 当规范无法解析时为non-empty
 
-    // Measured. Counted only for a leaf this spec owns, so two specs sharing
-    // a directory don't double the total.
+    // 测量。仅针对此规范拥有的叶子进行计数，因此共享目录的两
+    // 个规范不会使总数增加一倍。
     std::uintmax_t   bytes = 0;
-    bool             measured = false;   // false when the dir does not exist
-    bool             shared_dir = false; // counted by a sibling spec
-    bool             partial = false;    // some of it was unreadable
+    bool             measured = false;   // 当目录不存在时为假
+    bool             shared_dir = false; // 按兄弟规范计数
+    bool             partial = false;    // 其中一些是无法读取的
 };
 
 struct Report {
@@ -186,9 +186,9 @@ struct Report {
 
 [[nodiscard]] Report describe(const Entry&);
 
-//   agentty config          every concern, one line each
-//   agentty config mcp      one ladder, including what is NOT read
-//   agentty config env      the model
+//   agentty config 每关注一行，
+//   每 agentty config mcp 一个梯子，包括 不 读取
+//   agentty config env 的型号
 int cmd_config(std::span<const std::string> argv);
 
 }  // namespace agentty::config

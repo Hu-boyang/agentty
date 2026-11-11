@@ -1,22 +1,22 @@
-// picker_cursor_visible_test — the invariant every list overlay owes its user:
+// picker_cursor_visible_test - 电话 不变量 每个列表 覆盖面板 欠用户的 :
 //
-//     THE HIGHLIGHTED ROW IS ON SCREEN.
+//     该 HIGHLIGHTED ROW IS ON SCREEN.
 //
-// This is the test that would have caught the theme-browser bug, and it is
-// written against the PRIMITIVE rather than against one panel, so it holds
-// for every picker that uses FilteredPicker rather than only the one that
-// broke.
+// 试探一下,这个会吸引到主题 -browser 错误,
+// 它写在反面 PRIMITIVE 而不是反对一个面板,
+// 所以它为每一个 选择面板 使用时 FilteredPicker 而不是只打破
+// 了那个
 //
-// The bug it pins: the theme browser kept `index` and `scroll` as two loose
-// fields. The reducer advanced the index; nothing ever advanced the scroll;
-// the view passed a THIRD scroll object belonging to the pane behind it. So
-// the cursor walked past the bottom of a 615-row list and the user was left
-// steering a selection they could not see — Down appeared dead, and Enter
-// committed a scheme from far below the last visible row.
+// 它所夹的bug:主题浏览器所保存的bug `index` 财务报告和
+// 已审计财务报表 `scroll` 成为两个松散的田地。 状态更新函数
+// 高级索引; 没有任何东西可以推进滚动; 视图通过一个 THIRD
+// 属于该附件的滚动对象 面板 后面,光标就从615底部走过去 -row
+// 列表中,用户被留下来引导他们无法看到的选择——下方似乎已死亡,
+// Enter 执行一个远在最后一行可见线以下的图案。
 //
-// FilteredPicker::visible() closes that by DERIVING the window from the
-// cursor instead of storing it. There is no offset to forget to advance, so
-// the property below is not merely true today, it is true by construction.
+// FilteredPicker::visible () 关闭
+// 该词 DERIVING 将光标中的窗口而不是存储。没有抵消可以
+// 忘记推进,所以下面的地产今天并不仅仅是真实的,而是建筑的真。
 
 #include <cstdio>
 #include <string>
@@ -36,8 +36,8 @@ void check(bool ok, const char* what) {
     if (!ok) ++failures;
 }
 
-// A picker over N synthetic rows. N is deliberately far larger than any
-// viewport, because that is the regime the bug lived in.
+// A 选择面板 合成行的N 故意比任何一列大得多
+// 可视区域 因为那是虫子所生活的政权
 ui::FilteredPicker<std::string> make_picker(int n) {
     std::vector<std::string> rows;
     rows.reserve(static_cast<std::size_t>(n));
@@ -59,34 +59,34 @@ ui::FilteredPicker<std::string> make_picker(int n) {
     return ui::FilteredPicker<std::string>{std::move(src), std::move(filter)};
 }
 
-// THE invariant, as a predicate: whatever the cursor is, the window we would
-// render contains it, and the entry at that offset is the selected entry.
+// 该 不变量 ,作为上游:无论光标是什么,我们将会看到的
+// 窗口 渲染 包含它,而该偏移处的条目是选定的条目。
 bool cursor_is_visible(const ui::FilteredPicker<std::string>& p, int vh) {
     const auto w   = p.visible(vh);
     const auto ent = p.visible_entries(vh);
     if (w.total == 0) return w.cursor == -1 && ent.empty();
 
-    if (w.cursor < 0) return false;                        // must name a row
+    if (w.cursor < 0) return false;                        // 必须命名行
     if (static_cast<std::size_t>(w.cursor) >= ent.size()) return false;
     if (ent.size() != w.count) return false;
 
-    // The row the window points at must BE the selection. This is the part
-    // that catches an off-by-one window: a slice can contain the cursor's
-    // index while the offset arithmetic still names the wrong row.
+    // 窗口必须指向的行 BE 选择。这是抓取的部份
+    // -by-one 窗口:切片可以包含光标的索引,
+    // 而偏移算术仍然会给错误的行命名。
     const std::string* sel = p.selected();
     return sel != nullptr && *ent[static_cast<std::size_t>(w.cursor)] == *sel;
 }
 
-} // namespace
+} // 命名空间结束。
 
 int main() {
     std::printf("=== picker_cursor_visible_test ===\n\n");
 
-    // ── 1. Walking the whole list, one step at a time ────────────────────
-    // The exact gesture from the bug report: hold Down and watch. Every
-    // single position must be renderable, not just the first screen.
+    // ── 1. 逐一走完整个名单 ────────────────────
+    // 错误报告给出的准确手势: 抓住并监视。
+    // 每个位置都必须被渲染, 而不仅仅是第一个屏幕。
     {
-        auto p = make_picker(615);          // the real scheme count
+        auto p = make_picker(615);          // 实际计数方案
         const int vh = 8;
         int offscreen = 0;
         for (int i = 0; i < 615; ++i) {
@@ -100,14 +100,14 @@ int main() {
         std::printf("\n");
     }
 
-    // ── 2. Wrapping ─────────────────────────────────────────────────────
-    // Wrapping is where a stored offset goes most obviously wrong: the
-    // cursor jumps to the far end and a scroll that only ever increments
-    // is left pointing at the other side of the list.
+    // ── 2. 包装 ─────────────────────────────────────────────────────
+    // 环绕是存储的偏移最明显错误的地方:
+    // 光标跳到最远的一端,而只保留增量的
+    // 卷轴则指向列表的另一端。
     {
         auto p = make_picker(615);
         const int vh = 8;
-        p.move_wrapping(-1);                 // Up from row 0 → last row
+        p.move_wrapping(-1);                 // 从第0行起 ~ 最后一行
         const auto w = p.visible(vh);
         std::printf("wrap past the top\n");
         std::printf("    cursor landed in window [%zu, %zu) of %zu\n",
@@ -117,34 +117,34 @@ int main() {
         std::printf("\n");
     }
 
-    // ── 3. Filtering ────────────────────────────────────────────────────
-    // Narrowing changes what row N means. A cursor left where it was would
-    // point into a list that no longer exists.
+    // ── 3. 过滤 ────────────────────────────────────────────────────
+    // 缩小会改变N行的含义。 光标会留在
+    // 一个已不存在的列表中。
     {
         auto p = make_picker(615);
         const int vh = 8;
-        p.move_wrapping(400);                // deep into the list
-        p.type("row-61");                    // collapse to a handful
+        p.move_wrapping(400);                // 深入名单
+        p.type("row-61");                    // 倒塌成一团
         std::printf("filtering after scrolling deep\n");
         std::printf("    filtered to %zu rows, cursor=%d\n",
                     p.filtered().size(), p.index());
         check(cursor_is_visible(p, vh), "a narrowed list re-homes the highlight");
 
-        p.clear_query();                     // widen again
+        p.clear_query();                     // 重新拓宽
         check(cursor_is_visible(p, vh), "widening keeps it visible too");
         std::printf("\n");
     }
 
-    // ── 4. Viewport sizes, including degenerate ones ────────────────────
-    // A panel's viewport is computed from the terminal; a tiny window and a
-    // window larger than the list are both reachable by resizing.
+    // ── 4. 可视区域 大小,包括退化的大小 ────────────────────
+    // 面板的 可视区域 从“E”中计算 终端 ;
+    // 一个小窗口和一个大于列表的窗口通过重新大小可以达到.
     {
         std::printf("assorted viewport heights\n");
         int bad = 0;
         for (int vh : {1, 2, 3, 5, 8, 13, 40, 1000}) {
             auto p = make_picker(615);
             for (int step = 0; step < 50; ++step) {
-                p.move_wrapping(13);         // a stride coprime-ish with vh
+                p.move_wrapping(13);         // 步长队 -ish 带 vh
                 if (!cursor_is_visible(p, vh)) { ++bad; break; }
             }
         }
@@ -152,9 +152,9 @@ int main() {
         std::printf("\n");
     }
 
-    // ── 5. The window never runs off the end ────────────────────────────
-    // A window that slides past the last row renders blank strips below a
-    // list that has more rows above — the "half empty picker" symptom.
+    // ── 5. 窗户从不掉下 ────────────────────────────
+    // 滑过最后一行的窗口 渲染 列表下方的空白条, 上面有更多行—
+    // — ưμ㼯A "half empty picker" 症状
     {
         auto p = make_picker(100);
         const int vh = 8;
@@ -168,9 +168,9 @@ int main() {
         std::printf("\n");
     }
 
-    // ── 6. Short lists ──────────────────────────────────────────────────
-    // Fewer rows than the viewport must not scroll at all, and an empty
-    // list must report no cursor rather than row 0.
+    // ── 6. 简表 ──────────────────────────────────────────────────
+    // 与可视区域相比,行数更少,绝对不能滚动,
+    // 空列表不能报告光标,而不能报告行数0.
     {
         auto p = make_picker(3);
         const auto w = p.visible(8);

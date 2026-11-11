@@ -1,9 +1,9 @@
-// cmd::diagnose_clipboard — why did a clipboard read go unanswered?
+// cmd::diagnose_clipboard——为什么剪贴板读取没有得到答复？
 //
-// Answering that walks /proc (is mosh-server one of our ancestors, or of the
-// attached tmux client?) and asks the tmux server about its config, so it
-// runs on a worker and replies with ClipboardDiagnosed. The reducer only
-// shows the message.
+// 回答行走/proc（mosh-server是我们的祖先之一，
+// 还是附加的tmux客户端之一？）并向tmux服务器询问其配置，
+// 因此它在工作线程上运行并回复ClipboardDiagnosed。
+// 状态更新函数 仅显示消息。
 
 #include "agentty/runtime/app/cmd_factory.hpp"
 
@@ -24,8 +24,8 @@ namespace agentty::app::cmd {
 namespace {
 
 #if defined(__linux__)
-// Walk up from `pid` through /proc looking for mosh-server. mosh exports no
-// reliable env marker into its child shell, so ancestry is the only signal.
+// 从 `pid` 向上穿过 /proc 寻找 mosh-server。
+// mosh 没有将可靠的环境标记导出到其子 shell 中，因此祖先是唯一的信号。
 bool mosh_above(int pid) {
     for (int hop = 0; hop < 12 && pid > 1; ++hop) {
         const std::string base = "/proc/" + std::to_string(pid);
@@ -36,8 +36,8 @@ bool mosh_above(int pid) {
         }
         std::ifstream stat(base + "/stat");
         if (!stat) break;
-        // stat: pid (comm) state ppid ... — comm may contain spaces, so
-        // parse from after the LAST ')'.
+        // stat:pid(comm)状态ppid…——comm可能包含空格，
+        // 因此解析来自于LAST之后的')'。
         std::string line;
         std::getline(stat, line);
         const auto rp = line.rfind(')');
@@ -56,9 +56,9 @@ bool mosh_above(int pid) {
 bool mosh_session() {
 #if defined(__linux__)
     if (mosh_above(static_cast<int>(::getppid()))) return true;
-    // Ancestry misses persistent tmux: when the tmux server was started by
-    // systemd or an older login, mosh-server is a sibling of the server, not
-    // our ancestor. Walk the attached client instead.
+    // 祖先错过持久化 tmux:当tmux服务器由systemd
+    // 或较旧的登录启动时，mosh-server是服务器的兄弟，
+    // 而不是我们的祖先。改为步行附加的客户端。
     if (maya::tmux::active())
         if (const int cpid = maya::tmux::client_pid(); cpid > 1)
             return mosh_above(cpid);
@@ -69,9 +69,9 @@ bool mosh_session() {
 std::string diagnose(bool in_ssh) {
     const bool in_mosh = mosh_session();
     const bool in_tmux = maya::tmux::active();
-    // tmux capabilities are per-client and maya memoises the probe, so a
-    // reattach from another terminal leaves a stale verdict. A read just
-    // failed, which is worth one round-trip to re-check.
+    // tmux能力是根据-client和maya记忆探针的，
+    // 因此从另一个终端重新连接留下过期结论。一次读取刚刚失败，
+    // 这值得一轮-trip到re-check。
     if (in_tmux) (void)maya::tmux::refresh_if_client_changed();
     std::string msg;
     if (in_mosh) {
@@ -79,17 +79,17 @@ std::string diagnose(bool in_ssh) {
               "forward the paste agent \xe2\x80\x94 use plain ssh (with "
               "`agentty paste setup` on your laptop) to paste images";
     } else if (in_tmux) {
-        // Name the ACTUAL blocker instead of guessing. Order
-        // matters: these are checked in the order tmux applies
-        // them, so the first failure reported is the first one
-        // the user has to fix.
+        // 命名ACTUAL阻断剂而不是猜测。
+        // 顺序很重要：这些按照 tmux 应用它们的
+        // 顺序进行检查，因此报告的第一个故障是用户必须
+        // 修复的第一个故障。
         if (!maya::tmux::clipboard_reads_relayed()) {
-            // THE common case, and silent until now: tmux's
-            // `get-clipboard` defaults to `buffer`, so tmux
-            // answers a clipboard read from its OWN paste buffer
-            // and never asks the terminal. A paste buffer holds
-            // TEXT — an image can never come back through it, no
-            // matter what the outer terminal supports.
+            // THE常见情况，并且直到现在都保持沉默：
+            // tmux的`get-clipboard`
+            // 默认为`buffer`，因此tmux回答从其
+            // OWN粘贴缓冲区的剪贴板读取并且从不询问终端。
+            // 缓冲区 粘贴包含 TEXT — 无论外部 终端
+            // 支持什么，图像都永远无法通过它返回。
             msg = "clipboard: tmux answers reads from its own paste "
                   "buffer (text only) \xe2\x80\x94 run `tmux set -g "
                   "get-clipboard both` so it asks your terminal, "
@@ -120,7 +120,7 @@ std::string diagnose(bool in_ssh) {
     return msg;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 Cmd diagnose_clipboard(bool in_ssh) {
     return Cmd::task(
@@ -138,9 +138,9 @@ Cmd diagnose_clipboard(bool in_ssh) {
 
 namespace {
 
-// One step of a Ctrl+V read. `resume` false starts a walk; true moves `walk`
-// past the terminal that stayed quiet (or refused). Runs isolated: a step can
-// wait on a display server, an ssh round trip, or tmux asking the terminal.
+// Ctrl+V读取的一个步骤。 `resume` 错误开始行走；
+// 真正的移动 `walk` 超过了保持安静（或拒绝）的 终端。
+// 独立运行：步骤可以等待显示服务器、ssh 往返或 tmux 询问 终端。
 void clipboard_step(maya::Sink<Msg> out, bool resume, ClipboardWalk walk, std::string why, bool refused) {
     ClipboardRead r;
     try {
@@ -160,7 +160,7 @@ void clipboard_step(maya::Sink<Msg> out, bool resume, ClipboardWalk walk, std::s
     out.send(Msg{msg::ComposerMsg{std::move(r)}});
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 Cmd read_clipboard() {
     return Cmd::task_isolated([](maya::Sink<Msg> out, std::stop_token) {

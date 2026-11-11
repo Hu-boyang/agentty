@@ -1,6 +1,6 @@
-// palette_render_probe — renders the command palette AND the diff-review pane
-// and asserts their layout + styling invariants. Lives in the fold suite so it
-// links the full runtime object tree and renders through the real maya path.
+// palette_render_probe — 渲染 命令调色板 和 diff (英语)
+// -review 面板 并声明其布局 + 样式 不变量。生活在一个 归并 套房就这样 链接
+// 完整 运行时 对象 源码树 财务报告和已审计财务报表 渲染 穿过真实的 maya 路径。
 #include "agentty/runtime/model.hpp"
 #include "agentty/runtime/view/panels.hpp"
 #include "agentty/runtime/view/diff_review.hpp"
@@ -34,15 +34,15 @@ static void palette_checks() {
     m.d.pending_changes.push_back(FileChange{});
     auto rend = [&]{ return maya::render_to_string(ui::palette_panel(m), 82); };
     std::string out = rend();
-    // `--dump` prints the frame so a human can look at it, the same way
-    // embed_render_probe does. Checks still run either way.
+    // `--dump` 打印 帧 人类可以同样看待它
+    // embed_render_probe 检查仍然运行。
     if (const char* d = std::getenv("PALETTE_DUMP"); d && d[0])
         std::printf("%s\n", out.c_str());
-    // Sections are plain headers now: Panel renders one as caps + a rule to
-    // the right edge. The old "┌─ THREAD" bracket, its │ spine down every row
-    // and its └ closer were a SECOND grouping system drawn on top of that —
-    // and the spine cost a badge column on every row to repeat what the
-    // header above it already said.
+    // 区块很平整 头文件 现在: 小组讨论 渲染 以
+    // + 规则为首, 以 右 边。 旧 的 "┌─ THREAD" 括号,
+    // 它的脊椎下 每行,它的近是 第二 上面画
+    // 的组合系统 脊椎花掉每行的徽章柱 头
+    // 文件 上面已经说了。
     check(has(out, "THREAD"), "palette: section header present");
     check(has(out, "\xe2\x94\x80\xe2\x94\x80"), "palette: header rule");
     check(!has(out, "\xe2\x94\x8c\xe2\x94\x80 THREAD"), "palette: no bracket header");
@@ -50,7 +50,7 @@ static void palette_checks() {
     auto* o = m.ui.panel.get<agentty::ui::panel::Palette>();
     o->query = "rev";
     std::string ansi = maya::render_to_string_ansi(ui::palette_panel(m), 82);
-    // Locate the Review row and confirm it carries a distinct highlight style.
+    // 定位审查行,确认其带有鲜明的突出样式。
     auto strip = [](const std::string& s){ std::string r; for (std::size_t i=0;i<s.size();){ if(s[i]=='\x1b'){ i=s.find('m',i); if(i==std::string::npos)break; ++i;} else r+=s[i++]; } return r; };
     std::string hot; std::size_t st=0;
     while (st<=ansi.size()){ std::size_t nl=ansi.find('\n',st); std::string ln=ansi.substr(st,nl-st); if(strip(ln).find("Review changes")!=std::string::npos){hot=ln;break;} if(nl==std::string::npos)break; st=nl+1; }
@@ -59,7 +59,7 @@ static void palette_checks() {
 }
 
 static void diff_review_checks() {
-    // Two files, first has two hunks (all pending).
+    // 两个文件,第一个是两个 差异块 (所有项目) 待处理).
     Model m;
     auto a = diff::compute("src/login.cpp",
         "int f() {\n  return 0;\n}\n", "int f() {\n  return -1;\n  log();\n}\n");
@@ -78,14 +78,14 @@ static void diff_review_checks() {
     check(has(out, "\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80"), "diff: has a rule");
     check(!has_mojibake(out), "diff: no mojibake");
 
-    // Every hunk decided. There is deliberately NO "all reviewed" banner:
-    // the pane closes itself when the last pending hunk is decided, so Esc
-    // never has to mean two opposed things (apply-at-end vs keep-the-rest
-    // mid-review). See the comment in view/diff_review.cpp.
+    // 每一个 差异块 已经决定了,有故意的 NO "all reviewed" 横幅 :
+    // 编号 面板 关闭当最后一个 待处理 差异块 已经决定了,所以 Esc 永远不要意味
+    // 着两个对立的东西(应用上) -at-end 保留 -the-rest 中点 -review。
+    // 参见注释 view/diff_review.cpp.
     //
-    // This probe used to assert the banner, which the auto-close work
-    // removed on purpose -- the check outlived the affordance and sat red.
-    // Pin the ABSENCE instead, so the contradiction can't creep back in.
+    // 这个探测器用来竖起标志,自动-close号的操作是故意去掉的
+    // ——支票在付得起的时空中过期,并坐落于红色.
+    // 反之,把ABSENCE压住,这样矛盾就回不来了.
     for (auto& fc : m.d.pending_changes)
         for (auto& hk : fc.hunks) hk.status = Hunk::Status::Accepted;
     std::string done = maya::render_to_string(ui::diff_review(m), 84);

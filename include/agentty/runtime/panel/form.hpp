@@ -1,34 +1,34 @@
 #pragma once
-// agentty::form — the form component layer.
+// agentty::form——表单组件层。
 //
-// ONE typed form model + ONE reducer + ONE renderer, so every configuration
-// surface in agentty (embeddings, Smart Mode, retrieval stages, future panes)
-// is DATA rather than another hand-written picker. Before this, each pane
-// re-implemented row navigation, single-line text editing, and its own idea of
-// "am I typing or navigating?" — five divergent copies of the same 200 lines.
+// 一个 带类型的形成模型+一个 状态更新函数+一个 渲染器，因此agentty
+// 中的每个配置表面(嵌入、智能模式、检索阶段、未来面板)是DATA而不是另一只
+// 手-written 选择面板。在此之前，每个 面板 re-implemented
+// 行导航、单个-line 文本编辑以及自己的
+// "am I typing or navigating?" 想法 - 相同 200 行的五个不同副本。
 //
-// ── The load-bearing type: FormFocus ─────────────────────────────────────
-// A form has exactly THREE interaction modes, and precisely one owns the
-// keyboard at any moment. Spelling that as `bool editing` + `bool dropdown_open`
-// is two bools encoding three states, with the invariant ("never both") living
-// only in comments — the same shape as the stall-watchdog bools and the
-// ollama_probed/ollama_ready pair, both of which shipped bugs. So it is a sum
-// type, and the VIEW reads the same value the key router does: what renders and
-// what receives keys cannot disagree.
+// ── 电话 加载-bearing 类型 : FormFocus ─────────────────────────────────────
+// 一个表单正好有THREE种交互模式，且任意时刻正好有一个人拥有键盘。
+// 拼写为 `bool editing` + `bool dropdown_open`
+// 是编码三种状态的两个布尔值，而 不变量 ("never both")
+// 仅存在于注释中 - 与stall-watchdog 布尔值和
+// ollama_probed/ollama_ready 对的形状相同，
+// 两者都带来了错误。所以它是 和类型，VIEW 读取与密钥路由器相同的值：
+// 渲染 和接收密钥的内容不能不一致。
 //
-// ── Choice has two interactions, not two types ───────────────────────────
-// A pick-one-of-N field is one value. Whether you cycle it inline with ←/→ or
-// open a list with Enter is a matter of taste and option count, not a different
-// kind of data — so `Choice` supports BOTH and there is no presentation flag to
-// set wrong. Short enumerations feel like a toggle; long ones get a searchable
-// floating list. Same field, same state, no configuration.
+// ── 选择有两种互动,而不是两种 ───────────────────────────
+// pick-one-of-N字段是一个值。无论您是使用 ←/→ 内联
+// 循环它还是使用 Enter 打开列表，都是品味和选项计数的问题，
+// 而不是不同类型的数据 - 因此 `Choice` 支持 两者 并且没有
+// 显示 标志 可以设置错误。简短的枚举感觉就像 切换；长的会得到一个可
+// 搜索的浮动列表。相同的字段，相同的状态，无需配置。
 //
-// ── Why Secret is its own alternative ────────────────────────────────────
-// `Text` + a `masked` bool makes leaking a credential a matter of remembering
-// to check a bool at every render site. As a distinct alternative the masking
-// is a TYPE-LEVEL fact: display() has no branch that can emit a Secret's
-// plaintext, so a renderer physically cannot leak it, and redaction keys on the
-// type rather than on a field-name heuristic.
+// ── 秘密为什么是自己的选择 ────────────────────────────────────
+// `Text` + `masked` bool 使得泄漏 凭据 成为记住
+// 在每个 渲染 站点检查 bool 的问题。作为一个独特的替代方案，
+// 屏蔽是 TYPE-LEVEL 事实：display() 没有可以发出
+// Secret 明文的分支，因此 渲染器 物理上无法泄漏它，并且密文键位于
+// 类型上而不是字段 -name 启发式上。
 
 #include <cstdint>
 #include <functional>
@@ -41,33 +41,33 @@
 
 namespace agentty::form {
 
-// ── Field kinds ──────────────────────────────────────────────────────────
+// ── 外地类型 ──────────────────────────────────────────────────────────
 
 namespace field {
 
-// A boolean. Enter/Space/←/→ all flip it.
+// 布尔值。 Enter/Space/←/→全部翻转即可。
 struct Toggle {
     bool on = false;
 };
 
-// Pick one of a SMALL, CLOSED set — an enum, and nothing else.
+// 选择 SMALL、CLOSED 组中的一个 — 枚举，仅此而已。
 //
-// ←/→ cycle in place; Enter opens a short floating list. There is no search
-// box and no filtering, because the moment a list needs either it is not an
-// enum any more and does not belong in a dropdown: it belongs in a full
-// picker overlay (see `Pick` below). Keeping that boundary sharp is what
-// stops this widget from slowly growing into a second, worse picker.
+// ←/→循环到位； Enter 打开一个简短的浮动列表。
+// 没有搜索框，也没有过滤，因为当列表需要时，它就不是一个
+// 它不再是简单枚举，也不适合下拉框，而应使用完整的
+// 选择面板 覆盖面板 (参见下面的 `Pick`)。
+// 保持边界清晰可以阻止这个小部件慢慢成长为第二个更糟糕的 选择面板。
 //
-// Rule of thumb: if you cannot name every option in the header comment,
-// use `Pick`.
+// 经验法则：如果您无法命名 头文件 注释中的每个选项，
+// 请使用 `Pick`。
 //
-// `labels` is what the user sees; `ids` is what the caller stores — kept
-// parallel so a form never persists a display string, and a relabelled
-// option doesn't silently change the saved value.
+// `labels`是用户看到的； `ids` 是调用者存储的
+// 内容 - 保持并行，因此表单永远不会保留显示字符串，
+// 并且重新标记的选项不会默默地更改 已保存 值。
 struct Choice {
     std::vector<std::string> labels;
-    std::vector<std::string> ids;      // may be empty ⇒ ids == labels
-    std::vector<std::string> hints;    // optional per-option dim blurb
+    std::vector<std::string> ids;      // 可能为空 ⇒ ids == labels
+    std::vector<std::string> hints;    // 可选的 per-option 暗淡简介
     int                      index = 0;
 
     [[nodiscard]] int count() const noexcept { return static_cast<int>(labels.size()); }
@@ -79,7 +79,7 @@ struct Choice {
         if (labels.empty()) return {};
         return labels[static_cast<std::size_t>(normalized(index))];
     }
-    // The STORED value for the current selection.
+    // 当前选择的STORED值。
     [[nodiscard]] std::string_view id() const noexcept {
         if (labels.empty()) return {};
         const auto i = static_cast<std::size_t>(normalized(index));
@@ -90,8 +90,8 @@ struct Choice {
         const auto k = static_cast<std::size_t>(normalized(i));
         return k < hints.size() ? std::string_view{hints[k]} : std::string_view{};
     }
-    // Select by stored id; leaves the index alone when absent, so loading a
-    // config written by a newer agentty doesn't silently reset the field.
+    // 通过存储的id进行选择；当索引不存在时，单独保留索引，
+    // 因此加载由较新的 agentty 编写的配置不会默默地重置该字段。
     void select_id(std::string_view want) noexcept {
         const auto& keys = ids.empty() ? labels : ids;
         for (std::size_t i = 0; i < keys.size(); ++i)
@@ -99,26 +99,26 @@ struct Choice {
     }
 };
 
-// A bounded integer, edited digit-by-digit.
+// 有界整数，编辑为digit-by-digit。
 //
-// While an edit is open the row holds what was typed (`draft`), digits only,
-// and the value is clamped once when the edit ends. Clamping on every key
-// made the row untypable whenever min > 0: cleared, the value snapped to
-// min, so on a 1-65535 port every digit typed after a clear was appended to
-// that 1 (#97). `value` is always in range; `draft` is only meaningful while
-// `editing`.
+// 当编辑打开时，该行仅保存 带类型的 (`draft`) 的数字，
+// 并且当编辑结束时该值被钳位一次。每当 min > 0 时，夹紧每个键都会
+// 导致该行无法输入：清除后，该值会捕捉到 min，因此在 1-65535
+// 端口上，清除后的每个数字 带类型的 都会附加到该 1 (#97)。
+// `value` 始终在范围内；只有`draft`才有意义，而`editing`
+// 才有意义。
 struct Number {
     std::int64_t value = 0;
     std::int64_t min   = 0;
     std::int64_t max   = 65535;
-    std::string  draft;            // digits typed so far, may be empty
-    bool         editing = false;  // draft is live
+    std::string  draft;            // 到目前为止的数字 带类型的，可能为空
+    bool         editing = false;  // 草稿正在直播
 };
 
-// A bounded real, stepped with ←/→ and drawn as a bar. Distinct from Number
-// because typing "0.65" one digit at a time is miserable, and because the
-// knobs that need it (mmr_lambda, dedup_threshold, dense_weight,
-// proactive_min_conf …) are ratios whose value is best judged visually.
+// 有界实数，以←/→步进并绘制为条形。与数字不同，因为一次输入一位数字
+// "0.65" 是很痛苦的，而且因为需要它的旋钮（mmr_lambda、
+// dedup_threshold、dense_weight、
+// proactive_min_conf ...）是比率，其值最好通过视觉来判断。
 struct Slider {
     double value = 0.0;
     double min   = 0.0;
@@ -127,58 +127,58 @@ struct Slider {
     int    decimals = 2;
 };
 
-// Free single-line text.
+// 免费单-line文本。
 struct Text {
     std::string value;
     std::size_t cursor = 0;
 };
 
-// Free text that must never be rendered, logged, or persisted in the clear.
+// 决不能以明文形式呈现、记录或保留的自由文本。
 struct Secret {
     std::string value;
     std::size_t cursor = 0;
-    // What the EMPTY field says when it is not being edited ("not set" when
-    // blank). Not secret, so it may be shown: a pane uses it to report that a
-    // key is already held elsewhere ("\xe2\x9c\x93 key saved") without the
-    // value ever being in the form.
+    // EMPTY字段在未被编辑时表示什么（"not set"为空白时）。
+    // 不是秘密，因此可能会显示：面板 使用它来报告密钥已在其他地方
+    // ("\xe2\x9c\x93 key saved") 保存，
+    // 但值从未出现在表单中。
     std::string placeholder;
 };
 
-// A filesystem path. Text plus an existence probe, so "model file not found"
-// is visible while typing rather than as a failed probe later.
+// 文件系统路径。文本加上存在探测，因此 "model file not found"
+// 在键入时可见，而不是稍后显示为失败的探测。
 struct Path {
     std::string value;
     std::size_t cursor = 0;
     bool        want_dir = false;
 };
 
-// A row whose value comes from ANOTHER overlay.
+// 其值来自ANOTHER 覆盖面板的行。
 //
-// The counterpart to `Choice`: when the candidate set is large, dynamic, or
-// needs searching (models, files, threads), Enter closes nothing and hands
-// off to a real picker — exactly what Smart Mode already does when you set a
-// role's model. The form only holds the CURRENT display label; the pane owns
-// the hand-off and writes the result back.
+// `Choice`的对应物：当候选集很大、动态或者需要搜索（模型、
+// 文件、线程)时，Enter不关闭任何内容并移交给真正
+// 的选择面板——这正是当您设置角色的模型时智能模式已经
+// 做的事情。表单仅保存CURRENT显示标签；
+// 面板 拥有手-off 并将结果写回。
 //
-// This is the escape hatch that keeps `Choice` honest: there is never a
-// reason to grow the dropdown into a searchable list, because that case has
-// its own row kind.
+// 这是保持 `Choice` 诚实的逃生舱口：永远
+// 没有理由将下拉列表增长为可搜索列表，因为这种情况有其
+// 自己的行类型。
 struct Pick {
-    std::string label;         // current selection, for display
+    std::string label;         // 当前选择，用于显示
     std::string placeholder = "\xe2\x80\x94";
 };
 
-// A row that is a SECTION HEADER, not a setting. Grouping is a rendering
-// concern the form otherwise has no way to express, and faking it with a
-// locked Text row leaked a stray "—" placeholder into the value column.
+// SECTION HEADER的行，不是设置。
+// 分组是一个 渲染 问题，否则表单无法表达，并且用锁定的
+// 文本行伪造它会将杂散的 "—" 占位符泄漏到值列中。
 struct Header {};
 
-// A row that DOES something rather than holding a value (e.g. "Test
-// connection"). A real alternative, not a Toggle that is never rendered as
-// one: the reducer dispatches on the type, and `status` carries the result
-// so the outcome renders where the action lives.
+// DOES某物而不是保存值的行（e.g.
+// "Test connection")。一种真正的替代方案，
+// 而不是永远不会呈现为一个的 切换：状态更新函数 在类型上分派，`status`
+// 携带结果，因此结果 渲染 位于操作所在的位置。
 struct Action {
-    std::string status;        // rendered right-aligned; empty ⇒ the hint
+    std::string status;        // 呈现为right-aligned;空⇒提示
     std::string hint = "press Enter";
     enum class Tone : std::uint8_t { Neutral, Busy, Good, Bad };
     Tone tone = Tone::Neutral;
@@ -191,30 +191,30 @@ using FieldValue = std::variant<field::Toggle, field::Choice, field::Number,
                                 field::Path, field::Pick, field::Header,
                                 field::Action>;
 
-// Rows a dropdown shows before it scrolls. An enum list should fit well
-// inside this; the window exists so a pathologically short terminal degrades
-// gracefully, not as a browsing feature.
+// 下拉列表在滚动之前显示的行。 枚举 列表应该很适合这个；
+// 该窗口的存在是为了让病态的短 终端 优雅地降级，
+// 而不是作为浏览功能。
 inline constexpr int kDropdownViewport = 8;
 
-// ── A row ────────────────────────────────────────────────────────────────
+// ── 排行数 ────────────────────────────────────────────────────────────────
 
 struct Field {
-    std::string id;        // stable key the reducer + caller address it by
+    std::string id;        // 稳定键状态更新函数+主叫方地址
     std::string label;
-    std::string help;      // one-line description, dim
+    std::string help;      // one-line描述，暗淡
     FieldValue  value;
 
-    // Rendered right of the value in a dim tone — used for provenance
-    // ("env: AGENTTY_RAG_MMR_LAMBDA", "default") so a user can see WHERE a
-    // value came from, the single most confusing thing about layered config.
+    // 以暗色调呈现值的右侧——用于来源（
+    // "env: AGENTTY_RAG_MMR_LAMBDA"，"default")，
+    // 因此用户可以看到值来自WHERE，这是关于分层配置的最令人困惑的事情。
     std::string origin;
 
-    // A locked row is visible but not editable, and says why. An env var that
-    // overrides settings.json must not silently swallow an edit.
+    // 锁定的行可见但不可编辑，并说明原因。
+    // 覆盖 settings.json 的环境变量不得默默吞下编辑。
     bool        locked = false;
     std::string locked_reason;
 
-    // Per-row validity, rendered inline under the form. Empty ⇒ valid.
+    // Per-row有效性，在表格下内联呈现。空⇒有效。
     std::string error;
 
     [[nodiscard]] bool is_text_like() const noexcept {
@@ -235,29 +235,29 @@ struct Field {
     [[nodiscard]] bool is_header() const noexcept {
         return std::holds_alternative<field::Header>(value);
     }
-    // A Pick hands off to another overlay, an Action runs something, and a
-    // Header is not a setting at all; none of the three is edited in place.
+    // Pick 移交给另一个 覆盖面板，Action 运行某些东西，
+    // 而 头文件 根本不是设置；这三个都没有被就地编辑。
     [[nodiscard]] bool editable() const noexcept {
         return !locked && !is_action() && !is_pick() && !is_header();
     }
 };
 
-// ── Focus: the three interaction modes ───────────────────────────────────
+// ── 焦点:三种互动模式 ───────────────────────────────────
 
 namespace focus {
 
-// Cursor moves between rows; ←/→ adjust in place.
+// 光标在行之间移动； ←/→ 调整到位。
 struct Browsing {};
 
-// A text-like row owns the keyboard: printable keys EDIT rather than navigate.
+// 文本-like行拥有键盘：可打印键EDIT而不是导航。
 struct Editing {};
 
-// A floating option list is open over the form. It owns the keyboard and the
-// highlight; the underlying field is untouched until the user commits, so Esc
-// is a true cancel.
+// 浮动选项列表在表单上打开。它拥有键盘和高亮；
+// 在用户提交之前底层字段保持不变，因此 Esc 是
+// 真正的 取消。
 //
-// There is no query here: a dropdown only ever holds an enum, and an enum you
-// need to search is a `Pick` row that belongs in a real picker instead.
+// 这里没有查询：下拉列表仅包含 枚举，而您需要搜索的
+// 枚举 是属于真正的 选择面板 的 `Pick` 行。
 struct Choosing {
     int highlighted = 0;
     int scroll      = 0;
@@ -267,43 +267,43 @@ struct Choosing {
 
 using FormFocus = std::variant<focus::Browsing, focus::Editing, focus::Choosing>;
 
-// ── The form ─────────────────────────────────────────────────────────────
+// ── 表格 ─────────────────────────────────────────────────────────────
 
 struct Form {
     std::string        title;
-    std::string        subtitle;      // e.g. the effective config summary
-    // A failure the whole pane is in. Projected onto Panel::Config::error,
-    // which wraps it — unlike the subtitle, which truncates. A pane that
-    // put its error in `subtitle` lost the tail that said what to fix.
+    std::string        subtitle;      // e.g。有效配置摘要
+    // 整个 面板 都处于失败状态。投影到 Panel::Config::error 上，
+    // 将其包裹起来 — 与截断的字幕不同。将错误放入
+    // `subtitle` 的 面板 丢失了表示要修复的内容的 末尾。
     std::string        error;
     std::vector<Field> fields;
     int                cursor = 0;
     FormFocus          focus{focus::Browsing{}};
 
-    // Set when a value changed since the last commit — lets the view say
-    // "unsaved" instead of the user guessing. form_config APPENDS the
-    // shared "unsaved · ^S save" marker to the footer whenever this is
-    // set — panes never spell that themselves.
+    // 自上次提交以来值发生变化时设置 — 让视图显示 "unsaved"
+    // 而不是用户猜测。 form_config APPENDS 是
+    // 页脚的共享 "unsaved · ^S save" 标记，
+    // 无论何时设置 — 面板 永远不会自己拼写。
     bool dirty = false;
 
-    // Footer note. The SHARED key grammar (↑↓ · Enter · ^S · Esc) is
-    // rendered by form_config for EVERY form pane — no pane repeats it.
-    // This field carries only what is PANE-SPECIFIC: Rag's "a advanced",
-    // a validation summary, the armed-remove warning. When set to a
-    // TRANSIENT WARNING (armed remove), the pane's reducer owns clearing
-    // it — the projection renders it INSTEAD of the grammar so it is
-    // unmissable.
+    // 页脚注释。 SHARED 关键语法 (↑↓ · Enter · ^S · Esc)
+    // 由 form_config 为 每个 呈现，形成 面板 — 没有 面板 重复。
+    // 该字段仅携带PANE-SPECIFIC：Rag的"a advanced"、
+    // 验证摘要、武装-remove警告。当设置为 TRANSIENT
+    // WARNING（武装删除）时，面板 的 状态更新函数 拥有
+    // 清除它 - 语法的投影 渲染 和 INSTEAD，
+    // 因此它是不可错过的。
     std::string note;
-    // When true, `note` REPLACES the shared grammar line instead of
-    // preceding it — for arm/confirm warnings that must be the only
-    // thing the footer says.
+    // 当 true 时，`note` REPLACES 是共享语法行，
+    // 而不是在它前面 — 对于 arm/confirm 警告，
+    // 这必须是页脚所说的唯一内容。
     bool note_replaces_grammar = false;
 
-    // The CURRENT edit session mutated the field's value. Set by the key
-    // layer (insert/backspace/clear) and paste_into while editing; cleared
-    // when an edit session starts and when it ends. Powers
-    // Applied::left_field — commit-on-exit fires only when leaving a field
-    // that actually changed, so pure navigation through fields is free.
+    // CURRENT编辑会话改变了字段的值。编辑时由关键层（
+    // insert/backspace/clear）和paste_into设置；
+    // 当编辑会话开始和结束时清除。 Powers
+    // Applied::left_field — commit-on-exit
+    // 仅在离开实际更改的字段时触发，因此通过字段进行纯粹的导航是免费的。
     bool edit_dirty = false;
 
     [[nodiscard]] const Field* focused() const noexcept {
@@ -331,8 +331,8 @@ struct Form {
     }
 };
 
-// ── Builder ──────────────────────────────────────────────────────────────
-// The ergonomic surface. A whole pane is ~10 lines:
+// ── 构建器 ──────────────────────────────────────────────────────────────
+// 符合人体工程学的表面。整个 面板 大约有 10 行：
 //
 //   auto f = form::Builder{"Embeddings"}
 //       .choice("backend", "Backend", labels, ids, current_id)
@@ -343,25 +343,25 @@ struct Form {
 //       .action("test",    "Test connection")
 //       .build();
 //
-// Chaining returns *this by value-reference so a caller never has to name an
-// intermediate; `build()` moves the result out.
+// 链接通过值-reference返回*this，因此调用者永远不必命名中间体；
+// `build()` 将结果移出。
 class Builder {
 public:
     explicit Builder(std::string title) { form_.title = std::move(title); }
 
     Builder& subtitle(std::string s) { form_.subtitle = std::move(s); return *this; }
-    // A pane-wide failure. Wraps when rendered, so the part of the message
-    // that says what to do about it survives a narrow pane.
+    // 面板-wide故障。渲染时会换行，因此消息中说明
+    // 如何处理的部分会保留在狭窄的 面板 中。
     Builder& error(std::string s) { form_.error = std::move(s); return *this; }
-    // The footer line under the rows: a validation summary, a save hint, or a
-    // key affordance. Same field the panes already set directly — exposed on
-    // the builder so a form that is built in one pass can say its piece
-    // without the caller reaching into the result.
+    // 行下的页脚行：验证摘要、保存提示或关键可供性。
+    // 面板 已直接设置的同一字段 - 暴露在构建器上，
+    // 因此一次构建的表单可以说出其内容，
+    // 而无需调用者触及结果。
     Builder& note(std::string s) { form_.note = std::move(s); return *this; }
 
     Builder& toggle(std::string id, std::string label, bool on, std::string help = {});
 
-    // `ids` may be empty ⇒ the labels ARE the ids. `selected` picks by id.
+    // `ids`可能为空⇒标签ARE是id。 `selected` 按 ID 选择。
     Builder& choice(std::string id, std::string label,
                     std::vector<std::string> labels,
                     std::vector<std::string> ids = {},
@@ -388,27 +388,27 @@ public:
     Builder& action(std::string id, std::string label, std::string help = {},
                     std::string hint = "press Enter");
 
-    // A section header. Skipped by cursor movement — landing on a label that
-    // does nothing is a dead keypress.
+    // 第 头文件 节。通过光标移动跳过 - 落在不执行
+    // 任何操作的标签上是死按键。
     Builder& header(std::string label);
 
-    // A row backed by another overlay: Enter hands off to a real picker
-    // instead of opening a dropdown. Use this whenever the candidate set is
-    // large, dynamic, or needs searching.
+    // 由另一个覆盖面板支持的行：Enter移交给真正
+    // 的选择面板而不是打开下拉菜单。当候选集很大、
+    // 动态或需要搜索时，请使用此选项。
     Builder& pick(std::string id, std::string label, std::string current,
                   std::string help = {});
 
-    // Text shown by the Secret row just added while it is empty (see
-    // field::Secret::placeholder). No-op on any other kind.
+    // 刚添加的秘密行在其为空时显示的文本（参见field::
+    // Secret::placeholder)。任何其他类型均无 -op。
     Builder& placeholder(std::string text);
 
-    // Mark the row just added as locked (e.g. pinned by an env var).
+    // 将刚刚添加的行标记为锁定（e.g.由环境变量固定）。
     Builder& lock(std::string reason);
-    // Provenance for the row just added ("default", "settings.json", "env: X").
+    // 刚刚添加的行的出处("default"、"settings.json"、"env: X")。
     Builder& origin(std::string where);
 
-    // A built form's cursor starts on its first real row, never a header:
-    // a cursor parked on a row that does nothing reads as a frozen pane.
+    // 构建表单的光标从其第一个实行开始，而不是 头文件：
+    // 停放在不执行任何操作的行上的游标读取为冻结的面板。
     [[nodiscard]] Form build() {
         for (int i = 0; i < static_cast<int>(form_.fields.size()); ++i)
             if (!form_.fields[static_cast<std::size_t>(i)].is_header()) { form_.cursor = i; break; }
@@ -419,53 +419,53 @@ private:
     Form form_;
 };
 
-// ── Rendering lives in maya, not here ────────────────────────────────────
-// This header is STATE + REDUCER only. It knows what a form contains and how
-// keys mutate it; it owns no glyph, no column, no colour, no caret drawing.
-// The view layer projects a Form onto maya::Form::Config (a mechanical
-// field-by-field map) and maya owns every pixel — the same contract Picker
-// and the timeline follow. `display()` and friends do NOT live here for that
-// reason: a "just this one string" helper in the host is how chrome leaks
-// across the boundary.
+// ── 渲染 住在这里 maya ,不在这里 ────────────────────────────────────
+// 该头文件仅为STATE+REDUCER。它知道表单包含什么以及
+// 键如何改变它；它没有字形、没有列、没有颜色、没有 光标 绘图。
+// 视图层将表格投影到maya::Form::Config (机械场
+// -by-field地图）上并且maya拥有每个像素——相同的合同选择面板和时间线遵循。
+// `display()` 和朋友们之所以在这里做 不是因为这个原因：主机
+// 中的 "just this one string" 助手是 chrome
+// 跨边界泄漏的方式。
 
-// ── The option list a dropdown shows ─────────────────────────────────────
-// A Choice's options verbatim — no filtering, because a dropdown only holds
-// an enum. The view hands this to maya::Form::Menu and the reducer resolves a
-// commit against it, so what is displayed and what Enter selects cannot
-// diverge.
+// ── 选项列表中显示一个下拉 ─────────────────────────────────────
+// Choice 的选项逐字 — 没有过滤，因为下拉列表仅包含 枚举。
+// 视图将其交给 maya::Form::Menu，状态更新函数 解析
+// 针对它的提交，因此显示的内容和 Enter 选择的内容不会有
+// 分歧。
 struct Options {
     std::vector<std::string> labels;
     std::vector<std::string> hints;
 };
 [[nodiscard]] Options visible_options(const field::Choice& c);
 
-// Character count of a Secret, for maya::form::Secret{filled} — the widget is
-// never given the plaintext at all.
+// 秘密的字符计数，对于 maya::form::Secret{filled}
+// — 小部件根本不会被给予明文。
 [[nodiscard]] std::size_t secret_filled(const field::Secret& s) noexcept;
 
-// Caret as a BYTE offset into the value, which is how maya's with_caret
-// splices it. npos when the field is not being edited.
+// 光标作为BYTE偏移到值中，这就是maya的with_caret
+// 如何拼接它的。 npos 当该字段未被编辑时。
 [[nodiscard]] std::size_t caret_offset(const FieldValue& v, bool editing) noexcept;
 
-// A Number row's text: the digits typed so far while editing (may be
-// empty), else the value.
+// 数字行的文本：编辑时迄今为止的数字带类型的（可能为空），
+// 否则为值。
 [[nodiscard]] std::string number_text(const field::Number& n);
-// A Number row's value as it stands: mid-edit, the typed digits clamped into
-// range (empty keeps the saved value); otherwise the value. Read Number rows
-// through this, never `.value`, which only updates when the edit ends.
+// 数字行的实际值：mid-edit，带类型的数字被限制在范围
+// 内（空保留已保存值）；否则该值。通过此读取 Number 行，
+// 切勿使用 `.value`，它仅在编辑结束时更新。
 [[nodiscard]] std::int64_t number_value(const field::Number& n);
 
-// ── Editing (pure mutations) ─────────────────────────────────────────────
-// Each is a no-op on a kind it doesn't apply to, so call sites never switch
-// on the alternative. All of them clamp; none can leave a field invalid.
+// ── 编辑(纯突变) ─────────────────────────────────────────────
+// 每个都是其不适用的类型的 no-op，因此 调用 站点
+// 从不开启替代方案。全部夹住；没有人可以使字段无效。
 
-// Insert one character into a text-like field.
+// 将一个字符插入到文本-like字段中。
 //
-// `fresh` = this is the first keystroke of an edit session. Text fields ignore
-// it (a caret already says where the character lands); a Number field uses it
-// to REPLACE rather than append, because the value on screen when editing
-// starts is the saved one and nobody means to extend a number they did not
-// type. Pass `!f.edit_dirty`.
+// `fresh`=这是编辑会话的第一次击键。文本字段忽略它（
+// 光标 已经说明了角色着陆的位置）；数字字段将其用于
+// REPLACE 而不是附加，因为编辑开始时屏幕上的值是 已保存，
+// 并且没有人会扩展他们未输入的数字。
+// 通过 `!f.edit_dirty`。
 void insert(FieldValue& v, char32_t ch, bool fresh = false);
 void backspace(FieldValue& v);
 void delete_forward(FieldValue& v);
@@ -474,104 +474,104 @@ void cursor_home(FieldValue& v);
 void cursor_end(FieldValue& v);
 void paste(FieldValue& v, std::string_view text);
 
-// ── Whole-form paste (SSOT) ─────────────────────────────────
-// The one correct way to route a bracketed paste into a form pane. Guards
-// against the stale-snapshot race by re-checking the TRUE mode here (the
-// input router targets pastes off a FormFocus snapshot that can lag; see
-// form_keys.cpp's editing-intent guards for the same rule): only while
-// actually editing an editable, unlocked row does the text land. Returns
-// true when it did (caller sets pane-specific dirty semantics if any).
-// Every form pane's Paste arm MUST be exactly `form::paste_into(o->form,
-// e.text)` or `form::paste_into_focused(o->form, e.text)` — a hand-rolled
-// guard is the drift these exist to end (three panes had three copies of it
-// before this).
+// ── 全文 -form 粘贴( E) SSOT) ─────────────────────────────────
+// 将括号内的粘贴传送到表格 面板 中的一种正确方法。
+// 通过 re-checking 此处的 TRUE 模式防范 过期-snapshot
+// 竞态（输入路由器目标粘贴可能滞后的 FormFocus 快照；
+// 请参阅 form_keys.cpp 的编辑-intent 防护以了解
+// 相同的规则）：只有在实际编辑可编辑的未锁定行时，文本才会落地。
+// 执行时返回 true（调用者设置 面板-specific 脏语义（如果有））。
+// 每个形态面板的粘贴臂MUST正是`form::paste_into(o->form, e.text)`
+// 或`form::paste_into_focused(o->form, e.text)`
+// ——一只手-rolled守卫是这些存在的终结（在此之前三个面板有它的
+// 三个副本）。
 bool paste_into(Form& f, std::string_view text);
 
-// Paste the way typing works (type-to-edit): while editing, exactly
-// paste_into; while BROWSING an editable, unlocked text-like row, the paste
-// opens the edit session and lands as its first input. Nothing happens on a
-// dropdown, a locked or non-text row, or for a paste the row would take none
-// of (no digits for a Number, only newlines/tabs) — an edit session is never
-// opened with nothing in it. Returns true when the text landed. A pane that
-// uses this routes a paste to itself whenever it is OPEN, not only mid-edit
-// (subscribe.cpp); the guards here are what make that safe.
+// 粘贴输入方式(type-to-edit)：编辑时，正好paste_into；
+// 当 BROWSING 是可编辑的、未锁定的文本 -like 行时，
+// 粘贴将打开编辑会话并作为其第一个输入。下拉列表、锁定的行或非 -text
+// 行不会发生任何事情，或者对于粘贴，该行将不包含任何内容（数字没有数字，
+// 只有 newlines/tabs）——编辑会话永远不会在没有任何内容的
+// 情况下打开。当文本到达时返回 true。使用此功能的 面板 每当
+// OPEN 时都会将粘贴路由到自身，而不仅仅是 mid-edit (
+// subscribe.cpp)；这里的警卫保证了这里的安全。
 bool paste_into_focused(Form& f, std::string_view text);
 
-// ── Typed field readers (SSOT) ───────────────────────────────
-// Read a field's value by id without spelling the variant access at every
-// call site. text_of covers ALL text-like alternatives (Text/Secret/Path)
-// so a pane can't silently read "" from a Secret it thought was a Text —
-// the exact bug class rag_form's local helper was written to avoid, now
-// hoisted so smart_form/plugin_form/rag_form share one definition.
-// Missing id or wrong kind ⇒ the neutral value; panes that must
-// distinguish "absent" from "empty" use Form::find directly.
+// ── 带类型的 字段阅读器( E) SSOT) ───────────────────────────────
+// 通过id读取字段的值，而不需要在每个调用站点拼写变体访问。 text_of 涵
+// 盖了 全部 文本-like 替代品 (Text/Secret/Path)，
+// 因此 面板 无法从它认为是文本的 Secret 中静默读取 "" — 编写确切
+// 的错误类 rag_form 的本地帮助程序是为了避免，现在已提升，
+// 因此 smart_form/plugin_form/rag_form 共享一个定义。
+// 缺少id或错误种类⇒中性值；必须区分"absent"和
+// "empty"的面板直接使用Form::find。
 [[nodiscard]] std::string text_of  (const Form& f, std::string_view id);
 [[nodiscard]] bool        toggle_of(const Form& f, std::string_view id);
-// The selected id of a Choice row ("" when absent/not a choice).
+// 选择行的选定id(当absent/not为选择时为"")。
 [[nodiscard]] std::string choice_of(const Form& f, std::string_view id);
 void clear(FieldValue& v);
 
-// ←/→ on a row: flips a Toggle, cycles a Choice, steps a Slider/Number.
+// ←/→连续：翻转切换，循环选择，步进Slider/Number.
 void adjust(FieldValue& v, int dir);
 
-// ── Form-level operations ────────────────────────────────────────────────
-// The shared reducer body. A per-pane reducer maps its messages onto these
-// and then reads the values back out; it never re-implements navigation.
+// ── 表-level 业务 ────────────────────────────────────────────────
+// 共享状态更新函数 正文。 per-pane 状态更新函数 将其消息
+// 映射到这些消息上，然后读回值；它从不重新-implements导航。
 
-// Move the row cursor (wraps). No-op while a dropdown is open — that mode
-// owns the highlight.
+// 移动行光标（换行）。当下拉菜单打开时，No-op - 该
+// 模式拥有突出显示。
 void move(Form& f, int delta);
 
-// Start / end an edit session on the focused row. EVERY path that enters or
-// leaves Editing goes through these, so a field kind with session state (a
-// Number's digit draft) can't be skipped by one entry point. end_edit
-// commits the draft into the value.
+// 在焦点行上开始/结束编辑会话。进入或离开编辑的 每个
+// 路径会经过这些路径，因此具有会话状态的字段类型（数字
+// 的数字草稿）不能被一个入口点跳过。 end_edit
+// 将草稿提交到该值中。
 void begin_edit(Form& f);
 void end_edit(Form& f);
 
-// Replace a form's rows with `next`, keeping the user's place: the cursor
-// stays on the row with the same id if it still exists, else on the nearest
-// real row at the same position; never on a header. An open edit or dropdown
-// is closed (its row may not exist any more), and `dirty` is kept.
-// Every pane that rebuilds its rows must use this rather than patching the
-// cursor by hand. `prefer` lands on that row instead (when it exists), for a
-// rebuild that should move the cursor to a row it just added.
+// 将表单的行替换为`next`，保留用户的位置：如果相同
+// id的行仍然存在，则光标停留在该行上，否则停留在相同位置的
+// 最近的真实行上；从来没有在 头文件 上。打开的编辑或下拉菜单
+// 被关闭（其行可能不再存在），并保留 `dirty`。
+// 每个重建其行的 面板 都必须使用它，而不是手动修补游标。
+// `prefer` 落在该行上（当它存在时），
+// 用于将光标移动到刚刚添加的行的重建。
 void rebuild(Form& f, Form next, std::string_view prefer = {});
-// Put the cursor back on a real row after rows were added or removed in
-// place: same index if valid, else the nearest non-header row.
+// 在适当地添加或删除行之后将光标放回到实际行上：如果有效
+// 则相同的索引，否则是最近的非-header行。
 void settle_cursor(Form& f);
-// Home/End: jump to the first/last non-header field WITHOUT wrapping.
+// Home/End:跳转到first/last非-header字段WITHOUT换行。
 void move_edge(Form& f, bool last);
-// PgUp/PgDn: header-skipping stride that CLAMPS at the edges (no wrap).
+// PgUp/PgDn:头文件-skipping在边缘跨过CLAMPS(无环绕)。
 void move_page(Form& f, int delta);
-// Put the cursor on the row with this id. False (cursor unchanged) when the
-// form has no such row.
+// 将光标置于具有该id的行上。当表单没有这样的行时，
+// 为 False（光标不变）。
 bool focus_row(Form& f, std::string_view id);
 
-// Enter on the focused row: engage a text field, open a Choice's dropdown,
-// flip a Toggle, hand a Pick off to its picker, or report that an Action
-// fired.
+// 焦点行上的 Enter：接合文本字段、打开选择的下拉菜单、
+// 翻转 切换、将选择交给其 选择面板，或报告动作被
+// 触发。
 enum class Activated : std::uint8_t { Nothing, StartedEditing, OpenedDropdown,
                                       Changed, FiredAction, HandOff };
 [[nodiscard]] Activated activate(Form& f);
 
-// Esc: leave the innermost mode. Returns true when the form itself should
-// close (i.e. we were already Browsing).
+// Esc:离开最内层模式。当表单本身应该关闭时返回 true
+// （i.e。我们已经在浏览）。
 [[nodiscard]] bool escape(Form& f);
 
-// Dropdown-only operations. Safe to call in any mode (no-ops elsewhere).
+// Dropdown-only操作。在任何模式下对 调用 都是安全的（其他地方对 -ops 是安全的）。
 void dropdown_move(Form& f, int delta);
-// Commit the highlighted option into the field and return to Browsing.
+// 将突出显示的选项提交到字段中并返回到浏览。
 [[nodiscard]] bool dropdown_commit(Form& f);
 
-// Reset the focused row to `dflt` and mark the form dirty.
+// 将焦点行重置为`dflt`并将表格标记为脏。
 void reset_field(Form& f, const FieldValue& dflt);
 
-// ── Layout ───────────────────────────────────────────────────────────────
-// Deliberately absent. Where the dropdown floats, how it flips near the
-// bottom edge, and how wide it is are LAYOUT decisions — maya::Form resolves
-// them from the row set it is already given. A host-side geometry pipeline
-// (measure rows here, pass coordinates back in) is exactly the shape that let
-// scrollback accounting drift for so long: two owners for one measurement.
+// ── 版式 ───────────────────────────────────────────────────────────────
+// 故意缺席。下拉菜单浮动的位置、它如何在底部边缘附近翻
+// 转以及它的宽度是 LAYOUT 决定 - maya::Form
+// 从已经给出的行集中解析它们。 Host-side
+// 几何管道（在此处测量行，将坐标传回）正是让 回滚缓冲区
+// 会计漂移这么长时间的形状：两个所有者进行一次测量。
 
 } // namespace agentty::form

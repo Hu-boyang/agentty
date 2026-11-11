@@ -1,40 +1,40 @@
-# tests/lint/layering.cmake — agentty → maya → jaal, strictly.
+# tests/lint/layering.cmake — agentty → maya → jaal 严格来说
 #
-# agentty depends on maya and never on jaal: every runtime piece it uses
-# reaches it as a maya:: name from <maya/runtime.hpp>. docs/LAYERING.md.
+# agentty 取决于 maya 永远不要 jaal : 时间 运行时 用来把它当作一个
+# maya * 姓名来源 <maya/runtime.hpp>. docs/LAYERING.md.
 #
-# Fails on, in agentty's src/ include/ tests/:
-#   * #include <jaal/...>
-#   * the word jaal anywhere in code: jaal::x, `jaal :: x`, `using namespace
-#     jaal;`, `namespace j = jaal;`
-#   * a JAAL_ macro
-# maya and jaal check their own direction with their own layering.cmake;
-# agentty runs those too (layering_maya, layering_jaal).
+# 失败者在,在 agentty's src/ include/ tests/:
+#   * 包括 <jaal/...>
+#   * 这个词 jaal 代码中任意位置 : jaal::x, `jaal :: x` ,`使用命名空间'
+#     jaal;`, ` 名称空间 j = jaal;`
+#   * 一个JAAL_宏
+# maya和jaal用自己的layering.cmake检查自己的方向;agentty也运行
+# 这些方向(layering_maya,layering_jaal)。
 #
-# Comments and string literals may say anything. They are stripped per file,
-# block comments included, so prose that wraps onto a line by itself is not
-# mistaken for code.
+# 注释和字符串字节可以说任何事情。 每一个文件都被剥除,
+# 块注释包含在内, 因此, 将字节包在行上本身不会被
+# 误认为代码。
 #
-# cmake/ is not scanned: the build is the one place that has to name jaal's
-# tree, to run jaal's own lints over agentty.
+# cmake/ 不被扫描: 建筑是必须命名的地方 jaal's 源码树
+# 运行中 jaal 自己买的 agentty.
 #
-# Run with: cmake -DROOT=<agentty source dir> -P layering.cmake
+# 运行时: CMake -DROOT=<agentty 源代码 > -P layering.cmake
 
 if(NOT DEFINED ROOT)
     message(FATAL_ERROR "ROOT is required")
 endif()
 
-# The code of one C++ file with comments and string/char literals blanked,
-# newlines kept so line numbers still match. Regex passes, not a char loop:
-# a CMake loop over every character took most of a minute on jaal's tree.
+# 带有注释的 C++ 文件的代码和string/char 字节的空白,
+# 新行保持了线条编号仍然匹配。 Regex 通过了,而不是字符循环 :
+# a CMake 绕过每个角色 花了大部分时间 jaal's 源码树.
 function(code_of path out)
     file(READ "${path}" s)
-    # Literals first, so a // or /* inside one isn't taken for a comment.
+    # 文言先,故一内之一/或/*,不取以评.
     string(REGEX REPLACE "R\"([^(]*)\\([^)]*\\)[^\"]*\"" "\"\"" s "${s}")
     string(REGEX REPLACE "\"([^\"\\\\\n]|\\\\.)*\"" "\"\"" s "${s}")
     string(REGEX REPLACE "'([^'\\\\\n]|\\\\.)*'" "''" s "${s}")
     string(REGEX REPLACE "//[^\n]*" "" s "${s}")
-    # /* ... */ may span lines: replace each block with as many newlines.
+    # / *... * / 可能横跨行: 每个块替换为尽可能多的新行.
     while(s MATCHES "/\\*")
         string(FIND "${s}" "/*" a)
         string(SUBSTRING "${s}" ${a} -1 tail)
@@ -58,8 +58,8 @@ function(code_of path out)
     set(${out} "${s}" PARENT_SCOPE)
 endfunction()
 
-# scan(<dirs> <word-regex> <include-regex> <label>): appends to `hits`.
-# `word` is matched as a whole identifier.
+# 扫描( C) <dirs> <word-regex> <include-regex> <label> : 附录 `hits`.
+# `word` 是一个整体标识符。
 function(scan dirs word inc label)
     set(out "")
     foreach(dir IN LISTS dirs)
@@ -70,12 +70,12 @@ function(scan dirs word inc label)
             if(f MATCHES "/tests/lint/" OR f MATCHES "/_deps/" OR f MATCHES "/build[^/]*/")
                 continue()
             endif()
-            # Cheap pre-filter: most files never mention the name at all.
+            # 便宜预告 -filter :大多数文件根本没有提到过这个名字.
             file(STRINGS ${f} any REGEX "${word}|${inc}")
             if(NOT any)
                 continue()
             endif()
-            file(READ ${f} raw_text)                  # for include lines
+            file(READ ${f} raw_text)                  # 用于包含的行
             string(REPLACE ";" "\\;" raw_text "${raw_text}")
             string(REPLACE "\n" ";" raw "${raw_text}")
             code_of(${f} code)
@@ -85,8 +85,8 @@ function(scan dirs word inc label)
             set(ln 0)
             foreach(l IN LISTS lines)
                 math(EXPR ln "${ln} + 1")
-                # An include path is a "string", already blanked: check the
-                # directive against the raw line instead.
+                # 包含路径为"string",
+                # 已经空白: 对照原始线检查指令。
                 set(hit FALSE)
                 if(l MATCHES "^[ \t]*#[ \t]*include")
                     math(EXPR k "${ln} - 1")

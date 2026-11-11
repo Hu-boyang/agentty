@@ -1,7 +1,7 @@
-// The disk as mcp-cpp's FileSystem, plus the read/write helpers agentty's
-// own code uses. The one place agentty's tool layer touches file bytes.
+// 磁盘作为mcp-cpp的FileSystem,加上read/write的帮助者agentty自己的代码使用.
+// agentty的工具层触摸文件字节的其中一个地方.
 #include "agentty/tool/util/disk_files.hpp"
-#include "agentty/tool/util/fs_helpers.hpp"   // read_file / write_file
+#include "agentty/tool/util/fs_helpers.hpp"   // read_file / write_file 数据
 
 #include <algorithm>
 #include <cerrno>
@@ -39,12 +39,12 @@ using ::mcp::tools::FileStat;
 using ::mcp::tools::WalkStep;
 
 namespace {
-// Translate the most common filesystem errno values to a sentence the
-// model can act on. Raw `strerror` reads as "Permission denied" /
-// "No such file or directory" — fine for humans, but the LLM responds
-// better to the longer form ("you don't have write permission to X")
-// when it's deciding whether to retry as a different path or surface a
-// human ask. The caller appends the path/operation context.
+// 将最常见的文件系统错误值转换为模型可以操作的句子。 Raw `strerror`
+// 读作 "Permission denied" /
+// "No such file or directory" - 人类可以,
+// 但是... LLM 更好地适应较长的表格(
+// "you don't have write permission to X" 当它决定是否 重
+// 试 以不同的路径或表面显示人类的询问。 path/operation 上下文。
 std::string explain_errno(int e) {
     switch (e) {
         case EACCES:        return "permission denied";
@@ -66,22 +66,22 @@ std::string explain_errno(int e) {
     }
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 std::string read_file(const fs::path& p) {
-    // Size-then-read: avoid the ifstream→ostringstream→.str() chain, which
-    // double-allocates and copies through the streambuf. One stat, one
-    // malloc, one read. Fallback to streambuf drain if the size isn't known
-    // (e.g. /proc, pipes) — those produce file_size==0 or throw.
+    // 大小 -then-read : 避免出现“流”。 str() 链条,
+    // 双倍 -allocates 一份统计,一份统计,
+    // 一本读数 回退 以排水为主,如果体积不明( e.g ./proc,
+    // 管道)——这些产品 file_size ⁇ 或掷.
     std::error_code ec;
     auto sz = fs::file_size(p, ec);
 #ifdef _WIN32
-    // Native Win32 path: CreateFileW with FILE_FLAG_SEQUENTIAL_SCAN tells
-    // the cache manager to read ahead aggressively (larger prefetch window,
-    // pages discarded after use). For the read / grep / edit hot path —
-    // one linear pass, no seeks — this is materially faster than the CRT
-    // ReadFile that std::ifstream lowers to. Also avoids the CRT's
-    // per-char buffer translation overhead on large files.
+    // 原生 Win32 路径 : CreateFileW 与
+    // FILE_FLAG_SEQUENTIAL_SCAN 告诉 缓存 管理器将积极读取(
+    // 使用后, 页面被丢弃)。 将“ / grep / 编辑” 改为“ / 添加更多
+    // 预选窗口 ” 高频路径 ——一条线性通道,没有求求——这在物质上比"求"要快.
+    // CRT ReadFile 说 std::ifstream 低调到,
+    // 还避免了 CRT 单位 -char 缓冲区 翻译大文件的间接费用。
     if (!ec && sz > 0) {
         HANDLE h = ::CreateFileW(p.wstring().c_str(),
                                  GENERIC_READ,
@@ -98,7 +98,7 @@ std::string read_file(const fs::path& p) {
             const size_t want = static_cast<size_t>(sz);
             while (total < want) {
                 DWORD chunk = static_cast<DWORD>(
-                    std::min<size_t>(want - total, 1u << 20));   // 1 MiB reads
+                    std::min<size_t>(want - total, 1u << 20));   // 1 MiB 读作
                 DWORD got = 0;
                 if (!::ReadFile(h, buf + total, chunk, &got, nullptr) || got == 0)
                     break;
@@ -108,9 +108,9 @@ std::string read_file(const fs::path& p) {
             if (total != want) out.resize(total);
             return out;
         }
-        // Fall through to ifstream on CreateFileW failure (rare: locked /
-        // permission-denied files where the CRT might still retry through
-        // a different path). Better to degrade gracefully than refuse.
+        // 掉进到下游 CreateFileW 失败( 径:
+        // 锁定 /) 权限-denied 文档中 CRT
+        // 可能还 重试 更能优雅地贬低别人,而不是拒绝别人。
     }
 #endif
     std::ifstream ifs(p, std::ios::binary);
@@ -128,19 +128,19 @@ std::string read_file(const fs::path& p) {
 }
 
 std::string write_file(const fs::path& p, std::string_view content) {
-    // Follow a symlink to what it points AT before writing anything.
+    // 跟着一个符号链接到它指的 AT 在写东西之前
     //
-    // The publish step below is rename(), which replaces the name it is given
-    // -- and for a symlink that means replacing the LINK. Without this, an
-    // edit through a symlink silently did three wrong things at once: the
-    // link became a regular file, the real target kept its old contents, and
-    // the tool reported success with a diff of a change that went to a brand
-    // new inode nobody was looking at. Dotfiles repos and generated-file
-    // symlinks (compile_commands.json) hit this immediately.
+    // 下面的出版步骤是 rename() ,它取代它给定的名称 --
+    // -- 对于一个连锁关系,它意味着替换 LINK。没有这个,
+    // 通过一个连锁编辑一次就默默地做了三个错误的事情: 链接
+    // 成为常规文件, 真正的目标保留了旧内容, 工具报告成功 diff 变化,
+    // 进入了全新的 inode 没有人在看。 Dotfiles
+    // 仓库 生成 -file 符号链接( Q)
+    // compile_commands.json 立即打这个。
     //
-    // Confinement is unaffected: is_within_workspace canonicalises before we
-    // are ever called, so a link pointing outside the workspace root was
-    // already refused. Resolving here can only land inside it.
+    // 封存不受影响 : is_within_workspace
+    // 之前的卡尼卡利克斯 我们曾经被叫,所以 链接 指向外边
+    // 工作区 根已经被拒绝。 溶解在这里只能降落在它内部。
     fs::path real = p;
     {
         std::error_code ec;
@@ -157,17 +157,17 @@ std::string write_file(const fs::path& p, std::string_view content) {
         if (ec) return "failed to create directory '" + parent.string() + "': " + ec.message();
     }
 
-    // Atomic write: write to a sibling temp file, fsync, rename over target.
-    // Crash or power-loss mid-write leaves the original file intact; only
-    // the fully-written, fsync'd copy ever becomes visible at the target
-    // path. The temp must live in the same directory so the rename is a
-    // single filesystem operation — cross-device rename falls back to a
-    // non-atomic copy.
+    // 原子写法:写到兄弟临时文件,fsync,重命名于目标.
+    // 崩溃或电源 -loss 中点 -write 保留原始文件完整;
+    // 仅完整 -written , fsync'd copy 永远
+    // 可见目标路径。临时值必须在同一目录中存在,所以重命名是一个单一
+    // 的文件系统操作——交叉 -device 重命名归为非
+    // -atomic ⁇ .
     //
-    // The temp name is made unique by creating it exclusively (O_EXCL) and
-    // retrying with a new suffix if it exists, so no counter is shared
-    // between concurrent writers. The suffix mixes pid, a stack address and
-    // the attempt, which is enough to make collisions rare.
+    // 临时名称之所以独特,是因为创建它时只(O_EXCL)和重试,
+    // 如果存在,则使用新的后缀,所以没有对应
+    // 的写手共享。后缀混合了pid,
+    // 一个堆栈地址和尝试,这足以使碰撞变得罕见.
 #ifdef _WIN32
     const unsigned long pid = static_cast<unsigned long>(::GetCurrentProcessId());
 #else
@@ -182,7 +182,7 @@ std::string write_file(const fs::path& p, std::string_view content) {
         return t;
     };
 
-    // Preserve existing mode on POSIX so the rename doesn't regress perms.
+    // 保留POSIX上的现有模式,这样重命名不会退缩转式.
 #ifndef _WIN32
     mode_t target_mode = 0644;
     bool   had_mode    = false;
@@ -195,16 +195,16 @@ std::string write_file(const fs::path& p, std::string_view content) {
     }
 #endif
 
-    // Drop down to the POSIX/Win32 fd so we can fsync before the rename.
-    // ofstream::flush only empties the libstdc++ streambuf into the OS —
-    // power-loss / crash can still lose the bytes, and on some FUSE and
-    // network filesystems the data isn't readable by the next open until
-    // fsync completes.
+    // 降入POSIX/Win32 fd,这样我们就可以在重命名前进行fsync.
+    // ofstream::flush 仅空出 libstdc++ 流泡
+    // 进入 OS ——权力 -loss 坠机仍然会失去 字节 ,
+    // 并在某些 FUSE 和网络文件系统,数据在fsync完成之前,
+    // 在下一个打开时是无法读取的.
 #ifdef _WIN32
-    // Use the wide-char variant so Unicode paths (e.g. under a non-ASCII
-    // %USERPROFILE%) round-trip correctly. `_sopen_s` takes an ANSI/MBCS
-    // path which silently corrupts multi-byte sequences on some MinGW
-    // ucrt configurations.
+    // 宽度 -char 变体 因此 Unicode 路径( 代码路径) ( e.g。
+    // 在非 -ASCII %USERPROFILE 百分比)圆 -trip 正确,我记得 `_sopen_s`
+    // 需要一个 ANSI/MBCS 静静地破坏多面性的道路 -byte 某些区域上的序列
+    // MinGW ucrt配置图.
     int fd = -1;
     for (int attempt = 0; attempt < 16 && fd < 0; ++attempt) {
         tmp = tmp_name(attempt);
@@ -260,16 +260,16 @@ std::string write_file(const fs::path& p, std::string_view content) {
         remaining -= static_cast<size_t>(n2);
     }
 
-    // fsync temp: data is durable before the rename publishes it.
+    // fsync time:数据在重命名发布之前是耐用性的.
 #ifdef _WIN32
     (void)_commit(fd);
     _close(fd);
 #else
     if (had_mode) (void)::fchmod(fd, target_mode);
-    // Linux/FreeBSD have fdatasync (skips metadata flush, slightly faster);
-    // macOS only has fsync. The durability guarantee we need is the same —
-    // file contents committed to disk before the rename publishes them —
-    // so falling back to fsync on Apple costs a metadata block at most.
+    // Linux/FreeBSD 拥有 fdatasync(略快的斯基
+    // 普斯元数据冲洗); macOS 只有 fsync。 我们需要的
+    // 耐久性保证是相同的。 —— 文件内容在重命名发布前承诺在磁盘上
+    // —— 因此, 苹果上返回 fsyncm 最多花费一个元数据块。
 #if defined(__APPLE__)
     (void)::fsync(fd);
 #else
@@ -278,9 +278,9 @@ std::string write_file(const fs::path& p, std::string_view content) {
     ::close(fd);
 #endif
 
-    // Atomic publish. Windows MoveFileExW with REPLACE_EXISTING is atomic on
-    // NTFS (single MFT update); WRITE_THROUGH flushes the directory entry.
-    // POSIX rename() is atomic by spec when src/dst are on the same FS.
+    // 原子出版. Windows MoveFileExW 与 REPLACE_EXISTING 在一起,
+    // 是 NTFS上的原子(单 MFT更新); WRITE_THROUGH 冲洗目录条目.
+    // POSIX rename() 原子值,按光谱计,当 src/dst 都一样 FS.
 #ifdef _WIN32
     auto tmp_w = tmp.wstring();
     auto dst_w = real.wstring();
@@ -297,7 +297,7 @@ std::string write_file(const fs::path& p, std::string_view content) {
         cleanup_tmp();
         return err;
     }
-    // fsync parent dir so the rename itself survives power loss.
+    // fsync 父目录,所以重命名本身能幸存断电.
     if (!parent.empty()) {
         int dfd = ::open(parent.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
         if (dfd >= 0) { (void)::fsync(dfd); ::close(dfd); }
@@ -325,14 +325,14 @@ FileStat stat_of(const fs::directory_entry& e, int depth, DirEntry* out) {
     return s;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 FileStat DiskFiles::stat(const fs::path& p) const {
     FileStat s;
     std::error_code ec;
     const auto st = fs::status(p, ec);
     if (ec || !fs::exists(st)) {
-        // A dangling symlink still "is" something to a tool that lists it.
+        // 连锁锁仍然在摇摆 "is" 某件能列出它的工具。
         const auto lst = fs::symlink_status(p, ec);
         if (!ec && fs::is_symlink(lst)) { s.exists = true; s.symlink = true; }
         return s;
@@ -406,10 +406,10 @@ std::vector<DirEntry> DiskFiles::list(const fs::path& dir, std::error_code& ec) 
 bool DiskFiles::walk(const fs::path& root,
                             const std::function<WalkStep(const DirEntry&)>& visit) const {
     std::error_code ec;
-    // A file root is a walk of one. recursive_directory_iterator on a
-    // regular file fails with ENOTDIR, which silently made the builtin
-    // grep (the only one on a host without ripgrep -- a stock Mac) report
-    // "No matches" for `grep path=src/foo.cpp`.
+    // 文件根是普通文件中的1的行. recursive_directory_iterator
+    // 在ENOTDIR上失败,它默默地使内建的grep(唯一一个在没有
+    // rigrep的主机上——一个股票Mac)报告"No matches"为
+    // `grep path=src/foo.cpp`.
     if (fs::directory_entry self(root, ec); !ec && !self.is_directory(ec)) {
         if (ec || !self.exists(ec)) return false;
         DirEntry d;
@@ -424,7 +424,7 @@ bool DiskFiles::walk(const fs::path& root,
         if (ec) { ec.clear(); continue; }
         DirEntry d;
         stat_of(*it, it.depth(), &d);
-        // Never through a symlinked directory: a cyclic link never ends.
+        // 永不通过一个连锁目录:一个循环的链接永不结束.
         if (d.directory && d.symlink) it.disable_recursion_pending();
         switch (visit(d)) {
             case WalkStep::next:     break;
@@ -452,7 +452,7 @@ void DiskFiles::rename(const fs::path& from, const fs::path& to, std::error_code
 }
 
 void DiskFiles::copy(const fs::path& from, const fs::path& to, std::error_code& ec) {
-    // Links are copied as links, never followed into what they point at.
+    // 链接 复制为 链接 永远不要跟随他们指向什么
     fs::copy(from, to, fs::copy_options::recursive | fs::copy_options::copy_symlinks, ec);
 }
 

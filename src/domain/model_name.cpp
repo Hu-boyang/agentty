@@ -1,22 +1,22 @@
-// agentty::model_name — implementation of the display-name SSOT.
+// agentty::model_name——显示-name SSOT的实现。
 //
-// Structure of this file:
+// 该文件的结构：
 //
-//   1. `normalize_id_words` — the id → human-typography pass. This is the
-//      ONLY string tokeniser here, and it is the one that used to live in
-//      ui::pretty_model_label (moved down from the view layer, unchanged in
-//      behaviour — its test suite still pins it). It handles snapshot dates,
-//      :latest aliases, Ollama tags, acronym casing and version joins.
+//   1. `normalize_id_words` — id → human-typography 通行证。这是
+//      这里是 仅 字符串分词器，它是曾经存在于
+//      ui::pretty_model_label 中的字符串分词器（从
+//      视图层向下移动，行为不变 - 其测试套件仍然固定它）。它处理 快照
+//      日期、:最新别名、Ollama 标签、首字母缩略词大小写和版本连接。
 //
-//   2. `decode` — delegates TAXONOMY to ModelCapabilities::from_id and uses
-//      (1) only for the residual "we don't know this family" case and for
-//      reconciling a server-supplied marketing name.
+//   2.`decode`-将TAXONOMY委托给ModelCapabilities::from_id并使用
+//      (1)仅适用于残留"we don't know this family"的
+//      情况并用于协调服务器-supplied的营销名称。
 //
-//   3. The projections.
+//   3.预测。
 //
-// The division of labour is the whole design: from_id answers "which lane is
-// this?", normalize answers "how do humans spell this token?", and nothing
-// answers both.
+// 分工是整个设计：from_id回答"which lane is this?"，
+// 规范化回答"how do humans spell this token?"，并且没有任何
+// 东西同时回答两者。
 
 #include "agentty/domain/model_name.hpp"
 
@@ -28,7 +28,7 @@ namespace agentty::model_name {
 
 namespace {
 
-// ── Character predicates (ASCII; model ids are ASCII by construction) ────
+// ── 字符上游( 3) ASCII ; 模型标识为 ASCII 建筑) ────
 constexpr bool is_alpha(char c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
 }
@@ -57,13 +57,13 @@ constexpr bool all_digits(std::string_view w) {
     return true;
 }
 
-// An 8-digit "20YYMMDD" run — a release snapshot, not an identity.
+// 8-digit "20YYMMDD"运行——版本快照，不是身份。
 constexpr bool is_snapshot_word(std::string_view w) {
     return w.size() == 8 && all_digits(w) && w.substr(0, 2) == "20";
 }
 
-// Alias/status tags a provider spells parenthetically in its display name:
-// "GPT-5.3 Chat (latest)". Provenance, not identity.
+// Alias/status 标记提供者在其显示名称中的括号拼写：
+// "GPT-5.3 Chat (latest)"。出处，而非身份。
 constexpr bool is_paren_alias(std::string_view w) {
     if (w.size() < 2 || w.front() != '(' || w.back() != ')') return false;
     const std::string_view in = w.substr(1, w.size() - 2);
@@ -72,23 +72,23 @@ constexpr bool is_paren_alias(std::string_view w) {
         || lower_eq(in, "exp") || lower_eq(in, "experimental");
 }
 
-// Pure quantization noise in an Ollama tag: changes fidelity, not identity,
-// and reads like line noise in a picker row. `q4_K_M`, `Q8_0`, `fp16`.
+// Ollama标签中的纯量化噪声：改变保真度，而不是身份，并且读起来像选择
+// 面板行中的线路噪声。 `q4_K_M`、`Q8_0`、`fp16`。
 constexpr bool is_quant(std::string_view p) {
     if (p.size() < 2) return false;
     if ((p.front() == 'q' || p.front() == 'Q') && is_digit(p[1])) return true;
     return p == "fp16" || p == "fp32" || p == "bf16";
 }
 
-// ── One word, in human typography ────────────────────────────────────────
+// ── 人类的排字法 ────────────────────────────────────────
 //
-// Rules, in precedence order:
-//   • an existing all-caps acronym (≤4 chars) is kept verbatim — GPT, GLM, SQL
-//   • a curated lowercase acronym is upper-cased — these read wrong title-cased
-//   • a mixed-case brand name gets its brand spelling — ChatGPT, DeepSeek
-//   • a DIGIT-LED word is a version/size run and stays lowercase — 4o, 8x7b, 70b
-//   • the o-series convention: a lone 'o' before a digit is lowercase — o4-mini
-//   • otherwise title-case the leading letter
+// 规则，按优先顺序：
+//   ·现有的all-caps首字母缩略词(≤4个字符)被逐字保留——GPT、GLM、SQL
+//   ·精心设计的小写首字母缩略词是 upper-cased — 这些读起来是错误的 title-cased
+//   ·混合-case品牌名称获得其品牌拼写——ChatGPT、DeepSeek
+//   · DIGIT-LED 字是 version/size 串并保持小写 — 4o、8x7b、70b
+//   ·o-series约定：数字之前的单独的'o'是小写的——o4-mini
+//   ·否则标题-case为前导字母
 void append_word(std::string& out, std::string_view w) {
     if (w.empty()) return;
 
@@ -141,36 +141,36 @@ void append_word(std::string& out, std::string_view w) {
     }
 }
 
-// ── id → human typography ────────────────────────────────────────────────
+// ── id – 人类排印 ────────────────────────────────────────────────
 //
-// Handles the shapes that appear in the wild:
-//   claude-3-5-haiku-20241022   snapshot word     → "Claude 3.5 Haiku"
-//   gpt-4o-2024-08-06           4-2-2 date triple → "GPT 4o"
-//   chatgpt-4o-latest           alias pointer     → "ChatGPT 4o"
-//   qwen2.5-coder:7b            Ollama size tag   → "Qwen2.5 Coder 7b"
-//   llama3:70b-instruct-q4_K_M  tag chain + quant → "Llama3 70b Instruct"
-//   openrouter/anthropic/…      provider namespace stripped
+// 处理自然出现的形状：
+//   claude-3-5-haiku-20241022 快照字→"Claude 3.5 Haiku"
+//   gpt-4o-2024-08-06 4-2-2日期三元→"GPT 4o"
+//   chatgpt-4o-latest别名指针→"ChatGPT 4o" qwen2.5
+//   -coder:7b Ollama尺寸标签→"Qwen2.5 Coder 7b" llama3:
+//   70b-instruct-q4_K_M 标签链 + Quant → "Llama3 70b Instruct"
+//   openrouter/anthropic/… 提供者命名空间被剥离
 //
-// Note it does NOT strip [1m]/[2m]: decode() peels those first so the marker
-// becomes a structured `annotation` instead of being silently discarded (the
-// bug where a paid-for 1M window was invisible in the badge).
+// 注意，它确实NOT剥离[1m]/[2m]：decode()首先剥离那些，
+// 因此标记变成结构化的`annotation`而不是被默默地丢弃
+// （付费-for 1M窗口在徽章中不可见的错误）。
 std::string normalize_id(std::string_view id) {
-    // Provider namespace: keep the segment after the last '/'.
+    // Provider命名空间：保留最后一个'/'之后的段。
     if (const auto slash = id.find_last_of('/');
         slash != std::string_view::npos)
         id.remove_prefix(slash + 1);
 
-    // Ollama `:tag` (size / variant / quant selector).
+    // Ollama `:tag` (尺寸/变体/定量选择器)。
     std::string_view tag;
     if (const auto colon = id.find(':'); colon != std::string_view::npos) {
         tag = id.substr(colon + 1);
         id  = id.substr(0, colon);
     }
-    // `:latest` carries no information — every pull defaults to it.
+    // `:latest`不携带信息——每次拉取都默认它。
     if (lower_eq(tag, "latest")) tag = {};
 
-    // Collect words FIRST so neighbour-aware rules (version joins, date
-    // triples) can see the whole id instead of streaming blind.
+    // 收集单词FIRST，以便邻居-aware规则（版本连接、
+    // 日期三元组）可以看到整个ID而不是盲目的流式传输。
     std::vector<std::string_view> words;
     std::size_t start = 0;
     for (std::size_t i = 0; i <= id.size(); ++i) {
@@ -181,10 +181,10 @@ std::string normalize_id(std::string_view id) {
         start = i + 1;
     }
 
-    // Drop a trailing release snapshot — provenance, not identity.
+    // 删除跟踪版本快照——出处，而不是身份。
     if (!words.empty() && is_snapshot_word(words.back())) {
         words.pop_back();
-    } else if (words.size() >= 4) {   // ≥4 so we never reduce an id to nothing
+    } else if (words.size() >= 4) {   // ≥4，因此我们永远不会将 id 缩减为空
         const auto y = words[words.size() - 3];
         const auto m = words[words.size() - 2];
         const auto d = words[words.size() - 1];
@@ -193,7 +193,7 @@ std::string normalize_id(std::string_view id) {
             && d.size() == 2 && all_digits(d))
             words.resize(words.size() - 3);
     }
-    // A trailing "latest" / "(preview)" is an alias pointer, not a name.
+    // 尾随的"latest"/"(preview)"是别名指针，而不是名称。
     if (words.size() > 1 && lower_eq(words.back(), "latest"))
         words.pop_back();
     if (words.size() > 1 && is_paren_alias(words.back()))
@@ -203,10 +203,10 @@ std::string normalize_id(std::string_view id) {
     out.reserve(id.size() + tag.size() + 1);
     bool prev_short_number = false;
     for (const std::string_view w : words) {
-        // Version join: adjacent short pure-digit words are ONE dotted
-        // version, not two numbers — `claude-sonnet-4-5` is Sonnet 4.5,
-        // `claude-3-5-haiku` is 3.5. Size/quant words (9b, 8x7b) contain
-        // letters so they never join; snapshots were dropped above.
+        // 版本连接：相邻的短pure-digit字是ONE点版本，不是两个数字——
+        // `claude-sonnet-4-5`是Sonnet 4.5，
+        // `claude-3-5-haiku`是3.5。 Size/quant 单词 (9b,
+        // 8x7b) 包含字母，因此它们永远不会连接； 快照 被丢弃在上面。
         const bool short_number = all_digits(w) && w.size() <= 2;
         if (short_number && prev_short_number) {
             out.push_back('.');
@@ -217,10 +217,10 @@ std::string normalize_id(std::string_view id) {
         }
         prev_short_number = short_number;
     }
-    if (out.empty()) out.assign(id);   // pathological all-delimiter id
+    if (out.empty()) out.assign(id);   // 病理all-delimiter id
 
-    // Ollama tag chain: keep what a human distinguishes models BY (size
-    // `70b`, variant `instruct`/`coder`), drop quantization.
+    // Ollama标签链：保留人类区分型号BY(尺寸`70b`、变体、
+    // `instruct`/`coder`)，丢弃量化。
     if (!tag.empty()) {
         std::string cleaned;
         std::size_t p0 = 0;
@@ -240,9 +240,9 @@ std::string normalize_id(std::string_view id) {
     return out;
 }
 
-// Alphanumeric-only, case-folded skeleton. Two strings with the same
-// skeleton are the same model spelled differently ("GPT-4o" vs "gpt-4o"),
-// carrying no marketing signal.
+// 字母数字-only，外壳-folded骨架。具有相同骨架的两根
+// 琴弦是同一型号，但拼写不同（"GPT-4o" vs "gpt-4o"），
+// 不带有任何营销信号。
 std::string skeleton(std::string_view s) {
     std::string k;
     k.reserve(s.size());
@@ -252,53 +252,53 @@ std::string skeleton(std::string_view s) {
     return k;
 }
 
-// ── Input hardening ──────────────────────────────────────────────────────
+// ── 输入加硬化 ──────────────────────────────────────────────────────
 //
-// Model ids arrive from provider APIs and user config. NEITHER is trusted:
-// a `/v1/models` response is attacker-controlled if the endpoint is (a
-// custom host, a compromised aggregator, a typo-squatted proxy), and it
-// flows straight to a terminal that interprets what it is handed.
+// Model id从提供商API和用户配置到达。 NEITHER 值得信赖：
+// 如果端点是（自定义主机、受损聚合器、typo-squatted代理），
+// 则`/v1/models`响应是attacker-controlled，
+// 并且它直接流向解释它所传递的内容的终端。
 //
-// Two properties are enforced here, at the boundary, so no downstream
-// projection or widget has to remember them:
+// 这里在边界处强制执行两个属性，
+// 因此下游投影或小部件不必记住它们：
 //
-//   1. NO CONTROL CHARACTERS reach the screen. An id containing
-//      "\x1b[31m" would otherwise emit a LIVE escape sequence — recolouring
-//      the UI, moving the cursor, or corrupting the display from a string
-//      the user never typed. This is a terminal-injection bug, not a
-//      cosmetic one, and it is why sanitising belongs in the decoder rather
-//      than in each caller.
+//   1.NO CONTROL CHARACTERS到达屏幕。一个 id 包含
+//      "\x1b[31m"否则会发出LIVE转义序列——重新
+//      着色UI，移动光标，或者破坏用户从不使用带类型的的
+//      字符串的显示。这是一个 终端-injection 错误，
+//      而不是装饰性错误，这就是为什么清理工作属于解码器而不是
+//      每个调用者。
 //
-//   2. LENGTH IS BOUNDED. A 4 KB id is not a name; it is a denial of
-//      service against every width-shed ladder downstream (the composer
-//      footer, the status bar, the picker rows all measure what they are
-//      given). Truncation is visible — an ellipsis, not a silent cut — so a
-//      surprising label reads as "too long" rather than as "wrong".
+//   2. LENGTH IS BOUNDED。 4 KB id 不是名称；这是对的否认
+//      针对每个宽度-shed梯子下游的服务（作曲家页脚、
+//      状态栏、选择面板行都测量它们所给出的内容）。
+//      截断是可见的（省略号，而不是无声剪切），因此令人惊讶的标签读
+//      取为 "too long"，而不是 "wrong"。
 //
-// Both are deliberately dumb: drop bytes, cap length. Worse-is-better — a
-// simple rule applied at one choke point beats a clever one applied in
-// several places, because there is nothing to get subtly wrong and nothing
-// to forget at a new call site.
+// 两者都是故意哑的：下降字节，帽长度。更糟糕的是-is-better
+// ——在一个瓶颈点应用的简单规则胜过在多个地方应用的聪明规则，
+// 因为在新的调用站点上没有什么可以犯微妙的错误，
+// 也没有什么可以忘记的。
 
-// Longest label we will ever emit. Comfortably past the longest real model
-// name ("Qwen2.5 Coder 32b Instruct" is 26) and far short of any width a
-// shed ladder must cope with.
+// 我们将发出的最长的标签。轻松超过了最长的真实型号名称（
+// "Qwen2.5 Coder 32b Instruct" 是 26），
+// 并且远低于棚梯必须应对的任何宽度。
 constexpr std::size_t kMaxNameLen = 48;
 
-// Longest id we will even look at. Beyond this the input is not a model id
-// by any reasonable reading, and parsing it wastes work proportional to an
-// attacker's input.
+// 我们甚至会查看最长的ID。除此之外，通过任何合理的读取，
+// 输入都不是模型 ID，并且 解析 它浪费的工作量与攻击者
+// 的输入成正比。
 constexpr std::size_t kMaxIdLen = 256;
 
-// True for a byte that must never reach the terminal: C0 controls (which
-// include ESC, CR, LF, TAB, BEL) and DEL. UTF-8 continuation bytes are all
+// 对于决不能到达 终端 的 字节 来说也是如此：C0 控件（包括 ESC、
+// CR、LF、TAB、BEL）和 DEL。 UTF-8延续字节都是
 // >= 0x80 and so pass through untouched — "Modèle" and "模型" survive.
 constexpr bool is_control_byte(char c) {
     const auto u = static_cast<unsigned char>(c);
     return u < 0x20 || u == 0x7F;
 }
 
-// Drop control bytes and collapse the whitespace they leave behind.
+// 放下控制字节并折叠它们留下的空白。
 std::string strip_controls(std::string_view s) {
     std::string out;
     out.reserve(s.size());
@@ -307,14 +307,14 @@ std::string strip_controls(std::string_view s) {
     return out;
 }
 
-// Cap a finished label, marking the cut so truncation is legible rather
-// than mysterious. Truncates on a UTF-8 boundary: cutting mid-sequence
-// would emit a replacement glyph or, worse, desynchronise the renderer's
-// width accounting.
+// 给成品标签盖上盖子，标记切口，以便截断是清晰的而不是神秘的。
+// 在 UTF-8 边界上截断：切割 -sequence
+// 中部会发出替换字形，或者更糟糕的是，使 渲染器 的宽度
+// 计算不同步。
 std::string clamp_len(std::string s) {
     if (s.size() <= kMaxNameLen) return s;
     std::size_t cut = kMaxNameLen - 1;
-    // Walk back off any UTF-8 continuation byte (10xxxxxx).
+    // 退出任何 UTF-8 延续 字节 (10xxxxxx)。
     while (cut > 0 && (static_cast<unsigned char>(s[cut]) & 0xC0) == 0x80)
         --cut;
     s.resize(cut);
@@ -322,21 +322,21 @@ std::string clamp_len(std::string s) {
     return s;
 }
 
-// ── Vendor prefixes ──────────────────────────────────────────────────────
+// ── 供应商前缀 ──────────────────────────────────────────────────────
 //
-// A leading vendor token in the id (`claude-`, `anthropic.`, `openai/`) is
-// NOT part of the model's name — it is provider/vendor provenance, and the
-// provider is already rendered from the registry row by its own chip.
+// ID (`claude-`、`anthropic.`、
+// `openai/`)中的主要供应商令牌是模型名称的NOT部分——
+// 它是provider/vendor出处，并且提供者已经由其自己的标签从注册表行呈现。
 //
-// This matters most for a family the table does NOT know yet. `claude-opus-4-8`
-// decodes via the family table and renders "Opus 4.8", vendor-free. Without
-// this strip, the day Anthropic ships `claude-quasar-6` it would render
-// "Claude Quasar 6" — inconsistent typography appearing at exactly the moment
-// a user is most likely to be looking at it. Stripping here means an unknown
-// family degrades to the SAME shape as a known one.
+// 这对于NOT表还知道的家庭来说是最重要的。 `claude-opus-4-8`
+// 通过族表和 渲染 "Opus 4.8"、vendor-free 进行解码。
+// 如果没有这条条带，当 Anthropic 发布
+// `claude-quasar-6` 的时候，它就会变成 渲染
+// "Claude Quasar 6"——不一致的排版恰好出现在用户最有可能看到它的那一刻。
+// 这里的剥离意味着未知族降级为已知族的 相同 形状。
 //
-// Only leading tokens are stripped, and only exact matches: `claude-opus` is
-// prefixed, but a model genuinely named `gemma` keeps its name.
+// 仅去除前导标记，并且仅精确匹配：`claude-opus`是前缀，
+// 但真正命名为`gemma`的模型保留其名称。
 constexpr std::string_view kVendorPrefixes[] = {
     "claude", "anthropic", "openai", "google", "meta", "mistralai",
     "deepseek-ai", "alibaba", "qwen-team", "x-ai", "xai",
@@ -348,10 +348,10 @@ bool is_vendor_token(std::string_view t) {
     return false;
 }
 
-// The dotted version implied by a decoded generation/revision. Reuses
-// from_id's already-validated numerics rather than re-scanning the string —
-// which is exactly how the old third version-extractor came to disagree with
-// the other two about dates.
+// 解码的generation/revision.暗示的点版本重新使用from_id的已经-validated数字而不是重新-scanning字符串
+// ——这正是旧的第三版本
+// -extractor与关于日期的其他两个版本不一致的原因。
+//
 std::string version_from(const ModelCapabilities& caps) {
     if (caps.generation <= 0) return {};
     std::string v = std::to_string(caps.generation);
@@ -362,10 +362,10 @@ std::string version_from(const ModelCapabilities& caps) {
     return v;
 }
 
-// Split an id into '-'/'.'-delimited tokens, with the provider namespace and
-// any Ollama `:tag` already removed. Used for the two residual facts that
-// from_id does NOT expose, both of which are POSITION-dependent and so
-// cannot be recovered from the capability struct alone.
+// 将id分割成'-'/'.'-delimited令牌，其中提供者命名
+// 空间和任何Ollama `:tag`已被移除。用于 from_id
+// 确实 不 公开的两个剩余事实，这两个事实都是 POSITION
+// -dependent，因此无法单独从功能结构中恢复。
 std::vector<std::string_view> id_tokens(std::string_view id) {
     if (const auto slash = id.find_last_of('/');
         slash != std::string_view::npos)
@@ -377,11 +377,11 @@ std::vector<std::string_view> id_tokens(std::string_view id) {
     std::size_t start = 0;
     for (std::size_t i = 0; i <= id.size(); ++i) {
         bool boundary = (i == id.size() || id[i] == '-');
-        // A '.' splits a VERSION (`gpt-5.1` → 5 | 1) but not a name it is
-        // glued to (`llama3.3` → Llama3.3, `qwen2.5` → Qwen2.5). The
-        // distinguishing test is whether the token so far is pure digits: in
-        // `5.1` it is, in `llama3.3` it isn't. Splitting unconditionally
-        // turned "Llama3.3" into "Llama3 3".
+        // '.'分割了VERSION (`gpt-5.1` → 5 | 1)，
+        // 但不是它所粘着的名称(`llama3.3` → Llama3.3，
+        // `qwen2.5` → Qwen2.5)。区分测试是到目前为止的令牌是否是纯数字：
+        // 在 `5.1` 中是，在 `llama3.3` 中不是。无条件分裂将
+        // "Llama3.3"变成了"Llama3 3"。
         if (!boundary && id[i] == '.') {
             const std::string_view sofar = id.substr(start, i - start);
             boundary = all_digits(sofar);
@@ -393,7 +393,7 @@ std::vector<std::string_view> id_tokens(std::string_view id) {
     return t;
 }
 
-// Index of the token that names the family, or npos.
+// 命名家族或npos的令牌的索引。
 std::size_t family_token_index(const std::vector<std::string_view>& toks) {
     for (std::size_t i = 0; i < toks.size(); ++i)
         if (lower_eq(toks[i], "haiku") || lower_eq(toks[i], "sonnet")
@@ -403,17 +403,17 @@ std::size_t family_token_index(const std::vector<std::string_view>& toks) {
     return std::string_view::npos;
 }
 
-// LEGACY SCHEMA RECOVERY.
+// LEGACY SCHEMA RECOVERY。
 //
-// from_id reads the generation from the token AFTER the family word, which
-// is the modern schema (`claude-sonnet-4-5`). The legacy schema puts it
-// BEFORE (`claude-3-5-haiku-20241022`), so caps.generation is 0 there —
-// catalog.hpp's max_output_tokens_for() documents exactly this and works
-// around it with a `find("claude-3")` prefix sniff.
+// from_id从代币AFTER中读取代家族字，即现代的模式定义 (`claude-sonnet-4-5`)。
+// 旧版 模式定义 将其设置为 之前 (`claude-3-5-haiku-20241022`)，
+// 因此 caps.generation 在那里为 0 — catalog.hpp
+// 的 max_output_tokens_for() 准确记录了这一点，
+// 并使用 `find("claude-3")` 前缀嗅探来解决它。
 //
-// Without this, `claude-3-5-haiku` renders as bare "Haiku", losing the 3.5
-// and making it indistinguishable from a 4.5 Haiku in a picker row. Read the
-// short pure-digit run immediately preceding the family word.
+// 没有这个，`claude-3-5-haiku` 渲染作为裸"Haiku"，
+// 失去3.5并使其与选择面板行中的4.5俳句无法区分。
+// 阅读该系列单词之前的简短的 pure-digit。
 std::string version_before_family(const std::vector<std::string_view>& toks,
                                   std::size_t fam) {
     if (fam == std::string_view::npos || fam == 0) return {};
@@ -431,19 +431,19 @@ std::string version_before_family(const std::vector<std::string_view>& toks,
     return v;
 }
 
-// QUALIFIER RECOVERY.
+// QUALIFIER RECOVERY。
 //
-// A family + version is not always the whole identity: `gpt-5.1-codex-max`
-// and `gpt-5.1` are different products, and rendering both as "GPT 5.1"
-// would make the picker ambiguous about the model you are actually about to
-// pay for. Collect the trailing alphabetic tokens that follow the family and
-// its version run — "Codex Max", "Chat", "Sol" — dropping provenance
-// (snapshots, alias pointers) exactly as normalize_id does.
+// 系列 + 版本并不总是完整的标识：`gpt-5.1-codex-max`
+// 和 `gpt-5.1` 是不同的产品，并且 渲染 都作为
+// "GPT 5.1" 会使 选择面板 对于您实际要支付的型号不明确。
+// 收集跟随该系列及其版本运行的尾随字母标记 - "Codex Max"、
+// "Chat"、"Sol" - 完全像 normalize_id
+// 一样删除出处（快照，别名指针）。
 std::string qualifier_after_family(const std::vector<std::string_view>& toks,
                                    std::size_t fam) {
     if (fam == std::string_view::npos) return {};
 
-    // Skip the family word, then any short numeric version tokens.
+    // 跳过家族词，然后跳过任何短数字版本标记。
     std::size_t i = fam + 1;
     while (i < toks.size() && all_digits(toks[i]) && toks[i].size() <= 2)
         ++i;
@@ -452,35 +452,35 @@ std::string qualifier_after_family(const std::vector<std::string_view>& toks,
     for (; i < toks.size(); ++i) {
         const std::string_view t = toks[i];
         if (is_snapshot_word(t)) continue;              // 20250514
-        if (all_digits(t) && t.size() >= 3) continue;   // date fragment
-        if (lower_eq(t, "latest")) continue;            // alias pointer
+        if (all_digits(t) && t.size() >= 3) continue;   // 日期片段
+        if (lower_eq(t, "latest")) continue;            // 别名指针
         if (!out.empty()) out.push_back(' ');
         append_word(out, t);
     }
     return out;
 }
 
-// UNKNOWN-FAMILY STRUCTURAL DECODE.
+// UNKNOWN-FAMILY STRUCTURAL DECODE。
 //
-// A known family gets its name from the table and its version from from_id.
-// An unknown one has neither — but it is NOT therefore unstructured. Model
-// ids overwhelmingly follow `[vendor-]name-version[-qualifier…]`, so we can
-// recover the same three fields and give unknown models the same shed ladder
-// and the same typography as known ones.
+// 已知家族从表中获得其名称，并从from_id获得其版本。
+// 未知的两者都没有——但它是NOT，因此是非结构化的。 Model
+// id 绝大多数遵循 `[vendor-]name-version[-qualifier…]`，
+// 因此我们可以恢复相同的三个字段，并为未知模型提供与已知
+// 模型相同的棚梯和相同的版式。
 //
-// This is what makes the decoder degrade gracefully rather than fall off a
-// cliff. Before it, `gemini-4-pro` produced one flat string for all three
-// rungs — so the shed ladder was a no-op exactly where names are LONGEST and
-// shedding matters most — and a future `claude-quasar-6` rendered with a
-// vendor prefix no current model uses.
+// 这就是使解码器优雅地降级而不是从悬崖上掉下来的原因。在此之前，
+// `gemini-4-pro` 为所有三个梯级生产了一根扁绳 -
+// 因此棚梯是 no-op，其名称为 LONGEST，棚梯最重要
+// - 未来的 `claude-quasar-6` 会使用当前
+// 型号未使用的供应商前缀进行渲染。
 //
-// Fills `out.name` / `.version` / `.qualifier`. Never leaves name empty for
-// a non-empty id.
+// 填充`out.name`/`.version`/`.qualifier`。对于非 -empty id，
+// 切勿将名称留空。
 void decode_unknown(std::string_view id, ModelName& out) {
-    // The Ollama `:tag` carries what a human distinguishes local models BY —
-    // size (`70b`) and variant (`instruct`) — and id_tokens() drops it, so
-    // recover it separately and append it to the qualifier. Losing it would
-    // collapse `llama3:8b` and `llama3:70b` to the same label.
+    // Ollama `:tag`携带人类区分本地模型BY的内容——尺寸(
+    // `70b`)和变体(`instruct`)——并且id_tokens()丢弃它，
+    // 因此单独恢复它并将其附加到限定符。丢失它会将 `llama3:8b`
+    // 和 `llama3:70b` 折叠到同一标签。
     std::string tag_words;
     if (const auto colon = id.find(':'); colon != std::string_view::npos) {
         std::string_view tag = id.substr(colon + 1);
@@ -504,14 +504,14 @@ void decode_unknown(std::string_view id, ModelName& out) {
 
     auto toks = id_tokens(id);
 
-    // Leading vendor tokens are provenance, not name.
+    // 领先供应商令牌是出处，而不是名称。
     std::size_t b = 0;
     while (b < toks.size() && is_vendor_token(toks[b])) ++b;
-    // ...unless that consumed everything (`claude` alone): keep the last one
-    // so the name is never empty.
+    // ...除非消耗了所有东西（仅`claude`）：保留最后一个，
+    // 这样名称就不会为空。
     if (b == toks.size() && b > 0) --b;
 
-    // Trailing provenance: snapshot dates, date fragments, alias pointers.
+    // 尾随出处：快照日期、日期片段、别名指针。
     std::size_t e = toks.size();
     while (e > b + 1) {
         const std::string_view t = toks[e - 1];
@@ -519,7 +519,7 @@ void decode_unknown(std::string_view id, ModelName& out) {
             || (all_digits(t) && t.size() >= 3)) { --e; continue; }
         break;
     }
-    // A `YYYY-MM-DD` triple spelled as three tokens (gpt-4o-2024-08-06).
+    // `YYYY-MM-DD` 三元组拼写为三个标记（gpt-4o-2024-08-06）。
     if (e >= b + 4) {
         const auto y = toks[e - 3], mo = toks[e - 2], d = toks[e - 1];
         if (y.size() == 4 && all_digits(y) && y.substr(0, 2) == "20"
@@ -528,14 +528,14 @@ void decode_unknown(std::string_view id, ModelName& out) {
             e -= 3;
     }
 
-    if (b >= e) {                       // nothing survived: fall back whole
+    if (b >= e) {                       // 什么都没有幸存：整体倒退
         out.name = normalize_id(id);
         return;
     }
-    // The NAME runs until the first standalone version token — a short pure
-    // digit run, or a digit-led token that is not itself part of the name
-    // (`4o` in `gpt-4o` IS the name's version; `2.5` in `qwen2.5` is glued to
-    // it by the tokeniser and never appears standalone).
+    // NAME运行直到第一个独立版本令牌——短的纯数字运行，
+    // 或者本身不是名称的一部分的数字-led令牌（`gpt-4o`
+    // IS中的`4o`是名称的版本；`qwen2.5`中的`2.5`
+    // 被标记器粘在其上并且从不显得独立）。
     std::size_t v = b;
     while (v < e && !(all_digits(toks[v]) && toks[v].size() <= 2)) ++v;
 
@@ -545,7 +545,7 @@ void decode_unknown(std::string_view id, ModelName& out) {
         append_word(name, toks[i]);
     }
 
-    // VERSION: the run of short digit tokens, dotted.
+    // VERSION：短数字标记的运行，用点表示。
     std::size_t q = v;
     std::string version;
     while (q < e && all_digits(toks[q]) && toks[q].size() <= 2) {
@@ -554,15 +554,15 @@ void decode_unknown(std::string_view id, ModelName& out) {
         ++q;
     }
 
-    // QUALIFIER: whatever follows the version.
+    // QUALIFIER：版本后面的内容。
     std::string qualifier;
     for (std::size_t i = q; i < e; ++i) {
         if (!qualifier.empty()) qualifier.push_back(' ');
         append_word(qualifier, toks[i]);
     }
 
-    // An id that is ONLY a version (`4-5`) has no name; keep the normalized
-    // whole rather than emitting a bare number.
+    // id为ONLY版本(`4-5`)的id没有名称；
+    // 保持标准化的整体而不是发出裸露的数字。
     if (name.empty()) {
         out.name = normalize_id(id);
         return;
@@ -574,31 +574,31 @@ void decode_unknown(std::string_view id, ModelName& out) {
     out.qualifier = std::move(qualifier);
 }
 
-} // namespace
+} // 命名空间结束。
 
-// ── decode ───────────────────────────────────────────────────────────────
+// ── 解码 ───────────────────────────────────────────────────────────────
 
 ModelName decode(std::string_view id, std::string_view server_name) {
     ModelName out;
     if (id.empty()) return out;
 
-    // ── 0. Harden the inputs, ONCE, before anything parses them ──────
+    // ── 0. 投入的硬化, 一次 ,在事发前 解析 他们 ──────
     //
-    // Everything below this point may assume its input is control-free and
-    // bounded. That assumption is what lets the rest of the file stay simple:
-    // no parser, projection or widget has to re-check, and there is no call
-    // site that can forget to.
+    // 低于此点的所有内容都可以假定其输入是control
+    // -free并且有界。这个假设使得文件的其余部分保持简单：
+    // 没有解析器、投影或小部件必须重新-check，
+    // 并且没有可以忘记的调用站点。
     const std::string safe_id   = strip_controls(
         id.substr(0, std::min(id.size(), kMaxIdLen)));
     const std::string safe_name = strip_controls(
         server_name.substr(0, std::min(server_name.size(), kMaxIdLen)));
     id          = safe_id;
     server_name = safe_name;
-    if (id.empty()) return out;   // the id was ENTIRELY control bytes
+    if (id.empty()) return out;   // id为ENTIRELY的控件字节
 
-    // Clamp every field on the way out, whichever branch produced it. Doing
-    // it here rather than in each branch means a future branch cannot
-    // reintroduce an unbounded label.
+    // 夹住输出时的每个字段，无论哪个分支产生它。
+    // 在这里而不是在每个分支中执行此操作意味着未来的
+    // 分支无法重新引入无界标签。
     const auto finish = [](ModelName n) {
         n.name      = clamp_len(std::move(n.name));
         n.qualifier = clamp_len(std::move(n.qualifier));
@@ -606,12 +606,12 @@ ModelName decode(std::string_view id, std::string_view server_name) {
         return n;
     };
 
-    // ── 1. Peel the agentty extended-context marker ───────────────────
-    // `[1m]`/`[2m]` are selection-time markers (wire_model_id strips them
-    // before the id reaches the wire). They must not leak as literal text,
-    // but they must not be silently DROPPED either: the variant is the whole
-    // point of its picker row, and a user who enabled a 1M window needs to
-    // see that they got it. So it becomes structured data.
+    // ── 1. 将 " 破坏 " 行为 agentty 延长 -context 标记 ───────────────────
+    // `[1m]`/`[2m]`是选择-time标记(
+    // wire_model_id在id到达传输之前剥离它们)。
+    // 它们不能作为文字泄漏，但也不能默默地 DROPPED：变体
+    // 是其 选择面板 行的全部要点，启用 1M 窗口的用户需要
+    // 看到他们得到了它。所以它变成了结构化数据。
     struct Marker { std::string_view tag, shown; };
     std::string bare;
     for (const Marker& mk : {Marker{"[1m]", "1M"}, Marker{"[2m]", "2M"}}) {
@@ -624,12 +624,12 @@ ModelName decode(std::string_view id, std::string_view server_name) {
         break;
     }
 
-    // Remember the routing namespace before normalize_id() drops it.
+    // 在 normalize_id() 删除路由命名空间之前记住它。
     //
-    // Only the LAST segment before the basename: `openrouter/anthropic/x`
-    // is reached through openrouter but produced by anthropic, and the
-    // nearer prefix is the one that distinguishes two otherwise-identical
-    // rows. For a single-segment prefix (`igpu/x`) the two coincide.
+    // 只有基名：`openrouter/anthropic/x`之前的
+    // LAST段是通过openrouter到达的，但由anthropic产生，
+    // 并且较近的前缀是区分另外两个-identical行的前缀。
+    // 对于单个 -segment 前缀 (`igpu/x`)，两者一致。
     if (const auto slash = id.find_last_of('/');
         slash != std::string_view::npos && slash > 0) {
         auto prefix = id.substr(0, slash);
@@ -639,7 +639,7 @@ ModelName decode(std::string_view id, std::string_view server_name) {
         out.ns = std::string{prefix};
     }
 
-    // ── 2. Taxonomy: delegated, never re-derived ────────────────────────
+    // ── 2. 分类学:授权,永远不再 -derived ────────────────────────
     const auto caps = ModelCapabilities::from_id(id);
     out.color        = color_of(caps.family);
     out.family_known = caps.is_known_family();
@@ -648,17 +648,17 @@ ModelName decode(std::string_view id, std::string_view server_name) {
         out.name    = std::string{family_label(caps.family)};
         out.version = version_from(caps);
 
-        // Two residual facts from_id cannot express, both POSITIONAL:
+        // 两个剩余事实from_id无法表达，均为POSITIONAL:
         //
-        //   • the legacy schema puts the version BEFORE the family word
-        //     (claude-3-5-haiku), where from_id's post-family read finds
-        //     nothing — leaving bare "Haiku" for a 3.5 model;
-        //   • a product qualifier can follow the version (gpt-5.1-codex-max),
-        //     and dropping it makes two different products render alike.
+        //   ·遗留模式定义将版本BEFORE置于家族词中
+        //     (claude-3-5-haiku)，其中from_id的post
+        //     -family读取什么也没找到——为3.5模型留下裸露的"Haiku"；
+        //   ·产品限定符可以遵循版本(gpt-5.1-codex-max)，
+        //     丢弃它使得两种不同的产品渲染相似。
         //
-        // Tokenised once, here, and ONLY consulted for what the capability
-        // struct genuinely does not carry — the taxonomy itself still comes
-        // exclusively from from_id.
+        // 此处标记一次，并 仅 咨询了该功能
+        // 结构体确实没有携带的事实；分类本身仍来自
+        // 独家来自from_id。
         const auto toks = id_tokens(id);
         const auto fam  = family_token_index(toks);
         if (out.version.empty())
@@ -667,30 +667,30 @@ ModelName decode(std::string_view id, std::string_view server_name) {
         return finish(std::move(out));
     }
 
-    // ── 3. Unknown family: recover structure from the id itself ───────
+    // ── 3. 未知家族:从身份识别本身中恢复结构 ───────
     //
-    // NOT a dead end. Model ids overwhelmingly follow
-    // `[vendor-]name-version[-qualifier]`, so an unknown model gets the same
-    // three fields, the same shed ladder and the same vendor-free typography
-    // as a known one — it just sourced them from the string instead of the
-    // table. That is what makes shipping a new family a NON-EVENT for the UI:
-    // `claude-quasar-6` reads "Quasar 6", exactly like `claude-opus-4-8`
-    // reads "Opus 4.8", months before anyone adds Quasar to the enum.
+    // NOT是一条死胡同。 Model id 绝大
+    // 多数遵循 `[vendor-]name-version[-qualifier]`，
+    // 因此未知模型与已知模型具有相同的三个字段、相同的棚梯和相同的
+    // 供应商-free 排版 - 它只是从字符串而不是表中获取它们。
+    // 这就是为什么 UI 的新系列发货为 NON-EVENT：
+    // `claude-quasar-6`读取"Quasar 6"，就像`claude-opus-4-8`
+    // 读取"Opus 4.8"一样，比任何人将Quasar添加到枚举早几个月。
     decode_unknown(id, out);
 
     if (server_name.empty() || server_name == id) return finish(std::move(out));
 
-    // Is the server name merely a re-cased / re-punctuated spelling of the
-    // id? Then prefer the id-derived form so the same model reads
-    // identically across providers. Only a genuine marketing alias the id
-    // cannot reconstruct ("Nano Banana Pro" for gemini-3-pro-image) wins —
-    // and even then it is normalized, so its own cruft ((latest), casing)
-    // is cleaned to match the rest of the list's typography.
+    // 服务器名称仅仅是id的re-cased/re-punctuated拼写吗？
+    // 然后更喜欢 id-derived 形式，以便同一模型在不同
+    // 的提供商之间读取相同的内容。只有 id 无法重建的真正的营销别名（
+    // gemini-3 对应的显示名称为 Nano Banana Pro。
+    // -pro-image）才会获胜 - 即使如此，它也会被标准化，
+    // 因此它自己的缺陷（（最新），外壳）被清理以匹配列表的其余排版。
     //
-    // A marketing alias is a NAME, not a name+version+qualifier triple
-    // ("Nano Banana Pro" has no version to split out), so it replaces the
-    // whole decode rather than merging into it — merging would leave a
-    // version recovered from the id dangling off an unrelated alias.
+    // 营销别名是NAME，而不是名称+版本+限定符三元
+    // 组（"Nano Banana Pro"没有要拆分的版本），
+    // 因此它替换整个解码而不是合并到其中——合并将
+    // 留下从悬挂在不相关别名上的id恢复的版本。
     const std::string from_id   = out.full();
     const std::string from_name = normalize_id(server_name);
     const bool same_model = skeleton(from_id) == skeleton(from_name)
@@ -703,17 +703,17 @@ ModelName decode(std::string_view id, std::string_view server_name) {
     return finish(std::move(out));
 }
 
-// ── Projections ──────────────────────────────────────────────────────────
+// ── 预测 ──────────────────────────────────────────────────────────
 //
-// Strictly nested by construction, each rung adding exactly one field:
+// 通过构造严格嵌套，每个梯级恰好添加一个字段：
 //
-//   tiny()   = name + version
-//   medium() = tiny()   + qualifier
-//   full()   = medium() + annotation
+//   tiny() = 名称 + 版本
+//   medium() = tiny() + 限定符
+//   full() = medium() + 注释
 //
-// Written as literal composition so the nesting is evident on the page
-// rather than an invariant to remember — a narrow surface can never state
-// something a wide one contradicts, because it is a prefix of it.
+// 以字面组合形式书写，因此嵌套在页面上是明显的，
+// 而不是要记住的 不变量——窄表面永远不能陈述与
+// 宽表面相矛盾的东西，因为它是宽表面的前缀。
 
 std::string ModelName::tiny() const {
     std::string s = name;

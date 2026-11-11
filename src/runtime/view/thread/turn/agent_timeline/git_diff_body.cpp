@@ -1,8 +1,8 @@
-// tool_body_preview — `git_diff` tool body.
+// tool_body_preview — `git_diff` 工具 正文.
 //
-// GitDiff: per-line +/-/@@ coloring (GitDiff owns the palette). Only a
-// DONE git_diff produces a body; a still-running / failed one returns
-// false so the dispatcher falls through to the shared Failure fallback.
+// GitDiff 单位:每名 -line +/-/@@ 颜色( N) GitDiff
+// 拥有调色板。只有 a DONE git_diff 生成一个 正文 静态
+// -running 失败者返回错误, 所以 分派器 都输给了共同的失败 回退.
 
 #include "tool_body_common.hpp"
 

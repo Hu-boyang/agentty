@@ -1,25 +1,25 @@
-// shell_env_floor_test — model-supplied env must not be a way to run code
-// the user never approved.
+// shell_env_floor_test ——型号. -supplied env不能成为
+// 运行用户从未批准的代码的方法.
 //
-// ── WHY ──────────────────────────────────────────────────────────────────
+// ── 原因 ──────────────────────────────────────────────────────────────────
 //
-// `shell` accepts an `env` object and layers it over the child environment,
-// caller-wins. Nothing filtered the KEY. So:
+// `shell` 接受一个 `env` 对象和层次 覆盖儿童环境,
+// 呼叫者 -wins。没有过滤 KEY。所以:
 //
-//     shell(command="git status", env={"GIT_SSH_COMMAND": "/tmp/mine"})
+//     shell( 命令 = "git status" ,内存 "GIT_SSH_COMMAND": "/tmp/mine"})
 //
-// passes every command check -- the command really is `git status` -- and the
-// consent card showed only `command`, so the user approved "git status" and
-// got /tmp/mine executed. Same shape as CVE-2026-55743 (allowlist bypass via
-// an env assignment the checker skipped past).
+// 过每个命令检查 - 命令的确是 `git status` - 和同意卡只
+// 显示 `command` ,所以用户批准了 "git status"
+// 并得到了/ 已经 tmp/mine 执行。形状与 CVE-2026-55743
+// (允许清单 绕过一个内置任务,检查器跳过。
 //
-// Two fixes, both needed and neither sufficient alone:
-//   - the card now renders cd and env, so consent shows what will run;
-//   - the tool refuses the subprocess-execution class of keys outright.
+// 两项需要但单靠本身是不够的的补救:
+//   - 现为渲染 cd和env的卡,同意后显示将运行什么;
+//   - 工具拒绝 -execution 子进程类的密钥直接。
 //
-// A denylist can't be complete (GOFLAGS=-toolexec=, RUSTC_WRAPPER, the next
-// one nobody has written down yet), so it is a floor and the sandbox is the
-// boundary. What it buys: the well-known forms stop working quietly.
+// 否定列表不能完整( Q) GOFLAGS=-toolexec=,
+// RUSTC_WRAPPER 下一个还没有写下来的,所以是地板和
+// 沙箱 边界。它买的:井 -known 表格停止静静工作。
 #include "agtest.hpp"
 
 #include "agentty/tool/registry.hpp"
@@ -33,7 +33,7 @@ using json = nlohmann::json;
 
 namespace {
 
-// Run `shell` with an env block and report whether it was refused.
+// 运行 `shell` 并带有一个内嵌块,并报告是否被拒绝。
 bool env_refused(const char* key, const char* value = "/tmp/payload") {
     auto r = agentty::tool::DynamicDispatch::execute(
         agtest::cap(), "shell", json{{"command", "true"},
@@ -43,7 +43,7 @@ bool env_refused(const char* key, const char* value = "/tmp/payload") {
         && r.error().detail.find("refused") != std::string::npos;
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("shell env: the loader hooks are refused") {
     CHECK(env_refused("LD_PRELOAD"));
@@ -60,7 +60,7 @@ TEST_CASE("shell env: the shell startup hooks are refused") {
 }
 
 TEST_CASE("shell env: what git runs for you is refused") {
-    // The motivating case: the command stays `git status`.
+    // 动机案:命令保留`git status`.
     CHECK(env_refused("GIT_SSH_COMMAND"));
     CHECK(env_refused("GIT_EXTERNAL_DIFF"));
     CHECK(env_refused("GIT_ASKPASS"));
@@ -77,15 +77,15 @@ TEST_CASE("shell env: interpreter and toolchain hooks are refused") {
 }
 
 TEST_CASE("shell env: PATH is refused") {
-    // Repoint PATH and every bare command in the approved string is yours.
+    // 重点 PATH 每一个命令 赤裸裸的指令 在批准字符串中,是你的。
     CHECK(env_refused("PATH", "/tmp/bin"));
 }
 
 TEST_CASE("shell env: the match is case-insensitive") {
-    // Case is not a boundary: the kernel's environ is case-sensitive, but a
-    // checker that only knows the uppercase spelling is one `ld_preload`
-    // away from useless on any host where the loader is lenient -- and the
-    // cost of being strict here is zero.
+    // 案例不是边界:内核的生态就是案例 -sensitive ,
+    // 但一个只知道大写拼写的检查器是
+    // `ld_preload` 远离任何装货机宽大无用的宿主,
+    // 这里严格操作的成本是零。
     CHECK(env_refused("ld_preload"));
     CHECK(env_refused("Git_Ssh_Command"));
 }
@@ -95,8 +95,8 @@ TEST_CASE("shell env: exported-function smuggling is refused by prefix") {
 }
 
 TEST_CASE("shell env: ordinary knobs still work") {
-    // The floor must not break the legitimate use. These are why `env`
-    // exists: make a build quiet, make a test verbose, force colour.
+    // 地板不能打破合法用途。 这就是 `env` 存在
+    // 的原因: 使建筑安静, 使测试动词, 强制颜色。
     CHECK_FALSE(env_refused("CI", "1"));
     CHECK_FALSE(env_refused("RUST_LOG", "debug"));
     CHECK_FALSE(env_refused("NO_COLOR", "1"));
@@ -105,8 +105,8 @@ TEST_CASE("shell env: ordinary knobs still work") {
 }
 
 TEST_CASE("shell env: a refused key fails the call, it is not dropped") {
-    // Silently dropping it would run a command that does something subtly
-    // different from what was asked, which is worse than a clear no.
+    // 悄悄地放下它,会执行一个命令,它做一些与所问
+    // 的有细微不同的事情,这比明确的否定更糟糕.
     auto r = agentty::tool::DynamicDispatch::execute(
         agtest::cap(), "shell", json{{"command", "true"},
                       {"env", json{{"LD_PRELOAD", "/tmp/x.so"},
@@ -115,7 +115,7 @@ TEST_CASE("shell env: a refused key fails the call, it is not dropped") {
     CHECK(r.error().detail.find("LD_PRELOAD") != std::string::npos);
 }
 
-// ── and the consent card has to show it ─────────────────────────────────
+// ── 同意卡必须显示 ─────────────────────────────────
 
 TEST_CASE("permission card: the shell card shows cd and env") {
     agentty::ToolUse tc;
@@ -138,7 +138,7 @@ TEST_CASE("permission card: the shell card shows cd and env") {
 }
 
 TEST_CASE("permission card: a plain shell call reads exactly as before") {
-    // No cd, no env -> no decoration. The common case stays clean.
+    // 没有 cd, 没有掩体 - > 没有装饰。 普通的个案不会被清理。
     agentty::ToolUse tc;
     tc.id   = agentty::ToolCallId{"c1"};
     tc.name = agentty::ToolName{"shell"};
@@ -150,8 +150,8 @@ TEST_CASE("permission card: a plain shell call reads exactly as before") {
 }
 
 TEST_CASE("permission card: bash shows its command, not raw json") {
-    // bash is the most used tool and was missing from the shell branch, so
-    // its prompt dumped the whole args object.
+    // bash 是使用最多的工具，却未进入 shell 分支，
+    // 导致提示直接输出整个参数对象。
     agentty::ToolUse tc;
     tc.id   = agentty::ToolCallId{"c1"};
     tc.name = agentty::ToolName{"bash"};

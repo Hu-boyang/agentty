@@ -1,20 +1,20 @@
-// plugins_in_model_test — the Plugins panel is a pure function of the Model.
+// plugins_in_model_test ——插件面板是该插件的纯函数 Model.
 //
-// This locks the architectural contract that replaced the recurring
-// "stuck on connecting… / laggy panel" bugs:
+// 这个 锁 取代重现的建筑合同 "stuck on connecting… / laggy panel"
+// 错误 :
 //
-//   1. Opening the Plugins panel sets plugins_loading and returns a Cmd
-//      (the connect is DRIVEN BY THE UPDATE LOOP, not a lazy side effect).
-//   2. PluginsUpdated{snapshot} stores the snapshot in m.ui.plugins and
-//      clears the loading flag — the reducer, not a render-time global,
-//      owns the truth.
-//   3. items_for(Plugins) renders m.ui.plugins verbatim (a pure projection):
-//      an empty model + loading → "connecting…"; a populated model → the
-//      servers/tools; nothing calls the live pool.
+//   1. 打开插件面板 plugins_loading 返回 a Cmd
+//      (连接是 DRIVEN BY 该 UPDATE LOOP ,而不是一个 惰性 副作用).
+//   2. PluginsUpdated{快照 储存 快照 输入 m.ui.plugins 财务报告和已审计财务报表
+//      清除装入 标志 - 电话 状态更新函数 ,而不是一个 渲染-time 地球,
+//      拥有真理。
+//   3. items_for ( ⁇ . 渲染 m.ui.plugins 逐字记录( 纯投影):
+//      空模型 + 装入 → "connecting…" ;人口密集的模型  ⁇
+//      servers/tools ; 无 调用 现场直播 池.
 //
-// Because the snapshot lives IN the Model, visual_hash covers it (see
-// visual_hash_coverage_test) and the panel repaints on every change with no
-// nonce hack — that invariant is what makes the old bug class impossible.
+// 因为 快照 生活状况 IN 编号 Model, visual_hash
+// 盖盖(见 visual_hash_coverage_test )和面板 重绘
+// 没有任何非黑客入侵的每个变化——即 不变量 是什么使得旧的虫类是不可能的。
 
 #include "agtest.hpp"
 
@@ -30,7 +30,7 @@ using namespace agentty;
 
 
 TEST_CASE("plugins in model") {
-    // ── 1: opening Plugins arms loading + returns a connect Cmd ──
+    // ── 1: 打开插件装武器+返回连接Cmd ──
     {
         Model m;
         auto [m2, cmd] = app::update(
@@ -43,7 +43,7 @@ TEST_CASE("plugins in model") {
               "open: a connect Cmd was returned (not a lazy side effect)");
     }
 
-    // ── 2: PluginsUpdated stores the snapshot + clears loading ──
+    // ── 2: PluginsUpdated 存储 快照 + 清除装入 ──
     {
         Model m;
         m.ui.panel.descend(pn::SettingsList{{settings::Category::Plugins, 0}});
@@ -68,9 +68,9 @@ TEST_CASE("plugins in model") {
               "updated: advertised tools preserved");
     }
 
-    // ── 3: items_for is a pure projection of m.ui.plugins ──
+    // ── 3: items_for 是一个纯投影 m.ui.plugins ──
     {
-        // Empty + loading → a "connecting…" row.
+        // 空 + 装入 → 一 "connecting…" 行。
         Model loading;
         loading.ui.plugins_loading = true;
         auto rows_loading = settings::items_for(loading, settings::Category::Plugins);
@@ -78,15 +78,15 @@ TEST_CASE("plugins in model") {
               && rows_loading[0].primary.find("connecting") != std::string::npos,
               "projection: empty+loading renders 'connecting…'");
 
-        // Empty + not loading → the "no plugins" hint.
+        // 空 + 不装入 ~ "no plugins" 提示。
         Model empty;
         auto rows_empty = settings::items_for(empty, settings::Category::Plugins);
         check(rows_empty.size() == 1
               && rows_empty[0].primary.find("no plugins") != std::string::npos,
               "projection: empty+idle renders the 'no plugins' hint");
 
-        // Populated → a server row; its tools show once it's opened. Nothing
-        // reads the live pool.
+        // 流行 ~ 服务器行; 打开后其工具显示。
+        // 无内容读取 池 直播。
         Model populated;
         mcp::ServerState s;
         s.name = "date";
@@ -104,14 +104,14 @@ TEST_CASE("plugins in model") {
         check(saw_date, "projection: populated model renders the server");
         check(saw_tool, "projection: populated model renders its tools");
 
-        // A CONNECTED server row must read as healthy (Status::Ok), NOT wear
-        // the remove-action badge that looked like an error.
+        // CONNECTED服务器行必须读作健康(Status::Ok),
+        // NOT佩戴看起来像错误的去除的-action徽章.
         for (const auto& r : rows) {
             if (r.primary == "date") {
                 check(r.status == settings::Item::Status::Ok,
                       "badge: connected server is Status::Ok (healthy, not a red ✕)");
-                // Enter TOGGLES the whole plugin on/off (reversible), it does
-                // NOT remove — destructive delete is the deliberate `d` key.
+                // Enter TOGGLES 整个插件 on/off(可逆),
+                // 它确实删除了 不 —— 破坏性删除是故意删除的 `d` 键.
                 check(r.action == settings::Action::TogglePlugin,
                       "interaction: Enter on a plugin toggles it on/off");
                 check(r.on && r.hint == "disable",
@@ -119,9 +119,9 @@ TEST_CASE("plugins in model") {
             }
         }
 
-        // A DISABLED server reads as off (Neutral, not an error), offers to
-        // re-enable, and KEEPS its tools listed — but marks the whole subtree
-        // inactive (present-but-can't-run), with no per-tool toggle hint.
+        // A DISABLED 服务器读取为关闭( Neutral, 不是错误),
+        // 提议重读 -enable ,和 KEEPS 其工具列出——但标记整个子树不活动(
+        // 目前) -but-can't-run ),无 -tool 切换 提示,请说
         Model off;
         mcp::ServerState d;
         d.name = "date";
@@ -139,7 +139,7 @@ TEST_CASE("plugins in model") {
                 check(r.status == settings::Item::Status::Neutral,
                       "badge: a disabled plugin is Neutral (off on purpose, not an error)");
             }
-            if (r.indented) {   // a tool row under the disabled plugin
+            if (r.indented) {   // 禁用插件下的工具行
                 ++tools_seen;
                 if (r.inactive) ++inactive_seen;
                 check(r.hint.empty(),
@@ -152,8 +152,8 @@ TEST_CASE("plugins in model") {
         check(inactive_seen == 2,
               "UX: every tool under a disabled plugin is marked inactive (dimmed)");
 
-        // An ENABLED, connected plugin's tools are ACTIVE (not dimmed) and
-        // toggleable.
+        // 来,来,来 ENABLED ,连接的插件工具是 活动 (不淡化)
+        // 和可切换。
         Model live;
         mcp::ServerState ls;
         ls.name = "date";
@@ -171,7 +171,7 @@ TEST_CASE("plugins in model") {
             }
         }
 
-        // A FAILED server reads as Bad.
+        // 一个FAILED服务器读作Bad.
         Model failed;
         mcp::ServerState bad;
         bad.name = "broken";
@@ -185,10 +185,10 @@ TEST_CASE("plugins in model") {
         }
     }
 
-    // ── 4: scope provenance, trust, and HTTP rows (post-scope-migration) ──
+    // ── 4:范围来源、信任和 HTTP 行数( 员额) -scope-migration) ──
     {
-        // A PROJECT-scope server is badged with its scope; a USER server is
-        // not (the common case reads clean).
+        // A PROJECT-scope 服务器带有其范围; a USER
+        // 服务器不是(普通的大小写读作干净)。
         Model m;
         mcp::ServerState proj;
         proj.name = "repo-tool";
@@ -220,8 +220,8 @@ TEST_CASE("plugins in model") {
             }
         }
 
-        // An UNTRUSTED project server: Enter APPROVES (not toggles), the row
-        // is flagged untrusted, and the hint invites trust.
+        // 来,来,来 UNTRUSTED 工程服务器 : Enter APPROVES
+        // (无) 切换 ),该行被标记为不可信,提示邀请信任.
         Model u;
         mcp::ServerState untrusted;
         untrusted.name = "risky";
@@ -242,8 +242,8 @@ TEST_CASE("plugins in model") {
             }
         }
 
-        // An HTTP/SSE server (url, no command) connects fine and is NOT
-        // flagged 'no command' — the false-error fix.
+        // HTTP/SSE服务器(url,无命令)连接精细,并悬挂NOT旗号为
+        // 'no command'——假-error固定.
         Model h;
         mcp::ServerState http;
         http.name = "remote";
@@ -267,8 +267,8 @@ TEST_CASE("settings nav skips non-actionable rows") {
         return mm.ui.panel.get<pn::SettingsList>();
     };
 
-    // Build a populated Plugins model: one server with two tools. The
-    // summary is the pane header (not a row), so row 0 is the server.
+    // 构建一个人口化插件模型:一个服务器,有两个工具。
+    // 摘要是面板 头文件(不是一行),所以第0行是服务器。
     auto make_model = [] {
         Model m;
         mcp::ServerState s;
@@ -280,7 +280,7 @@ TEST_CASE("settings nav skips non-actionable rows") {
         return m;
     };
 
-    // Opening lands on the server, the first row you can act on.
+    // 打开服务器上的地盘,第一个可以操作的行.
     {
         auto [m, cmd] = app::update(make_model(),
             Msg{OpenSettingsList{settings::Category::Plugins}});
@@ -292,9 +292,9 @@ TEST_CASE("settings nav skips non-actionable rows") {
               "open lands on the server row");
     }
 
-    // Moving up from the first actionable row does NOT drop back onto the
-    // header (no actionable row above → stays put or plain-steps, never lands
-    // on a dead header as a resting spot when it started actionable).
+    // 从第一行搬上来 不 掉到后面的边上 头文件 (上面没有
+    // 可操作的行) 保持原样或平面 -steps 永远不要降落在
+    // 死人身上 头文件 以作为可操作性开始时的休息点)。
     {
         auto [m0, c0] = app::update(make_model(),
             Msg{OpenSettingsList{settings::Category::Plugins}});
@@ -306,7 +306,7 @@ TEST_CASE("settings nav skips non-actionable rows") {
               "moving up from the top actionable row stays on an actionable row");
     }
 
-    // Moving down hops between actionable rows (header never a landing spot).
+    // 移动跳跃在可操作行间(头文件从不一个着陆点).
     {
         auto [m0, c0] = app::update(make_model(),
             Msg{OpenSettingsList{settings::Category::Plugins}});
@@ -322,8 +322,8 @@ TEST_CASE("settings nav skips non-actionable rows") {
         }
     }
 
-    // → opens a server's tools, ← closes them from a tool row and puts the
-    // cursor back on the server.
+    // + 打开服务器的工具, + 关闭工具行,
+    // 将光标放回服务器上。
     {
         auto [m, c] = app::update(make_model(), Msg{OpenSettingsList{settings::Category::Plugins}});
         std::tie(m, c) = app::update(std::move(m), Msg{SettingsListExpand{true}});
@@ -335,7 +335,7 @@ TEST_CASE("settings nav skips non-actionable rows") {
         rows = settings::items_for(m, settings::Category::Plugins);
         check(rows.size() == 1, "← on a tool hides the list");
         check(opened(m)->index == 0, "and the cursor returns to the server");
-        // → on a server with no tools does nothing.
+        // ~ 在没有工具的服务器上,什么也没有.
         Model bare;
         mcp::ServerState s;
         s.name = "empty";
@@ -346,8 +346,8 @@ TEST_CASE("settings nav skips non-actionable rows") {
         check(opened(bare)->expanded.empty(), "a server with no tools doesn't open");
     }
 
-    // A wholly-informational pane (Agents = built-ins, all Action::None) must
-    // still give a valid, in-range cursor and never crash on move.
+    // 完全的,我爱的 -informational 面板 (代理=已建) -ins 全部,请检查date=中的日期值 (
+    // 帮助) Action::None )必须仍给予有效,在 -range 光标, 永远不要在移动中崩溃。
     {
         auto [m0, c0] = app::update(Model{},
             Msg{OpenSettingsList{settings::Category::Agents}});

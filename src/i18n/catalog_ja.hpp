@@ -1,31 +1,31 @@
-// agentty::i18n — Japanese.
+// agentty::i18n——日语。
 //
-// The SECOND double-width language, and that is its job here. Chinese proved
-// the measurement path works; Japanese proves it was not accidentally
+// SECOND双-width语言，这就是它的工作。
+// 中文证明测量路径有效；日本人证明这不是偶然的
 // zh-specific. Three scripts mixed in one string (kanji 設定, hiragana かな,
-// katakana サンドボックス) plus Latin tech terms, all double-width except the
-// Latin, which is exactly the case a naive width implementation gets wrong.
+// 片假名 sandobokkusu) 加上拉丁语技术术语，
+// 除了拉丁语之外的所有 double-width，这正是天真的宽度实现出错的情况。
 //
-// Like Chinese: NO plural forms (CLDR `other` for every n), so no entry here
-// carries one/few/many. The lint rejects a `few` key on a ja catalog because
-// the runtime would never read it -- that is a translator misreading the
-// schema, and silence would be worse than a build failure.
+// 像中文一样：NO复数形式（每个n对应CLDR `other`），
+// 所以这里没有条目携带one/few/many.。lint拒绝
+// ja 目录上的`few`键，因为运行时永远不会读取它——这
+// 是翻译器误读了模式定义，沉默会比构建失败更糟糕。
 //
 // TRANSLATION NOTES:
 //
-//   * サンドボックス (katakana) for "sandbox" -- the established loan, not a
-//     native coinage.
+//   * sandobokkusu (片假名) 为 "sandbox" -- 既定贷款，不是
+//     本土造币。
 //
-//   * No spaces between Japanese characters. The "·" separator keeps its
-//     surrounding spaces because it sits between phrases, which is the
-//     convention in Japanese UI text that mixes Latin punctuation.
+//   * 日语字符之间没有空格。 "·" 分隔符保持其
+//     围绕空格，因为它位于短语之间，
+//     这是日语UI文本中混合拉丁标点符号的惯例。
 //
-//   * Help lines end without a period. Japanese UI microcopy conventionally
-//     omits 。 on fragments, and these are fragments.
+//   *帮助行结束时没有句点。日本 UI 常规微缩副本
+//     省略了。关于片段，这些都是片段。
 //
-//   * ～ (wave dash) is deliberately avoided: it renders inconsistently
-//     across terminal fonts and has a notorious Unicode normalisation trap
-//     (U+301C vs U+FF5E). Nothing here needs it.
+//   *～(波浪破折号)是刻意回避的：它与渲染不一致
+//     跨终端字体并且具有臭名昭著的Unicode规范化陷阱(U+301C
+//     vs U+FF5E)。这里没有什么需要它。
 
 #include <string_view>
 

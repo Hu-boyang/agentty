@@ -1,11 +1,11 @@
-// partial_json_fuzz_test — every prefix of a streamed tool argument must close
-// into JSON that parses.
+// partial_json_fuzz_test ——流式工具参数的每个前缀必须关闭
+// 到 JSON 说 解析.
 //
-// Tool arguments arrive as fragments; the live card parses whatever has come
-// in so far through close_partial_json. A prefix that comes out unparseable
-// makes the card flicker or drop the field. Here every byte prefix of varied
-// real argument shapes is closed and parsed, and a complete input must come
-// back unchanged.
+// Tool 参数作为碎片到达; 活卡 解析 任何经过如此
+// 深深的深渊 close_partial_json。
+// 一个无法解析的前缀使牌片闪烁或跳出球场。在此每个 字节
+// 不同真实参数形状的前缀是关闭和解析的,完整的输入必须保持
+// 不变地返回。
 
 #include <cstdio>
 #include <cstdlib>
@@ -40,7 +40,7 @@ std::vector<std::string> samples() {
     };
 }
 
-// Random JSON with awkward strings, so the fuzz covers shapes the samples miss.
+// 随机的JSON带有尴尬的字符串,因此模糊的盖子会塑造样本丢失.
 json random_value(std::mt19937& rng, int depth) {
     std::uniform_int_distribution<int> kind(0, depth > 3 ? 4 : 6);
     switch (kind(rng)) {
@@ -69,8 +69,8 @@ json random_value(std::mt19937& rng, int depth) {
     }
 }
 
-// Fails the test with the offending prefix if any prefix doesn't close into
-// valid JSON.
+// 如果任何前缀没有关闭到有效的JSON,则使用违法的前缀
+// 测试失败.
 void check_every_prefix(const std::string& full) {
     for (std::size_t n = 0; n <= full.size(); ++n) {
         const std::string prefix = full.substr(0, n);
@@ -87,12 +87,12 @@ void check_every_prefix(const std::string& full) {
             CHECK_MESSAGE(false, "prefix [" << prefix << "] closed to [" << closed << "]");
         }
     }
-    // A finished input is already valid and must come back meaning the same.
+    // 已完成的输入已经有效, 必须返回到同样的含义。
     CHECK(json::parse(close_partial_json(full)) == json::parse(full));
     CHECK_FALSE(ended_inside_string(full));
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("partial json: every prefix of real tool args closes into valid json") {
     for (const auto& s : samples()) check_every_prefix(s);
@@ -106,7 +106,7 @@ TEST_CASE("partial json: every prefix of random json closes into valid json") {
         json v = json::object();
         v["args"] = random_value(rng, 0);
         check_every_prefix(v.dump());
-        check_every_prefix(v.dump(1));   // with whitespace
+        check_every_prefix(v.dump(1));   // 带有空白
     }
 }
 
@@ -118,10 +118,10 @@ TEST_CASE("partial json: ended_inside_string matches the shapes it should") {
     CHECK_FALSE(ended_inside_string(R"({"a":1)"));
 }
 
-// The write preview decodes `content` a few bytes at a time as the args
-// stream in. Once the value's closing quote has been consumed, a later call
-// with more bytes must not decode the NEXT member into the value. Found by
-// tests/fuzz: the preview showed `","path":"…` glued onto the content.
+// 写入预览一次解码为`content` a 几个字节 ,
+// 以 数据流 的参数为单位。 一旦该值的关闭引号被消耗, 以后的 调用
+// 和 字节 的 下一个 成员不能解码为该值。 由 tests/fuzz
+// 找到: 预览显示 `","path":"…` 粘贴在内容上。
 TEST_CASE("partial json: incremental decode stays closed once the value ends") {
     using agentty::tools::util::decode_string_append;
     using agentty::tools::util::decode_string_from;

@@ -1,8 +1,8 @@
-// palette_update + todo_update — reducers for the command palette and
-// the todo modal. Both are simple list-modals; the palette is the
-// dispatcher for action commands (NewThread, ReviewChanges, etc.), so it
-// re-enters the top-level update() to fan a Command::* into the matching
-// domain Msg.
+// palette_update+todo_update-状态更新函数用于命令调色板
+// 和待办事项弹出面板。两者都是简单的list-modals；调色板是 分派器
+// 用于操作命令（NewThread、ReviewChanges 等），因此它 re
+// -enters top-level update() 将 Command::* 扇入
+// 匹配域 Msg。
 
 #include "agentty/runtime/app/update/internal.hpp"
 #include "agentty/runtime/app/update.hpp"
@@ -26,33 +26,33 @@ namespace agentty::app::detail {
 namespace pick = agentty::ui::pick;
 using maya::overload;
 
-// Build the live visibility context for the palette from the current Model,
-// so conditionally-dead rows (Accept-all with no diff, Run-code-block with no
-// fenced reply, Update with no release) never render. One place, consulted by
-// every filtered_commands() call in this reducer + the view.
-// Defined in meta.cpp (declared in internal.hpp) so the view shares it.
+// 从当前的Model构建调色板的实时可见性上下文，因此有条件地-dead行（
+// 没有差异的Accept-all，没有屏蔽回复的Run-code-block，
+// 没有释放的更新）永远不会渲染。一个地方，由这个 状态更新函数 + 视图中的每
+// 个 filtered_commands() 调用 进行咨询。
+// 定义在 meta.cpp，并在 internal.hpp 声明，供视图共享。
 
-// ── Command dispatch driver ───────────────────────────────────────────────
-// Each palette Command declares ITS OWN behaviour in one place: the registry
-// below is a flat table of {Command, handler}. Adding a command is one row
-// here (plus its metadata row in command_palette.hpp) — no growing switch, no
-// four-file edit. The vast majority just re-enter the reducer with a Msg, so
-// `emit<T>()` builds that handler generically; the few commands with bespoke
-// side effects (learning reset, self-update) get a named lambda.
+// ── 命令分派驱动程序 ───────────────────────────────────────────────
+// 每个调色板命令在一处声明ITS OWN行为：下面的注册表是{命令，处理函数}的平面表。添加命令是这里
+// 的一行（加上 command_palette.hpp 中的元数据行）——没有增长的开关，
+// 没有 four-file 编辑。 The vast majority just re-enter the
+// 状态更新函数 with a Msg, so `emit<T>()` builds that 处理函数
+// generically; the few commands with bespoke 副作用 (
+// 学习重置和自更新等操作各自使用具名 lambda。
 //
-// A handler is Model-in → Step-out; the driver has already closed the palette
-// before calling it, so handlers only describe the action.
+// A 处理函数 is Model-in → Step-out; the driver has already closed the palette
+// before calling it, so 处理函数 only describe the action.
 using CommandHandler = std::function<Cmd(Model&)>;
 
 namespace {
-// emit<T>: the handler for a command that simply dispatches Msg{T{}} back
-// through the top-level reducer. Covers ~20 of the rows.
+// emit<T>: the 处理函数 for a command that simply dispatches Msg{T
+// {}} back through the top-level 状态更新函数.覆盖约 20 行。
 //
-// Still goes through the whole-Msg reducer rather than a per-domain one:
-// the commands span every domain, and routing each to its own reducer by
-// hand is exactly the dispatch table this registry exists to avoid. The
-// pair it returns is unpacked here, so the handlers themselves are already
-// in jaal's shape.
+// Still goes through the whole-Msg 状态更新函数 rather than a per-domain one:
+// 命令跨越每个域，并且手动将每个域路由到其自己的状态更新函数正是该注册表存在要避免的分派表。
+// 它返回的二元组在这里解包，
+// so the 处理函数 themselves are already in jaal's
+// shape.
 template <class T>
 [[nodiscard]] CommandHandler emit() {
     return [](Model& m) {
@@ -61,7 +61,7 @@ template <class T>
         return std::move(cmd);
     };
 }
-// emit_val<T>(v): same, for a Msg that carries a payload (settings category).
+// emit_val<T>(v): same, for a Msg that carries a 载荷 (settings category).
 template <class T, class V>
 [[nodiscard]] CommandHandler emit_val(V v) {
     return [v](Model& m) {
@@ -70,42 +70,42 @@ template <class T, class V>
         return std::move(cmd);
     };
 }
-// NOTE on Esc chains: the select arm below snapshots the palette and
-// `adopt()`s it onto WHATEVER the command opened — generically, after
-// dispatch. The old emit_settings<> wrapper (which hand-stamped an origin
-// per settings command) is gone: commands need no per-caller knowledge,
-// and every palette-opened overlay now unwinds back to the palette.
-} // namespace
+// Esc链上的NOTE：调色板快照下方的选择臂和`adopt()`
+// 将其放置到命令打开的WHATEVER上——通常在分派之后。
+// 旧的 emit_settings<> 包装器（为每个设置命令提供
+// -stamped 一个源）已经消失：命令不需要 per-caller 知识，
+// 并且每个调色板 -opened 覆盖面板 现在都展开回调色板。
+} // 命名空间结束。
 
-// The registry: Command → what it does. Ordered for readability, not lookup
-// (the driver does a linear find over 25 entries — trivially cheap, and keeps
-// the table declarative). One entry per Command in the enum; a missing entry
-// is a no-op (handled by the driver), so the build can't silently mis-wire.
+// 注册表：命令→它的作用。排序是为了可读性，而不是查找（驱动
+// 程序会线性查找超过 25 个条目 - 非常便宜，
+// 并且保持表声明性）。 枚举 中每个命令一个条目；缺少的条目是
+// no-op（由驱动程序处理），因此构建不能默默地错误-wire。
 [[nodiscard]] const std::vector<std::pair<Command, CommandHandler>>& command_registry() {
     static const std::vector<std::pair<Command, CommandHandler>> reg = [] {
         std::vector<std::pair<Command, CommandHandler>> r;
         r.reserve(25);
         auto add = [&](Command c, CommandHandler h) { r.emplace_back(c, std::move(h)); };
 
-        // ── Thread ──
+        // ── 线程 ──
         add(Command::NewThread,        emit<NewThread>());
         add(Command::ForkThread,       emit<OpenFork>());
         add(Command::CompactContext,   emit<CompactContext>());
         add(Command::RewindCheckpoint, emit<OpenCheckpoints>());
-        // ── Changes ──
+        // ── 变动 ──
         add(Command::ReviewChanges,    emit<OpenDiffReview>());
         add(Command::AcceptAll,        emit<AcceptAllChanges>());
-        // Reject-all from the palette is already an explicit multi-step
-        // action (open palette → select row → Enter), so it skips the chords'
-        // two-press guard and executes on this pick. The intent travels on
-        // the message; no pre-staging of reducer state here.
-        add(Command::RejectAll,        emit_val<RejectAllChanges>(/*confirmed=*/true));
-        // ── Go ──
+        // 从调色板中拒绝-all已经是显式的multi-step动作
+        // (打开调色板→选择行→Enter)，因此它跳过和弦的two
+        // -press防护并在此拨片上执行。意图通过消息传播；
+        // 这里没有 状态更新函数 状态的 pre-staging。
+        add(Command::RejectAll,        emit_val<RejectAllChanges>(/*确认=*/true));
+        // ── 去吧,我们走 ──
         add(Command::OpenThreads,      emit<OpenThreadList>());
         add(Command::OpenPlan,         emit<OpenTodoModal>());
         add(Command::InspectToolOutputs, emit<OpenToolOutput>());
         add(Command::RunCodeBlock,     emit<OpenCodeBlocks>());
-        // ── Config ──
+        // ── 配置 ──
         add(Command::CycleProfile,     emit<CycleProfile>());
         add(Command::OpenModels,       emit<OpenModels>());
         add(Command::SwapModel,        emit<SwitchToPreviousModel>());
@@ -114,9 +114,9 @@ template <class T, class V>
         add(Command::OpenSkills,       emit<OpenSkills>());
         add(Command::OpenGeneralSettings,
             emit_val<OpenSettingsList>(settings::Category::General));
-        // ── Account ──
+        // ── 账户 ──
         add(Command::OpenLogin,        emit<OpenLogin>());
-        // ── General ──
+        // ── 常规 ──
         add(Command::UpdateAgentty, [](Model& m) -> Cmd {
             if (m.s.update_latest.empty() || m.s.update_in_flight)
                 return Cmd::none();
@@ -132,8 +132,8 @@ template <class T, class V>
     return reg;
 }
 
-// Run the command the cursor landed on. The palette is already closed by the
-// caller; unknown commands (no registry entry) are a safe no-op.
+// 运行光标所在的命令。调色板已被调用者关闭；
+// 未知命令（没有 注册表 条目）是安全的 no-op。
 [[nodiscard]] Cmd dispatch_command(Command sel, Model& m) {
     for (const auto& [id, handler] : command_registry())
         if (id == sel) return handler(m);
@@ -147,20 +147,20 @@ Cmd palette_update(Model& m, msg::PaletteMsg pm) {
             return Cmd::none();
         },
         [&](ClosePalette) -> Cmd {
-            // Esc unwinds one level — a palette opened over another panel
-            // (rare but possible via chords) restores it; over the thread,
-            // closes.
+            // Esc展开一个级别——在另一个面板上打开的调
+            // 色板（罕见但可以通过和弦）恢复它；超过 线程，
+            // 关闭。
             ascend(m);
             return Cmd::none();
         },
         [&](PanelFilterPaste& e) -> Cmd {
-            // ONE arm for every filter panel: replay the paste through the
-            // open panel's OWN typed-input message, one char at a time — so
-            // paste has exactly typing's semantics (ASCII gate, cursor
-            // reset, the models panel's re-rank) with no duplicated logic
-            // and no cross-TU coupling. Control chars are dropped here so a
-            // multi-line clipboard can't smuggle newlines into a filter.
-            // Bounded by clipboard size; each step is the cheap typed path.
+            // 每个过滤器面板的ONE臂：通过打开面板的OWN 带类型
+            // 的-input消息重播粘贴，一次一个字符——因此粘贴
+            // 具有精确的打字语义（ASCII门、光标重置、
+            // 模型面板的re-rank)，没有重复的逻辑，也没有交叉-TU耦合。
+            // Control 字符被放置在此处，因此 multi
+            // -line 剪贴板无法将换行符偷偷放入过滤器中。
+            // 受剪贴板尺寸限制；每一步都是便宜的带类型的路径。
             Cmd out = Cmd::none();
             for (char c : e.text) {
                 const auto u = static_cast<unsigned char>(c);
@@ -178,8 +178,8 @@ Cmd palette_update(Model& m, msg::PaletteMsg pm) {
                 auto [next, cmd] = agentty::app::update(std::move(m),
                                                         std::move(per_char));
                 m = std::move(next);
-                // Last writer wins, as before: the typed path's Cmds are
-                // status toasts, and only the final keystroke's is current.
+                // 最后的写入者获胜，如前所述：带类型的路径的
+                // Cmd是状态提示，并且只有最后的击键是当前的。
                 out = std::move(cmd);
             }
             return out;
@@ -188,8 +188,8 @@ Cmd palette_update(Model& m, msg::PaletteMsg pm) {
             auto* o = m.ui.panel.get<pn::Palette>();
             if (o && static_cast<uint32_t>(e.ch) < 0x80) {
                 o->query.push_back(static_cast<char>(e.ch));
-                // Reset cursor to the top of the (newly filtered) list so
-                // the previous index doesn't point at a now-hidden row.
+                // 将光标重置到（新过滤的）列表的顶部，
+                // 以便先前的索引不指向 now-hidden 行。
                 o->index = 0;
             }
             return Cmd::none();
@@ -205,9 +205,9 @@ Cmd palette_update(Model& m, msg::PaletteMsg pm) {
         [&](PaletteMove& e) -> Cmd {
             auto* o = m.ui.panel.get<pn::Palette>();
             if (!o) return Cmd::none();
-            // Clamp against the *visible* row count, not kCommands.size().
-            // Without the upper bound the cursor used to walk off-screen
-            // and Enter would silently fall through to the no-match path.
+            // 钳制*可见*行计数，而不是kCommands.size()。
+            // 如果没有上限，
+            // 用于离开-screen和Enter的光标将静静地落到no-match路径。
             int sz = static_cast<int>(filtered_commands(
                 o->query, ui::palette_context(m)).size());
             if (sz <= 0) { o->index = 0; return Cmd::none(); }
@@ -217,14 +217,14 @@ Cmd palette_update(Model& m, msg::PaletteMsg pm) {
         [&](PaletteSelect) -> Cmd {
             auto* o = m.ui.panel.get<pn::Palette>();
             if (!o) return Cmd::none();
-            // Resolve cursor → typed Command via the SAME filtered list
-            // the view rendered. The previous design switched on the raw
-            // o->index against the unfiltered enum, which silently fired
-            // the wrong command whenever any query was active.
+            // 解析光标→带类型的命令通过SAME过滤列表
+            // 呈现视图。之前的设计针对未过滤的 枚举 打开
+            // 了原始 o->index，每当任何查询处于
+            // 活动状态时都会默默地触发错误的命令。
             auto matches = filtered_commands(o->query, ui::palette_context(m));
-            // Copy out BEFORE closing: `o` points into the variant, and
-            // close() destroys that alternative (the old code read o->index
-            // through the dangling pointer afterwards).
+            // 复制出BEFORE结束：`o`指向变体，
+            // 并且close()破坏该替代（之后旧代码通过
+            // 悬空指针读取o->index）。
             const int idx = o->index;
             if (matches.empty()
                 || idx < 0
@@ -233,16 +233,16 @@ Cmd palette_update(Model& m, msg::PaletteMsg pm) {
                 return Cmd::none();
             }
             const Command sel = matches[static_cast<std::size_t>(idx)]->id;
-            // Snapshot the palette — query, cursor, its own parent chain —
-            // then dispatch and let WHATEVER the command opened adopt it as
-            // its Esc target. Generic: the registry needs no per-command
-            // origin plumbing, and a command that opens nothing leaves the
-            // slot None, where adopt() is a no-op.
+            // 快照调色板——查询、光标、其自己的父链——然后分派并让
+            // 打开的命令WHATEVER采用它作为其Esc目标。
+            // 通用：注册表 不需要 per-command 原始管道，
+            // 并且不打开任何内容的命令会留下 None 插槽，
+            // 其中 adopt() 是 no-op。
             auto parent = pn::From::of(pn::Snapshot{m.ui.panel.raw()});
             m.ui.panel.close<pn::Palette>();
-            // Behaviour lives in the command registry (dispatch_command), not
-            // an inline switch — one declarative table, no drift, and adding a
-            // command never touches this arm.
+            // 行为存在于命令注册表 (dispatch_command)中，
+            // 而不是内联开关——一个声明表，没有漂移，
+            // 并且添加命令永远不会触及该臂。
             auto cmd = dispatch_command(sel, m);
             m.ui.panel.adopt(std::move(parent));
             return cmd;
@@ -260,9 +260,9 @@ Cmd todo_update(Model& m, msg::TodoMsg tm) {
             m.ui.todo.open = pick::Closed{};
             return Cmd::none();
         },
-        // (No UpdateTodos arm: the agent's todo writes land via
-        // stream_preview's direct sync — see sync_todos there. A message
-        // nobody sent.)
+        // （没有 UpdateTodos 臂：特工的待办事项通过
+        // stream_preview 的直接同步写入陆地 — 请参阅那里的 sync_todos。
+        // 无人发送的消息。）
     }, tm);
 }
 

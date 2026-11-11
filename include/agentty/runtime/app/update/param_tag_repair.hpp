@@ -1,24 +1,24 @@
 #pragma once
-// ── XML-in-JSON tool-call recovery ────────────────────────────────────
-// Some model rollouts intermittently mix Anthropic's internal XML
-// tool-call syntax into the JSON tool input. Instead of the clean shape
-//   {"path":"f","edits":[{"old_text":"A","new_text":"B"}]}
-// the wire carries syntactically-VALID JSON whose string values smuggle
-// the real arguments inside `<parameter name="…">…` markers, e.g.
-//   {"path":"f","edit":"\n<parameter name=\"old_text\">A","new_text":"B"}
-// (note `edit`, not `edits`, and old_text hidden inside it). Because the
-// JSON parses, the salvage path never runs — but the required field
-// (old_text / edits) is now buried in a stray key and the call dies in
-// the required-field guard with a misleading "looks incomplete" message.
-// Observed responsible for ~all edit failures in a session once the model
-// latched into the XML-emitting state (~27% of edits in the worst case).
+// ── XML-in-JSON 工具 -call 恢复 ────────────────────────────────────
+// 一些模型推出间歇地将Anthropic的内部XML工具-call语法混合到JSON工具输入中。
+// 传输 不是干净的形状 {"path":"f","edits":[{
+//   "old_text":"A","new_text":"B"}]}，
+// 而是在语法上携带 -VALID JSON，其字符串值将真实参数偷偷带入
+// `<parameter name="…">…` 标记 e.g 内。
+//   {"path":"f","edit":"\n<parameter name=\"old_text\">A",
+// "new_text":"B"}（注意`edit`，而不是`edits`，
+// 以及隐藏在其中的old_text）。因为 JSON 解析，抢救路径永远不会运行，
+// 但所需字段（old_text /编辑）现在被埋在杂散键中，并且 调用 在 required
+// -field 防护中消失，并带有误导性的 "looks incomplete" 消息。
+// 一旦模型锁定到XML-emitting状态（在最坏情况下
+// 约27%的编辑），观察到它对会话中的所有编辑失败负责。
 //
-// Recovery lifts every `<parameter name="K">V` segment out of string
-// values back into proper top-level keys and rebuilds the canonical arg
-// shape. SAFETY: the only caller (guard_truncated_tool_args) invokes this
-// solely on the already-failing path — a well-formed edit/write whose
-// content legitimately contains the literal marker (e.g. editing this
-// file) has its required fields present and is never rewritten.
+// 恢复将字符串值中的每个`<parameter name="K">V`
+// 段提升回正确的top-level键并重建规范的arg形状。
+// SAFETY：唯一的调用者（guard_truncated_tool_args）
+// 仅在已经-failing路径上调用它 - 一个well
+// -formed edit/write，其内容合法地包含文字标记（e.g。
+// 编辑此文件）具有其必需的字段，并且永远不会被重写。
 
 #include <initializer_list>
 #include <optional>
@@ -33,14 +33,14 @@
 
 namespace agentty::app::detail {
 
-// Lift `<parameter name="K">V` segments out of every string value in
-// `args`, IN ORDER, keeping DUPLICATE names. Each value runs from just
-// after the `>` to the next `<parameter name="` / `</parameter>` /
-// end-of-string. Order + duplicates are load-bearing: a multi-edit call
-// that leaked as XML carries several `old_text`/`new_text` tags in
-// sequence, and collapsing them (first-wins) would silently drop every
-// edit after the first. String values are visited in the JSON object's
-// key order so the reconstructed sequence matches the wire.
+// 将 `<parameter name="K">V` 段从 `args`、
+// IN ORDER 中的每个字符串值中取出，保留 DUPLICATE 名称。
+// 每个值从 `>` 之后到下一个 `<parameter name="`
+// / `</parameter>` / end-of-string。
+// 顺序+重复项是 加载-bearing：一个 multi-edit 调用 泄漏，
+// 因为 XML 依次携带多个 `old_text`/`new_text` 标签，
+// 并且折叠它们（first-wins）将默默地删除第一个之后的每个编辑。
+// 字符串值按 JSON 对象的键顺序访问，因此重建的序列与 传输 匹配。
 using ParamTag = std::pair<std::string, std::string>;
 
 inline std::vector<ParamTag>
@@ -73,8 +73,8 @@ extract_param_tags(const nlohmann::json& args) {
     return out;
 }
 
-// First value tagged with `name`, or nullopt. First-wins lookup for the
-// scalar fields (path / content / line) where duplicates are noise.
+// 用 `name` 或 nullopt 标记的第一个值。 First
+// -wins 查找标量字段（路径/内容/行），其中重复项是噪音。
 inline std::optional<std::string>
 first_tag(const std::vector<ParamTag>& tags, std::string_view name) {
     for (const auto& [k, v] : tags)
@@ -82,10 +82,10 @@ first_tag(const std::vector<ParamTag>& tags, std::string_view name) {
     return std::nullopt;
 }
 
-// Rewrites `args` into the canonical shape and returns true when an XML
-// parameter-tag leak is detected and recovered; returns false (leaving
-// `args` untouched) otherwise. MUST be called only when the tool call
-// would already fail its required-field check — see the header note.
+// 当检测到并恢复XML参数-tag泄漏时，将`args`重写
+// 为规范形状并返回真；否则返回 false（保留 `args`
+// 不变）。仅当工具 调用 已无法通过所需的 -field
+// 检查时，才会调用 必须 — 请参阅 头文件 注释。
 inline bool repair_param_tag_leak(std::string_view tool_name,
                                   nlohmann::json& args) {
     using nlohmann::json;
@@ -106,8 +106,8 @@ inline bool repair_param_tag_leak(std::string_view tool_name,
     auto tags = extract_param_tags(args);
     if (tags.empty()) return false;
 
-    // Prefer a clean top-level string field (one that isn't itself a leak);
-    // fall back to the FIRST value recovered from a parameter tag.
+    // 更喜欢干净的 top-level 字符串字段（本身不是
+    // 泄漏的字段）；回退到从参数标记恢复的 首次 值。
     auto pick = [&](std::initializer_list<const char*> names)
         -> std::optional<std::string> {
         for (const char* n : names)
@@ -120,8 +120,8 @@ inline bool repair_param_tag_leak(std::string_view tool_name,
         return std::nullopt;
     };
 
-    // A display_description carried through verbatim can itself be a leak
-    // (`\n<parameter name="...">...`). Only keep it when it's clean.
+    // 逐字记录的display_description本身可能是泄漏(
+    // `\n<parameter name="...">...`)。只有在干净的情况下才保留它。
     auto clean_description = [&](nlohmann::json& dst) {
         if (auto it = args.find("display_description");
             it != args.end() && it->is_string()) {
@@ -133,16 +133,16 @@ inline bool repair_param_tag_leak(std::string_view tool_name,
 
     using K = tools::spec::Kind;
     if (*kind == K::Edit) {
-        // Reconstruct EVERY leaked edit, not just the first. A multi-edit
-        // call that leaked as XML carries old_text/new_text tags in
-        // sequence: pair each old_text with the new_text that follows it.
-        // Fall back to the top-level clean field for a single-edit leak
-        // where only one side smuggled a marker.
+        // 重建EVERY泄露的编辑，而不仅仅是第一个。作为 XML 泄露的 multi
+        // -edit 调用 按顺序携带 old_text/new_text
+        // 标签：将每个 old_text 与其后面的 new_text 配对。
+        // 回到顶部-level洁净场，以发现单个-edit泄漏，
+        // 其中只有一侧走私了标记。
         json edits = json::array();
         std::optional<std::string> pending_old;
         for (const auto& [k, v] : tags) {
             if (k == "old_text" || k == "old_string") {
-                if (pending_old) {   // old with no matching new — flush as-is
+                if (pending_old) {   // 旧的，没有匹配的新的 — 齐平 as-is
                     json e = json::object();
                     e["old_text"] = std::move(*pending_old);
                     e["new_text"] = "";
@@ -162,20 +162,20 @@ inline bool repair_param_tag_leak(std::string_view tool_name,
         if (pending_old && !pending_old->empty()) {
             json e = json::object();
             e["old_text"] = std::move(*pending_old);
-            // A dangling old_text with no matching new_text tag: the new
-            // side likely arrived as a CLEAN top-level key (case 1 — only
-            // old_text smuggled into the leaked string). Prefer it.
+            // 悬空的 old_text 没有匹配的 new_text 标签：新的
+            // 一面可能作为 CLEAN top-level 密钥到达（情况 1
+            // — 仅 old_text 走私到泄露的字符串中）。更喜欢它。
             auto new_t = pick({"new_text", "new_string"});
             e["new_text"] = new_t.value_or("");
             edits.push_back(std::move(e));
         }
 
-        // Single-edit leak where one side is a clean top-level field: fall
-        // back to pick() so a `{"edit":"<parameter...>OLD","new_text":"NEW"}`
-        // shape (only old_text leaked) still recovers.
+        // Single-edit泄漏，其中一侧是干净的top-level字段：回落到pick()，
+        // 因此`{"edit":"<parameter...>OLD","new_text":"NEW"}`
+        // 形状（仅泄漏的old_text）仍然恢复。
         if (edits.empty()) {
             auto old_t = pick({"old_text", "old_string"});
-            if (!old_t) return false;   // nothing recoverable
+            if (!old_t) return false;   // 无可挽回
             auto new_t = pick({"new_text", "new_string"});
             json one = json::object();
             one["old_text"] = std::move(*old_t);
@@ -183,7 +183,7 @@ inline bool repair_param_tag_leak(std::string_view tool_name,
             edits.push_back(std::move(one));
         }
 
-        // A single leaked `line` hint applies to the (sole) recovered edit.
+        // 单个泄露的`line`提示适用于(唯一的)恢复的编辑。
         if (edits.size() == 1) {
             if (auto v = first_tag(tags, "line")) {
                 try { edits[0]["line"] = std::stoi(*v); } catch (...) {}

@@ -1,6 +1,6 @@
 #pragma once
-// The ^J peek's content: a thread cut into turns of display lines. Built off
-// the reducer when a thread loads, so the cache holds KBs, not transcripts.
+// ^J窥视的内容：线程被切割成显示线的轮流。在 线程 加载 的基础上
+// 构建了 状态更新函数，因此 缓存 保存的是 KB，而不是成绩单。
 
 #include <cstdint>
 #include <string>
@@ -12,20 +12,20 @@ namespace agentty::ui {
 
 struct PeekLine {
     enum class Kind : std::uint8_t { User, Reply, Tool };
-    std::string who;    // speaker; "" on a continuation line
+    std::string who;    // 扬声器； "" 在连续线上
     std::string text;
     Kind        kind = Kind::Reply;
 };
 using PeekTurn = std::vector<PeekLine>;
 
-// Lines kept per turn: enough to fill any card, so a 2000-line reply costs
-// the same as a short one.
+// 每回合保留的行数：足以填满任何卡，因此 2000-line 回复的
+// 成本与短回复的成本相同。
 inline constexpr std::size_t kPeekLinesPerTurn = 24;
 
-// One message as peek lines: text by line (blank runs collapsed), then
-// "▸ name" per tool call. Nothing for injected or routing messages.
-// `agent` names who wrote the replies ("agentty", or "codex" for turns
-// imported from another tool).
+// 一条消息作为查看行：逐行文本（空白运行折叠），然后每个工具
+// "▸ name" 调用。没有用于注入或路由消息的内容。
+// `agent` 撰写回复的姓名（"agentty" 或 "codex"
+// 对于从其他工具导入的回合）。
 inline void peek_lines_of(const Message& msg, PeekTurn& out,
                           std::string_view agent = "agentty") {
     const bool user = msg.typed_by_user();
@@ -60,12 +60,12 @@ inline void peek_lines_of(const Message& msg, PeekTurn& out,
     }
 }
 
-// A thread as turns: each typed message starts one. Inside a turn the
-// speaker is named once per run (an agent turn is many messages, one per
-// tool round), and back-to-back calls of one tool read as "▸ shell ×4".
+// 线程轮流：每个带类型的消息开始一个。在一个回合内，每次运行都会为
+// 扬声器命名一次（代理回合包含许多消息，每个工具轮一条），并且一个工具
+// 的 back-to-back 调用 读作 "▸ shell ×4"。
 [[nodiscard]] inline std::vector<PeekTurn> peek_turns_of(const Thread& t) {
     std::vector<PeekTurn> turns;
-    // Replies that came from another tool's session are that tool's.
+    // 来自另一个工具会话的回复是该工具的。
     const std::size_t foreign_upto = t.imported ? t.imported->messages : 0;
     const std::string_view other = t.imported ? std::string_view{t.imported->source} : "";
     for (std::size_t i = 0; i < t.messages.size(); ++i) {
@@ -76,8 +76,8 @@ inline void peek_lines_of(const Message& msg, PeekTurn& out,
     std::erase_if(turns, [](const PeekTurn& v) { return v.empty(); });
     for (auto& turn : turns) {
         PeekTurn out;
-        std::string speaker;   // who the last named line was
-        int repeat = 0;        // extra calls folded into the last tool line
+        std::string speaker;   // 最后命名的线路是谁
+        int repeat = 0;        // 额外的调用折叠到最后的工具线中
         auto flush = [&] {
             if (repeat > 0 && !out.empty())
                 out.back().text += " \xc3\x97" + std::to_string(repeat + 1);   // ×

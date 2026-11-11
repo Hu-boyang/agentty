@@ -1,6 +1,6 @@
-// exec_exit_probe — does a sandboxed command return when it exits, or at its
-// timeout? Times trivial commands through the shipped path (saved policy ->
-// set_config -> init -> run_shell_command), with the sandbox on and off.
+// exec_exit_probe —— 离开时或离开时返回沙箱命令 超时 时间小
+// 命令通过已运出路径( Q) 已保存 策略 - > set_config - >
+// 输入 - > run_shell_command ),与 沙箱 开和关。
 //
 //     cmake --build build --target exec_exit_probe && ./build/exec_exit_probe
 
@@ -18,7 +18,7 @@
 
 namespace sb = agentty::tools::util::sandbox;
 
-// argv: [workspace] [on|off] [syscall_mode]
+// 参数: [ 工作区 [开 | 关] [ syscall_mode]
 int main(int argc, char** argv) {
     const std::string ws = argc > 1 ? argv[1] : std::filesystem::current_path().string();
     agentty::tools::util::set_workspace_root(::agentty::IoAccess::grant(), ws);
@@ -26,7 +26,7 @@ int main(int argc, char** argv) {
     cfg.configured = true;
     if (argc > 3)
         cfg.syscall_mode = static_cast<decltype(cfg.syscall_mode)>(std::atoi(argv[3]));
-    // PROBE_ALLOW_HOSTS=github.com,*.github.com -- the proxy's name allowlist.
+    // PROBE_ALLOW_HOSTS=github.com,*.github.com - 代理名( 代理名) 允许清单.
     if (const char* h = std::getenv("PROBE_ALLOW_HOSTS")) {
         std::string s{h};
         for (std::size_t at = 0; at <= s.size();) {
@@ -41,7 +41,7 @@ int main(int argc, char** argv) {
     sb::init(on ? sb::Mode::On : sb::Mode::Off);
     std::printf("sandbox %s: %s\n", on ? "on" : "off", sb::describe_state().c_str());
 #if defined(__APPLE__)
-    // PROBE_DUMP=1: print the exact sandbox-exec argv a command gets.
+    // PROBE_DUMP =1:打印准确 沙箱-exec 命令会得到的
     if (std::getenv("PROBE_DUMP") && on) {
         auto w = sb::wrap_argv_for_exec({"/bin/sh", "-c", "true"}, {}, {});
         if (!w) std::printf("wrap failed: %s\n", w.error().c_str());
@@ -55,10 +55,10 @@ int main(int argc, char** argv) {
         "echo hi",
         "echo hi >/dev/null 2>&1 </dev/null",
         "sleep 0.2; echo done",
-        "(sleep 30 &) ; echo bg-left-running",   // a grandchild keeps the pipe
+        "(sleep 30 &) ; echo bg-left-running",   // 孙子管子
     };
-    // argv[4]: a file of commands, one per line, replacing the defaults --
-    // so an escape corpus can run through the exact shipped path.
+    // argv[4]:一个命令文件,每行一个,
+    // 替换默认——这样逃生符就可以运行在准确的运出路径上.
     if (argc > 4) {
         cmds.clear();
         std::ifstream in{argv[4]};

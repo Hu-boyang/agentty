@@ -1,22 +1,22 @@
-// In-app login modal.
+// 内 -app 登录 弹出面板.
 //
-// Five sub-states keyed off `ui::login::State`:
+// 5个子 -states 键入关卡 `ui::login::State`:
 //
-//   Picking          choose OAuth (1) or API key (2)
-//   OAuthCode        browser opened; user pastes callback code.
-//                    The authorize URL gets a dedicated bordered box
-//                    + `[c] copy URL` / `[o] open in browser again`
-//                    affordances so the URL is one keystroke from the
-//                    user's clipboard — no terminal mouse-select needed.
-//   OAuthExchanging  HTTP POST in flight.
-//   ApiKeyInput      paste an sk-ant-… key.
-//   Failed           error toast above the Picking panel.
+//   选择 OAuth (1) 或 API 键 (2)
+//   OAuthCode 浏览器打开; 用户粘贴 回调 代码。
+//                    授权的URL获得一个专用的边框+`[c] copy URL`
+//                    /`[o] open in browser again`
+//                    付得起,因此URL是从用户的剪贴板上键入
+//                    一个键盘的——不需要终端 鼠标-select.
+//   交换权限 HTTP POST 飞行中。
+//   ApiKeyInput 粘贴 SK -ant- ...钥匙。
+//   选择面板上方失败。
 //
-// Sizing is responsive: the outer wrapper sets a `min_width` floor
-// and the Overlay widget's default Stretch lets it fill the available
-// width (minus 2-col edge padding). Every text node uses TextWrap::Wrap
-// so long URLs / API key labels reflow rather than truncate. Mirrors
-// the picker chrome (see view/pickers.cpp's wrap_picker).
+// 大小是响应的:外包装器设置了 `min_width` 楼层和楼层
+// 覆盖面板 部件的默认缩放使其能填充可用的宽度( 减去 2) -col
+// 边缘粘贴。 每个文本节点都使用 TextWrap::Wrap 如此长的
+// URL / API 键盘标签重流而不是切换。 选择面板 铬(见
+// view/pickers.cpp's wrap_picker).
 
 #include "agentty/runtime/view/login.hpp"
 
@@ -35,19 +35,19 @@ namespace agentty::ui {
 
 using namespace maya;
 using namespace maya::dsl;
-// `login::` resolves to `agentty::ui::login::` from this scope without an
-// alias — and MSVC rejects an alias whose name shadows the existing
-// nested namespace, so don't write one.
+// `login::` 决定 `agentty::ui::login::`
+// 不属于这一范围,没有别名——和 MSVC 拒绝一个名字阴影着
+// 现有巢命名空间的别名,所以不要写一个.
 
 namespace {
 
-// Shared key-hint footer. Each sub-state passes the keys that are
-// meaningful in its context so the user always sees a complete map.
-// Wrapped so long footers reflow on narrow terminals.
+// 共享密钥 -hint 页脚。 每个子 -state 将上下文
+// 中有意义的密钥传递给用户,这样用户就总是看到完整的地图。
+// 包装如此长的脚印在窄的终端上重流.
 Element key_hints(std::initializer_list<std::pair<std::string, std::string>> hints) {
-    // Flatten into one TextElement with styled runs so the painter can
-    // wrap across rows on a narrow terminal. The previous hstack approach
-    // overflowed without ever wrapping.
+    // 平整成一个 TextElement 画家
+    // 可以用笔划的笔划 画得很窄 终端 之前的施塔
+    // 克方法 一直没有包起来
     std::string content;
     std::vector<StyledRun> runs;
     auto push_run = [&](std::string_view s, Style sty) {
@@ -78,8 +78,8 @@ Element key_hints(std::initializer_list<std::pair<std::string, std::string>> hin
     }};
 }
 
-// Wrap-mode body text — long URLs / explanation lines reflow rather
-// than overflowing the modal.
+// 环绕 -mode 正文 文本——长的 URL/ 解释行重
+// 流而不是溢出 弹出面板.
 Element body_text(std::string_view content, Style sty) {
     return Element{TextElement{
         .content = std::string{content},
@@ -88,11 +88,11 @@ Element body_text(std::string_view content, Style sty) {
     }};
 }
 
-// Bordered, wrap-mode "URL panel": the URL fills the modal width and
-// reflows across rows on narrow terminals, so the user can read every
-// character without horizontal scrolling. Background-styled so it
-// reads as a dedicated artifact (the thing to copy) rather than as
-// inline prose.
+// 边框,包装-modeXX "URL panel":
+// URL在窄的终端上填充弹出面板宽度和横行回流,
+// 因此用户可以不横向滚动阅读每个字符.
+// 背景-styled因此读作专用文物(即要复制的东西),
+// 而不是内线的散文.
 Element url_panel(std::string_view url) {
     auto url_text = Element{TextElement{
         .content = std::string{url},
@@ -107,9 +107,9 @@ Element url_panel(std::string_view url) {
 
 Element panel_picking(std::string_view provider,
                       bool failed, std::string_view fail_msg) {
-    // "Does this provider offer a CHOICE of auth method" is a registry
-    // capability (method_menu), not a name — the reducer's gate reads the
-    // same flag, so the view and the behaviour cannot drift.
+    // 此提供方是否允许选择认证方式？
+    // 是一个 注册表 能力( method_menu ),而不是名字——即:
+    // 状态更新函数 门读的一样 标志 ,所以视图和行为不能漂移。
     const auto* prow = provider::preset_for(provider);
     const bool anthropic_only = prow && prow->method_menu;
     std::vector<Element> rows;
@@ -125,22 +125,22 @@ Element panel_picking(std::string_view provider,
         fg_dim(muted)));
     rows.push_back(text(""));
     if (failed) {
-        // Wrap-mode danger toast so a long error message stays inside
-        // the modal instead of overflowing into the chrome.
+        // 环绕 -mode 危险烤面包,所以一个长长的错误
+        // 信息 留在里面 弹出面板 而不是溢入铬中。
         rows.push_back(body_text(
             std::string{"\xE2\x9A\xA0 "} + std::string{fail_msg},
             fg_of(danger)));
         rows.push_back(text(""));
     }
-    // Numbered items are flush-left to share the column with the header
-    // / description / hint rows. The title sits next to the number badge;
-    // the subtitle continuation indents by exactly the badge width ("1) "
-    // = 3 chars) so it visually hangs under the title, not under the number.
+    // 编号项目是shrow-left,与头文件 /
+    // 描述 / 提示行共享列。标题坐在数字徽章旁边;
+    // 字幕续缩缩为确切的徽章宽度("1) " =
+    // 3个字符),所以它视像挂在标题下,而不是数字下.
     //
-    // API key is presented FIRST: it's the unambiguous, provider-neutral
-    // path (any Anthropic/OpenAI-family key), whereas subscription OAuth is
-    // a third-party-client path some users would rather avoid. Leading with
-    // the key keeps the un-controversial option one keystroke away.
+    // API 键被显示 首次 :这是毫不含糊的,提供者 -neutral 路径( 任何)
+    // Anthropic/OpenAI-family ),而“在““““”一词之后,“““A”字“字”字“““E”字“)
+    // ”“““P””““A”(“A”“A””“A”)“A”和“A” 事件订阅 欧奥特是第三个 -party-client
+    // 路径中,一些用户宁愿避免。在键的引导下,不保存 -controversial 选项一个键键键退出。
     rows.push_back(h(text("1) ", fg_bold(highlight)),
                      text("Paste an API key", fg_bold(fg))).build());
     rows.push_back(h(text("   ", fg_of(fg)),
@@ -183,11 +183,11 @@ Element panel_picking(std::string_view provider,
     return v(std::move(rows)).build();
 }
 
-// One-item Panel for a single-field input state. The field is a REAL
-// panel item — Secret (count-only masking, the type-level can't-leak
-// guarantee) or Text (caret windowing, so a long paste scrolls under the
-// caret instead of walking off the edge). Prose rides as header lines;
-// Enter SUBMITS here, so the derived editing hint is overridden.
+// 一个 -item 单人面板 -field 输入状态。字段是 真实
+// 面板项目——秘密(计数) -only 遮盖,类型 -level 没
+// 办法 -leak 保证)或文本( 光标 窗口,所以在下方有一个长的粘贴
+// 卷轴 光标 而不是从边缘走开 Prose的骑马是 头文件 线条;
+// Enter SUBMITS 在此,所以所得出的编辑提示被覆盖。
 Element input_panel(std::string title, std::vector<Element> prose,
                     maya::PanelControl control, std::string note,
                     std::string editing_note,
@@ -200,11 +200,11 @@ Element input_panel(std::string title, std::vector<Element> prose,
     for (auto& p : prose) cfg.header.push_back(std::move(p));
     cfg.header.push_back(text(""));
     maya::Panel::Item it;
-    it.leading = "\xe2\x80\xba";                    // › — the prompt marker
+    it.leading = "\xe2\x80\xba";                    // ⁇  – 提示词 标记
     it.leading_style = fg_bold(accent);
     it.control = std::move(control);
-    // Prompt-style: the input hugs the › instead of right-aligning a
-    // screen-width away from it (this row has no label column to justify).
+    // 提示词-style :输入拥抱 QQ而不是右 -aligning
+    // 屏幕 -width 离那部经典而去,(这行没有标签栏),
     it.value_primary = true;
     cfg.items.push_back(std::move(it));
     cfg.footer       = std::move(footer);
@@ -224,7 +224,7 @@ Element panel_oauth_code(const login::OAuthCode& s) {
     prose.push_back(body_text(
         "  Step 2 \xe2\x80\x94 paste the callback code below:",
         fg_dim(muted)));
-    // The code is a credential in transit: Secret, count-only.
+    // 代码是 凭据 中途: 秘密, 计数 -only.
     maya::panel::Secret sec;
     sec.filled      = s.code_input.size();
     sec.caret       = std::min<std::size_t>(
@@ -337,15 +337,15 @@ Element panel_device_waiting(const login::DeviceWaiting& s) {
             "After signing in to " + label + ", approve the device. The code "
             "expires in ~15 minutes; no API key is needed.", fg_dim(muted)));
         if (s.provider == "copilot") {
-            // GitHub shows this consent page as `GitHub Copilot Plugin`,
-            // not `Agentty`. That is deliberate and NOT replaceable: the
-            // token-exchange endpoint only accepts VS Code's GitHub App id
-            // (`Iv1.b507a08c87ecfe98`), AND the Copilot server keys its
-            // model allowlist to that id -- using a different App id would
-            // bounce the token exchange *or* return a stripped model list.
-            // See docs/design/copilot-provider.md section 2. Call it out
-            // explicitly so the user doesn't abort thinking they clicked
-            // the wrong link.
+            // GitHub 显示此同意页为 `GitHub Copilot Plugin` ,
+            // 没有 `Agentty` . 这是故意的,而且 不 可替换:
+            // 符号 -exchange 仅接受结束点 VS 代码 GitHub
+            // 应用代号( $ `Iv1.b507a08c87ecfe98`),
+            // 和 副驾驶服务器按键其模式 允许清单 使用不同的App
+            // id 将反弹 代号交换 * 或 * 返回一个剥离的模型列表。
+            // 见 docs/design/copilot-provider.md
+            // 第二节 调用 明确显示用户不会因为自己点击错误而
+            // 中止 链接.
             rows.push_back(text(""));
             rows.push_back(body_text(
                 "Note: GitHub will label the app \"GitHub Copilot Plugin\" on "
@@ -387,7 +387,7 @@ Element panel_api_key(const login::ApiKeyInput& s) {
               "it. It's saved encrypted under ~/.agentty/credentials so you "
               "won't be asked again.",
         fg_dim(muted)));
-    // The KEY never reaches the widget — panel::Secret carries a count.
+    // 电话 KEY 从未到达部件... panel::Secret 带一个数。
     maya::panel::Secret sec;
     sec.filled      = s.key_input.size();
     sec.caret       = std::min<std::size_t>(
@@ -404,8 +404,8 @@ Element panel_api_key(const login::ApiKeyInput& s) {
         std::move(prose), std::move(sec), enter + back, enter + back);
 }
 
-// Connect probe in flight: name the host and what's being tried so the
-// short wait reads as WORK, not a hang. Esc cancels back to the input.
+// 飞行中连接探测器: 指定主机名称和正在尝试的是什么,
+// 短等读作 WORK 而不是绞刑 Esc 取消输入。
 Element panel_host_probing(const login::HostProbing& s) {
     std::vector<Element> rows;
     rows.push_back(text("Checking " + s.spec + "\xe2\x80\xa6", fg_bold(fg)));
@@ -433,8 +433,8 @@ Element panel_custom_host(const login::CustomHostInput& s) {
         "(e.g. \xe2\x80\xa6/v1#work and \xe2\x80\xa6/v1#personal \xe2\x80\x94 "
         "each keeps its own API key and model).",
         fg_dim(muted)));
-    // Text, not Secret — a host is not a credential, and the caret
-    // windowing means a long pasted URL scrolls under the caret.
+    // 文本,而不是秘密——一个主机不是 凭据 ,
+    // 并显示 光标 窗口表示粘贴时间长 URL 滚动 光标.
     maya::panel::Text t;
     t.value       = s.host_input;
     t.caret       = std::min<std::size_t>(
@@ -454,17 +454,17 @@ Element panel_custom_host(const login::CustomHostInput& s) {
         std::move(footer));
 }
 
-// The account switcher, as a real maya::Panel — the same widget every
-// picker uses, so the account list gets the panel's cursor bar, badge
-// column, viewport scrolling and mode chrome instead of a hand-rolled
-// inverse-video list (which the panel merge removed everywhere else).
+// 账户切换器作为真实的maya::Panel——每选择
+// 面板使用相同的部件,因此账户列表会获得面板的光标栏,
+// 徽章栏,可视区域滚动和模式铬,而不是一个hand
+// -rolled逆-video列表(面板将其它地方都删除).
 //
-// Item mapping:
-//   badge   ✓ on the ACTIVE account (accent) — ⚠ while delete is armed
-//   leading label ("#work", "personal…")
-//   trailing"press d again to confirm" while armed — SECONDARY, so the
-//           label survives narrow terminals
-//   + Add another account… rides as the last item, dim until selected
+// 项目映射:
+//   徽章上显示 活动 账户(accent)——删除时是武装的领先标签( "#work",
+//   "personal…" ) 跟踪
+//   "press d again to confirm" 持枪者,
+//           SECONDARY ,所以标签存活
+//   的狭窄 终端 + 添加另一个账户... 以显示为最后一个项目, 暗到选中
 Element panel_account_list(const login::AccountList& s,
                            maya::ScrollState* scroll,
                            std::string_view active_error) {
@@ -472,12 +472,12 @@ Element panel_account_list(const login::AccountList& s,
     cfg.title     = " " + s.provider_label + " accounts ";
     cfg.accent    = accent;
     cfg.min_width = 48;
-    // Scroll like every list panel: many accounts on one provider must
-    // window inside the modal, not grow it past the terminal edge.
+    // 滚动像每个列表面板一样: 在一个提供者上的许多账户必须
+    // 在内部窗口中 弹出面板 而不是成长过 终端 边缘。
     cfg.scroll     = scroll;
     cfg.viewport_h = 14;
     const int n = static_cast<int>(s.rows.size());
-    cfg.selected  = std::min(s.cursor, n);   // last item = add-new
+    cfg.selected  = std::min(s.cursor, n);   // 最后一个项目= 添加-new
 
     if (s.rows.empty()) {
         cfg.header.push_back(body_text(
@@ -498,8 +498,8 @@ Element panel_account_list(const login::AccountList& s,
             it.trailing        = "press d again to confirm";
             it.trailing_style  = fg_of(danger);
         } else if (r.active && !active_error.empty()) {
-            // The host refused this key on the last request: say so here,
-            // where the user can add a working one.
+            // 主机在最后的请求中拒绝了此密钥: 请在这里说,
+            // 用户可以添加一个工作密钥。
             it.badge         = "\xe2\x9a\xa0";           // ⚠
             it.badge_style   = fg_of(warn);
             it.leading_style = fg_bold(warn);
@@ -528,7 +528,7 @@ Element panel_account_list(const login::AccountList& s,
     return maya::Panel{std::move(cfg)}.build();
 }
 
-} // namespace
+} // 命名空间结束。
 
 Element login_modal(const Model& m) {
     if (!login::is_open(m.ui.login)) return nothing();
@@ -554,7 +554,7 @@ Element login_modal(const Model& m) {
         } else if constexpr (std::same_as<T, login::HostProbing>) {
             return panel_host_probing(s);
         } else if constexpr (std::same_as<T, login::AccountList>) {
-            // The active provider's last fetch said its key was refused.
+            // 活动提供者的最后一个接头说,它的密钥被拒绝了.
             std::string_view key_err;
             const bool auth_err = m.s.models_error.find("HTTP 401") != std::string::npos
                                || m.s.models_error.find("HTTP 403") != std::string::npos;
@@ -571,10 +571,10 @@ Element login_modal(const Model& m) {
         }
     }, m.ui.login);
 
-    // Panel-BUILT states (the inputs, the account list) draw their own
-    // frame, title and note line — wrapping them again would nest two
-    // borders. Only the hand-built prose states (picking, the waiting
-    // spinners, failure) still get the generic "Sign in" frame.
+    // 小组讨论会 -BUILT 状态(输入、账户列表) 帧 ,
+    // 标题和注释线——再次包装它们将筑起两个边界。
+    // -built 传教士(选派,等待) 加载动画 ,
+    // 失败)仍然得到通用 "Sign in" 帧.
     const bool self_framed =
         std::holds_alternative<login::OAuthCode>(m.ui.login)
         || std::holds_alternative<login::ApiKeyInput>(m.ui.login)
@@ -582,13 +582,13 @@ Element login_modal(const Model& m) {
         || std::holds_alternative<login::AccountList>(m.ui.login);
     if (self_framed) return body;
 
-    // Responsive sizing: `min_width` floors the modal at a readable
-    // width on tiny terminals; the Overlay's default Stretch lets it
-    // grow to fill all available columns on wider terminals (minus the
-    // Overlay's 2-col edge padding). No max cap — every text node uses
-    // TextWrap::Wrap, so URLs and prose reflow naturally to whatever
-    // width the terminal gives us. Capping at 96 cols left ~50 cols of
-    // empty terminal on a typical 150-col window.
+    // 响应大小 : `min_width` 地板 弹出面板
+    // 微小的可读宽度 终端 ; 缩写 覆盖面板 默认延伸使其增大,
+    // 以填充所有宽度的列 终端 (减去 覆盖面板's 2-col 边缘垫。
+    // 无最大封顶 – 每个文本节点都使用 TextWrap::Wrap ,
+    // 所以URL和传言会自然地回流到任意宽度的 终端 空
+    // 的96个cols 左转50个col 终端 典型的150
+    // 个 -col 窗口中选择一个窗口。
     return vstack()
         .padding(1, 2)
         .min_width(Dimension::fixed(48))

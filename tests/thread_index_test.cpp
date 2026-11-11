@@ -1,22 +1,22 @@
-// thread_index_test.cpp — the mtime cache actually caches.
+// thread_index_test.cpp 时间 缓存 其实 缓存.
 //
-// The bug this pins: file_mtime_secs converted fs::file_time_type by
-// reading time_since_epoch() directly. That clock's epoch is
-// implementation-defined — on libstdc++ it sits around 1822 — so:
+// 针头上的虫子: file_mtime_secs 转换 fs::file_time_type
+// 读取 time_since_epoch ()直接。该时钟的时代是执行
+// -defined ——在libstdc++上,它坐落在1822年左右——所以:
 //
-//   as nanoseconds  the value overflowed int64 and came out NEGATIVE
-//   as seconds      no overflow, but still measured from 1822
+//   值从64纳秒里溢出出来 NEGATIVE as seconds no explus,
+//   as as easy as 1822年时仍可测量的溢出量,
 //
-// Either way the number in index.json was not a Unix timestamp. The second
-// form is self-consistent, so the cache appeared to work; the first meant
-// no entry ever matched its file and every startup re-parsed the entire
-// history. With 605 threads and 704 MB on disk that is several seconds
-// before the thread list exists, which shows up as "Alt+→ says there are no
-// threads, then works on the second press".
+// 不管是哪一种数字 index.json 并非Unix时间戳。第二个形式是自我
+// -consistent ,所以,请 缓存 似乎工作; 第一个意味着没有条目
+// 匹配它的文件和每个启动重置 -parsed 整个历史,605年 线程 和
+// 704号决议 MB 磁盘上, 离 线程 列表存在,该列表显示为
+// Alt+→ 首次报告没有会话，第二次却正常。
 //
-// Both are invisible to a test that only checks load_all_threads returns
-// the right threads — it does, either way, just slowly. So this checks the
-// TIMESTAMP, which is the thing that was wrong.
+//
+// 两者都看不见 测试只检查 load_all_threads
+// 返回右边 线程 不管是哪种方式,都慢慢来 TIMESTAMP ,
+// 这是 事情是错的。
 #include "agentty/io/persistence.hpp"
 #include "agtest_cap.hpp"
 
@@ -43,16 +43,16 @@ int failures = 0;
         }                                                                 \
     } while (0)
 
-// A clean threads dir for one case.
+// 一例为纯净的线程 dir.
 //
-// NOT its own $AGENTTY_HOME: the standalone harness already sandboxes that
-// for the whole binary (agentty_standalone_tests_main.cpp), and user_root()
-// resolves once — so a second setenv here is simply ignored, and every
-// path below would land in the harness's root while this class believed it
-// owned a private one. That mismatch is why these cases read mtime -1: the
-// files were written where the test wasn't looking.
+// 不 其所属 $AGENTTY_HOME : 独立的绳索已经是整个沙盒
+// 二进制程序 (agentty_standalone_tests_main.cpp ),
+// 以及 user_root ( ) 解决一次 — — 所以这里的
+// 第二个设置被忽略了, 下面的每一个路径都会在绳子根部降落,
+// 而这个阶层相信它拥有一个私人的。 这种不匹配就是为什么这些案例读
+// mtime - 1: 文件是写在测试没有在的地方的。
 //
-// So: work inside the harness's root, and just clear the threads dir.
+// 所以:在绳子的根部工作, 并清理 线程 目录。
 struct Sandbox {
     fs::path dir;
     Sandbox() {
@@ -60,10 +60,10 @@ struct Sandbox {
         fs::remove_all(dir);
         fs::create_directories(dir);
     }
-    // Clear on the way IN, not on the way out. The dir is the harness's
-    // shared threads_dir(), and the async writer may still be draining a
-    // save when a case returns — removing it here raced the next case's
-    // setup, which then found no thread files at all.
+    // 路上安全,马上 IN 带子是共享的 threads_dir
+    // () 并且同步写作机可能仍在耗尽 a 保存 当一个
+    // 大小写返回时——删除它在这里比赛了下一个小写设置,
+    // 然后发现没有 线程 完全没有文件。
     ~Sandbox() = default;
 };
 
@@ -73,10 +73,10 @@ Thread make_thread(const std::string& id, const std::string& title) {
     t.title = title;
     t.created_at = std::chrono::system_clock::now();
     t.updated_at = t.created_at;
-    // NOT optional: persistence::save_thread drops a thread with no
-    // messages on the floor (an empty thread is a thread the user never
-    // used). Without this every case here saved nothing, then asserted on
-    // an index of files that were never written.
+    // 不 选项: persistence::save_thread
+    // 将一个线程 丢弃, 地板上没有消息( 空的 线程 是用户从未
+    // 使用的 线程 )。 如果没有这个案例, 已保存 什么都没有,
+    // 那么它就会在从未写过的文件索引上断言。
     Message m;
     m.role = Role::User;
     m.text = "hello";
@@ -84,15 +84,15 @@ Thread make_thread(const std::string& id, const std::string& title) {
     return t;
 }
 
-/// The index's own record of when each file was written.
+/// 索引本身记录了每个文件何时被写出来.
 long long indexed_mtime(const std::string& id) {
     const auto p = persistence::threads_dir() / "index.json";
     std::ifstream in(p);
     if (!in) return -1;
     std::string all((std::istreambuf_iterator<char>(in)), {});
-    // Deliberately not parsed with nlohmann: this test is about what is IN
-    // the file, and reading it the same way the code wrote it would hide a
-    // serialisation bug. Find "<id>" then the next "mtime": after it.
+    // 故意不和nlohmann 解释:这个测试是关于
+    // 什么的 IN 查找它会隐藏一个序列错误。
+    // "<id>" 然后是下一个 "mtime" 曰:后为.
     const auto at = all.find('"' + id + '"');
     if (at == std::string::npos) return -1;
     const auto key = all.find("\"mtime\"", at);
@@ -107,19 +107,19 @@ void the_index_records_a_unix_timestamp() {
 
     persistence::save_thread(::agentty::IoAccess::grant(), agtest::cap(), make_thread("aaaa000000000001", "one"));
     persistence::flush_pending_saves(::agentty::IoAccess::grant(), agtest::cap());
-    (void)persistence::load_all_threads(::agentty::IoAccess::grant(), agtest::cap());   // builds the index
+    (void)persistence::load_all_threads(::agentty::IoAccess::grant(), agtest::cap());   // 构建索引
 
     const long long mt = indexed_mtime("aaaa000000000001");
     const long long now = std::chrono::duration_cast<std::chrono::seconds>(
                               std::chrono::system_clock::now().time_since_epoch())
                               .count();
 
-    // Positive, obviously — the negative value was the original bug.
+    // 正面,显然——负值是原始的bug.
     CHECK(mt > 0);
-    // And actually NOW, not 1822 and not 2286: within a minute of the
-    // clock the rest of the program uses. This is the check the "seconds
-    // since file_clock's epoch" version fails, and it is the one that makes
-    // the number mean something to anything else reading the file.
+    // 其实 当前 ,而不是1822年,也不是2286年:在钟
+    // 后一分钟内,程序的其他部分使用。
+    // 这是检查 "seconds since file_clock's epoch"
+    // 版本失败,而它使数字对阅读文件的任何东西都意味着什么。
     CHECK(mt > now - 60 && mt < now + 60);
 
     std::printf("  mtime %lld, now %lld (%+lld s)\n", mt, now, mt - now);
@@ -136,10 +136,10 @@ void a_warm_index_is_reused() {
     CHECK(first.size() == 1);
     const long long mt1 = indexed_mtime("aaaa000000000002");
 
-    // Second walk over an untouched file. The entry has to survive
-    // verbatim: if the stamp does not match, the file is re-parsed and the
-    // index rewritten, which is exactly the slow path that was always
-    // taken.
+    // 第二步浏览一个未触动的文件。 条目必须从逐字
+    // 记录中幸存下来: 如果邮票不匹配, 文件是re-parsed,
+    // 索引重写, 这正是一直被拍摄的慢
+    // 路径。
     const auto second = persistence::load_all_threads(::agentty::IoAccess::grant(), agtest::cap());
     CHECK(second.size() == 1);
     CHECK(indexed_mtime("aaaa000000000002") == mt1);
@@ -156,9 +156,9 @@ void a_changed_thread_is_re_read() {
     persistence::flush_pending_saves(::agentty::IoAccess::grant(), agtest::cap());
     (void)persistence::load_all_threads(::agentty::IoAccess::grant(), agtest::cap());
 
-    // Rewrite it with a different title. The cache must NOT serve the old
-    // one — a stamp that never changes is as wrong as one that never
-    // matches, just in the other direction.
+    // 重写它时使用不同的标题。 缓存 不得 服务于旧的
+    // ——一面从未改变的邮票,与一面从未匹配的邮票一样错误,
+    // 只是朝另一个方向。
     auto t = make_thread("aaaa000000000003", "after");
     persistence::save_thread(::agentty::IoAccess::grant(), agtest::cap(), t);
     persistence::flush_pending_saves(::agentty::IoAccess::grant(), agtest::cap());
@@ -178,17 +178,17 @@ void an_index_from_an_older_version_is_discarded() {
     persistence::flush_pending_saves(::agentty::IoAccess::grant(), agtest::cap());
     (void)persistence::load_all_threads(::agentty::IoAccess::grant(), agtest::cap());
 
-    // The thread file must be on disk before the forged index goes in —
-    // the whole case is "a stale index is discarded and REBUILT FROM THE
-    // FILES", which proves nothing if there is no file to rebuild from.
-    // `.jsonl`: a thread is an append-only log, not one JSON document.
+    // 电话 线程 伪造索引输入前, 文件必须放在磁盘上 —— 整个案例是
+    // 丢弃过期索引，并从文件重新构建。
+    // 如果没有文件可以重建,则无法证明任何文件。
+    // `.jsonl`: a 线程 是一个附件 -only 日志, 不为一个 JSON 文档。
     const auto thread_file =
         persistence::threads_dir() / "aaaa000000000004.jsonl";
     CHECK(fs::exists(thread_file));
 
-    // Forge a v3 index: the shape is right, but its stamps are measured
-    // from file_clock's epoch. Reading it would resurrect the bug, so the
-    // version gate has to throw it away.
+    // 伪造 v3 索引: 形状正确, 但它的邮票是从
+    // file_clock 时代测量的。 读它会复活错误,
+    // 所以版本门必须丢弃它。
     const auto p = persistence::threads_dir() / "index.json";
     {
         std::ofstream out(p, std::ios::trunc);
@@ -198,9 +198,9 @@ void an_index_from_an_older_version_is_discarded() {
 
     const auto loaded = persistence::load_all_threads(::agentty::IoAccess::grant(), agtest::cap());
     CHECK(loaded.size() == 1);
-    // The title comes from the FILE, not from the forged entry.
+    // 标题来自FILE,而不是从伪造条目.
     if (!loaded.empty()) CHECK(loaded[0].title == "four");
-    // And the rebuilt index carries a sane stamp again.
+    // 重建后的索引又印上一个正常的印章.
     CHECK(indexed_mtime("aaaa000000000004") > 0);
 
     std::printf("  v3 discarded; rebuilt from the files\n");
@@ -211,7 +211,7 @@ void old_threads_expire() {
     Sandbox sb;
     const auto io = ::agentty::IoAccess::grant();
     const auto dir = persistence::threads_dir();
-    // Files as an older run would leave them; this process never saved them.
+    // 旧文件会留下它们; 这一过程永远不会 已保存 他们。
     auto fake = [&](const std::string& id, int days_old) {
         for (const char* ext : {".jsonl", ".ofs", ".meta.json", ".transcript.md"}) {
             const auto p = dir / (id + ext);
@@ -219,16 +219,16 @@ void old_threads_expire() {
             fs::last_write_time(p, fs::file_time_type::clock::now() - std::chrono::days{days_old});
         }
     };
-    fake("bbbb000000000001", 40);   // old
-    fake("bbbb000000000002", 5);    // recent
-    fake("bbbb000000000003", 40);   // old but open
+    fake("bbbb000000000001", 40);   // 旧
+    fake("bbbb000000000002", 5);    // 最近的情况
+    fake("bbbb000000000003", 40);   // 旧但开放
     std::ofstream(dir / "index.json") << "{}";
     fs::last_write_time(dir / "index.json", fs::file_time_type::clock::now() - std::chrono::days{90});
 
-    CHECK(persistence::expire_threads(io, agtest::cap(), 0, ThreadId{}).threads == 0);   // off
+    CHECK(persistence::expire_threads(io, agtest::cap(), 0, ThreadId{}).threads == 0);   // 关
     const auto dry = persistence::expire_threads(io, agtest::cap(), 30, ThreadId{"bbbb000000000003"}, true);
     CHECK(dry.threads == 1);
-    CHECK(fs::exists(dir / "bbbb000000000001.jsonl"));                  // dry run deletes nothing
+    CHECK(fs::exists(dir / "bbbb000000000001.jsonl"));                  // 干线运行删除任何内容
 
     const auto st = persistence::expire_threads(io, agtest::cap(), 30, ThreadId{"bbbb000000000003"});
     CHECK(st.threads == 1);
@@ -237,9 +237,9 @@ void old_threads_expire() {
     CHECK(!fs::exists(dir / "bbbb000000000001.transcript.md"));
     CHECK(fs::exists(dir / "bbbb000000000002.jsonl"));
     CHECK(fs::exists(dir / "bbbb000000000003.jsonl"));
-    CHECK(fs::exists(dir / "index.json"));                               // not a thread
+    CHECK(fs::exists(dir / "index.json"));                               // 不详 线程
 
-    // A thread this process saved is open somewhere: never expired.
+    // A 线程 这一进程 已保存 打开某处:从未过期。
     persistence::save_thread(io, agtest::cap(), make_thread("bbbb000000000004", "live"));
     persistence::flush_pending_saves(io, agtest::cap());
     for (const auto& e : fs::directory_iterator(dir))
@@ -251,7 +251,7 @@ void old_threads_expire() {
     std::printf("  deleted %zu, kept the recent, open and live ones\n", st.threads);
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 int main() {
     std::printf("agentty thread index\n\n");

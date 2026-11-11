@@ -1,46 +1,46 @@
 #pragma once
-// agentty::util::dbglog — opt-in diagnostic log for the swallowed-error
-// paths (SECURITY_AUDIT-adjacent: silent `catch(...) {}` sites hide
-// corruption and make field bugs unreproducible).
+// agentty::util::dbglog-吞咽-error路径的opt-in诊断日志
+// (SECURITY_AUDIT-adjacent：静默`catch(...) {}`
+// 站点隐藏损坏并使现场错误不可重现)。
 //
-// agentty owns the terminal, so a bare fprintf(stderr, ...) would scribble
-// over the TUI. Instead this forwards to logx (General channel), which
-// appends a timestamped line to the diagnostic log. When that channel is
-// filtered out — the default for every normal run — the call is a couple
-// of cheap loads and returns: no file is opened, no formatting happens,
-// zero behaviour change. AGENTTY_DEBUG_LOG is gone; capture is
-// AGENTTY_LOG, destination is `--log-file`.
+// agentty拥有终端，因此裸露的fprintf(stderr，...)
+// 会在TUI上乱写。相反，它会转发到 logx（通用通道），
+// 它将带时间戳的行附加到诊断日志中。当该通道被过滤掉时（每次
+// 正常运行的默认设置），调用 是几个便宜的 加载 并返回：没有
+// 文件打开，没有格式化，零行为变化。 AGENTTY_DEBUG_LOG
+// 不见了；捕获为 AGENTTY_LOG，
+// 目标为 `--log-file`。
 //
-// Usage at a previously-silent catch site:
-//     } catch (const std::exception& e) {
+// 在先前-silent捕获地点的使用：
+//     } catch (const std::exception&e) {
 //         util::dbglog("persistence.save", e.what());
-//     } catch (...) {
+//     } 抓住 (...) {
 //         util::dbglog("persistence.save", "non-std exception");
 //     }
 //
-// The point is diagnosability, NOT changing control flow: every site keeps
-// its existing best-effort recovery. We just stop throwing the "what
-// happened" away.
+// 要点是可诊断性，NOT改变控制流：每个站点保持其现有的最佳
+// -effort恢复。我们不再扔掉
+// "what happened"。
 
 #include <exception>
 #include <string_view>
 
 namespace agentty::util {
 
-// True iff the underlying logx sink would keep a General-channel line.
-// Cached after the first call. Lets a hot catch site skip building a
-// message string when logging is off:
-//   `if (dbglog_enabled()) dbglog(where, expensive())`.
+// 正确，当且仅当底层 logx 接收器将保留 General-channel 行。
+// 在第一个调用之后被缓存。让热门捕获站点在日志记录
+// 关闭时跳过构建消息字符串：
+//   `if (dbglog_enabled()) dbglog(where, expensive())`。
 bool dbglog_enabled() noexcept;
 
-// Append "<ISO-ish timestamp> [where] msg\n" to the diagnostic log.
-// No-op (and does not touch the filesystem) when logging is disabled.
-// Thread-safe: serialized by an internal mutex.
+// 将 "<ISO-ish timestamp> [where] msg\n" 附加到诊断日志。
+// 当禁用日志记录时，No-op(并且不触及文件系统)。
+// 线程-safe:由内部互斥量序列化。
 void dbglog(std::string_view where, std::string_view msg) noexcept;
 
-// Convenience for catch blocks: logs `e.what()` under `where`. Pair with a
-// trailing `catch (...) { dbglog(where, "non-std exception"); }` for the
-// non-std arm.
+// catch块的便利性：在`where`下记录`e.what()`。与非 -std 臂的尾随
+// `catch (...) { dbglog(where, "non-std exception"); }`
+// 配对。
 inline void dbglog_ex(std::string_view where, const std::exception& e) noexcept {
     dbglog(where, e.what());
 }

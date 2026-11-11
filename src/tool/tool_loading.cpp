@@ -1,4 +1,4 @@
-// agentty::tools::tool_loading — see tool_loading.hpp.
+// agentty::tools::tool_loading - 看见了 tool_loading.hpp.
 
 #include "agentty/tool/tool_loading.hpp"
 
@@ -26,7 +26,7 @@ util::AtomicSnapshot<plan::Loading>& slot() {
     return s;
 }
 
-// What one search returns by default, and at most.
+// 默认情况下, 最多是哪个搜索返回。
 constexpr std::size_t kDefaultHits = 5;
 constexpr std::size_t kMaxHits = 20;
 
@@ -58,11 +58,11 @@ ExecResult run_search(const nlohmann::json& args) {
                  + " tools are searchable.";
         return out;
     }
-    // Header, then one `loaded:` line per hit. That marker is what the thread
-    // reads back (plan::loaded_in) to keep these tools on the wire, and what
-    // the Anthropic wire turns into tool_reference blocks. Each hit carries
-    // its schema too, so a wire that can't load tools mid-turn still lets the
-    // model call it right away by name.
+    // 头文件 ,然后一个 `loaded:` 标记是 线程 读取回( R)
+    // plan::loaded_in 保持这些工具在 传输 ,以及什么是
+    // Anthropic 传输 变成 tool_reference 每一个被击中的
+    // 物体都带有 模式定义 也一样,所以 传输 没办法 加载 工具中间 -turn
+    // 还是让模特儿来 调用 立即用名字写出来
     out.text = std::to_string(hits.size()) + (hits.size() == 1 ? " tool" : " tools")
              + " loaded for this conversation. Call them by name.\n";
     for (const auto& h : hits) {
@@ -77,7 +77,7 @@ ExecResult run_search(const nlohmann::json& args) {
     return out;
 }
 
-} // namespace
+} // 命名空间结束。
 
 void seed(Io io) {
     if (slot().load()) return;
@@ -120,9 +120,9 @@ const ToolDef& search_tool() {
             }},
             {"required", {"query"}},
         };
-        d.origin = ToolOrigin::Mcp;      // not native: the planner adds it
+        d.origin = ToolOrigin::Mcp;      // 非本地人:计划员加的
         d.origin_id = "catalog";
-        d.effects = EffectSet{};         // pure: reads the catalog only
+        d.effects = EffectSet{};         // 纯度: 只读 目录
         d.scheduling_effects = d.effects;
         d.max_output_chars = 30'000;
         d.output_truncation = OutputTruncation::Head;
@@ -138,23 +138,23 @@ plan::Limits limits_for(const provider::Selection& sel, std::size_t context_wind
                         std::string_view model) {
     plan::Limits l;
     l.context_window = context_window;
-    // Small local models don't search for tools reliably; give them what
-    // fits instead. The same family list that hides footgun tools from them.
+    // 本地小模型不会可靠地寻找工具;
+    // 给他们合适的工具。 同样的家庭列表会隐藏脚枪工具。
     l.search_capable = model.empty() || !is_weak_model(model);
     if (sel.kind == provider::Kind::Anthropic) {
-        // Anthropic takes deferred tools (up to 10,000) and expands
-        // tool_reference blocks itself. Measured on the subscription
-        // endpoint too: 124 tools, defer_loading and tool_reference all 200.
+        // Anthropic 使用延期工具(最多10 000)并扩展
+        // tool_reference 块本身。 事件订阅 结束点:124个工具,
+        // defer_loading 财务报告和已审计财务报表 tool_reference 全部200个
         l.discovery = plan::Discovery::DeferredReferences;
         l.max_tools = 0;
     } else {
-        // OpenAI chat and Gemini reject >128 tools; OpenAI-compatible servers
-        // copy that shape, and no model picks well past it anyway.
+        // OpenAI 聊天和 Gemini 拒绝 > 128个工具; OpenAI
+        // -compatible 服务器复制了这个形状, 任何模型都无法通过它。
         l.discovery = plan::Discovery::ClientSide;
         l.max_tools = 128;
     }
-    // AGENTTY_MCP_TOOL_BUDGET still works: it overrides the per-request cap
-    // on loaded tools (0 = no cap). Unparsable or negative keeps the default.
+    // AGENTTY_MCP_TOOL_BUDGET 仍然有效:它覆盖了每架
+    // -request 盖上 已加载 工具(0=无上限)。不可解析或负值保留默认值。
     if (const char* e = std::getenv("AGENTTY_MCP_TOOL_BUDGET"); e && e[0]) {
         char* end = nullptr;
         const long v = std::strtol(e, &end, 10);
@@ -164,17 +164,17 @@ plan::Limits limits_for(const provider::Selection& sel, std::size_t context_wind
 }
 
 plan::Plan plan_into(const Request& r, std::vector<provider::ToolSpec>& out) {
-    // The planner works on a flat catalog. Build it from the caller's pool
-    // (already filtered by policy and per-caller rules) plus tool_search.
-    // A tool whose schema would fail the whole request never goes out.
+    // 计划员在公寓里工作 目录 由呼叫者建造它 池 (已按政策
+    // 和 -caller 规则)加 tool_search.
+    // 一个工具,它的 模式定义 整个请求都失败了 永远不要出门
     std::vector<ToolDef> flat;
     flat.reserve(r.pool.size());
     std::string skipped_note;
     for (const auto* t : r.pool) {
         if (!t || t->name.value == plan::kSearchToolName) continue;
         if (!t->skipped.empty()) {
-            // Say so, so the model can explain a missing tool instead of
-            // guessing (Claude Code does the same).
+            // 说吧,这样模型就可以解释一个缺失的工具而不是猜测(
+            // Claude代码做同样的事情).
             if (skipped_note.size() < 1'500)
                 skipped_note += "\n- " + t->origin_id + "/" + (t->origin_tool.empty() ? t->name.value : t->origin_tool)
                               + ": " + t->skipped;
@@ -183,18 +183,18 @@ plan::Plan plan_into(const Request& r, std::vector<provider::ToolSpec>& out) {
         flat.push_back(*t);
     }
     ToolDef search = search_tool();
-    // A model that can't search well gets everything it can take up front,
-    // the way Claude Code and Codex gate tool search on the model.
+    // 一个无法善加搜索的模特儿 就能抢走一切 Claude
+    // 代码和 Codex 模式上的门工具搜索。
     const plan::Loading mode = r.limits.search_capable ? r.mode : plan::Loading::All;
     auto p = plan::make_plan(flat, r.loaded, &search, mode, r.limits);
-    // Skipped tools are named for the model so it can explain a missing
-    // tool: on tool_search when it's there, else on the first plugin tool.
+    // 跳过的工具被命名为模型,以便它能够解释一个缺失的工具:
+    // 在tool_search上当它在那里时,其他的插件工具.
     bool skipped_said = false;
     if (p.search) {
-        // Say what can be found, by server, with the server's own
-        // instructions, so the model knows WHEN to search instead of saying a
-        // capability is missing. Sorted and stable, so the bytes only change
-        // when the servers do.
+        // 说出可以通过服务器找到的东西 由
+        // 服务器自己指示 所以模型知道 WHEN 来
+        // 搜索而不是说缺少能力。 字节 只有在服务器
+        // 完成时才会更改。
         std::map<std::string, std::size_t> by_server;
         std::unordered_set<const ToolDef*> loaded_now;
         for (const auto& w : p.wire)
@@ -230,7 +230,7 @@ plan::Plan plan_into(const Request& r, std::vector<provider::ToolSpec>& out) {
         out.push_back({t.name.value, std::move(desc), t.input_schema,
                        t.eager_input_streaming, w.deferred});
     }
-    // The Placement pointers point into `flat`; don't hand them back.
+    // 位置指向 `flat` 别把她们交回去
     for (auto& w : p.wire) w.tool = nullptr;
     return p;
 }
@@ -239,7 +239,7 @@ void annotate(mcp::PluginModel& m) {
     const plan::Loading mode = current();
     m.loading = std::string{plan::to_string(mode)};
 
-    // The model a new thread would run, for its window.
+    // 新的线程将运行在它的窗口。
     std::size_t window = 0;
     if (const auto cfg = subagent::current(); cfg.installed && !cfg.model.empty()) {
         for (const auto& mi : cfg.candidates)
@@ -263,8 +263,8 @@ void annotate(mcp::PluginModel& m) {
     std::vector<provider::ToolSpec> specs;
     const auto p = plan_into(r, specs);
 
-    // Which (server, tool) pairs ride the wire, keyed by the ToolDef's own
-    // origin: the wire name may be shortened and hashed, the origin isn't.
+    // 哪些(服务器,工具)对骑传输,由ToolDef
+    // 自己的来源按键:传输的名称可能缩短和散列,来源不是.
     std::unordered_set<std::string> on_wire_names;
     for (const auto& s : specs)
         if (!s.defer_loading) on_wire_names.insert(s.name);

@@ -10,8 +10,8 @@ maya::TitleChip::Config title_chip_config(const Model& m) {
     cfg.title      = m.d.current.title;
     cfg.edge_color = phase_color(m.s.phase);
     cfg.text_color = fg;
-    // a cap, not a width: the status bar still fits it to the columns left
-    // over, so a wide terminal shows the whole title instead of 28 chars
+    // a 盖,而非宽度:状态栏仍然适合左侧的列,
+    // 所以宽的终端显示整个标题而不是28个字符
     cfg.max_chars  = 60;
     return cfg;
 }

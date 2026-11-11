@@ -1,16 +1,16 @@
-// blob_gc_probe — run the sweep over a real threads directory.
+// blob_gc_probe - 扫荡一个真正的 线程 目录。
 //
-// The unit tests use synthetic stores. This runs the same code over an
-// actual ~/.agentty/threads, where the reference shapes are whatever
-// three years of format evolution produced.
+// 电话 单元测试 使用合成商店。这在实际操作中运行相同的
+// 代码 ~/.agentty/threads ,其中,
+// 参考形状是三年格式演变产生的任何因素。
 //
 //   ./build/agentty_standalone_tests blob_gc_probe <threads-dir> [--apply]
 //
-// DRY RUN BY DEFAULT. It reports what would be reclaimed and touches
-// nothing; --apply is required to delete. That asymmetry is deliberate —
-// the files at stake hold the user's images and tool output.
+// DRY RUN BY DEFAULT 它报告什么是可收回的,
+// 什么也碰不到; --apply 需要删除。这种不对称是
+// 故意的——所涉文件会牵制用户的图像和工具输出。
 //
-// No argument = no-op pass, so it costs nothing in CI.
+// 无参数 = 没有 -op 过关了,所以不花钱 CI.
 
 #include <agentty/io/blob_gc.hpp>
 

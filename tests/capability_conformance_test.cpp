@@ -1,23 +1,23 @@
-// capability_conformance_test — invariants EVERY provider's model catalog
-// must satisfy, asserted uniformly rather than per-provider.
+// capability_conformance_test — 不变量 每个 提供
+// 者的模型 目录 满足,一致主张,而不是按 -provider.
 //
-// ── Why this file exists ─────────────────────────────────────────────────
+// ── 该文件为何存在 ─────────────────────────────────────────────────
 //
-// Model capabilities are decided by a precedence ladder — env override, then
-// the live catalog a provider declares, then structural inference from the id.
-// That ladder is good. What was missing is any statement of what a catalog
-// ENTRY must look like, applied to every provider at once.
+// Model 能力由优先级决定—— env 覆盖,
+// 然后是活的 目录 提供商声明,然后从ID中推断出结构.
+// 梯子很好,没有说明什么是 目录 ENTRY
+// 一定看起来像, 适用于每个提供者一次。
 //
-// The gap was not theoretical. ModelInfo::context_window defaults to 200000,
-// which is right for Claude and wrong for Kimi K2 (256k). Kimi's /models
-// payload carries no context length, so nothing ever overwrote the default and
-// every Kimi turn silently under-reported its window by 56k — the context
-// gauge and the compaction threshold both fired early. One provider's correct
-// default, silently wrong for a later one: the same shape as the Copilot wire
-// bugs.
+// 差距不是理论上的。 ModelInfo::context_window
+// 默认为 2000 00, 即对 Claude 和错的基米 K2
+// (256k). Kimi的/型号. 载荷 没有任何内容长度,
+// 所以没有 任何过度重写默认,每个基米 悄悄地转过身来 -reported
+// 其窗口乘以56k — 上下文显示器和压缩阈值都提前发射。
+// 一个提供者正确的默认,对后一提供者来说是无声错误的:形状与副驾驶相同 传输
+// 虫子们
 //
-// So these tests do not check "Kimi is 256k". They check properties that must
-// hold for EVERY provider, so the next backend inherits them.
+// 所以这些测试不检查 "Kimi is 256k"。它们检查必须持有的属性。
+// 每个 提供者,所以下一个后端继承它们.
 
 #include <set>
 #include <string>
@@ -32,8 +32,8 @@ using namespace agentty;
 
 namespace {
 
-// Every provider that ships a bundled catalog. The seed is what a user sees
-// before (or without) a live fetch, so it is the floor these invariants guard.
+// 每一个供应商 运送捆绑 目录 种子是用户在(或没有)
+// 现场采集之前看到的,所以这些是地板。 不变量 警卫
 const std::vector<std::string>& seeded_providers() {
     static const std::vector<std::string> v = [] {
         std::vector<std::string> out;
@@ -44,29 +44,29 @@ const std::vector<std::string>& seeded_providers() {
     return v;
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("every bundled model declares a plausible context window") {
     for (const auto& pid : seeded_providers()) {
         for (const auto& m : catalog::bundled(pid)) {
             INFO("provider = " << pid << ", model = " << m.id.value);
-            // A window of 0 or a negative would make the context gauge divide
-            // by zero and the compaction threshold meaningless.
+            // 0或负的窗口将使上下文表值除以0
+            // 和紧凑阈值变得毫无意义.
             CHECK(m.context_window > 0);
-            // No shipping model has a window under 4k; a value that small
-            // means a field was left unset or parsed wrong.
+            // 任何运货模型都没有一个窗口低于4k;
+            // 这个值意味着一个字段被保留了未设置或解析错误.
             CHECK(m.context_window >= 4096);
-            // Nor is any current model beyond 10M — a value that large is a
-            // units mistake (tokens vs bytes) rather than a real window.
+            // 10M以外的任何当前模型也不存在——这个大值是单位错误
+            // (tokens vs 字节)而不是一个真正的窗口.
             CHECK(m.context_window <= 10'000'000);
         }
     }
 }
 
 TEST_CASE("every bundled model is attributed to its own provider") {
-    // The fused picker renders every authed provider's rows at once and
-    // resolves capabilities under the row's OWN provider scope. A row carrying
-    // the wrong provider id resolves against the wrong contract.
+    // 保险丝 选择面板 渲染 每一个授权提供者
+    // 的行一次并解决行下的能力 自身 提供方范围。
+    // 一行带错提供方的ID会解决错误的合同。
     for (const auto& pid : seeded_providers())
         for (const auto& m : catalog::bundled(pid)) {
             INFO("provider = " << pid << ", model = " << m.id.value);
@@ -81,7 +81,7 @@ TEST_CASE("bundled model ids are unique and non-empty within a provider") {
             INFO("provider = " << pid << ", model = " << m.id.value);
             CHECK_FALSE(m.id.value.empty());
             CHECK_FALSE(m.display_name.empty());
-            // A duplicate id makes the picker's selection ambiguous.
+            // 重复的id使得选择面板的选题模糊不清.
             CHECK(seen.insert(m.id.value).second);
         }
     }
@@ -93,14 +93,14 @@ TEST_CASE("capability gates are internally consistent for every bundled model") 
             INFO("provider = " << pid << ", model = " << m.id.value);
             const auto c = ModelCapabilities::from_id(m.id.value);
 
-            // The effort ladder is a hierarchy: a model cannot offer the
-            // higher rungs without the base. Sending `xhigh` to a model that
-            // does not take an effort parameter is a 400.
+            // 努力阶梯是一个等级: 一个模型没有底盘就
+            // 无法提供更高的径向。 将`xhigh` 发送到
+            // 一个不需要努力参数的模型是400。
             if (c.supports_effort_max())   CHECK(c.supports_effort());
             if (c.supports_effort_xhigh()) CHECK(c.supports_effort());
 
-            // The 3-level compat enum (low|medium|high) cannot express the
-            // extended rungs, so the two must never both be claimed.
+            // 3个 -level 比较 枚举 (减) | 中号 |
+            // 高)不能表达扩展的长长,因此两者都决不能同时主张.
             if (c.reasoning_compat) {
                 CHECK_FALSE(c.supports_effort_max());
                 CHECK_FALSE(c.supports_effort_xhigh());
@@ -110,10 +110,10 @@ TEST_CASE("capability gates are internally consistent for every bundled model") 
 }
 
 TEST_CASE("an unrecognised model claims no capabilities") {
-    // THE robustness property for "works with every provider": a model we have
-    // never seen must degrade to a safe floor, never over-promise a parameter
-    // the endpoint will reject. Providers add models constantly; agentty finds
-    // out when a user selects one.
+    // 该 坚固性能 "works with every provider"
+    // :一个我们从未见过的模型必须堕落到安全的地板上,永远不要结束
+    // -promise 终点将拒绝参数。 提供者会不断添加模型;
+    // agentty 查找用户选择一个时。
     for (const char* id : {"glm-4.6", "minimax-m2", "qwen3-coder-480b",
                            "llama-4-maverick", "command-r-plus",
                            "some-model-from-2027", ""}) {
@@ -127,8 +127,8 @@ TEST_CASE("an unrecognised model claims no capabilities") {
 }
 
 TEST_CASE("a model id with huge numbers in it parses without overflow") {
-    // Ids are untrusted text. A long digit run used to overflow int (UB) in
-    // the size-tag and version parsers; found by tests/fuzz. It saturates now.
+    // ID 是不信任的文本。 长位数运行用于溢出英寸( Q) UB 大小
+    // -tag 和版本 解析器 ; 找到的 tests/fuzz. 现在已经饱和了
     for (const char* id : {"x-777777777777b", "x-99999999999t", "[77777777t777.O:",
                            "claude-opus-99999999999", "gpt-5.99999999999",
                            "gpt-99999999999.1", "qwen-1234567890123456b"}) {
@@ -142,17 +142,17 @@ TEST_CASE("a model id with huge numbers in it parses without overflow") {
 }
 
 TEST_CASE("known models still resolve their capabilities") {
-    // The mirror of the test above: degrading safely is only useful if
-    // recognition still works. These pin the structural decode (family +
-    // generation + revision), not a hardcoded list of ids.
+    // 上面的测试镜: 只有识别仍然有效, 才会安全地降解。
+    // 这些标注了结构解码( 家族 + 生成 + 修订) ,
+    // 而不是一个硬编码的 ID 列表。
     const auto opus = ModelCapabilities::from_id("claude-opus-4-5");
     CHECK(opus.family == ModelCapabilities::Family::Opus);
     CHECK(opus.generation == 4);
     CHECK(opus.revision == 5);
     CHECK(opus.supports_effort());
 
-    // A FUTURE revision must inherit its family's gates with no code change —
-    // that is what makes the structural decode worth having.
+    // A FUTURE 修订必须继承其家族的大门,
+    // 而不改变代码——这就是结构解码值得拥有的原因。
     const auto future = ModelCapabilities::from_id("claude-opus-4-9");
     CHECK(future.family == ModelCapabilities::Family::Opus);
     CHECK(future.supports_effort());
@@ -163,17 +163,17 @@ TEST_CASE("known models still resolve their capabilities") {
 }
 
 TEST_CASE("every provider that can be selected yields a non-empty catalog") {
-    // An empty model list is indistinguishable from a failed fetch, which is
-    // exactly how the custom-host Copilot bug presented: no models, no error.
-    // Every provider with a static seed must show rows before any network.
+    // 空模式列表与失败的获取无法区分, 这正是自定义-host
+    // 副驾驶错误的呈现方式: 没有模型, 没有错误。
+    // 每个拥有静态种子的提供者必须在任何网络之前显示行.
     for (const auto& p : provider::providers()) {
-        if (p.kind() == provider::Kind::ExternalAcp) continue;  // agent picks
-        if (p.is_local) continue;                               // server-driven
+        if (p.kind() == provider::Kind::ExternalAcp) continue;  // 代理选择
+        if (p.is_local) continue;                               // 服务器-driven
         INFO("provider = " << std::string{p.id});
         const auto seed = catalog::bundled(p.id);
-        // Hosted API-key providers without a seed fall back to the live fetch;
-        // that is a deliberate choice, not a bug. What must never happen is a
-        // seed that exists but is malformed — covered by the tests above.
+        // 已主机 API-key 没有种子的供应商会回到现场采集,
+        // 这是有意的选择,而不是错误。 绝不能发生的情况是
+        // 存在但结构不整的种子,上面的测试涵盖了这些种子。
         if (!seed.empty()) CHECK(seed.size() >= 1);
     }
 }

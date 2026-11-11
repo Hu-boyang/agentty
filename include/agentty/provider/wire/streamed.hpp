@@ -1,36 +1,36 @@
 #pragma once
-// unseen() — reconcile a streamed value delivered as fragments, as snapshots,
-// or as any mix of the two.
+// unseen() —协调作为片段、快照或两者的任意组合
+// 传送的流式传输值。
 //
-// Every streaming chat protocol carries a tool call's arguments two ways:
-// incremental fragments ("the next 12 bytes") and authoritative totals ("the
-// arguments, complete"). Both are spec-legal, and which you get is a property
-// of the SERVER: Codex streams fragments, GitHub Copilot's proxy coalesces and
-// sends only the final snapshot.
+// 每个流式传输聊天协议以两种方式携带工具调用的参数：
+// 增量片段("the next 12 bytes")和权威总数(
+// "the arguments, complete")。两者都是spec-legal，
+// 您得到的是SERVER：Codex 数据流片段的属性，GitHub Copilot
+// 的代理合并并仅发送最终的快照。
 //
-// Our Responses codec decoded fragments and ignored the snapshot, so against
-// Copilot every tool call dispatched with `{}` — `grep` failed "pattern
-// required", `read` failed "path required", and the zero-argument tools
-// (repo_map, list) still worked, which made it look like a flaky model rather
-// than a dropped event.
+// 我们的响应编解码器解码了片段并忽略了快照，因此针对Copilot，与`{}`一起
+// 调度的每个工具调用-`grep`失败了"pattern required"，
+// `read`失败了"path required"，并且zero
+// -argument工具（repo_map，列表）仍然有效，这使得它看起来像一个片状模型
+// 而不是一个丢弃的模型事件。
 //
-// The fix is to stop choosing: append what you're given, keep what you have,
-// and emit only what is newly known. Then routing EVERY carrier into it is
-// safe, because a redundant one contributes nothing.
+// 修复方法是停止选择：附加您所给予的内容，保留您拥有的内容，
+// 并且仅发出新已知的内容。然后将 每个 载波路由到其中
+// 是安全的，因为冗余载波没有任何贡献。
 
 #include <string>
 #include <string_view>
 
 namespace agentty::provider::wire {
 
-// Merge `chunk` into `have` and return the bytes that just became known.
+// 将`chunk`合并到`have`中，并返回刚刚已知的字节。
 //
-// `total` says whether `chunk` is the server's complete view (a snapshot) or
-// the next piece (a fragment). Snapshots are idempotent — replaying one, or
-// receiving one after the fragments that already spelled it out, yields "".
+// `total`表示`chunk`是服务器的完整视图(
+// 快照)还是下一块(片段)。 快照 是 幂等 — 重播一个，
+// 或者在已经拼出的片段之后接收一个，会产生 ""。
 //
-// A snapshot shorter than what we hold is ignored: bytes already emitted
-// cannot be un-emitted, so keeping them is the only coherent choice.
+// 比我们所持有的短的快照被忽略：已经发出的字节不能是
+// un-emitted，因此保留它们是唯一一致的选择。
 [[nodiscard]] inline std::string_view unseen(std::string& have,
                                              std::string_view chunk,
                                              bool total) {

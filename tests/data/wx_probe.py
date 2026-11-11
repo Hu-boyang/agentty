@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-# W^X: is "map writable, then make it executable" stopped?
+# W^X : 是 (中文(简体) ). "map writable, then make it executable" 停下来?
 #
-# The seccomp rule checks mmap/mprotect ARGUMENTS one call at a time, so each
-# step here is individually innocent. Only a process-wide property (MDWE) sees
-# the sequence.
+# 电话 seccomp 规则检查 mmap/mprotect ARGUMENTS
+# 单曲 调用 所以这里的每一步都是无辜的 -wide 财产( MDWE
+# )见其序.
 import ctypes, errno, mmap
 
 l = ctypes.CDLL(None, use_errno=True)

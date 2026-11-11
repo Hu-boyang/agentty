@@ -1,9 +1,9 @@
-// src/runtime/app/env.cpp — read the launch environment, ONCE, at init.
+// src/runtime/app/env.cpp — 在 init 处读取启动环境 一次。
 //
-// This is the only place in the app layer that calls getenv for a fact
-// update() depends on. init() calls read_launch_env() and stores the result
-// in Model::env; every reducer reads the Model. See the comment on Model::Env
-// for why a reducer must never read the environment itself.
+// 这是 调用 getenv 对于事实 update() 所依赖的应用层中的唯一位置。
+// init() 调用 read_launch_env()并将结果存入Model::env；
+// 每个 状态更新函数 都会读取 Model。请参阅 Model::Env
+// 上的评论，了解为什么 状态更新函数 绝不能读取环境本身。
 
 #include "agentty/runtime/app/env.hpp"
 
@@ -32,14 +32,14 @@ namespace {
 
 bool set(const char* name) noexcept { return std::getenv(name) != nullptr; }
 
-// A flag var is ON when present, non-empty, and not "0".
+// 标志变量在存在时是ON，非-empty，并且不是"0"。
 bool flag(const char* name) noexcept {
     const char* v = std::getenv(name);
     return v && v[0] && v[0] != '0';
 }
 
-// "1", "t"/"T", "y"/"Y" — the truthy spellings AGENTTY_FROZEN_COLLAPSE has
-// always accepted. Kept exact so no existing setting changes meaning.
+// "1"、"t"/"T"、"y"/"Y"——AGENTTY_FROZEN_COLLAPSE
+// 一直接受的真实拼写。保持精确，这样现有设置就不会改变含义。
 bool truthy(const char* name) noexcept {
     const char* v = std::getenv(name);
     if (!v || !*v) return false;
@@ -47,7 +47,7 @@ bool truthy(const char* name) noexcept {
         || v[0] == 'y' || v[0] == 'Y';
 }
 
-// Unset → on; "0"/"false"/"off"/"no" (any case) → off; anything else → on.
+// 取消设定→开启； "0"/"false"/"off"/"no"（任何情况）→ 关闭；还有什么→ 上。
 bool on_unless_off(const char* name) noexcept {
     const char* v = std::getenv(name);
     if (!v || !*v) return true;
@@ -58,32 +58,32 @@ bool on_unless_off(const char* name) noexcept {
 }
 
 bool detect_remote() noexcept {
-    // Order is the precedence, unchanged from the predicate this replaces:
-    // an explicit force-on beats the opt-out, which beats detection.
+    // 顺序是优先级，与此替换的谓词没有变化：
+    // 显式的force-on击败了opt-out，这击败了检测。
     //
-    // Explicit FORCE-ON: a session the env sniff can't see (a bespoke remote
-    // wrapper, a serial console, a laggy container attach) opts into the
-    // remote cadence.
+    // 显式FORCE-ON：环境嗅探器看不到的会话（定制
+    // 远程包装器、串行控制台、滞后容器附加）选择进入
+    // 远程节奏。
     if (flag("AGENTTY_FORCE_REMOTE")) return true;
-    // Escape hatch: a fast LAN SSH hop doesn't need throttling.
+    // 逃生舱口：快速LAN SSH跳跃不需要节流。
     if (flag("AGENTTY_NO_SSH_THROTTLE")) return false;
-    // Direct SSH: sshd exports these into the remote shell.
+    // 直接SSH：sshd将这些导出到远程shell中。
     if (set("SSH_CONNECTION") || set("SSH_TTY") || set("SSH_CLIENT"))
         return true;
-    // mosh: the SSH_* vars are NOT propagated through mosh-server (it
-    // re-execs), but MOSH_* are — and mosh is always remote.
+    // mosh:SSH_*变量是通过mosh-server(它是-execs)
+    // 传播的NOT，但是MOSH_*是——并且mosh总是远程的。
     if (set("MOSH_CONNECTION") || set("MOSH_KEY") || set("MOSH_SERVER_PID"))
         return true;
-    // Eternal Terminal exports ET_VERSION into the remote shell.
+    // 永恒终端将ET_VERSION导出到远程shell中。
     if (set("ET_VERSION")) return true;
     return false;
 }
 
-// How much history a replay prints is the Scrollback setting
-// (scrollback_replay_limits). These are the launch facts around it:
-// AGENTTY_REPLAY_ROWS (0 = replay off, N = exactly N rows) beats the
-// setting, and tmux's history-limit caps it, since tmux drops anything
-// past that anyway. Other terminals don't report theirs.
+// 重播打印多少历史是回滚缓冲区设置(
+// scrollback_replay_limits)。以下是围绕它的发布事实：
+// AGENTTY_REPLAY_ROWS (0=重放关闭，N=正好N行)击败了该设置，
+// 并且tmux的history-limit对其进行了限制，因为tmux无论
+// 如何都会丢弃超过该设置的任何内容。其他 终端 不报告他们的。
 void read_replay_caps(Model::Env& e) noexcept {
     e.replay_rows_override = -1;
     e.replay_max_bytes = std::numeric_limits<std::size_t>::max();
@@ -94,19 +94,19 @@ void read_replay_caps(Model::Env& e) noexcept {
             e.replay_rows_override = static_cast<int>(std::min<long>(n, std::numeric_limits<int>::max()));
     }
     e.terminal_history_rows = maya::tmux::history_limit();
-    // Env + the tmux probe above only: no files, no spawns.
+    // 仅上面的 Env + tmux 探针：没有文件，没有生成。
     const auto fast = maya::terminal::scrollback_fast();
     e.auto_scrollback_rows = fast.unlimited ? std::numeric_limits<int>::max() : fast.rows;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 Model::Env read_launch_env(Io io) noexcept {
     Model::Env e;
     e.remote              = detect_remote();
-    // Plain SSH only. The composer's clipboard paths key off this rather than
-    // `remote`, because the question there is "does OSC 52 ride an SSH pty",
-    // not "are frames slow" — they were always two separate checks.
+    // 仅限普通 SSH。作曲家的剪贴板路径关键是这个而不是 `remote`，
+    // 因为问题是 "does OSC 52 ride an SSH pty"，
+    // 而不是 "are frames slow" — 它们始终是两个单独的检查。
     e.ssh                 = set("SSH_CONNECTION") || set("SSH_TTY");
     e.no_reveal_glide     = flag("AGENTTY_NO_REVEAL_GLIDE");
     e.synchronized_output = maya::ansi::env_supports_synchronized_output();
@@ -128,9 +128,9 @@ Model::Env read_launch_env(Io io) noexcept {
         if (!ec) e.cwd = cwd.string();
         e.home = util::home_dir().string();
     }
-    // Only probe when it could matter: the probe writes a file next to our
-    // binary, and an install that opted out of auto-update shouldn't touch
-    // its directory at all.
+    // 仅在重要时进行探测：探测在我们的 二进制程序 旁边写入一个文件，
+    // 并且选择退出 auto-update 的安装根本不
+    // 应该触及其目录。
     if (!e.no_auto_update)
         e.self_update_ok = update::self_update_possible(e.self_update_reason);
     rag::embed::apply_env(io, e.embed_defaults);

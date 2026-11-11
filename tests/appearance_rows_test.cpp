@@ -1,24 +1,24 @@
-// The Appearance pane: every row applies live, and owns its setting alone.
+// 外观 面板 :每行应用直播,独占其设置.
 //
-// Two properties, both of which had a real hole.
+// 两个属性,两个都有一个真正的洞。
 //
-// LIVE. The pane is a preview — you change a row and judge the result on the
-// real UI, which only works if the change reaches what is ALREADY on screen.
-// Colour rows (scheme, tier, polarity, syntax) have to re-seal the frozen
-// transcript; the structural ones (density, compact turns) deliberately must
-// not, because re-sealing at a new height tears the scrollback ledger.
+// LIVE。该词 面板 是一个预览——您更改一行,然后根据真实结果
+// 判断结果。 UI ,只有在变化达到 ALREADY 屏幕上显示的
+// 颜色行( 计数、 分级、 极性、 语法) 必须重新
+// -seal 结构记录(密度、紧凑的转弯)不得故意这样做,
+// 因为 -sealing 以新的高度 流泪 回滚缓冲区 分类账。
 //
-// SOLE OWNER. "Is the model's reasoning shown" was asked in two places: this
-// pane's Thinking row, and a ^R toggle in the model picker. They could
-// disagree, and the disagreement was expensive in the worst direction —
-// ^R "shown" + Thinking "Hidden" meant reasoning was REQUESTED from the
-// provider, billed, and then dropped unrendered, with each screen reporting
-// the opposite of the other.
+// 唯一负责位置：是否显示模型推理内容。
+// 问到两个地方: 面板 思考的一行,还有 ^R 切换 模型中
+// 选择面板 他们可能不同意,分歧在最坏的方向上是昂贵的——
+// ^R "shown" + 思考 "Hidden" 意思是推理
+// 是 REQUESTED 从提供者,计费,然后投放未交,
+// 每个屏幕报告的情况与另一个相反。
 
 #include "agtest.hpp"
 
 #include "agentty/domain/ui_prefs.hpp"
-#include "agentty/domain/ui_live.hpp"   // publish() / motion_frame_divisor()
+#include "agentty/domain/ui_live.hpp"   // publish() / motion_frame_divisor( )
 #include "agentty/runtime/model.hpp"
 #include "agentty/runtime/panel/appearance.hpp"
 #include "agentty/runtime/panel/settings/items.hpp"
@@ -36,8 +36,8 @@ namespace up = agentty::ui_prefs;
 namespace pn = agentty::ui::panel;
 using agentty::Model;
 
-// The ids the Appearance form emits, and whether changing each one must
-// re-style what is already painted.
+// IDs的外观形式 发光, 是否必须改变每个
+// -style 已经画过。
 struct Row { std::string_view id; bool recolours; };
 
 [[nodiscard]] const agentty::form::Field* field(const agentty::form::Form& f,
@@ -47,13 +47,13 @@ struct Row { std::string_view id; bool recolours; };
     return nullptr;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("appearance: every row the pane builds is a real, reachable setting") {
-    // A row whose id no reducer handles is a dead control: it moves, it
-    // persists, and it changes nothing. The pane and the reducer are keyed on
-    // the SAME named constants precisely so that cannot drift, and this walks
-    // the built form to prove every id is one of them.
+    // 排行符号为"无" 状态更新函数 控件是死控
+    // 件: 它移动, 它持续, 它不会改变任何东西。
+    // 面板 编辑 状态更新函数 已键入 相同 以恒星命名
+    // 以示不流 以示每个身份都是其中之一
     Model m;
     const auto form = pn::build_appearance_form(m.d.ui(), m.env.terminal);
 
@@ -65,9 +65,9 @@ TEST_CASE("appearance: every row the pane builds is a real, reachable setting") 
 
     int rows = 0;
     for (const auto& f : form.fields) {
-        // Section headers are rows with no setting behind them; they carry a
-        // reserved id prefix rather than an empty one, because the form
-        // machinery keys on ids being unique.
+        // 头文件节是行,后面没有设置;它们带有一个
+        // 保留的id前缀而不是空的,因为ids上的
+        // 表型机械键是独一无二的.
         if (f.id.empty() || f.id.starts_with("__header")) continue;
         bool known = false;
         for (std::string_view k : kKnown) known = known || (f.id == k);
@@ -79,46 +79,46 @@ TEST_CASE("appearance: every row the pane builds is a real, reachable setting") 
 }
 
 TEST_CASE("appearance: a colour row restyles, a structural row does not") {
-    // The split is not cosmetic. Colour is resolved when an Element is BUILT,
-    // so a sealed turn keeps whatever theme it was sealed under until it is
-    // rebuilt — hence the re-seal. Height is different: re-sealing a frozen
-    // turn at a new height tears the inline scrollback ledger, so those rows
-    // are forward-only by design.
+    // 分拆不是化妆品。 当元素是时, 颜色会解决。 BUILT ,
+    // 所以密封的转弯 保留它被封在下面的任何主题 直到它重建。
+    // -seal。高度不同:关于 -sealing 冰冻的转弯,
+    // 在新的高度 撕裂内线 回滚缓冲区 分类账,所以这些行是
+    // 向前的 -only 设计
     Model m;
     const auto form = pn::build_appearance_form(m.d.ui(), m.env.terminal);
 
-    // Colour-affecting rows must all exist — a typo'd id here would silently
-    // stop restyling and the symptom is "the transcript kept the old theme".
+    // 颜色 -affecting 排行必须全部存在——这里的打字符会默默停止沉闷,
+    // 症状是: "the transcript kept the old theme".
     for (std::string_view id : {pn::kApTier, pn::kApPolarity, pn::kApSyntax})
         CHECK(field(form, id) != nullptr);
 
-    // ...and so must the structural ones, which deliberately do not.
+    // ...结构的也一样, 故意的。
     for (std::string_view id : {pn::kApDensity, pn::kApCompact})
         CHECK(field(form, id) != nullptr);
 }
 
 TEST_CASE("appearance: Thinking is the only home for reasoning display") {
-    // The model picker used to carry a ^R toggle for the same question. It is
-    // gone — both the footer chip and the keybinding — so this pane is the
-    // sole owner and the two can no longer report different answers.
+    // 模型( 模型) 选择面板 用于携带 ^R 切换
+    // 都不见了 都不见了 标签 编辑 按键绑定 -
+    // 所以这个 面板 两人无法再报告不同的答案。
     Model m;
     const auto form = pn::build_appearance_form(m.d.ui(), m.env.terminal);
     const auto* thinking = field(form, pn::kApThinking);
     REQUIRE(thinking != nullptr);
 
-    // Three states, and the row says what each one does.
+    // 三州,行者各说其事.
     const auto* choice = std::get_if<agentty::form::field::Choice>(&thinking->value);
     REQUIRE(choice != nullptr);
     CHECK(choice->labels.size() == 3);
 }
 
 TEST_CASE("appearance: hiding reasoning stops us paying for it") {
-    // The expensive half of the old contradiction. Requesting reasoning the
-    // user has told us to hide bills tokens for output that is dropped
-    // unrendered, which is strictly worse than either honest answer.
+    // 旧矛盾中昂贵的一半。 用户要求推理,
+    // 告诉我们要隐藏未发售的帐单符号,
+    // 这严格来说比诚实回答更糟糕。
     //
-    // Collapsed still requests, deliberately: a collapsed block is shown,
-    // just folded, and it cannot be unfolded if it was never sent.
+    // 折叠的仍请求,故意:显示一个已崩溃的块,
+    // 只是折叠,如果它从未发送,则无法展开.
     Model m;
     m.d.show_reasoning = true;
 
@@ -133,33 +133,33 @@ TEST_CASE("appearance: hiding reasoning stops us paying for it") {
 }
 
 TEST_CASE("appearance: Animation Off actually stops animation") {
-    // The row promised more than it delivered. reduce_motion gated only the
-    // phase PRIMITIVES (blink, wave, frame_index), so "off" stopped a caret
-    // blinking and a spinner spinning — and nothing else. Five subsystems
-    // drove themselves by requesting frames directly (the welcome cascade
-    // and its perpetual bob, the streaming reveal, the reasoning rail, the
-    // markdown cursor) and none consulted the setting.
+    // 排队承诺的比交付的多. reduce_motion 只打开
+    // 了相机 PRIMITIVES (闪烁,波浪,
+    // frame_index ),所以,(a) ,(a,
+    // ) "off" 停止一个 光标 眨眼和一双 加载动画 旋转,
+    // 而不是其他。 帧 直接(欢迎级联及其永久的波波, 流式传输 逐步显示 ,
+    // 推理栏杆,减码光标),没有人查阅设定.
     //
-    // The gate is on the frame REQUEST now, which is the one thing every
-    // self-driven animation has to go through. Measured on an idle welcome
-    // screen: 5% of a core -> 0%.
+    // 门在上 帧 REQUEST 现在,这是每一件事
+    // -driven 动画必须经过。 测量在闲置的欢迎屏幕上: 5%
+    // 的核心 - > 0%。
     maya::anim::set_reduce_motion(false);
     CHECK(!maya::anim::reduce_motion());
 
     maya::anim::set_reduce_motion(true);
     CHECK(maya::anim::reduce_motion());
 
-    // The primitives settle rather than oscillate: a caret held ON (losing
-    // the cursor is worse than not blinking), a breathing highlight held at
-    // its mid-value (frozen at the trough reads as a rendering bug), and a
-    // spinner on frame 0, which is the resting glyph of every frame set.
+    // 原始人定居而不是吞噬:a 光标 举行 ON (关闭
+    // 光标比不眨眼还糟糕),呼吸亮点在它的中点保持
+    // -value (冻在槽上读作 渲染 错误),
+    // 和 a 加载动画 打开 帧 0,这是每个的休息格言 帧 设定。
     CHECK(maya::anim::blink(530.0));
     CHECK(maya::anim::frame_index(8, 80) == 0);
 
-    // keep_animating() is the gate that matters — every self-driven
-    // animation goes through it, so gating it is what makes "off" total
-    // rather than a list of widgets somebody remembered. It must be safe to
-    // call with motion off; it simply schedules nothing.
+    // keep_animating ()是最重要的
+    // 大门——每一个自我 -driven 动画会经过它,
+    // 所以咬它是什么 "off" 总计,而不是被记住的部件列表。
+    // 调用 动起来,它只是没有安排什么。
     maya::anim::keep_animating();
     maya::anim::keep_animating_after(100);
 
@@ -168,30 +168,30 @@ TEST_CASE("appearance: Animation Off actually stops animation") {
 }
 
 TEST_CASE("appearance: Reduced motion is a real middle, not a relabelled Full") {
-    // 0xfk0 (#36) runs agentty over mosh on a high-latency link and asked to
-    // "disable all unnecessary animations and keep only the essential
-    // updates". Reduced is the setting that should have answered that, and
-    // it did not: it dropped only the DECORATIVE layer (scramble, gradient,
-    // caret blink), which restyles bytes that were being sent anyway.
+    // 0xfk0 (# 36) 运行 agentty 以高处的摩什为顶点,
+    // -latency 链接 并要求
+    // 禁用不必要动画，仅保留必需更新。
+    // 减少是本应回答的设置,它没有:它只放弃了 DECORATIVE 层
+    // (可移动、梯度、 光标 闪烁),它会重排样式 字节 已经送来了
     //
-    // Measured on a recorded stream (anthropic_md_stream det over
-    // fixtures/anthropic_md_tour.jsonl), counting frames whose RENDER
-    // actually changed — the thing a slow link pays for:
+    // 记录的量度 数据流 (anthropic_md_stream 关闭
+    // fixtures/anthropic_md_tour.jsonl ),
+    // 计数 帧 其 人 名 RENDER 事情变了,慢慢来 链接 支付:
     //
-    //     Full     1753 changed frames
-    //     Reduced  1753 changed frames   ← byte-identical to Full
-    //     Off        98 changed frames
+    //     1753年完全改变 帧
+    //     减少1753个 帧   ← 字节-identical
+    //     改为全天候98 帧
     //
-    // So the middle setting cost exactly what the expensive one did. The
-    // user's real choice was full churn or no reveal.
+    // 所以中间设置的成本 与昂贵的一样。
+    // 用户的真正选择是 满分或没有 逐步显示。
     //
-    // Motion is TWO axes, not one: decoration is visual noise (vestibular
-    // accessibility), repaint rate is bandwidth. Reduced now thins the
-    // frame REQUESTS as well, so the text still walks in — progress stays
-    // legible — at a quarter of the frames.
+    // 动议是 两个 轴,不是一:装饰是视觉噪声(可视性),
+    // 重绘 速率是带宽。现在降低,使带宽变薄 帧 REQUESTS 因此,
+    // 案文仍然在四分之一的时间内——进展仍然可以看清
+    // ——仍然可以看出来。 帧.
     namespace up = agentty::ui_prefs;
 
-    // The policy, as the domain states it.
+    // 政策,如域所言.
     const auto divisor_for = [](up::Motion mo) {
         up::Prefs p;
         p.motion = mo;
@@ -199,13 +199,13 @@ TEST_CASE("appearance: Reduced motion is a real middle, not a relabelled Full") 
         return up::motion_frame_divisor();
     };
     CHECK(divisor_for(up::Motion::Full)    == 1);
-    CHECK(divisor_for(up::Motion::Reduced) == 4);   // the fix
-    // Off stops the requests outright, so the divisor is moot — but it must
-    // not claim to thin something that is already stopped.
+    CHECK(divisor_for(up::Motion::Reduced) == 4);   // 固定线
+    // 完全停止请求,因此,该潜水员是没有意义的——
+    // 但决不能声称瘦了已经停止的东西。
     CHECK(divisor_for(up::Motion::Off)     == 1);
 
-    // …and what that policy costs, in frame requests over a simulated
-    // second of 60 fps animation. This is the number the reporter feels.
+    // ...以及政策的代价,在 帧 模拟60秒
+    // 的请求 FPS 动画,这是记者感觉的号码
     const auto requests_per_sec = [](bool off, int div) {
         maya::anim::set_reduce_motion(off);
         maya::anim::set_frame_divisor(div);
@@ -218,13 +218,13 @@ TEST_CASE("appearance: Reduced motion is a real middle, not a relabelled Full") 
         }
         return n;
     };
-    CHECK(requests_per_sec(false, 1) == 60);   // Full
-    CHECK(requests_per_sec(false, 4) == 15);   // Reduced — 4x cheaper, still moving
-    CHECK(requests_per_sec(true,  1) == 0);    // Off
+    CHECK(requests_per_sec(false, 1) == 60);   // 满
+    CHECK(requests_per_sec(false, 4) == 15);   // 减少——4辆更便宜,仍在移动
+    CHECK(requests_per_sec(true,  1) == 0);    // 关闭
 
-    // The divisor is clamped: a host that computes a nonsense value must not
-    // be able to stall animation entirely (0 or negative) or stretch one
-    // frame into a minute.
+    // divisor被夹:计算一个无稽价值的主机
+    // 不能完全拖动动动画( 0 或负) 或拉长一个
+    // 帧 一分钟后
     maya::anim::set_frame_divisor(0);
     CHECK(maya::anim::frame_divisor() == 1);
     maya::anim::set_frame_divisor(-5);
@@ -232,22 +232,22 @@ TEST_CASE("appearance: Reduced motion is a real middle, not a relabelled Full") 
     maya::anim::set_frame_divisor(10000);
     CHECK(maya::anim::frame_divisor() == 60);
 
-    // Leave the process as we found it: these are global slots and a later
-    // case that renders would otherwise inherit a thinned clock.
+    // 离开进程,正如我们发现的那样:这些是全球时间档,
+    // 后来的情况是: 渲染 否则,将继承一个薄的钟表。
     maya::anim::set_frame_divisor(1);
     maya::anim::set_reduce_motion(false);
     up::publish(up::Prefs{});
 }
 
 TEST_CASE("appearance: Syntax highlighting off actually removes the colour") {
-    // This toggle was persisted, hashed into the render key, and read by
-    // NOTHING: maya had no switch for it to reach. A setting that moves,
-    // saves, and changes no pixel is worse than a missing one.
+    // 这个 切换 被坚持, 散落在了 渲染 键,
+    // 并读取 无内容: maya 无法打开它,
+    // 一个移动的设定 保存 ,而变化的像素比缺失的像素更差。
     //
-    // Distinct content per case on purpose — markdown memoises a built code
-    // block on (source, language), so re-rendering the SAME snippet would
-    // serve the cached element and hide the difference. That is how the
-    // first version of this check passed while the feature did nothing.
+    // 故意将每个案件的内容区分开来——记下一个在(来源、
+    // 语言)上建的代码块,所以 -rendering
+    // 编号 相同 片段会为缓存元素服务, 并隐藏差异。
+    // 功能无所作为时, 此检查的第一个版本便如此通过。
     auto colours_in = [](bool on, const std::string& body) {
         maya::set_syntax_highlighting(on);
         const maya::Element e = maya::markdown("```cpp\n" + body + "\n```\n");
@@ -275,15 +275,15 @@ TEST_CASE("appearance: Syntax highlighting off actually removes the colour") {
 }
 
 TEST_CASE("settings: every row that opens a pane shows the door arrow") {
-    // Appearance had the reducer, the row, and the enum entry — and was left
-    // out of the one hand-written switch that paints the → affordance. So
-    // the row that opens the largest pane in Settings was the only door
-    // without a handle: it read as a value row that happened to do something
-    // when you pressed Enter.
+    // 外观有 状态更新函数 ,行,和 枚举 ——被
+    // 一手排除在外 -written 开动画画的
+    // 线条是最大的 面板 在设置中是唯一没有控点的
+    // 门: 它读作一个值行, 当你按下时碰巧做一些
+    // 事情 Enter.
     //
-    // opens_pane() is a RANGE over the contiguous door block, so adding one
-    // between the brackets picks up the arrow with no second edit. This
-    // pins the three that exist, and that nothing else claims to be a door.
+    // opens_pane (a) 属于 RANGE 超过毗连的门块,
+    // 因此在括号中添加一个 , 将箭头取出, 并且没有第二次编辑。
+    // 这把三个 的。 其它的 都 称不上 门。
     namespace se = agentty::settings;
 
     CHECK(se::opens_pane(se::Action::OpenRag));
@@ -293,8 +293,8 @@ TEST_CASE("settings: every row that opens a pane shows the door arrow") {
     CHECK(se::opens_pane(se::Action::OpenWebSearch));
     CHECK(se::opens_pane(se::Action::OpenList));
 
-    // Cycling a value in place is not a door — it changes something HERE,
-    // and gets its own glyph rather than the one meaning "leads away".
+    // 选择一个值不是门,它改变的东西 此处 ,并获得自己的
+    // 格言 而不是一个意义 "leads away".
     CHECK(!se::opens_pane(se::Action::CycleProfile));
     CHECK(!se::opens_pane(se::Action::None));
     CHECK(!se::opens_pane(se::Action::ToggleChangesStrip));
@@ -302,17 +302,17 @@ TEST_CASE("settings: every row that opens a pane shows the door arrow") {
 }
 
 TEST_CASE("settings: a row's description says what it DOES, in every state") {
-    // Smart Mode's off branch was the bare word "off". Next to siblings that
-    // all read like descriptions ("pre-turn context injection", "hidden · ^R
-    // still reviews") a one-word state read as a row whose description had
-    // gone MISSING — and off is the default, so it was the first thing a new
-    // user saw. The question a settings row has to answer is "what would
-    // changing this do?", and that question is loudest in the state where
-    // the feature is doing nothing.
+    // 智能模式的关闭分支是空话 "off" 将所有兄弟姐妹都读作描述(第2
+    // 段) "pre-turn context injection",
+    // "hidden · ^R still reviews" ) 一个
+    // -word 状态读作行,其描述已消失 MISSING ——关闭是默认,
+    // 所以这是新用户看到的第一件事。设置行必须回答的问题是
+    // "what would changing this do?" 这个问题在
+    // 那个功能无所作为的州里最响亮。
     //
-    // So: no row may describe itself with a bare state word. Checked over
-    // BOTH values of the toggles, because the defect only existed in one of
-    // them — a test that built the list once would have passed all along.
+    // 所以: 任何一行都无法用空的状态单词描述自己。
+    // 检查过。 两者 数值 切换 ,因为缺陷只存在于其中
+    // 之一——一个曾经建立过名单的测试,会一直流传下去.
     namespace se = agentty::settings;
 
     for (bool smart_on : {false, true}) {
@@ -324,23 +324,23 @@ TEST_CASE("settings: a row's description says what it DOES, in every state") {
 
         for (const auto& r : rows) {
             if (r.primary.empty()) continue;
-            // A state word alone is not a description. (The real rows say
-            // "off · every turn goes to the main model" — state AND effect.)
+            // 单是州字不是描述。 (真正的行说
+            // "off · every turn goes to the main model" 状态 和 副作用.)
             CHECK(r.secondary != "off");
             CHECK(r.secondary != "on");
             CHECK(r.secondary != "enabled");
             CHECK(r.secondary != "disabled");
-            // And every General row has to say something at all.
+            // 每排将军都要说点什么
             CHECK(!r.secondary.empty());
         }
     }
 }
 
 TEST_CASE("settings: a stateful row reports its state, not just its topic") {
-    // The other half of the same rule. "pre-turn context injection" names
-    // the TOPIC but never the value, so the row looks identical whether
-    // retrieval is on or off — you have to open the pane to find out. A row
-    // that owns a setting must show what that setting currently IS.
+    // 彼二分明法门. "pre-turn context injection"
+    // 名称 TOPIC 但从不值,所以无论检索
+    // 是开还是关,行看起来都是一样的——你必须
+    // 打开 面板 显示当前设置的一行 IS.
     namespace se = agentty::settings;
 
     agentty::Model off;
@@ -357,7 +357,7 @@ TEST_CASE("settings: a stateful row reports its state, not just its topic") {
         return std::string{};
     };
 
-    // Flipping the setting must be VISIBLE on its own row.
+    // 翻转设置必须是 可见。
     CHECK(find(a, se::Action::OpenSmart) != find(b, se::Action::OpenSmart));
     CHECK(!find(a, se::Action::OpenSmart).empty());
 }

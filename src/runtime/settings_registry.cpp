@@ -1,8 +1,8 @@
-// settings_registry.cpp — the table's derived operations.
+// settings_registry.cpp — 该表的衍生操作.
 //
-// Every function here WALKS kSettings. None of them names an individual
-// setting, which is the whole point: adding a knob is adding a row, and these
-// four functions plus the UI pick it up for free.
+// 这里的每个功能 WALKS kSettings.
+// 其中没有一个名称是单个设置, 即整点: 添加一个旋钮就是添加一行,
+// 这四个函数加 UI 免费捡起来
 
 #include "agentty/runtime/settings_registry.hpp"
 
@@ -16,9 +16,9 @@ namespace agentty::settings::registry {
 
 namespace {
 
-// The shipped defaults, as a default-constructed config. Comparing against
-// this is how `is_default` avoids a second hand-maintained list of defaults —
-// the struct's member initialisers are already the single source of truth.
+// 已发运的默认值, 作为默认值 -constructed 配置。
+// 与此相对应的是 `is_default` 避免二手手的出现 -maintained
+// 默认列表 – Struct 的成员状态状态列表已经是唯一的真理来源。
 const store::RagConfig& defaults() {
     static const store::RagConfig d{};
     return d;
@@ -38,25 +38,25 @@ const store::RagConfig& defaults() {
     return false;
 }
 
-// Fixed-decimal formatting without <format>: these are bounded ratios, so
-// integer scaling is exact enough and keeps the output stable across
-// platforms (printf's %g varies).
+// 固定 -decimal 格式化,不带 <format> :这些
+// 是定界比率,所以整数缩放足够精确,并保持跨平台输出的稳定(
+// printf的%g不同).
 [[nodiscard]] std::string fmt_real(double v) {
     char buf[32];
     std::snprintf(buf, sizeof buf, "%.4g", v);
     return buf;
 }
 
-// One place that knows how to reach a row's storage. Every accessor below
-// funnels through this, so a Slot alternative added later fails to compile in
-// exactly one place rather than scattering.
+// 一个知道如何到达行存储的地方。漏斗下面的每一个访问
+// 器都通过这个,所以一个后来添加的槽替代方案在准确的一
+// 地无法到达编译,而不是散开.
 //
-// Generic over the OWNING STRUCT. A row binds to exactly one, so half the
-// variant's alternatives do not apply to any given `C`; those are SKIPPED, not
-// an error — `apply_env(Settings&)` walking the whole table and passing over
-// every rag.* row is the intended behaviour. Returns whether the row was ours,
-// so a caller that needs to know can answer honestly rather than hand back a
-// default that reads like real data.
+// 通用于 OWNING STRUCT 排成一行,所以一半 变体
+// 其替代品不适用于任何特定 `C` ;这些是 SKIPPED ,
+// 而不是一个错误—— `apply_env(Settings&)`
+// 将整个表格走过, 并传递每个破碎。 * 行是预定的行为。
+// 返回该行是否属于我们, 所以需要知道的呼叫者可以诚实回答而不是将
+// 读作真实数据的默认内容交回。
 template <class C, class Visit>
 bool with_slot(C& c, const SettingDef& d, Visit&& v) {
     return std::visit([&](auto member) -> bool {
@@ -69,9 +69,9 @@ bool with_slot(C& c, const SettingDef& d, Visit&& v) {
     }, d.slot);
 }
 
-} // namespace
+} // 命名空间结束。
 
-// ── Read ─────────────────────────────────────────────────────────────────
+// ── 读取 ─────────────────────────────────────────────────────────────────
 
 namespace {
 
@@ -92,7 +92,7 @@ std::string get_impl(const C& c, const SettingDef& d) {
     return out;
 }
 
-} // namespace
+} // 命名空间结束。
 
 std::string get(const store::RagConfig& c, const SettingDef& d) {
     return get_impl(c, d);
@@ -129,8 +129,8 @@ bool set_impl(C& c, const SettingDef& d, std::string_view value) {
         else if constexpr (std::is_same_v<M, int>) {
             try {
                 const long long n = std::stoll(std::string{value});
-                // Clamped, never rejected-then-forgotten: the config must not
-                // be able to HOLD an out-of-range value.
+                // 被打得团团转,从未被拒绝 -then-forgotten : 配置不能
+                // 显示 HOLD 出局时 -of-range 值。
                 field = static_cast<int>(
                     std::clamp<double>(static_cast<double>(n), d.min, d.max));
                 ok = true;
@@ -144,10 +144,10 @@ bool set_impl(C& c, const SettingDef& d, std::string_view value) {
             } catch (...) {}
         }
         else if (d.type == Type::Text) {
-            // Free text: any value is representable, so the write always
-            // lands. Control characters are dropped — a pasted newline would
-            // otherwise round-trip into settings.json and onto the pane as a
-            // second line the single-line field cannot show.
+            // 自由文本:任何值都是可代表的,所以写作总是着陆.
+            // Control 字符被丢弃——如果不是被贴上的新线,
+            // 则会绕 -trip 输入 settings.json 上方
+            // 面板 作为第二行单曲 -line 字段无法显示。
             std::string clean;
             clean.reserve(value.size());
             for (char ch : value)
@@ -157,9 +157,9 @@ bool set_impl(C& c, const SettingDef& d, std::string_view value) {
             ok = true;
         }
         else {
-            // Enum: the value must be one of the declared options, or a typo
-            // in settings.json would silently select a mode that does not
-            // exist and the engine would fall back without saying so.
+            // 枚举 : 值必须是已宣布的选项之一,
+            // 或输入一个字 settings.json
+            // 默默地选择不存在的模式,引擎会倒回去而不说.
             std::string_view opts = d.options;
             const std::string want = lower(value);
             while (!opts.empty()) {
@@ -178,9 +178,9 @@ template <class C>
 bool is_default_impl(const C& c, const C& dflt, const SettingDef& d) {
     bool same = true;
     (void)with_slot(c, d, [&](const auto& field) {
-        // Reach the SAME member on the defaults instance. with_slot resolves
-        // the pointer against whichever object it is handed, so this is the
-        // one comparison rather than a second switch on type.
+        // 到达 相同 默认实例中的成员。
+        // with_slot 解决指针对准所交对象,
+        // 所以这是对类型进行的一个比较,而不是第二个切换。
         (void)with_slot(dflt, d, [&](const auto& other) {
             if constexpr (std::is_same_v<std::decay_t<decltype(field)>,
                                          std::decay_t<decltype(other)>>)
@@ -207,16 +207,16 @@ void apply_env_impl(C& c, const EnvSnapshot& env) {
         if (d.env.empty()) continue;
         const std::string* raw = env.find(d.env);
         if (!raw) continue;
-        // A malformed env value is IGNORED, not fatal and not silently
-        // coerced: the shipped default stands, which is the least surprising
-        // behaviour for a typo in a shell profile. A row belonging to the
-        // OTHER config struct is skipped by with_slot, so each overload
-        // applies exactly the rows it owns.
+        // 一个不正确的内存值是 IGNORED ,而不是致命的,
+        // 也不是无声的胁迫:运出的默认站,这是对 shell
+        // 配置图中的打字机来说最不令人惊讶的行为。 OTHER
+        // 配置结构被跳过 with_slot ,
+        // 所以每一次超载都精确应用它拥有的行.
         (void)set_impl(c, d, *raw);
     }
 }
 
-} // namespace
+} // 命名空间结束。
 
 bool set(store::RagConfig& c, const SettingDef& d, std::string_view value) {
     return set_impl(c, d, value);
@@ -234,7 +234,7 @@ bool set(paste_cfg::Config& c, const SettingDef& d, std::string_view value) {
     return set_impl(c, d, value);
 }
 
-// ── Defaults ─────────────────────────────────────────────────
+// ── 默认 ─────────────────────────────────────────────────
 
 bool is_default(const store::RagConfig& c, const SettingDef& d) {
     return is_default_impl(c, defaults(), d);
@@ -274,7 +274,7 @@ void reset(paste_cfg::Config& c, const SettingDef& d) {
     reset_impl(c, kDefaults, d);
 }
 
-// ── Environment ─────────────────────────────────────────────
+// ── 环境 ─────────────────────────────────────────────
 
 EnvSnapshot read_env(Io) {
     EnvSnapshot e;
@@ -303,9 +303,9 @@ void apply_env(Io io, store::RagConfig& c) { apply_env(c, read_env(io)); }
 void apply_env(Io io, smart::RoleConfig& s) { apply_env(s, read_env(io)); }
 void apply_env(web_search_cfg::Config& c, const EnvSnapshot& env) {
     apply_env_impl(c, env);
-    // AGENTTY_WEB_SEARCH also takes the boolean spellings people reach for
-    // (0/1/true/false/yes/no). False is Off; true means "search available",
-    // which is Auto, not On (On would start clamping counts).
+    // AGENTTY_WEB_SEARCH 也使用人们所接触的布尔拼写(
+    // 0/1/true/false/yes/no 虚实是关闭的;真实的手段 "search available" ,
+    // 它就是自动的,而不是打开(On将开始计数)。
     if (const std::string* raw = env.find("AGENTTY_WEB_SEARCH")) {
         const std::string v = lower(*raw);
         bool b{};

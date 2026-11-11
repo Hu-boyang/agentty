@@ -1,19 +1,19 @@
-// agentty's sandbox: backend selection, what the model is told, denial
-// annotations, credential masks, and claybin's guarantees.
+// agentty的沙箱:后端选择,模型的告知,否定说明,
+// 凭据口罩,以及claybin的保证.
 //
-// There used to be a second implementation in mcp-cpp that had to agree with
-// this one. mcp-cpp runs nothing itself any more (every command goes through
-// agentty's exec), so there is one sandbox and nothing to keep in step.
+// 曾经有第二个执行方式 mcp-cpp 同意这个观点
+// mcp-cpp 不再运行任何内容( 每个命令都会经过)
+// agentty 执行官,所以有一个 沙箱 没有什么可以保持步调。
 
 #include "agtest.hpp"
 
 #include "agentty/tool/util/sandbox.hpp"
-#include "agentty/domain/sandbox_config.hpp"   // Config's default backend
-#include "agentty/provider/prompt.hpp"          // default_system_prompt — the sandbox stanza
+#include "agentty/domain/sandbox_config.hpp"   // 配置默认后端
+#include "agentty/provider/prompt.hpp"          // default_system_prompt - 电话 沙箱 时尚
 
-// Linux-only, like claybin's apply step. The userns case below compiles a
-// plan for a DESCRIBED host, which is portable, but the policy types it needs
-// are not.
+// Linux-only ,喜欢 claybin 应用步骤。 下面的用户
+// 大小写 编译 计划 DESCRIBED 机主机,它可移植,但它需要的政策类型
+// 却不是。
 #if defined(__linux__)
 #include <claybin/plan/compile.hpp>
 #include <claybin/policy/policy.hpp>
@@ -33,31 +33,31 @@ namespace sandbox_cfg = agentty::sandbox_cfg;
 
 #if defined(__linux__)
 TEST_CASE("sandbox: claybin does not need a user namespace to be useful") {
-    // The Ubuntu 24.04 case (KhazAkar's issue). That host ships an AppArmor
-    // profile denying the uid_map write to unconfined binaries, so bwrap dies
-    // with "setting up uid map: permission denied" and agentty reported no
-    // backend at all -- the default is bwrap, bwrap failed, nothing looked
-    // further.
+    // 电话 Ubuntu 24.04个案件( KhazAkar 问题 东道船是 AppArmor
+    // 拒绝配置文件 uid_map 写入未关闭 二进制程序 ,所以brap死与
+    // "setting up uid map: permission denied" 财务报告和已审计
+    // 财务报表 agentty 报告根本没有后端 -- 默认为 bwrap, bwrapp 失败,
+    // 没有进一步查看。
     //
-    // claybin's availability used to copy bwrap's precondition
-    // (user_namespaces && mount_namespaces), which meant copying bwrap's
-    // failure and made the second backend useless on exactly the host that
-    // needed it. landlock and seccomp are UNPRIVILEGED mechanisms: neither
-    // needs a namespace, and AppArmor's userns restriction does not touch
-    // them.
+    // claybin 复制 brap 先决条件的可用性( )
+    // user_namespaces && mount_namespaces ),
+    // 这意味着复制brap的失败,使第二个后端在需要它的主机上变得无用.
+    // Landlock and seccomp 已经 UNPRIVILEGED
+    // 机制:不需要命名空间,而且 AppArmor '用户限制不会触碰
+    // 它们.
     //
-    // Measured through compile() on a described host, because this machine
-    // has working namespaces and cannot be made not to. What survives with
-    // userns off:
+    // 通过 compile() 测量到一个描述的主机,
+    // 因为此机器有工作命名空间, 不能不使用。 用户关闭后还能生存
+    // 到什么 :
     //
-    //   filesystem.read/write/exec  strong   landlock
-    //   syscall.filter              strong   seccomp-bpf
-    //   resource.memory             strong   cgroup2 memory.max
-    //   privilege.drop              strong   no_new_privs + empty bounding set
+    //   filesystem.read/write/exec
+    //   坚固的地锁 syscall.filter 强 seccomp
+    //   -bpf resource.memory 强 cgroup2
+    //   memory.max privilege.drop 强 no_new_privs + 空边框设置
     //
-    // ...and what does not: network.isolation and process.isolation, both of
-    // which genuinely need namespaces. That is a real downgrade, reported per
-    // capability rather than papered over.
+    // ...什么是没有的: network.isolation 财务报告和已审计
+    // 财务报表 process.isolation ,这两个都确实需要命名空间。
+    // 这是真正的降级,是每个能力报告而不是纸质。
     using namespace ::clay;
 
     auto host = probe_host();
@@ -67,7 +67,7 @@ TEST_CASE("sandbox: claybin does not need a user namespace to be useful") {
     host.net_namespaces = false;
     host.uts_namespaces = false;
 
-    // Skip where the machine cannot answer the question either way.
+    // 跳过机器无法回答问题的地方
     if (host.landlock_abi == 0 && !host.seccomp) return;
 
     auto d = Policy<Draft>{};
@@ -78,9 +78,9 @@ TEST_CASE("sandbox: claybin does not need a user namespace to be useful") {
     auto compiled = compile(std::move(d).seal(), host);
     REQUIRE(compiled.has_value());
 
-    // The filesystem boundary is the one that matters: it is what keeps an
-    // approved command out of ~/.ssh. If this is `none`, claybin has nothing
-    // to offer on such a host and the availability floor below is wrong.
+    // 文件系统边界是最重要的: 将一个核准的命令保存在外
+    // ~/.ssh. 如果这是 `none`, claybin
+    // 这样的主机上没有东西可提供,下面的可用性层是错的.
     if (host.landlock_abi > 0) {
         CHECK(compiled->guarantees.strength(CapId::fs_read) != Enforcement::none);
         CHECK(compiled->guarantees.strength(CapId::fs_write) != Enforcement::none);
@@ -89,27 +89,27 @@ TEST_CASE("sandbox: claybin does not need a user namespace to be useful") {
         CHECK(compiled->guarantees.strength(CapId::syscall_filter) !=
               Enforcement::none);
 
-    // And the honest part: namespace-backed walls are gone, not silently
-    // claimed. A report that said `strong` here would be the exact lie this
-    // subsystem exists to prevent.
+    // 诚实的一段: 命名空间 -backed 墙壁已经消失,
+    // 不是沉默地声称。 `strong` 这正是这个子
+    // 系统 存在的防止的谎言
     CHECK(compiled->guarantees.strength(CapId::proc_isolation) == Enforcement::none);
 }
 #endif  // __linux__
 
 #if defined(__linux__)
 TEST_CASE("sandbox: a microvm request is REFUSED, never downgraded") {
-    // The invariant that makes "we do not implement kernel isolation" an honest
-    // position rather than a gap.
+    // 电话 不变量 这说明 "we do not implement kernel isolation"
+    // 诚实的立场,而不是空隙。
     //
-    // If compile() silently downgraded Isolation::microvm to a process sandbox,
-    // a caller asking for a separate kernel would get a namespace and be told
-    // nothing -- their threat model would say "separate kernel" while the
-    // reality said "shared". That is the worst failure this subsystem could
-    // have, and it is worse than not having the feature at all.
+    // 如果出现 compile() 默默降级 Isolation::microvm
+    // 向进程 沙箱 要求单独内核的呼叫者会得到一个命名空间 却
+    // 一无所获 他们的威胁模式会说 "separate kernel"
+    // 现实却说 "shared" 这是这个子系统最糟糕的失败,
+    // 并且比没有这个特征还要糟糕。
     //
-    // Pinned from agentty rather than trusted, because it is a one-line check
-    // in a submodule that a well-meaning "make the sandbox more forgiving"
-    // change could delete, and nothing on this side would notice.
+    // 被从 agentty 而不是信任,因为它是一个 -line 检查在 a 子模块 井的井,
+    // 我们用它来保护它 -meaning "make the sandbox more forgiving"
+    // 修改可以删除,而这一方面没有任何人会注意到。
     using namespace ::clay;
     using namespace ::clay::literals;
 
@@ -119,25 +119,25 @@ TEST_CASE("sandbox: a microvm request is REFUSED, never downgraded") {
 
     auto compiled = compile(std::move(d).seal(), probe_host());
     REQUIRE(!compiled.has_value());
-    // And the reason names the missing piece, so the error is actionable
-    // rather than a bare refusal.
+    // 并且原因将缺失的作品命名,因此错误是可以诉的,
+    // 而不是赤裸裸的拒绝.
     CHECK(std::string_view{compiled.error().mechanism}.find("microvm") !=
           std::string_view::npos);
 }
 
 TEST_CASE("sandbox: the kernel-isolation gap says whose fault it is") {
-    // host.kernel_isolation is `none` for two very different reasons, and a
-    // caller deciding whether to care deserves the real one: "we did not build
-    // it" versus "this host could not run it anyway". A flat "process-backend"
-    // invited the first reading, which is wrong on most CI runners.
+    // host.kernel_isolation 谓 `none` 由於两个不同的原因,
+    // 一个决定是否关心的电话商 值得真正的一个: "we did not build it" 相对
+    // "this host could not run it anyway" 平房( 平房 )
+    // "process-backend" 第一次邀请,这在多数情况下是错误的 CI 跑步者,我们是
     using namespace ::clay;
 
     auto report_with = [](bool kvm) {
         auto host = probe_host();
         host.kvm = kvm;
-        // A policy complete enough to compile. A bare ro_bind is not: claybin
-        // refuses a draft with no root, no /proc and no workdir, which is
-        // correct of it and was my first mistake here.
+        // 政策完成后足以 编译。赤裸裸的 ro_bind 并非: 数据
+        // claybin 拒绝一个没有根,没有/proc和没有工作目录的草稿,
+        // 这是正确的,这是我在这里的第一个错误.
         auto d = Policy<Draft>{};
         d = std::move(d).ro_bind("/usr", "/usr");
         d = std::move(d).proc_fs("/proc");
@@ -147,8 +147,8 @@ TEST_CASE("sandbox: the kernel-isolation gap says whose fault it is") {
         d = std::move(d).syscall_profile(profiles::compiler_with_network());
         auto compiled = compile(std::move(d).seal(), host);
         REQUIRE(compiled.has_value());
-        // Always `none` on a process backend, whatever the host can do. That
-        // part is machine-checked by claybin's own fuzzer too.
+        // 总是 `none` 在一个进程后端上,无论主机能做什么。该部分是机器
+        // -checked 由 claybin 自己的模糊器也一样。
         CHECK(compiled->guarantees.strength(CapId::host_kernel_isolation) ==
               Enforcement::none);
         return std::string{
@@ -161,66 +161,66 @@ TEST_CASE("sandbox: the kernel-isolation gap says whose fault it is") {
 #endif  // __linux__
 
 TEST_CASE("sandbox: claybin is the default, and bwrap is still the fallback") {
-    // The default flipped to claybin because the difference is MEASURED, not
-    // argued: agentty's bwrap path emits no --seccomp, no cgroup limits and no
-    // landlock, so claybin is strictly stronger on syscall.filter, all three
-    // resource caps, filesystem.exec and brokering. There is no capability
-    // where bwrap wins (tests/sandbox_audit.cpp prints the report).
+    // 默认的翻转到claybin, 因为差异是MEASURED, 没有争论: agentty
+    // 的 bwrap路径 发音为 --seccomp, 没有 cgroup 限制和 landlock,
+    // 因此 claybin 在 syscall.filter, 全部三个资源上限,
+    // filesystem.exec 和 经纪 上严格地更强大。 bwrab 胜出的地方
+    // 没有能力( tests/sandbox_audit.cpp 打印报告)。
     //
-    // What this case actually guards is the OTHER half -- the reason bwrap was
-    // kept rather than deleted. The two engines fail on DIFFERENT hosts:
-    // bwrap dies where unprivileged userns is denied (Ubuntu 24.04 AppArmor),
-    // and claybin needs landlock + seccomp + cgroup2, which a RHEL kernel
-    // older than 5.13 does not have. Delete bwrap and that second host does
-    // not get claybin -- it gets Backend::None. Trading a weaker sandbox for
-    // NO sandbox is the issue #21 failure in a new hat, so the fallback is a
-    // security property and belongs under test.
+    // 本案的警卫是 OTHER 半 — 保留 brap 而不是删除。
+    // 两台引擎失效。 不同 主机( T) :
+    // 拒绝非特权用户时 brap 死亡( ) Ubuntu 24.04
+    // AppArmor ),以及 claybin 需要锁定 + seccomp
+    // + cgroup2 ,该 RHEL 内核大于5.13没有.
+    // Delete 包和第二主机没有 claybin - 说得没错
+    // Backend::None 交易弱者 沙箱 费用 NO 沙箱 21号故障在新帽子,
+    // 所以 回退 属于安全财产,并经过测试。
     ag::reset_config_for_test();
 
-    // An untouched config asks for claybin.
+    // 一个未变的配置要求claybin.
     const sandbox_cfg::Config fresh;
     CHECK(fresh.backend == sandbox_cfg::LinuxBackend::Claybin);
 
-    // And the engine actually selected is never None on a host that can run
-    // EITHER backend. This is the fallback: whichever engine the preference
-    // names, a usable host must still end up sandboxed.
+    // 而实际上选择的引擎从不 在一个可以运行的主机上 EITHER 后端,
+    // 这是 回退 : 无论哪个引擎首选名称,
+    // 一个可用的主机必须仍然被沙箱所覆盖。
     (void)ag::init(ag::Mode::Auto);
     if (ag::is_active())
         CHECK(ag::detected_backend() != ag::Backend::None);
 }
 
 TEST_CASE("sandbox: asking for claybin on a host that refuses it yields bwrap, not None") {
-    // The fallback DIRECTION, which is the whole reason flipping the default
-    // is safe. Opting into (or now, defaulting to) the newer backend must
-    // never cost someone their sandbox: a host where claybin cannot build its
-    // walls has to land on bwrap rather than on nothing.
+    // 电话 回退 DIRECTION ,这就是翻转默认值的
+    // 完全理由是安全的。选择进入(或现在默认)更新后端时,
+    // 绝不能让某人付出他们 沙箱 : 显示主机 claybin
+    // 无法建造它的墙,必须靠墙壁而不是空洞。
     //
-    // Checked through the public surface rather than by forcing the probe,
-    // because the probe is a real fork+uid_map attempt and faking it would
-    // test the fake.
+    // 检查通过公众表面而不是强迫探测器,
+    // 因为探测器是真正的叉子uid_map尝试,
+    // 并假冒它会测试假的.
     ag::reset_config_for_test();
     (void)ag::init(ag::Mode::Auto);
 
 #if defined(__linux__)
     if (ag::is_active()) {
         const auto b = ag::detected_backend();
-        // Exactly one of the two Linux engines. Never None while active, and
-        // never SandboxExec on Linux.
+        // 完全一样 Linux 引擎。在活动时,永不出现,也永不出现 SandboxExec
+        // 打开 Linux.
         CHECK(b == ag::Backend::Claybin);
     }
 #endif
 }
 
 TEST_CASE("sandbox: the model is TOLD it is sandboxed") {
-    // A model that does not know it is sandboxed misdiagnoses every wall it
-    // hits: EPERM becomes "your proxy is blocking this", a blocked connect
-    // becomes "check your firewall", and it either sends the user chasing a
-    // phantom or retries a call the kernel will never allow.
+    // 一个不知道是沙盒误诊它所撞到的每一面墙的模型:EPERM变为
+    // "your proxy is blocking this",（代理服务器阻止了此访问。）
+    // 一个被封堵的连接变为"check your firewall",
+    // 它要么发送用户追逐一个幽灵,要么重试是调用,内核永远不会允许.
     //
-    // So the <environment> stanza says the boundary exists. This pins that it
-    // appears when sandboxed and -- just as importantly -- does NOT when the
-    // user turned sandboxing off, because a prompt claiming walls that are not
-    // there is the same lie in the other direction.
+    // 所以,我们... <environment> 斯坦扎说
+    // 边界是存在的。这把针是沙箱里 和同样重要的是,
+    // 它会出现 不 当用户转身时 沙箱隔离 关,因为 提示词 声称
+    // 没有墙壁的墙壁在另一方向上是同样的谎言。
     ag::reset_config_for_test();
     (void)ag::init(ag::Mode::Off);
     {
@@ -233,8 +233,8 @@ TEST_CASE("sandbox: the model is TOLD it is sandboxed") {
     if (ag::is_active()) {
         const auto p = agentty::provider::default_system_prompt(::agentty::IoAccess::grant());
         CHECK(p.find("sandbox: ON") != std::string::npos);
-        // The three things that stop the misdiagnosis: where it can write,
-        // that a denial is the sandbox, and that retrying is wrong.
+        // 阻止误诊的三件事: 哪里写,
+        // 否认就是 沙箱 ,该 重试 错的
         CHECK(p.find("writable") != std::string::npos);
         CHECK(p.find("not a broken tool") != std::string::npos);
         CHECK(p.find("Do NOT retry") != std::string::npos);
@@ -242,35 +242,35 @@ TEST_CASE("sandbox: the model is TOLD it is sandboxed") {
 }
 
 TEST_CASE("sandbox: a denial is explained where the model is looking") {
-    // The system prompt is thousands of tokens away by the time an error
-    // arrives. The annotation goes on the OUTPUT, which is what the model is
-    // actually reading when it decides whether to retry.
+    // 系统 提示词 以千兆符符符符值表示,
+    // 当错误到达时。 OUTPUT ,
+    // 这就是模型在决定是否 重试.
     //
-    // Driven through the real runner so this covers the wiring, not just the
-    // string: a command that cannot read a host path under any policy.
+    // 驱动通过真正的运行器,所以它覆盖了线条,
+    // 而不仅仅是字符串:一个无法在任何策略下读取主机路径的命令.
     ag::reset_config_for_test();
     (void)ag::init(ag::Mode::Auto);
-    if (!ag::is_active()) return;   // no backend here; nothing to annotate
+    if (!ag::is_active()) return;   // 这里没有后端; 没有注释
 
     auto r = ag::run_shell_command("cat /etc/shadow", 64 * 1024,
                                    std::chrono::seconds{20});
     if (r.exit_code != 0 &&
         r.output.find("[sandbox]") != std::string::npos) {
-        // When the annotation fires it must carry the instruction, not just
-        // the diagnosis -- a note that only explains still leaves the model
-        // free to retry.
+        // 当注解点火时,它必须携带指示,
+        // 而不仅仅是诊断 -- -- 仅解释的注解仍然使模型
+        // 自由到重试.
         CHECK(r.output.find("Do not retry") != std::string::npos);
         CHECK(r.output.find("firewall") != std::string::npos);
     }
-    // Not asserted: that it ALWAYS fires. Whether /etc/shadow is readable is a
-    // property of the host's policy, and a test that demanded a denial would
-    // fail on a machine configured differently rather than finding a bug.
+    // 未断言:它 始终 是否为/ etc/shadow
+    // 可读性是主机政策的一个属性,要求拒绝的测试
+    // 会在配置不同的机器上失败,而不是找到错误。
 }
 
 TEST_CASE("sandbox: a SUCCEEDING command is never annotated") {
-    // The note has to stay rare to stay read. Putting it on every command --
-    // or on every failure, denial or not -- is how an explanation becomes
-    // noise the model learns to skip.
+    // 注释必须保留很少的读取。 将它放在每个命令上,
+    // 或者每个失败,否认或不否定, 便是模型学会
+    // 跳过的解释变成噪音。
     ag::reset_config_for_test();
     (void)ag::init(ag::Mode::Auto);
     if (!ag::is_active()) return;
@@ -281,17 +281,17 @@ TEST_CASE("sandbox: a SUCCEEDING command is never annotated") {
 }
 
 TEST_CASE("sandbox masks: the credential name list covers what repos hold") {
-    // The sweep walks the workspace and masks any file whose BASENAME is a
-    // credential name. The walk was right; the list was thin -- it had five
-    // entries and missed .npmrc, .git-credentials, .netrc, the rest of the
-    // .env family, three of the five ssh key types, and the cloud
-    // service-account filenames every tutorial writes.
+    // 扫荡的走 工作区 并遮盖任何文件,其文件 BASENAME 是
+    // 一个 凭据 名称。行走是正确的;名单很薄 -- -- 有五个条目,
+    // 错过了.npmrc,.git -credentials ,
+    // netrc,其余的env家族,五种ssh键型中的三种,
+    // 以及云服务 -account 每一个教程都写着文件名。
     //
-    // Driven through mask_paths() against a real tree, so this tests the
-    // matcher AND the walk rather than just the array.
+    // 开车经过 mask_paths () 与真实的 源码树 ,
+    // 所以这个测试匹配者 和 而不是仅仅在阵列上
     namespace fs = std::filesystem;
-    // Self-deleting: the whole reason this helper exists is that hand-rolled
-    // temp dirs are what leaked 3537 directories onto this box.
+    // 自己 -deleting : 帮助者存在的全部原因就是那只手 -rolled
+    // 临时的Dirs是3537目录 泄露到这个盒子里的东西
     agtest::TempDir tmp{"masktest"};
     const auto root = tmp.path();
     fs::create_directories(root / "services" / "api");
@@ -302,11 +302,11 @@ TEST_CASE("sandbox masks: the credential name list covers what repos hold") {
                           "credentials.json", "service-account.json",
                           "id_ecdsa", "id_dsa", ".pgpass"})
         touch(root / "services" / "api" / n);
-    // Suffix rules, which only the walk can resolve.
+    // 后缀规则,只有行走才能解决.
     touch(root / "services" / "api" / "server.pem");
     touch(root / "services" / "api" / "prod.tfvars");
-    // And things that must NOT be masked: ordinary source that merely looks
-    // adjacent to a rule.
+    // 和必须的东西 不 被遮掩:普通来源,
+    // 看起来只是与规则相邻。
     touch(root / "services" / "api" / "main.cpp");
     touch(root / "services" / "api" / "env.example");
 
@@ -329,31 +329,31 @@ TEST_CASE("sandbox masks: the credential name list covers what repos hold") {
     CHECK(has("service-account.json"));
     CHECK(has("id_ecdsa"));
     CHECK(has(".pgpass"));
-    CHECK(has("server.pem"));      // suffix rule
-    CHECK(has("prod.tfvars"));     // suffix rule
+    CHECK(has("server.pem"));      // 后缀规则
+    CHECK(has("prod.tfvars"));     // 后缀规则
 
-    // Ordinary files stay readable. A mask list that caught main.cpp would
-    // break every build while looking like it was working.
+    // 普通文件可以读取。 抓获 main.cpp 的掩码
+    // 列表会打破每个构建, 并显示它正在工作。
     CHECK_FALSE(has("main.cpp"));
     CHECK_FALSE(has("env.example"));
 }
 
 TEST_CASE("sandbox masks: a suffix rule needs its marker to be a suffix") {
-    // `*.pem` matches prod.pem; a rule written `.pem` would match only a file
-    // literally named ".pem". The marker is explicit rather than inferred from
-    // shape BECAUSE inference is dangerous here: "starts with a dot, no second
-    // dot" silently promotes .env, .npmrc and .netrc to suffixes, so prod.env
-    // and scoped.npmrc start getting masked as a side effect of adding an
-    // unrelated entry. Widening a security rule by accident is as bad as
-    // narrowing one.
+    // `*.pem` 匹配 prod.pem ; 规则 `.pem` 只匹配一个
+    // 字面上命名的文件 ".pem"。标记是明确的,而不是从形状推断出来的。
+    // BECAUSE 推论在这里很危险: "starts with a dot, no second dot"
+    // 默默地宣传env,npmrc和.netrc为后缀,所以 prod.env
+    // 财务报告和已审计财务报表 scoped.npmrc 开始被蒙上
+    // 面具 副作用 添加一个无关条目。意外扩大安全规则与缩小安全
+    // 规则一样糟糕。
     namespace fs = std::filesystem;
     agtest::TempDir tmp{"sfxtest"};
     const auto root = tmp.path();
 
     auto touch = [](const fs::path& p) { std::ofstream{p} << "x"; };
-    touch(root / "prod.env");       // NOT .env -- must stay readable
-    touch(root / "scoped.npmrc");   // NOT .npmrc -- must stay readable
-    touch(root / "key.pem");        // IS a *.pem -- must be masked
+    touch(root / "prod.env");       // 不.env -- -- 必须保持可读性
+    touch(root / "scoped.npmrc");   // 不.npmrc - 必须保持可读性
+    touch(root / "key.pem");        // IS a.pem -- -- 必须蒙上面具
 
     sandbox_cfg::Config cfg;
     cfg.mask_scan_depth = 1;
@@ -370,41 +370,41 @@ TEST_CASE("sandbox masks: a suffix rule needs its marker to be a suffix") {
 }
 
 #if defined(__linux__)
-// ── the cgroup has to actually hold the guest ───────────────────────────
+// ── 组必须实际抓住客人 ───────────────────────────
 //
-// describe() reports `resource.memory strong via cgroup2` whenever compile()
-// managed to create a group. But the spawn used clay::spawn(), and that
-// forwards an EMPTY group to spawn_in() -- which only ever looks at the group
-// it is handed, never at the compiled posture. So on a host that DOES
-// delegate, the group was created, reported, and then nothing was ever put in
-// it: the pane advertised a wall that was never erected.
+// describe() 报告 `resource.memory strong via cgroup2`
+// 任何时候 compile() 成功创建了组。但是使用了产卵
+// clay::spawn (),并向前 空 组改为 spawn_in
+// ()——它只看它被交给的团体,它从来不看它所编译的姿态。
+// 所以它只看一个宿主, 执行 代表,这个小组是创建的,报告过的,
+// 然后没有放进去: 面板 广告上写着一堵从未竖起的墙
 //
-// It is also the difference between being able to kill a runaway and not.
-// Signalling the process group misses any descendant that called setsid();
-// cgroup.kill cannot be escaped that way.
+// 也可以是能够杀死一个逃跑的人和不能杀死他之间的区别。
+// 签名程序组 想念任何召回的后代 setsid();
+// cgroup.kill 那样是逃不掉的
 //
-// Only checkable where the host delegates a subtree. A plain desktop systemd
-// session does NOT: the scope is root-owned and cgroup.subtree_control is
-// unwritable, so claybin's probe says undelegable, compile() creates no
-// group, and the process-group fallback is the honest outcome. Containers and
-// delegated user slices are where this test does its work.
+// 只可检查主机代表子树的位置。 普通桌面系统会话 不 : 范围为根
+// -owned 财务报告和已审计财务报表
+// cgroup.subtree_control 无法写,
+// 所以 claybin 探测器说,不可辨认, compile() 创建无组,
+// 进程 -group 回退 容器和委托用户切片是测试工作所在。
 //
-// Measured by asking the guest where it lives, because that is the only
-// answer the reporting path cannot fake.
+// 以问客人住在哪里来衡量,因为这是唯一的答案,
+// 报告路径不能假冒。
 TEST_CASE("sandbox: a claybin guest runs inside its own cgroup") {
     if (clay::cgroup::probe().availability != clay::cgroup::Availability::delegated)
-        return;   // nothing to attach to on this host; see above
+        return;   // 无法附加此主机; 见上文
     if (!ag::init(ag::Mode::On) || !ag::is_active()) return;
     if (ag::detected_backend() != ag::Backend::Claybin) return;
 
     std::ifstream self("/proc/self/cgroup");
     std::string ours((std::istreambuf_iterator<char>(self)),
                      std::istreambuf_iterator<char>());
-    if (ours.empty()) return;   // cgroup v1 or no cgroupfs
+    if (ours.empty()) return;   // c组 v1 或无 c组 fs
 
     auto r = ag::run_shell_command("cat /proc/self/cgroup", 4096,
                                    std::chrono::seconds{10});
-    if (!r.started || r.output.empty()) return;   // spawn blocked on this host
+    if (!r.started || r.output.empty()) return;   // 母体被封存在这个主机上
 
     const auto trim = [](std::string s) {
         while (!s.empty() && (s.back() == '\n' || s.back() == '\r')) s.pop_back();
@@ -412,7 +412,7 @@ TEST_CASE("sandbox: a claybin guest runs inside its own cgroup") {
     };
     const std::string mine  = trim(ours);
     const std::string guest = trim(r.output);
-    if (guest.find("0::") != 0) return;   // not a cgroup2 answer
+    if (guest.find("0::") != 0) return;   // 不是一个cgroup2 答复
 
     CHECK_MESSAGE(guest != mine,
                   "the guest must not share agentty's own cgroup -- if it "

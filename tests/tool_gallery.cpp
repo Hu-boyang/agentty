@@ -1,38 +1,38 @@
-// tool_gallery — every tool card, rendered through the REAL view, from REAL
-// recorded tool calls.
+// tool_gallery – 每张工具卡,通过 真实 视图,
+// 从 真实 记录工具 调用.
 //
-// WHAT THIS IS
+// 内容 此 IS  ⁇
 // ============
-// A fixture, not a test. It replays a corpus of actual tool calls lifted from
-// recorded threads, builds a real Model per case, and renders each through
-// conversation_config -> maya::Conversation. What it prints is what a user
-// sees, in colour, at a real width.
+// 固定的,不是测试,它重现了一套实际工具 调用 已取消记录 线程 ,构建一个真实
+// 的 Model 个案,和 渲染 每一个通过 conversation_config
+// -> maya::Conversation。它打印的是用户所看到的,
+// 以颜色表示,以真正的宽度表示。
 //
-// WHY A CORPUS AND NOT HAND-WRITTEN CASES
+// 使用测试语料而不逐个手写用例的原因。
 // =======================================
-// The first version of this file invented its fixtures, and invented
-// fixtures are POLITE: a 6-line read, a 2-hit grep, a tidy diff. Real tool
-// output is not. In 60 recorded threads the actual shape is:
+// 该文件的第一个版本发明了它的固定装置,发明的固定装置是: POLITE:
+// a 6-line 读, a 2 -hit grep, 干净的 diff。
+// 真正的工具输出没有。 在60 个记录中 线程 实际形状为:
 //
-//     bash      20077 calls   191 failed   up to  30 KB of output
-//     edit      10045 calls   408 failed   up to  23 KB
-//     read       7775 calls   144 failed   up to  80 KB
-//     grep       3035 calls    40 failed   up to  29 KB
+//     bash      20077 次调用   191 次失败   输出最多 30 KB
+//     edit      10045 次调用   408 次失败   输出最多 23 KB
+//     read       7775 次调用   144 次失败   输出最多 80 KB
+//     grep       3035 次调用    40 次失败   输出最多 29 KB
 //
-// A card design that looks good on a 6-line read and falls apart on an 80 KB
-// one is not a design. So the corpus keeps, per tool, the TYPICAL call (the
-// median by output size -- what a user stares at all day), a LARGE one (93rd
-// percentile), and a FAILURE where the tool has any.
+// 6号的牌设计不错 -line 读到80块就散了 KB 一种不是设计,
+// 所以每个工具, 都保留着 TYPICAL 调用 (按输出大小的中位数 -
+// - -- 用户整天盯着看),a LARGE 百分比(第93百分位)和百分比
+// (第91%) FAILURE 工具有东西的地方
 //
-// The corpus is scrubbed: home paths, emails and unrelated project names are
-// rewritten, because it came from real sessions.
+// 程序书被洗刷:家用路径、电子邮件和无关的项目名称被改写,
+// 因为它来自真实的会话。
 //
-// Run:  ./build/tool_gallery                 # every case
-//       ./build/tool_gallery read grep       # tools matching these
+// 运行 : ./build/tool_gallery 每一个案例
+//       ./build/tool_gallery read grep       # 工具
 //       ./build/tool_gallery --kind failed   # only the failures
 //       ./build/tool_gallery --running bash  # as in-flight cards
 //       ./build/tool_gallery --ask bash      # with the permission prompt
-//       ./build/tool_gallery --chrome        # status bar + composer
+//       ./build/tool_gallery --chrome        # 状态栏 +
 //       ./build/tool_gallery --list          # what is in the corpus
 //       COLS=120 ./build/tool_gallery        # at another width
 
@@ -72,9 +72,9 @@
 using namespace agentty;
 using json = nlohmann::json;
 
-// --running: render every card as an in-flight tool (shimmer, spinner).
+// --running: 渲染 每张牌都是一张 -flight 工具(闪电, 加载动画).
 static bool g_running = false;
-// --ask: render each case waiting on a permission prompt.
+// --ask: 渲染 每个案件都在等待一个 权限 提示词.
 static bool g_ask = false;
 
 namespace {
@@ -126,15 +126,15 @@ ToolUse make_tool(const Case& c) {
     t.args = c.args;
     const auto started  = now_tp();
     const auto finished = started + std::chrono::milliseconds{
-        // Plausible durations: a read is fast, a task is not. Only affects
-        // the footer's timing chip, but a 2 ms `task` would read as fake.
+        // 可用时间:读取速度快,任务不长。只影响页脚的时间 标签 ,
+        // 但2米长 `task` 会被看成是假的。
         c.tool == "task" ? 42000 : c.tool == "test" ? 9100 :
         c.tool == "bash" ? 1400  : 180};
     if (g_running) {
         ToolUse::Running r;
         r.started_at = started;
-        // The recorded output stands in for live progress, so a running card
-        // has a body to show (as bash and task do mid-run).
+        // 记录的输出代表了现场进展,所以运行卡有一个 正文 显示(
+        // 即 shash 和任务 中点) -run).
         r.progress_text = c.output;
         t.status = std::move(r);
     }
@@ -143,17 +143,17 @@ ToolUse make_tool(const Case& c) {
     return t;
 }
 
-// Serialize a rendered Canvas to real ANSI.
+// 序列化 将彩绘变为真实 ANSI.
 //
-// A tool card's information lives in its COLOUR -- the status glyph's hue,
-// the dim chrome, the red of a failure, syntax spans. An earlier version of
-// this fixture folded every cell to a bare char and printed a monochrome
-// wall while believing it had colour, which hid the exact thing being
-// judged.
+// 工具卡的信息存在于其中 COLOUR - 状态glyph的呼声,
+// dim 铬, 一个失败的红色, 语法跨度。 早期版本的固定
+// 值折叠了每个 存储单元 以一面赤色的圆柱,并用一面壁画出
+// 一面单色的墙,而它却认为墙上有颜色,而墙上藏着被判决的
+// 真伪。
 //
-// Each cell carries a style id into the pool; Style::to_sgr() resolves it
-// against the live theme. A new SGR is emitted only when the id CHANGES, so
-// the output has the same shape maya's own writer produces.
+// 每一个 存储单元 将样式 ID 带入 池; Style::to_sgr
+// ()解决它与现场主题。 SGR 只在 id 时才释放 CHANGES ,
+// 因此输出形状相同 maya 自己的作家制作的
 void emit_canvas(const maya::Canvas& canvas, const maya::StylePool& pool,
                  int cols) {
     std::string out;
@@ -166,7 +166,7 @@ void emit_canvas(const maya::Canvas& canvas, const maya::StylePool& pool,
         std::uint16_t cur = 0xFFFF;
         for (int x = 0; x <= last; ++x) {
             const auto cell = canvas.get(x, y);
-            if (cell.width == 2) continue;          // wide char's second half
+            if (cell.width == 2) continue;          // 宽的Char的下半身
             if (cell.style_id != cur) {
                 cur = cell.style_id;
                 out += "\x1b[0m";
@@ -194,8 +194,8 @@ void emit_canvas(const maya::Canvas& canvas, const maya::StylePool& pool,
     std::fputs(out.c_str(), stdout);
 }
 
-// One short line naming what the agent was doing, so a card has the context
-// a real turn gives it. Derived from the args rather than invented.
+// 一条短线命名代理商正在做的事情,所以卡片的上下文会给出真实的转折。
+// 它是从参数中衍生出来的而不是发明出来的。
 std::string prompt_for(const Case& c) {
     const auto s = [&](const char* k) -> std::string {
         if (c.args.is_object()) {
@@ -232,9 +232,9 @@ void render_case(const Case& c, int cols) {
 
     auto root = maya::Conversation{ui::conversation_config(m)}.build();
     maya::StylePool pool;
-    // Tall enough that a large body is never clipped by the fixture itself;
-    // the card's own budget is what should bound it, and if it does not,
-    // that is the finding.
+    // 足够高的,那么大 正文 永远不会被固定的本身剪断;
+    // 卡片本身的预算是应该绑起来的,如果它不绑住,
+    // 那就是发现.
     maya::Canvas canvas(cols, 400, &pool);
     canvas.clear();
     maya::render_tree(root, canvas, pool, maya::theme::live(), true);
@@ -261,10 +261,10 @@ void emit_element(const std::string& tag, const maya::Element& root, int cols) {
     emit_canvas(canvas, pool, cols);
 }
 
-// The screen chrome around the conversation: status bar and composer, in
-// the states a user actually sees.
-// A real reasoning block (taken from a recorded thread), settled and live,
-// with the answer that followed it.
+// 对话周围的屏幕铬:状态栏和作曲,
+// 在用户实际看到的状态.
+// 一个真正的推理障碍(取自记录的线程),定居和生活,
+// 随之而来的答案.
 void render_reasoning(int cols) {
     static const char* kThought =
         "Since `truncate_middle` already exists, I'm planning extension-preserving "
@@ -289,7 +289,7 @@ void render_reasoning(int cols) {
         asst.thinking = kThought;
         asst.reasoning_ms = 6400;
         if (live) {
-            // Thinking started 6.4 s ago on the same clock the view reads.
+            // 6点4分开始思考 和那个时钟一样 风景是读的
             const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                 maya::anim_now().time_since_epoch()).count();
             asst.reasoning_ms = 0;
@@ -330,8 +330,8 @@ void render_chrome(int cols) {
     }
 }
 
-// A markdown-heavy assistant answer (lifted from a recorded thread) with
-// every element the prose renderer handles.
+// 由每一份文稿第渲染器号手柄组成的一个记分式-heavy助理答复
+// (从记录的第线程号手稿中提出)。
 void render_prose(int cols) {
     static const char* kAnswer =
         "## Emphasis mix\n\n"
@@ -359,14 +359,14 @@ void render_prose(int cols) {
     emit_element("prose", root, cols);
 }
 
-// The first screen: a fresh Model with no conversation.
+// 第一屏:新鲜的Model,没有对话.
 void render_welcome(int cols) {
     Model m;
     auto root = maya::WelcomeScreen{ui::welcome_screen_config(m)}.build();
     emit_element("welcome", root, cols);
 }
 
-// The overlays a user opens most: ^K palette, the model picker, ^J threads.
+// 电话 覆盖面板 用户打开最多 : ^K 调色板,模型 选择面板, ^J 线程.
 void render_panels(int cols) {
     namespace pn = agentty::ui::panel;
     {
@@ -429,7 +429,7 @@ void render_panels(int cols) {
     }
     {
         Model m;
-        // two separate changes in one file, the first already kept
+        // 在一个文件中有两个单独的更改, 第一个已保存
         std::string before, after;
         for (int i = 1; i <= 30; ++i) {
             before += std::format("int f{}() {{ return {}; }}\n", i, i);
@@ -457,10 +457,10 @@ void render_panels(int cols) {
     }
 }
 
-}  // namespace
+}  // 命名空间结束。
 
-// The ^O tool-output pane: the list, then each body, from the real corpus.
-// VIEWER_ROWS sets the terminal height the pane lays out for (default 40).
+// 电话 ^O 工具 -output 面板 : 列表,然后各列表 正文 真实的体格
+// VIEWER_ROWS 设置 终端 高度( E) 面板 设定( 默认 40 )。
 static void render_viewer(int cols, const std::vector<std::string>& want,
                           const std::string& kind_filter) {
     namespace pn = agentty::ui::panel;
@@ -494,8 +494,8 @@ static void render_viewer(int cols, const std::vector<std::string>& want,
     o->viewing = true;
     if (const char* q = std::getenv("VIEWER_FIND")) { o->query = q; ++o->hit_seq; }
     if (std::getenv("VIEWER_FULL")) {
-        // The real screen: base + overlay, laid out for a cols x rows terminal.
-        // The corpus turn is cleared so the base is just the chrome.
+        // 真实屏幕: 基数 + 覆盖面板 ,为一列小马铺设,以图X行 终端.
+        // 血清转弯,所以基部只是铬。
         m.d.current.messages.clear();
         m.ui.term_cols = cols;
         m.ui.term_rows = rows;
@@ -530,25 +530,25 @@ static void render_viewer(int cols, const std::vector<std::string>& want,
 }
 
 int main(int argc, char** argv) {
-    // The view reads loop_bound<T> caches (the tool-body and settled-panel
-    // memos in agent_timeline.cpp), which only the kernel's loop thread may
-    // touch. A fixture has no kernel, so borrow the identity jaal exposes
-    // for exactly this: it arms THIS thread for the scope below.
+    // 观点是: loop_bound<T> 缓存 (工具 -body
+    // 并解决 -panel 备忘在 agent_timeline.cpp ),
+    // 这仅仅是内核的循环 线程 固定没有内核,所以借一下身份
+    // jaal 暴露了它的存在: 它携带着 此 线程 范围。
     const auto loop = maya::arm_loop_for_tests();
-    // FREEZE_CLOCK=1: pin the animation clock so spinners and shimmer render
-    // the same frame every run (the UI snapshot test sets it).
+    // FREEZE_CLOCK =1: 将动画钟按此 加载动画 闪烁 渲染
+    // 同样的 帧 每一跑步( 以 UI 快照 测试设置它。
     if (const char* f = std::getenv("FREEZE_CLOCK"); f && *f == '1')
         maya::testing::freeze_anim_clock(1000);
 
-    // Install the theme as the LIVE one, not just pass it to render_tree.
-    // Style::to_sgr() resolves a slot through theme::live(); with none set
-    // every cell comes out with an empty SGR -- correct behaviour, and a
-    // monochrome wall here.
-    // THEME=<scheme name> (or "native"); defaults to Srcery, what Ayush runs.
+    // 将主题安装为 LIVE 一张,不只是传给 render_tree.
+    // Style::to_sgr ()解决一个槽通过 theme::live (;
+    // 无设置 存储单元 空着出来 SGR 正确的行为,
+    // 和单色的墙在这里。
+    // THEME=<scheme name> (或 减 减 ) "native" );默认为Srcery, Ayush 运行的.
     const char* theme_name = std::getenv("THEME");
     if (!theme_name) theme_name = "Srcery";
-    // TERM_BG / TERM_FG=RRGGBB stand in for what a real terminal answers to
-    // the startup colour probe, so native can be checked without one.
+    // TERM_BG / TERM_FG=RRGGBB 站在什么真实的
+    // 终端 解答启动颜色探测器, 这样可以不带一个就检查原生。
     auto hex = [](const char* s, maya::LitColor& out) {
         if (!s || std::strlen(s) != 6) return false;
         const unsigned v = static_cast<unsigned>(std::strtoul(s, nullptr, 16));
@@ -560,7 +560,7 @@ int main(int argc, char** argv) {
     if (maya::LitColor fg = maya::LitColor::rgb(0, 0, 0), bg = fg;
         hex(std::getenv("TERM_FG"), fg) && hex(std::getenv("TERM_BG"), bg))
         maya::theme::set_terminal_colors(fg, bg);
-    // TERM_PALETTE="RRGGBB,RRGGBB,..." (16 entries): the OSC 4 answers.
+    // TERM_PALETTE="RRGGBB,RRGGBB,..." (16个条目): OSC 4个答案。
     if (const char* pal = std::getenv("TERM_PALETTE")) {
         std::string s{pal};
         int k = 0;

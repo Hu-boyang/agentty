@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# diag-clipboard.sh — pinpoint where kitty-through-tmux image paste breaks.
-# Run this INSIDE your tmux pane in kitty. Copy an image to the clipboard first
-# (e.g. screenshot), then run: bash diag-clipboard.sh
+# diag-clipboard.sh-精确定位kitty-through-tmux图像粘贴断裂的位置。
+# 在 kitty 中运行您的 tmux 面板 内部。首先将图像复制到剪贴板（e.g.
+# 截图），然后运行：bash diag-clipboard.sh
 set -u
 
 echo "=== Environment ==="
@@ -28,19 +28,19 @@ echo "Sending a tmux-wrapped OSC 5522 read request and waiting 2s for a reply…
 echo "(If kitty prompts for clipboard permission, ALLOW it.)"
 echo
 
-# Build the request: OSC 5522 ; type=read ; base64("image/png text/plain") ST
+# 构建请求：OSC 5522 ;类型=读取； base64("image/png text/plain") ST
 mimes="image/png text/plain"
 b64=$(printf '%s' "$mimes" | base64 -w0)
 osc=$'\e]5522;type=read;'"$b64"$'\e\\'
 
 # Wrap for tmux: ESC P tmux ; <payload with ESCs doubled> ESC \
-# Double every ESC (0x1b) in the payload.
+# 将 载荷 中的每个 ESC (0x1b)加倍。
 wrapped_payload=$(printf '%s' "$osc" | sed 's/\x1b/\x1b\x1b/g')
 wrapped=$'\ePtmux;'"$wrapped_payload"$'\e\\'
 
-# Put terminal in raw mode, send request, capture reply.
+# 将终端置于原始模式，发送请求，捕获回复。
 old_stty=$(stty -g 2>/dev/null)
-stty raw -echo min 0 time 20 2>/dev/null   # 2s read timeout
+stty raw -echo min 0 time 20 2>/dev/null   # 2秒读取超时
 printf '%s' "$wrapped" > /dev/tty
 reply=$(dd bs=4096 count=1 2>/dev/null < /dev/tty)
 stty "$old_stty" 2>/dev/null
@@ -53,7 +53,7 @@ if [ -z "$reply" ]; then
   echo "  • kitty denied the read (see #3 — needs 'read-clipboard' without -ask), or"
   echo "  • kitty/tmux wasn't reloaded after config changes."
 else
-  # Show a safe, truncated view of the reply.
+  # 显示回复的安全、截断视图。
   echo "RESULT: GOT A REPLY (${#reply} bytes). Terminal side WORKS."
   printf '%s' "$reply" | head -c 200 | cat -v
   echo

@@ -1,54 +1,54 @@
 #pragma once
-// agentty::visual — the STRUCTURAL frame-hash walk.
+// agentty::visual-STRUCTURAL 帧-hash步行。
 //
-// THE PROBLEM THIS RETIRES. visual_hash (program.hpp) gates repaints: a
-// frame whose hash equals the last painted frame's is skipped. It used to
-// be a hand-maintained enumeration of every model facet the view renders —
-// a PARALLEL DESCRIPTION of the view's dependency set with nothing keeping
-// the two equal. Forgetting a facet produced a signature bug class: state
-// changes, the view WOULD differ, the hash doesn't move, the frame gate
-// eats the repaint (login inputs, both forms, the rag probe verdict, the
-// result-card scroll — each found by hand, each fixed by hand).
+// 该 PROBLEM 此 RETIRES。 visual_hash
+// (program.hpp) 门 重绘：跳过哈希等于最后绘制的 帧
+// 的 帧。它曾经是视图 渲染 的每个模型方面的 hand
+// -maintained 枚举 - 视图依赖项集的 PARALLEL
+// DESCRIPTION，没有任何东西保持两者相等。忘记一个方面会
+// 产生一个签名错误类：状态更改、视图 WOULD 不同、哈希不移动、
+// 帧 门吃掉 重绘（登录输入、两种形式、抹布探针判决、结果 -card
+// 滚动 - 每个都是手动找到的，每个都是手动固定的）。
 //
-// THE INVERSION. mix_any(h, state) derives the hash FROM THE TYPE:
+// 该 INVERSION。 mix_any(h, state) 导出哈希值 FROM 该 TYPE：
 //
-//   • scalars/enums/bools    → mixed directly
-//   • strings                → FNV over the bytes + length
-//   • variants               → alternative index, then the open alternative
-//   • optionals              → presence, then the value
-//   • ranges                 → size, then each element
-//   • aggregates             → DECOMPOSED member-by-member (P1061), so a
-//                              member added tomorrow is hashed tomorrow —
-//                              there is nothing to remember
-//   • everything else        → does not compile ← the load-bearing arm
+//   ·scalars/enums/bools→直接混合
+//   • 字符串 → FNV 超过 字节 + 长度
+//   ·变体→替代索引，则打开替代
+//   • 选项 → 存在，然后是值
+//   ·范围→大小，然后每个元素
+//   ·聚合→DECOMPOSED成员-by-member(P1061)，所以
+//                              成员添加的明天是明天的哈希值
+//                              — 没有什么可记住的
+//   ·其他一切→不编译←加载-bearing臂
 //
-// A type that cannot be auto-walked (private members, bases + members, or
-// a field that must NOT be hashed) must define `visual_parts(t)` beside
-// its definition: a tuple of the facets to walk, using
+// 不能是 auto-walked 的类型（私有成员、基 + 成员、
+// 或者不得 被散列的字段）必须在其定义旁边定义
+// `visual_parts(t)`：要遍历的分面的元组，使用
 //
-//   visual::ref(x)   walk x by reference (no copy)
-//   visual::exempt   this facet is deliberately NOT visual
-//   any value        walked as itself (lengths, counts, projections)
+//   visual::ref(x)通过引用行走
+//   x（无复制）visual::exempt这个方面是故意的NOT视觉任何值本身行走（长度、
+//   计数、投影）
 //
-// and `static_assert(visual::parts_cover_all<T>)` proves the tuple names
-// EXACTLY as many facets as the type has (bases + members): add a member
-// without extending the parts list and the assert fires at the type, not
-// as a missed repaint three panels later. Exemption is thereby the
-// explicit, reviewable act; coverage is the default — the opposite of the
-// old contract.
+// 和 `static_assert(visual::parts_cover_all<T>)`
+// 证明元组名称 恰好 与类型所具有的面一样多（基础 +
+// 成员）：添加成员而不扩展部件列表，并且断言在类型上触发，
+// 而不是在三个面板之后错过 重绘。因此，
+// 豁免是明确的、可审查的行为；承保范围是默认的——与旧
+// 合同相反。
 //
-// SECRETS. field::Secret and the embed config define visual_parts that
-// digest LENGTH ONLY — credential bytes never reach any hash. This is a
-// deliberate, asserted exemption, not an accident of enumeration
-// (visual_hash_walk_test pins it: same-length overwrite = same hash).
-// (A Secret's placeholder is not a credential — it is drawn as-is — and
-// is walked whole.)
+// SECRETS。 field::Secret 和嵌入配置定义了 visual_parts，
+// 它消化 LENGTH 仅 — 凭据 字节 永远不会达到任何哈希值。这是一个故意的、
+// 断言的豁免，而不是枚举的意外（visual_hash_walk_test
+// 将其固定：same-length 覆盖 = 相同的哈希值）。
+// （秘密的占位符不是 凭据 — 它被绘制为 -is — 并且
+// 是整个走的。）
 //
-// ELM FIT. subscribe(m) declares the input dependencies; view(m) declares
-// the pixels; both are pure over the Model. The frame gate needs "did the
-// visible state change" — which is a FUNCTION OF THE STATE TYPES, so it is
-// derived from them, the same way the slot's Kind is derived from the
-// variant rather than maintained beside it.
+// ELM FIT。 subscribe(m) 声明输入依赖项； view(
+// m) 声明像素；两者都比 Model 纯净。 帧 门需要
+// "did the visible state change" — 这是 FUNCTION
+// OF 该 STATE TYPES，因此它是从它们派生的，就像插槽的 Kind
+// 是从 变体 派生而不是在它旁边维护一样。
 
 #include <cstdint>
 #include <string_view>
@@ -59,39 +59,39 @@
 
 namespace agentty::visual {
 
-// ── Facet markers ────────────────────────────────────────────────────────
+// ── 面额标记 ────────────────────────────────────────────────────────
 
-// Deliberately-not-visual facet. Counts toward parts_cover_all (the author
-// ACCOUNTED for the member); contributes nothing to the hash.
+// 故意-not-visual刻面。计入 parts_cover_all（
+// 作者为 ACCOUNTED 为会员）；对哈希没有任何贡献。
 struct Exempt {};
 inline constexpr Exempt exempt{};
 
-// Walk-by-reference wrapper for parts lists: `visual::ref(m.form)` walks
-// the referent without copying it into the tuple. (A plain reference can't
-// ride in make_tuple; forward_as_tuple of a computed value would dangle —
-// this is the explicit, safe middle.)
+// 用于部件列表的Walk-by-reference包装器：
+// `visual::ref(m.form)`遍历所指对象而不将其复制到元组中。
+// （普通引用不能在 make_tuple 中使用；计算值的 forward_as_tuple
+// 会悬空——这是明确的、安全的中间值。）
 template <class T>
 struct Ref { const T* p; };
 template <class T>
 [[nodiscard]] constexpr Ref<T> ref(const T& v) noexcept { return Ref<T>{&v}; }
 
-// ── Aggregate arity (bases + direct members, as brace-init slots) ────────
+// ── 总计 平均(基地+直接成员,作为支架) -init 插槽) 页面存档备份,存于互联网档案馆. ────────
 namespace detail {
 template <class Exclude>
 struct AnyInit {
-    // The Exclude guard stops the copy/move constructor from satisfying
-    // T{AnyInit} on non-aggregates, which would report arity 1 for
-    // everything copyable.
+    // 排除防护阻止 copy/move 构造函数在非 -aggregates
+    // 上满足 T{AnyInit}，这将为所有可复制的
+    // 内容报告元数 1。
     //
-    // DEFINED, not merely declared, even though it is only ever named in
-    // the unevaluated operand of brace_constructible's requires-expression.
-    // The classic idiom leaves it undefined; clang then reports
-    // -Wundefined-inline for every probed type whose member initialization
-    // routes through a constexpr callee it decides to instantiate
-    // (std::optional's converting constructor is the usual culprit). The
-    // std::unreachable() body is well-formed for ANY return type, costs
-    // nothing, and makes the "never called" contract explicit instead of
-    // making it the linker's problem.
+    // DEFINED，不只是被声明，即使它仅在brace_constructible
+    // 的requires-expression的未评估操作数中被命名。
+    // 经典的习语对其没有定义；然后，clang 为每个探测到的类型
+    // 报告 -Wundefined-inline，该类型的成员初始化通过它决定
+    // 实例化的 constexpr 被调用者进行路由（std::optional
+    // 的转换构造函数是通常的罪魁祸首）。 std::unreachable
+    // () 正文 对于 任意 返回类型来说是很好的 -formed，
+    // 没有任何成本，并且使 "never called" 契约变得明确，
+    // 而不是使其成为 链接器 的问题。
     template <class T>
         requires(!std::is_same_v<std::remove_cvref_t<T>, Exclude>)
     constexpr operator T() const noexcept {
@@ -115,31 +115,31 @@ template <class T>
 inline constexpr std::size_t arity =
     detail::arity_impl<std::remove_cvref_t<T>>();
 
-// ── The customization point ──────────────────────────────────────────────
-// Found by ADL: define `auto visual_parts(const T&)` in T's namespace,
-// returning a std::tuple of facets (values, visual::ref(...), or
-// visual::exempt). Every base and every member must be accounted for —
-// prove it with parts_cover_all.
+// ── 定制点 ──────────────────────────────────────────────
+// 由 ADL 发现：在 T 的命名空间中定义 `auto visual_parts(const T&)`，
+// 返回 std::tuple 面（值、visual::ref(...)或
+// visual::exempt）。每个基地和每个成员都必须有记录——用
+// parts_cover_all 来证明。
 template <class T>
 concept HasParts = requires(const T& t) { visual_parts(t); };
 
-// Completeness proof: the parts tuple has EXACTLY one entry per
-// brace-init slot (base or member). Adding a member without deciding its
-// visibility fails here, at the type.
+// 完整性证明：部件元组的每个大括号-init槽（
+// 基部或成员）具有EXACTLY一个条目。添加成员而不决定其
+// 可见性在此处失败，在类型处。
 //
-// NON-AGGREGATES (custom ctor/dtor — e.g. maya::ScrollState's
-// unregistering destructor) have arity 0: brace-probing cannot count
-// their members, so no count can be checked. That used to make the proof
-// pass VACUOUSLY, which is the worst possible failure mode for a safety
-// net — it is silent, and it fires precisely on the types most likely to
-// need it. maya::ScrollState is the case in point: it is the single most
-// common piece of view state in the app and the proof could not hold it
-// to anything.
+// NON-AGGREGATES(
+// 自定义ctor/dtor-e.g.maya::ScrollState
+// 的注销析构函数)的数量为0：大括号-probing无法计算其成员，
+// 因此无法检查计数。这曾经使证明通过了 VACUOUSLY，
+// 这是安全网可能出现的最糟糕的故障模式——它是无声的，
+// 并且精确地针对最可能需要它的类型。 maya::ScrollState
+// 就是一个例子：它是应用程序中最常见的视图状态，并且证据无法证明
+// 它是任何东西。
 //
-// So arity 0 now fails CLOSED. A non-aggregate must opt in by
-// specialising visual::trusted_parts, which is a deliberate, greppable,
-// reviewed statement that its parts list was checked by a human — rather
-// than an accident of how the type happens to be declared.
+// 因此数量 0 现在失败 CLOSED。非 -aggregate
+// 必须通过专门化 visual::trusted_parts 来选择加入，
+// 这是一个经过深思熟虑的、可 grepable 的、经过审查的声明，
+// 表明其部件列表是由人类检查的，而不是该类型声明方式的意外。
 template <class T>
 inline constexpr bool trusted_parts = false;
 
@@ -150,42 +150,42 @@ inline constexpr bool parts_cover_all =
         && std::tuple_size_v<std::remove_cvref_t<
                decltype(visual_parts(std::declval<const T&>()))>> == arity<T>);
 
-// ── The walk ─────────────────────────────────────────────────────────────
-// H is any callable taking std::uint64_t (the accumulating mixer).
+// ── 散步时 ─────────────────────────────────────────────────────────────
+// H是采用std::uint64_t(累积混合器)的任何可调用的。
 
 template <class H, class T>
 constexpr void mix_any(H&& h, const T& v);
 
 namespace detail {
-// P1061's pack structured binding (`auto&& [... xs] = v;`) used to live
-// here. It is C++26 — g++-14, this repo's primary CI toolchain, cannot parse
-// it, so the linux gcc + sanitizer gates have been red since it landed.
+// P1061的包结构绑定 (`auto&& [... xs] = v;`)曾经
+// 住在这里。它是C++26——g++-14，这个仓库的主要CI工具链，不能解析它，
+// 所以linux gcc + sanitizer的门自从落地以来就一直是红色的。
 //
-// The replacement is a fixed-arity structured-binding ladder, dispatched on
-// the `arity<T>` already computed above. Each rung names exactly the members
-// a brace-init of T would take, IN BRACE-INIT ORDER — the same order P1061
-// decomposed in — so the hash stream is bit-identical to the pack's.
+// 替换是固定的-arity结构的-binding梯子，在上面已经计算出的
+// `arity<T>`上调度。每个梯级都准确命名 T 的大括号-init 所采用的成员，
+// IN BRACE-INIT ORDER - 与 P1061 分解的顺序
+// 相同 - 因此哈希 数据流 是包的 bit-identical。
 //
-// The old form's failure modes are preserved by construction:
-//   - a type with bases AND members, or private members, does not satisfy
-//     any rung (or fails inside one) — it must declare visual_parts, making
-//     its visibility decisions explicit;
-//   - the arity-0 rung hard-fails with instructions, so a non-decomposable
-//     type (custom ctors) can never silently contribute nothing to the hash.
-//     Fail closed, as before — now with a message that says what to do.
+// 旧形式的失效模式通过构造得以保留：
+//   -具有基 和 成员或私有成员的类型不满足
+//     任何梯级（或其中一个梯级失败）——它必须声明 visual_parts，
+//     使其可见性决策明确；
+//   -arity-0梯级hard-fails带有指令，因此非-decomposable
+//     类型（自定义向量）永远不能默默地对散列做出任何贡献。
+//     失败关闭，如前所述——现在带有一条说明要做什么的消息。
 //
-// A rung per arity is boilerplate but dead obvious; a type larger than the
-// ladder trips the static_assert at the dispatch site, not a silent skip.
+// 每个数量的梯级是样板文件，但非常明显；大于梯子的类型会在
+// 分派 位置跳闸 static_assert，而不是无声跳过。
 template <class H, class T>
 constexpr void mix_decomposed(H&&, const T&, std::integral_constant<std::size_t, 0>) {
-    static_assert(std::is_aggregate_v<T>,   // always false when it fires
+    static_assert(std::is_aggregate_v<T>,   // 发射时始终为假
                   "type reached the visual hash walk but cannot be brace-"
                   "decomposed (custom ctors, or bases+members / private "
                   "members): declare visual_parts(T) for it — see the "
                   "customization point above");
-    // An EMPTY aggregate decomposes to an empty pack: contributes nothing,
-    // exactly like the P1061 pack it replaces. (The marker structs —
-    // ui::panel::None & co. — live here by design.)
+    // EMPTY聚合体分解为空包：不贡献任何东西，与它所取代的
+    // P1061包完全相同。 （标记结构 — ui::panel::None
+    // 等 — 按设计位于此处。）
 }
 #define AGENTTY_VISUAL_MIX_RUNG(n, ...)                                        \
     template <class H, class T>                                                \
@@ -218,7 +218,7 @@ template <class H, class T>
 constexpr void mix_any(H&& h, const T& v) {
     using U = std::remove_cvref_t<T>;
     if constexpr (std::is_same_v<U, Exempt>) {
-        // accounted for, contributes nothing
+        // 占，无贡献
     } else if constexpr (detail::is_ref<U>) {
         mix_any(h, *v.p);
     } else if constexpr (HasParts<U>) {
@@ -232,7 +232,7 @@ constexpr void mix_any(H&& h, const T& v) {
     } else if constexpr (std::is_enum_v<U>) {
         h(static_cast<std::uint64_t>(static_cast<std::int64_t>(v)) + 0x9e37ull);
     } else if constexpr (std::is_floating_point_v<U>) {
-        // Quantized: sub-1/8192 wiggle is invisible at cell resolution.
+        // 量化：sub-1/8192摆动在存储单元分辨率下是不可见的。
         h(static_cast<std::uint64_t>(static_cast<std::int64_t>(v * 8192.0)));
     } else if constexpr (std::is_arithmetic_v<U>) {
         h(static_cast<std::uint64_t>(static_cast<std::int64_t>(v)));

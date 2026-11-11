@@ -1,14 +1,14 @@
 #pragma once
-// The system clipboard, through richpaste (third_party/richpaste).
+// 系统剪贴板，通过richpaste(third_party/richpaste)。
 //
-// Reading: the local display (Wayland data-control, X11, macOS pasteboard,
-// Win32), else the richpaste agent on the user's laptop over an ssh forward
-// (`agentty paste setup` once there), else the terminal itself (OSC 5522 /
-// OSC 52, which the composer drives through maya). A `richpaste:1:` line
-// copied as text decodes back into the image or file on every route.
+// 读取:本地显示(Wayland data-control、X11、macOS粘贴板、
+// Win32)，否则用户笔记本电脑上的richpaste代理通过ssh转发(
+// `agentty paste setup`一旦在那里)，否则终端本身(OSC
+// 5522/OSC 52，作曲家通过其驱动) maya）。作为文本复制的
+// `richpaste:1:` 行在每条路线上都会解码回图像或文件。
 //
-// Writing: native tools (pbcopy / wl-copy / xclip / clip.exe), since OSC 52
-// writes are off by default in Terminal.app and iTerm2.
+// 写入：本机工具(pbcopy/wl-copy/xclip/clip.exe)，
+// 由于OSC 52写入在Terminal.app和iTerm2中默认关闭。
 
 #include <cstdint>
 #include <filesystem>
@@ -25,31 +25,31 @@ namespace agentty {
 struct ClipboardItem {
     enum class Kind : std::uint8_t { Text, Image, File };
     Kind        kind = Kind::Text;
-    std::string mime;   // "image/png", "application/pdf", ...
-    std::string name;   // file name for File, else empty
-    std::string bytes;  // UTF-8 for Text, raw bytes otherwise
-    bool        saved_path = false;  // Text that is the path of a saved file
+    std::string mime;   // "image/png"，"application/pdf"，……
+    std::string name;   // File 的文件名，否则为空
+    std::string bytes;  // UTF-8 表示文本，否则为原始 字节
+    bool        saved_path = false;  // 已保存文件的路径文本
 };
 
-// What the composer does when a clipboard read came back with nothing.
+// 当剪贴板读取没有返回任何内容时，作曲家会做什么。
 enum class ClipboardMiss : std::uint8_t {
-    None,          // it didn't miss
-    AskTerminal,   // ask the terminal itself, through our own input, then resume
-    Empty,         // the clipboard is empty; final
-    TooBig,        // over Settings → Paste → max size; final
-    Refused,       // the terminal won't let us read its clipboard; final, `error` says the fix
-    NoRoute,       // every route came up empty-handed; final, `error` says what to do
+    None,          // 没有错过
+    AskTerminal,   // 询问终端本身，通过我们自己输入，然后恢复
+    Empty,         // 剪贴板为空；决赛
+    TooBig,        // 经过设置→粘贴→最大尺寸；决赛
+    Refused,       // 终端不会让我们读取它的剪贴板；最终，`error` 表示修复
+    NoRoute,       // 每条路线出现空-handed;最后，`error` 说要做什么
 };
 
-// Which terminal read to send for AskTerminal.
+// 其中终端读取发送给AskTerminal。
 enum class TerminalAsk : std::uint8_t { Images, Text };
 
-// A paste in progress (richpaste's route walk), as plain data so it can ride
-// a Msg between the reducer and a worker.
+// 正在进行粘贴（richpaste的路线行走），作为普通数据，因此它可以在
+// 状态更新函数和工作线程之间乘坐Msg。
 struct ClipboardWalk {
     bool ssh = false, tmux = false;
     std::uint8_t images = 1;              // rp::Images
-    std::vector<std::uint8_t> routes;     // rp::Route, in order
+    std::vector<std::uint8_t> routes;     // rp::Route，依次
     std::size_t next = 0;
     struct Cause {
         std::uint8_t route = 0;           // rp::Route
@@ -61,74 +61,74 @@ struct ClipboardWalk {
 };
 
 struct ClipboardContents {
-    std::vector<ClipboardItem> items;  // copied files, else an image, else text
-    std::string source;                // "wayland wayland-1", "agent via ssh", ...
+    std::vector<ClipboardItem> items;  // 复制文件，否则图像，否则文本
+    std::string source;                // "wayland wayland-1"，"agent via ssh"，……
     ClipboardMiss miss = ClipboardMiss::None;
-    std::string error;                 // set when items is empty
-    TerminalAsk ask = TerminalAsk::Text;   // AskTerminal: which read to send
-    ClipboardWalk walk;                    // AskTerminal: hand back to resume
+    std::string error;                 // 当项目为空时设置
+    TerminalAsk ask = TerminalAsk::Text;   // AskTerminal:读取发送的内容
+    ClipboardWalk walk;                    // AskTerminal:手回恢复
 };
 
-// Installs the paste settings (Settings → Paste / settings.json /
-// AGENTTY_PASTE_*). Call at startup and whenever they change; a paste that is
-// already running keeps what it read.
+// 安装粘贴设置（设置→粘贴/settings.json/AGENTTY_PASTE_*）。
+// 调用 在启动时以及每当它们发生变化时；
+// 已经运行的粘贴会保留它所读取的内容。
 void clipboard_configure(const paste_cfg::Config& c);
 [[nodiscard]] paste_cfg::Config clipboard_config();
-// Where pasted images and files are saved right now.
+// 现在粘贴的图像和文件是已保存。
 [[nodiscard]] std::filesystem::path clipboard_save_dir();
 
-// Reads the clipboard, trying routes from the cheapest and most faithful
-// down, none needing setup except the ssh agent. Blocking (a socket round
-// trip, maybe over ssh, or tmux asking the terminal), so call it from a
-// worker. When the next route is asking the terminal, it stops with
-// AskTerminal: the app asks through its own input, and if that brings
-// nothing calls resume_clipboard with the walk.
+// 读取剪贴板，尝试从最便宜和最忠实的路由开始，除了 ssh
+// 代理之外不需要设置。阻塞（套接字往返，可能通过 ssh，
+// 或 tmux 询问 终端），因此 调用 来自 工作线程。
+// 当下一条路线询问 终端 时，它会以 AskTerminal
+// 停止：应用程序通过自己的输入进行询问，如果步行时没有带来
+// 调用 resume_clipboard。
 [[nodiscard]] ClipboardContents read_clipboard();
-// The terminal didn't answer (or had nothing): note why and carry on.
-// `refused`: it answered no (kitty's EPERM), so routes that ask it again are skipped.
+// 终端 没有回答（或没有回答）：记下原因并继续。
+// `refused`：它回答否（小猫的EPERM），因此再次询问它的路线被跳过。
 [[nodiscard]] ClipboardContents resume_clipboard(ClipboardWalk walk, std::string why, bool refused);
-// Only this machine's own clipboard (no ssh, no terminal).
+// 只有本机自带的剪贴板（没有ssh，没有终端）。
 [[nodiscard]] ClipboardContents read_local_clipboard();
 
-// Pulls `richpaste:1:` armored blocks out of pasted text. Returns the items
-// in order, with plain text between blocks as Text items. Empty when the
-// text has no armored block.
+// 从粘贴的文本中拉出 `richpaste:1:` 装甲块。
+// 按顺序返回项目，块之间的纯文本作为文本项目。
+// 当文本没有装甲块时为空。
 [[nodiscard]] std::vector<ClipboardItem> decode_armored(std::string_view text,
                                                         std::string* error = nullptr);
 [[nodiscard]] bool has_armored(std::string_view text) noexcept;
-// True while the text's armored block is still arriving (a paste in pieces).
+// 确实，当文本的装甲块仍在到达时（碎片粘贴）。
 [[nodiscard]] bool armored_partial(std::string_view text) noexcept;
-// Bytes of the arriving block received so far, and its full size (0 while
-// its header is still on the way). Both 0 when nothing is arriving.
+// 迄今为止接收到的到达块的字节，及其完整大小（0，
+// 而其头文件仍在途中）。当没有任何东西到达时，两者都为 0。
 struct ArmoredProgress { std::uint64_t have = 0, need = 0; bool arriving = false; };
 [[nodiscard]] ArmoredProgress armored_progress(std::string_view text) noexcept;
 
-// A terminal clipboard reply (OSC 5522) that reached the input as plain text
-// because something stripped its ESC bytes. Never paste that as text.
+// 终端剪贴板回复（OSC 5522)以纯文本形式到达输入，
+// 因为某些东西剥离了其ESC 字节。切勿将其粘贴为文本。
 enum class LeakedReply : std::uint8_t { None, Partial, Complete };
 [[nodiscard]] LeakedReply leaked_reply(std::string_view text) noexcept;
-// The items a complete leaked reply carried (empty if it can't be read).
+// 完整泄露回复携带的项目(无法读取则为空)。
 [[nodiscard]] std::vector<ClipboardItem> decode_leaked_reply(std::string_view text,
                                                              std::string* error = nullptr);
 
-// Turns clipboard items into what the composer can hold: images and text
-// pass through, a text file becomes Text, any other file is saved under
-// ~/.agentty/paste/pasted and becomes a Text item with its path. Does disk IO,
-// so call it from a worker.
+// 将剪贴板项目变成作曲家可以容纳的内容：图像和文本通过，
+// 文本文件变成文本，
+// 任何其他文件是~/.agentty/paste/pasted下的已保存并且变成具有其路径的文本项目。
+// 确实磁盘IO，所以调用它来自工作线程。
 void settle_clipboard_items(std::vector<ClipboardItem>& items);
 
-/// Write plain UTF-8 text to the system clipboard with the platform tool.
-/// Callers also send OSC 52, which still carries the copy across ssh/tmux.
-/// On failure writes a one-line reason to `*error_out`.
+/// Write用平台工具将纯文本UTF-8文本复制到系统剪贴板。
+/// 呼叫者还发送OSC 52，其仍然携带跨越ssh/tmux.的副本
+/// 失败时，将 one-line 原因写入 `*error_out`。
 bool write_clipboard_text(std::string_view text, std::string* error_out = nullptr);
 
-// `agentty paste …`: richpaste's command line. Its defaults are agentty's
-// (re-runs `<this exe> paste agent|ssh-hook`, state in ~/.agentty/paste).
+// `agentty paste …`:richpaste的命令行。它的默认值是 agentty（re-runs
+// `<this exe> paste agent|ssh-hook`，~/.agentty/paste 中的状态）。
 int  clipboard_cli(std::span<const std::string> args);
 
-// The `RemoteForward` pair (remote socket, local endpoint) for an ssh
-// session, starting the local agent if needed. Empty pair on failure, with
-// the reason in `*error`. Used by `agentty airgap --clipboard-relay`.
+// 用于ssh会话的`RemoteForward`对（远程套接字、本地端点），
+// 如果需要则启动本地代理。失败时为空对，原因为 `*error`。
+// 由 `agentty airgap --clipboard-relay` 使用。
 struct ClipboardForward { std::string remote, local; };
 [[nodiscard]] ClipboardForward clipboard_ssh_forward(std::string* error = nullptr);
 

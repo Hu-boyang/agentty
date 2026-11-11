@@ -1,50 +1,50 @@
 #pragma once
 
-// ── agentty::provider — ExternalAcpBackend → Provider adapter ────────────────
+// ── agentty::provider — ExternalAcpBackend → Provider 适配器 ────────────────
 //
-// Presents an external ACP agent subprocess as a plain `stream(Request,
-// EventSink)` Provider, so the runtime's ONE dispatch seam (main.cpp
-// `stream_fn`) can route to it with a single branch — exactly like the native
-// Anthropic / ChatGPT providers. No new `Kind` switch fans out across the
-// codebase; the agent-specific ACP quirks stay inside ExternalAcpBackend.
+// 将外部 ACP 代理子进程呈现为普通 `stream(Request, EventSink)`
+// Provider，因此 运行时 的 一个 分派 接口边界 (main.cpp
+// `stream_fn`) 可以使用单个分支路由到它 — 与本机 Anthropic /
+// ChatGPT 提供程序完全相同。没有新的 `Kind` 交换机在 代码库 上扇出；
+// 特工-specific ACP的怪癖留在ExternalAcpBackend内。
 //
-// Responsibilities:
-//   • Lazily SPAWN (and cache) the agent subprocess keyed by its spec id, using
-//     the launch spec from acp_agents.hpp. One long-lived subprocess per agent
-//     serves every request — its ACP session is reused across rounds.
-//   • Translate one `prompt()` round: acp::SessionUpdate → agentty Msg
-//     (StreamTextDelta / StreamThinkingDelta / StreamToolUse* / StreamUsage),
-//     then settle with StreamFinished or StreamError from the TurnResult.
-//   • Cancellation: the Request carries no cancel token, so this owns one and
-//     wires it through so Esc mid-stream reaches the agent.
+// 职责：
+//   • 延迟 SPAWN（和 缓存）代理子进程由其规范 ID 键入，使用
+//     acp_agents.hpp的发射规范。每个代理有一个 long-lived
+//     子进程为每个请求提供服务 - 其 ACP 会话在各轮中重复使用。
+//   ·平移一轮`prompt()`：acp::SessionUpdate → agentty Msg
+//     (StreamTextDelta / StreamThinkingDelta / StreamToolUse* /
+//     StreamUsage)，然后从 TurnResult 开始结算 StreamFinished 或 StreamError。
+//   ·取消:请求不携带取消令牌，因此它拥有一个并且
+//     将其接线，以便Esc mid-stream到达代理。
 //
-// Thread-safety: the spawn cache is guarded; stream() may be called from the
-// provider worker thread. The cached subprocess is torn down at process exit
-// (or when release_acp_agents() is called).
+// 线程-safety:产卵缓存被守卫； stream() 可以从提供者
+// 工作线程 线程 调用。缓存的子进程在进程退出时（或调用
+// release_acp_agents() 时）被拆除。
 
 #include <string>
 
 #include <maya/runtime.hpp>
 
-#include "agentty/provider/provider.hpp"   // Request, EventSink, StreamResult
+#include "agentty/provider/provider.hpp"   // 请求，EventSink，StreamResult
 
 namespace agentty::provider {
 
-// Drive the external ACP agent named by `agent_id` (a registry spec id such as
-// "claude-agent-acp" / "codex-acp", or a config-defined id) for one request,
-// streaming normalized Msgs into `sink`. Spawns + caches the subprocess on
-// first use. On spawn/launch failure emits StreamStarted + StreamError so the
-// UI shows a clean error instead of a silent hang. Returns a StreamResult
-// naming how the round ended (mapped from the ACP backend's own TurnResult) so
-// the ACP arm reports its outcome through the same value as the native ones.
+// 对于一个请求，驱动由`agent_id` (诸如"claude-agent-acp"
+// /"codex-acp"的注册表规格ID，或config-defined id)
+// 命名的外部ACP代理，将流式传输规范化消息到`sink`。首次使用时生成 +
+// 缓存 子进程。在 spawn/launch 故障上，会发出 StreamStarted
+// + StreamError，因此 UI 显示干净的错误，而不是静默挂起。
+// 返回 StreamResult，命名回合如何结束（从 ACP 后端自己的
+// TurnResult 映射），以便 ACP 臂通过与本机结果相同的值报告其结果。
 StreamResult stream_external_acp(const maya::unlocked& cap,
                                  const std::string&    agent_id,
                                  Request               req,
                                  EventSink             sink);
 
-// Tear down every cached agent subprocess (idempotent). Called at shutdown; the
-// per-agent teardown uses ExternalAcpBackend's hardened watchdog so a wedged
-// agent can't hang the exit path. It waits on subprocesses: `unlocked`.
+// 拆除每个缓存的代理子进程(幂等)。关机时调用； per-agent
+// 拆卸使用 ExternalAcpBackend 的强化 看门狗，
+// 因此楔入的代理无法挂起退出路径。它等待子进程：`unlocked`。
 void release_acp_agents(const maya::unlocked& cap) noexcept;
 
 } // namespace agentty::provider

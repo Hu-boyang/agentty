@@ -1,4 +1,4 @@
-// The dispatcher's per-file write exclusion. See write_lanes.hpp.
+// 电话 分派器 单位 -file 写入排除。见 write_lanes.hpp.
 #include "agentty/tool/write_lanes.hpp"
 
 #include "agentty/tool/registry.hpp"
@@ -23,14 +23,14 @@ maya::guarded<Table>& table() {
     return t;
 }
 
-// Argument keys that name the file (or tree) a writing tool acts on. Every
-// built-in writer spells its target with one of these; `root`/`dir` cover
-// the multi-file writers (replace, rewrite_structural) whose blast radius is
-// the tree under them. A writer that names none takes the whole workspace.
+// 给文件命名的参数键(或 源码树 写作工具在操作。
+// 每个建有 -in 作者用其中之一拼写目标; `root`/`dir`
+// 覆盖多 -file 作者(替换: rewrite_structural
+// 爆炸半径是 源码树 写作人的名字并不需要全部 工作区.
 constexpr std::string_view kTargetKeys[] = {
     "path", "file_path", "filepath", "filename",
-    "source", "destination",          // move
-    "root", "dir", "directory",       // replace / rewrite_structural
+    "source", "destination",          // 移动
+    "root", "dir", "directory",       // 替换/ rewrite_structural
 };
 
 [[nodiscard]] fs::path base_of(const CallContext& ctx) {
@@ -47,7 +47,7 @@ constexpr std::string_view kTargetKeys[] = {
     std::string s = (ec || c.empty() ? p.lexically_normal() : c).generic_string();
     while (s.size() > 1 && s.back() == '/') s.pop_back();
 #ifdef _WIN32
-    // NTFS compares names case-insensitively; so must the lanes.
+    // NTFS 比较名称大小写 -insensitively 车道也一样
     std::ranges::transform(s, s.begin(), [](unsigned char ch) {
         return static_cast<char>(std::tolower(ch));
     });
@@ -55,7 +55,7 @@ constexpr std::string_view kTargetKeys[] = {
     return s;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 std::vector<std::string> lanes_for(std::string_view, const nlohmann::json& args,
                                    const CallContext& ctx) {
@@ -77,8 +77,8 @@ std::vector<std::string> lanes_for(std::string_view, const nlohmann::json& args,
             }
         }
     }
-    // Writes, but we can't tell where: it may write anywhere, so it gets the
-    // whole workspace. Safe, never fast-and-wrong.
+    // 写,但我们不能分辨出哪里, 它可能在任何地方写, 所以它得到了整个 工作
+    // 区 安全,永远不要快 -and-wrong.
     if (unsure || out.empty()) return {kWholeWorkspace};
     std::ranges::sort(out);
     out.erase(std::unique(out.begin(), out.end()), out.end());
@@ -98,10 +98,10 @@ bool overlap(std::string_view a, std::string_view b) noexcept {
 Hold::Hold(const maya::unlocked& cap, std::vector<std::string> lanes, const CallContext& ctx)
     : cap_(cap), lanes_(std::move(lanes)) {
     if (lanes_.empty()) return;
-    // Short slices so a cancel reaches a queued call: the holder is another
-    // tool call, normally milliseconds of disk work, so real waits are short.
+    // 短片使取消达到队列的调用:持有者是另一个工具调用,
+    // 通常为毫秒的磁盘工作,所以真实的等待是短的.
     for (;;) {
-        if (ctx.cancelled()) return;   // held() stays false
+        if (ctx.cancelled()) return;   // held() 保持不真实
         auto [claimed, waited_out] = table().wait_with_for(cap_,
             std::chrono::milliseconds(100),
             [](const Table& t, const std::vector<std::string>& want) {
@@ -111,8 +111,8 @@ Hold::Hold(const maya::unlocked& cap, std::vector<std::string> lanes, const Call
                 return true;
             },
             [](Table& t, const std::vector<std::string>& want) {
-                // Re-check under the lock: the body also runs when the slice
-                // timed out with the predicate still false.
+                // 调 -check 下划线 锁 : 数据 正文
+                // 并且当切片与上游仍不实时运行。
                 for (const auto& w : want)
                     for (const auto& b : t.busy)
                         if (overlap(w, b)) return false;
@@ -126,7 +126,7 @@ Hold::Hold(const maya::unlocked& cap, std::vector<std::string> lanes, const Call
 
 Hold::~Hold() {
     if (lanes_.empty() || !held_) return;
-    // with() wakes every waiter on the way out.
+    // with() 唤醒出门时所有侍者.
     table().with(cap_, [](Table& t, const std::vector<std::string>& mine) {
         for (const auto& m : mine)
             if (auto it = std::ranges::find(t.busy, m); it != t.busy.end())

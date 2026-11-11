@@ -1,10 +1,10 @@
-// agentty/util/child_process.hpp — a long-lived child process with its
-// stdio as std::istream/std::ostream.
+// agentty/util/child_process.hpp-long-lived子进程，其stdio
+// 为std::istream/std::ostream。
 //
-// Used for MCP servers, ACP agents and rag peers. Started by maya's
-// native_process (posix or windows), so it gets the same guarantees as every
-// other child. Only the pipe IO under the streambufs differs per platform.
-// A `cmd /c <payload>` argv passes the payload to cmd.exe as written.
+// 用于MCP服务器、ACP代理和抹布对端。由 maya 的
+// native_process（posix 或 windows）启动，
+// 因此它得到与其他子项相同的保证。只有streambufs下的管道IO因平台而异。
+// `cmd /c <payload>` argv将载荷传递到所写的cmd.exe。
 #pragma once
 
 #if defined(__unix__) || defined(__APPLE__) || defined(_WIN32)
@@ -46,24 +46,24 @@
 
 namespace agentty::util {
 
-// The child itself, and what it ended with.
+// 孩子本身，以及它的结局。
 //
-// stop(), reap() and close_stdin() must never race: a stop that ran after
-// another thread's reap could signal a reused pid, and a close racing a
-// close would double-close a handle. That used to be a lock. It is now ONE
-// atomic word with an "in use" bit claimed by compare-and-swap, because the
-// operations are reached from places that can't be handed a lock capability
-// (a destructor; a std::streambuf::sync override the library calls), and a
-// lock taken there would sit outside the compile-time order. A claim that
-// loses simply does nothing, which is right for every operation here:
+// stop()、reap()和close_stdin()绝不能竞
+// 态：在另一个线程的收割之后运行的停止可以发出重复使用的pid的信号，
+// 并且接近的竞赛结束将使-close的句柄加倍。那曾经是锁。
+// 现在它是 一个 原子字，其中 "in use" 位由compare
+// -and-swap声明，因为这些操作是从无法赋予 锁 功能的位置（析构函数；
+// std::streambuf::sync 覆盖 库 调用）到达的，
+// 并且在那里获取的 锁 将位于 编译-time 顺序之外。
+// 失败的索赔根本不会执行任何操作，这对于这里的每个操作都是正确的：
 //
-//   reap   loses to another reap   -> the other one records the status
-//   stop   loses to anything       -> skipped; terminate() retries with a
-//                                     deadline and the reap ends it anyway
-//   close  loses to anything       -> retried until the claim is free or
-//                                     the process is reaped (EOF either way)
+//   收割输给另一收割->另一收割记录状态止损输给任何
+//   ->跳过； terminate() 重试 有最后期限，
+//                                     无论如何收割都会结束，
+//   几乎失去任何东西 -> 重试，直到索赔免费或该
+//                                     过程被收割（EOF 无论如何）
 //
-// No waiting, no lock, nothing for the order to see.
+// 无需等待，没有锁，订单看不到任何内容。
 class child_proc {
 public:
     explicit child_proc(maya::platform::native_process p) : proc_(std::move(p)) {}
@@ -72,12 +72,12 @@ public:
         return (st_.load(std::memory_order_acquire) & kReaped) != 0;
     }
     [[nodiscard]] std::optional<int> exit_code() const noexcept {
-        // Published before kReaped is set (release), read after (acquire).
+        // kReaped被设置之前发布(release)，之后读取(acquire)。
         if (!reaped()) return std::nullopt;
         return code_;
     }
 
-    /// Reap once the exit handle has fired. True when the child is gone.
+    /// 一旦退出句柄被激发，就收获。当孩子离开时确实如此。
     bool reap() noexcept {
         if (!claim()) return reaped();
         if (!(st_.load(std::memory_order_relaxed) & kReaped)) {
@@ -91,7 +91,7 @@ public:
         return true;
     }
 
-    /// Signal the tree, unless it's already reaped (or busy: skipped).
+    /// 向 源码树 发出信号，除非它已经被收获（或忙：跳过）。
     void stop(maya::platform::stop_mode mode) noexcept {
         if (!claim()) return;
         if (!(st_.load(std::memory_order_relaxed) & kReaped))
@@ -99,7 +99,7 @@ public:
         release(0);
     }
 
-    /// EOF on the child's stdin. Idempotent.
+    /// 孩子的标准输入上的EOF。 幂等。
     void close_stdin() noexcept {
         for (;;) {
             if (st_.load(std::memory_order_acquire) & (kReaped | kStdinClosed)) return;
@@ -108,7 +108,7 @@ public:
                 release(kStdinClosed);
                 return;
             }
-            std::this_thread::yield();   // a stop/reap holds the claim for a syscall
+            std::this_thread::yield();   // stop/reap持有系统调用的声明
         }
     }
 
@@ -134,8 +134,8 @@ private:
 };
 
 
-// The child's stdout as a streambuf. A reader parked in underflow() can be
-// woken by interrupt() without closing the handle under it.
+// 孩子的标准输出作为streambuf。停放在 underflow() 的读卡器
+// 可以被 interrupt() 唤醒，而无需关闭其下方的手柄。
 class child_out_buf final : public std::streambuf {
 public:
     explicit child_out_buf(maya::platform::borrowed_handle h) : h_(h) {
@@ -180,28 +180,28 @@ private:
     char in_[4096]{};
 };
 
-// The child's stdin as a streambuf: blocking writes; failure (the child
-// closed it) surfaces as badbit on the ostream.
+// 子进程的stdin作为streambuf:阻塞写入；失败（孩子关闭了
+// 它）在 ostream 上表现为 badbit。
 //
-// close() races a writer on another thread. Closing the fd under a write
-// would let a newly opened file reuse the number and take the bytes, so the
-// fd is only closed when no write is in flight. close() must also never wait
-// on a writer: the writer can be blocked on a full pipe to a child that
-// stopped reading, and close() is called on the way to killing that child.
-// So close() marks the stream closed and, if a write is in flight, leaves
-// the fd to that writer, which closes it as it leaves.
+// close() 竞态是另一个线程上的作家。在写入时关闭
+// fd 将使新打开的文件重用该编号并获取 字节，
+// 因此仅当没有写入正在进行时才关闭 fd。 close() 也
+// 绝不能等待写入器：写入器可能会在停止读取的子进程的完整
+// 管道上被阻塞，并且在杀死该子进程的过程中调用 close()。
+// 因此，close()将数据流标记为关闭，并且如果写入正在进行，
+// 则将fd留给该写入器，该写入器在其离开时将其关闭。
 //
-// The two flags live in ONE atomic word and every transition is a single
-// compare-and-swap. sync() is a std::streambuf override the library calls,
-// so it can't be handed a lock capability; making the claim lock-free keeps
-// this class outside the lock order entirely.
+// 两个标志存在于ONE原子字中并且每个转换都是单个比较-and-swap。
+// sync() 是 std::streambuf 覆盖
+// 库 调用，因此不能为其提供 锁 功能；声明 锁-free
+// 使此类完全处于 锁 顺序之外。
 class child_in_buf final : public std::streambuf {
 public:
     child_in_buf(child_proc& p, std::optional<maya::platform::borrowed_handle> h)
         : p_(p), h_(h) { setp(out_, out_ + sizeof(out_)); }
     void close() noexcept {
-        // Set `closed`. If no write was in flight, the fd is ours to close;
-        // otherwise the writer sees `closed` when it leaves and closes it.
+        // 设置`closed`。如果没有写入正在进行，则我们可以关闭 fd；
+        // 否则，作者在离开并关闭它时会看到 `closed`。
         unsigned cur = st_.load(std::memory_order_acquire);
         for (;;) {
             if (cur & kClosed) return;
@@ -224,26 +224,26 @@ protected:
         const char* p = pbase();
         std::size_t left = static_cast<std::size_t>(pptr() - pbase());
         if (left == 0) return 0;
-        // Claim the fd: nobody closes it while `writing` is set.
+        // 声明fd：当设置了`writing`时没有人关闭它。
         unsigned cur = st_.load(std::memory_order_acquire);
         for (;;) {
             if (cur & (kClosed | kWriting)) return -1;
             if (st_.compare_exchange_weak(cur, cur | kWriting, std::memory_order_acq_rel))
                 break;
         }
-        // Copied at spawn; valid until close_fd(), which can't run now.
+        // 在生成时复制；直到 close_fd() 为止有效，现在无法运行。
         if (!h_) { release_claim(); return -1; }
         const int rc = write_all(*h_, p, left);
-        if (release_claim()) { close_fd(); return -1; }   // close() left it to us
+        if (release_claim()) { close_fd(); return -1; }   // close() 留给我们了
         if (rc == 0) setp(out_, out_ + sizeof(out_));
         return rc;
     }
 
 private:
     static constexpr unsigned kClosed  = 1u;
-    static constexpr unsigned kWriting = 2u;   // a write is in flight; it owns the fd
+    static constexpr unsigned kWriting = 2u;   // 写入正在进行中；它拥有FD
 
-    // Drop the write claim; true when close() ran meanwhile (the fd is ours).
+    // 放弃写声明；当 close() 同时运行时为真（fd 是我们的）。
     bool release_claim() noexcept {
         return (st_.fetch_and(~kWriting, std::memory_order_acq_rel) & kClosed) != 0;
     }
@@ -276,16 +276,16 @@ private:
     char out_[4096]{};
 };
 
-// A long-lived child (an MCP server, an ACP agent, a rag peer) spoken to over
-// its stdin/stdout. stderr is inherited: servers log there. Construction
-// throws std::runtime_error on spawn failure.
+// 通过其 stdin/stdout. stderr 进行对话的 long-lived 子项
+// （MCP 服务器、ACP 代理、rag 对端）被继承：服务器记录在那里。生成失败时，
+// 构造会抛出 std::runtime_error。
 class ChildProcess {
 public:
     struct Spawn {
-        std::string              command;   // executable (PATH-resolved)
-        std::vector<std::string> args;      // NOT including argv[0]
-        std::vector<std::string> env_kv;    // extra "KEY=VALUE" entries
-        std::string              cwd;        // empty inherits parent cwd
+        std::string              command;   // 可执行文件(PATH-resolved)
+        std::vector<std::string> args;      // 不 包括 argv[0]
+        std::vector<std::string> env_kv;    // 额外的"KEY=VALUE"条目
+        std::string              cwd;        // 空继承父cwd
         bool                     merge_stderr = false;
     };
 
@@ -310,8 +310,8 @@ public:
         if (!p) throw std::runtime_error("cannot start '" + s.command + "': "
                                      + std::string{p.error().what} + " ("
                                      + std::to_string(p.error().native) + ")");
-        // Handles are copied out before the process goes behind the lock.
-        // They stay valid as long as the process object lives (this does).
+        // 在进程转到锁后面之前，句柄被复制出来。
+        // 只要进程对象存在，它们就保持有效（确实如此）。
         exit_h_ = p->exit_handle();
         pid_    = static_cast<int>(p->id());
         const auto out = p->stdout_handle();
@@ -329,8 +329,8 @@ public:
     ChildProcess(const ChildProcess&)            = delete;
     ChildProcess& operator=(const ChildProcess&) = delete;
 
-    [[nodiscard]] std::istream& out() noexcept { return *out_stream_; }   // child stdout
-    [[nodiscard]] std::ostream& in()  noexcept { return *in_stream_; }    // child stdin
+    [[nodiscard]] std::istream& out() noexcept { return *out_stream_; }   // 儿童标准输出
+    [[nodiscard]] std::ostream& in()  noexcept { return *in_stream_; }    // 儿童标准输入
     [[nodiscard]] int pid() const noexcept { return pid_; }
 
     [[nodiscard]] bool alive() noexcept {
@@ -338,18 +338,18 @@ public:
         return !wait_exit(std::chrono::milliseconds::zero());
     }
 
-    // 0..255 for an exit, 128+N for death by signal N; nullopt while running.
+    // 0..255表示退出，128+N表示信号N死亡；运行时nullopt。
     [[nodiscard]] std::optional<int> exit_code() const noexcept { return proc_->exit_code(); }
 
-    // EOF on the child's stdin: a well-behaved server starts exiting. The
-    // streams stay alive (a peer may still hold them); writes now fail.
+    // 孩子的标准输入上的EOF:well-behaved服务器开始退出。
+    // 数据流 保持活力（对端 可能仍保留着它们）；现在写入失败。
     void close_stdin() noexcept { in_buf_->close(); }
 
-    // Wake a reader parked on the child's stdout; it sees EOF.
+    // 唤醒停放在孩子标准输出上的读者；它看到 EOF。
     void interrupt_output() noexcept { out_buf_->interrupt(); }
 
-    // Ask it to finish, then make it. stdin EOF first; a cooperative child
-    // exits within `grace`. Then stop its tree gracefully, then forcefully.
+    // Ask它完成，然后制作它。首先是标准输入 EOF；合作的孩子在
+    // `grace` 内退出。然后优雅地停止它的源码树，然后用力停止。
     void terminate(std::chrono::milliseconds grace = std::chrono::milliseconds{500}) noexcept {
         if (exited()) return;
         namespace pf = maya::platform;
@@ -369,11 +369,11 @@ public:
 private:
     [[nodiscard]] bool exited() const noexcept { return proc_->reaped(); }
 
-    // Claimed, so it can't land after a reap.
+    // 声称，因此收获后无法着陆。
     void stop(maya::platform::stop_mode m) noexcept { proc_->stop(m); }
 
-    // Is the exit handle signalled within `d`? Level-triggered, so any
-    // thread may ask without a shared reactor.
+    // 退出句柄是否在`d`内发出信号？ Level-triggered，
+    // 因此任何 线程 都可能会在没有共享反应器的情况下询问。
     [[nodiscard]] bool exit_ready(std::chrono::milliseconds d) noexcept {
 #if defined(_WIN32)
         return ::WaitForSingleObject(static_cast<HANDLE>(exit_h_.get()),
@@ -386,16 +386,16 @@ private:
 #endif
     }
 
-    // Wait up to `d` for the exit, and reap once it fires (under the lock,
-    // so exactly once). True when the child is gone.
+    // 等待 `d` 退出，一旦触发就收获（在 锁 下，
+    // 所以正好一次）。当孩子离开时确实如此。
     bool wait_exit(std::chrono::milliseconds d) noexcept {
         if (exited()) return true;
         if (!exit_ready(d)) return false;
-        while (!proc_->reap()) std::this_thread::yield();   // a stop holds the claim briefly
+        while (!proc_->reap()) std::this_thread::yield();   // 止损短暂保留索赔
         return true;
     }
 
-    // Behind a pointer: the in-buf holds a reference.
+    // 在指针后面：in-buf保存引用。
     std::unique_ptr<child_proc>                proc_;
     maya::platform::borrowed_handle            exit_h_{};
     int                                        pid_ = 0;

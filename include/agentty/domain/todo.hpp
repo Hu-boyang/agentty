@@ -1,7 +1,7 @@
 #pragma once
-// agentty todo domain — the value types for the `todo_write` tool's tracked
-// task list.  The modal in the UI and the tool implementation share the
-// same vocabulary.
+// agentty待办事项域——`todo_write`工具的跟踪
+// 任务列表的值类型。  UI 中的 弹出面板 和工具实现共享
+// 相同的词汇表。
 
 #include <cstdint>
 #include <string>

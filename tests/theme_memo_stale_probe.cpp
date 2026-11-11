@@ -1,21 +1,21 @@
-// theme_memo_stale_probe — does a theme switch actually recolour a
-// SETTLED tool panel?
+// theme_memo_stale_probe —— 主题切换实际重彩 a
+// SETTLED 工具面板吗 ?
 //
-// agent_timeline.cpp holds three thread_local Element memos:
-//   g_body_cache          key: tool id | status | output size | grep_sig
-//   g_panel_cache         key: tool ids/status/sizes/render_keys | tool_output pref
-//   g_panel_render_memo   key: msg_id | render_key
+// agent_timeline.cpp 手持三盘 thread_local 元素备忘录 :
+//   g_body_cache 键: 工具 ID | 状态 | 输出大小 | grep_sig g_panel_cache
+//   键:工具 ids/status/sizes/render_keys | tool_output 预览
+//   g_panel_render_memo 键 : msg_id | render_key
 //
-// None of those keys names the THEME, and nothing clears them when the
-// theme changes (restyle_sealed_turns clears view_cache + rehydrates the
-// frozen ledger, but never these). If a cached panel Element bakes any
-// RESOLVED colour at build time, the memo will keep serving the old
-// palette for as long as the tool call's content is unchanged — which,
-// for a settled tool call, is forever.
+// 这些密钥中没有一个名称是 THEME ,而且主题改变时,
+// 没有什么能澄清它们( restyle_sealed_turns 清除
+// view_cache + 将冷冻分类账补水, 但绝不是这些。
+// 如果缓存面板元素烤出任何 RESOLVED 颜色,在构建时,
+// 记忆缓存 将一直服务于旧调色板, 时间与工具一样长 调用 内容不变——
+// 对于一个已解决的工具来说 调用 永远
 //
-// The probe renders the same settled tool panel under two very different
-// schemes and compares the emitted SGR bytes. Warm vs cold tells us
-// whether the difference (if any) came from the theme or from the memo.
+// 探测器 渲染 两种非常不同的方案下同一固定的工具面板,
+// 并比较所排放的 SGR 字节。温暖对冷告诉我们,
+// 区别(如果有的话)来自主题还是来自 记忆缓存.
 
 #include <cstdio>
 #include <string>
@@ -40,7 +40,7 @@ void check(bool ok, const char* what) {
     if (!ok) ++failures;
 }
 
-// One settled (terminal) tool call — the memoizable shape.
+// 一项已解决( 终端 () 工具 调用 ——记忆的形状.
 std::vector<ToolUse> settled_batch() {
     ToolUse tc;
     tc.id     = ToolCallId{"toolu_probe_1"};
@@ -61,13 +61,13 @@ std::string render_panel(const maya::Theme& t, std::string_view msg_id,
     return maya::render_to_string_ansi(el, 100);
 }
 
-} // namespace
+} // 命名空间结束。
 
 int main() {
-    // These compare painted bytes across palettes; a NO_COLOR in the
-    // caller's env (CI, agent shells, a console with no VT) would make every
-    // scheme identical. MAYA_COLOR is maya's documented deterministic-test
-    // override (see detect_color_level).
+    // 这些比较画 字节 跨调色板; a NO_COLOR 电话铃声的内脏
+    // CI ,代理贝壳,一个控制台,没有 VT )将使每个方案都相同。
+    // MAYA_COLOR 谓 maya 已经记录的定型 -test 覆盖( 见
+    // detect_color_level).
     ::unsetenv("NO_COLOR");
     ::setenv("MAYA_COLOR", "truecolor", 1);
     std::printf("=== theme_memo_stale_probe ===\n\n");
@@ -79,9 +79,9 @@ int main() {
         return 2;
     }
 
-    // ── A. COLD: a different msg_id each time, so the memo cannot hit.
-    // This is the ground truth: what the panel SHOULD look like under
-    // each theme.
+    // A. 冷缓存：每次使用不同 msg_id，因此不可能命中缓存。
+    // 这就是事实:第SHOULD小组在每个主题下
+    // 的样子。
     const std::string cold_a = render_panel(*dracula, "cold_msg_a", 1);
     const std::string cold_b = render_panel(*gruv,    "cold_msg_b", 2);
 
@@ -91,9 +91,9 @@ int main() {
     std::printf("    dracula bytes=%zu  gruvbox bytes=%zu\n\n",
                 cold_a.size(), cold_b.size());
 
-    // ── B. WARM: the SAME msg_id + render_key across a theme switch.
-    // This is what a real theme switch does to an already-settled
-    // tool panel: the content did not change, so the key is identical.
+    // B. 热缓存：切换主题时保持相同 msg_id 和 render_key。
+    // 这是真实的主题切换对一个已经-settled工具面板所做的:
+    // 内容没有改变,所以密钥是完全相同的.
     const std::string warm_a = render_panel(*dracula, "warm_msg", 7);
     const std::string warm_b = render_panel(*gruv,    "warm_msg", 7);
 
@@ -107,7 +107,7 @@ int main() {
         std::printf("      Byte-identical output across a real palette change.\n");
     }
 
-    // ── C. Is the stale copy the OLD theme's paint?
+    // C. 检查过期副本是否仍采用旧主题绘制。
     if (warm_b == warm_a && cold_a != cold_b) {
         std::printf("\n  the warm Gruvbox render equals the Dracula paint: %s\n",
                     warm_b == warm_a ? "yes" : "no");

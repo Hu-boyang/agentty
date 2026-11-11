@@ -1,11 +1,11 @@
-// tool_loading_wire_test — #98 end to end through the real encoders.
+// tool_loading_wire_test — #98结束通过真实编码器结束.
 //
-// The planner decides; these check the bytes each provider actually gets:
-//   Anthropic  every tool on the wire, on-demand ones `defer_loading`, the
-//              cache pin on a non-deferred tool, and a tool_search result
-//              turned into tool_reference blocks.
-//   OpenAI     on-demand tools absent, never more than 128, and a deferred
-//              flag can never leak into the body.
+// 计划者决定;这些检查每个提供者实际得到的字节:
+//   Anthropic 每一个工具在 传输 打开 -demand 单曲 `defer_loading` ,
+//              则 缓存 针在非 -deferred 工具,以及一个 tool_search
+//              变成结果 tool_reference 块。
+//   OpenAI 打开 -demand 工具缺失,不超过128个,
+//              推迟 标志 永远不能漏进 正文.
 
 #include "agtest.hpp"
 
@@ -62,7 +62,7 @@ std::vector<provider::ToolSpec> plan_for(const std::vector<ToolDef>& cat, provid
     return out;
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("tool loading wire: Anthropic defers, OpenAI omits (#98)") {
     const auto cat = catalog(200);
@@ -71,15 +71,15 @@ TEST_CASE("tool loading wire: Anthropic defers, OpenAI omits (#98)") {
 
     std::size_t a_deferred = 0;
     for (const auto& s : a) a_deferred += s.defer_loading ? 1 : 0;
-    CHECK(a.size() == cat.size() + 1);           // every tool + tool_search
+    CHECK(a.size() == cat.size() + 1);           // 每个工具 + tool_search
     CHECK(a_deferred == 200);
     CHECK(a.back().name == "tool_search");
     CHECK(!a.back().defer_loading);
 
     for (const auto& s : o) CHECK(!s.defer_loading);
-    CHECK(o.size() == 3 + 1);                    // natives + tool_search
+    CHECK(o.size() == 3 + 1);                    // 土生土长者+ tool_search
     CHECK(o.back().name == "tool_search");
-    // The search tool names what it can find.
+    // 搜索工具名称可以找到。
     CHECK(o.back().description.find("srv (200 tools)") != std::string::npos);
 }
 
@@ -87,8 +87,8 @@ TEST_CASE("tool loading wire: OpenAI never gets more than 128 tools") {
     const auto cat = catalog(500);
     const auto o = plan_for(cat, provider::Kind::OpenAI, tp::Loading::All);
     CHECK(o.size() <= 128);
-    CHECK(o.back().name == "tool_search");       // the rest stay reachable
-    // And the chat encoder drops anything deferred, as a backstop.
+    CHECK(o.back().name == "tool_search");       // 其余的可以到达
+    // 聊天编码器会把任何延迟的东西都放下,作为后台.
     std::vector<provider::ToolSpec> mixed = o;
     mixed.push_back({"leak", "x", {{"type", "object"}}, false, /*defer_loading=*/true});
     CHECK(provider::wire::openai_chat_tools(mixed).size() == o.size());
@@ -113,7 +113,7 @@ TEST_CASE("tool loading wire: a tool_search hit on Anthropic is a tool_reference
     t.messages.push_back(a);
 
     const auto body = nlohmann::json::parse(provider::anthropic::messages_json_string(t));
-    // messages[2] is the user turn carrying the tool_result.
+    // 消息[2]是携带tool_result的用户转弯.
     const auto& content = body.at(2).at("content");
     REQUIRE(content.is_array());
     const auto& result = content.at(0);
@@ -126,9 +126,9 @@ TEST_CASE("tool loading wire: a tool_search hit on Anthropic is a tool_reference
             other = true;
     }
     CHECK(ref);
-    // The live API 400s a tool_result mixing references with other blocks.
+    // 现场直播 API 400s a tool_result 将参考文献与其他块混合。
     CHECK(!other);
-    // And the thread now counts it as loaded.
+    // 还有 线程 现在算作 已加载.
     CHECK(tp::loaded_in(t).contains("mcp__bn__decompile_function"));
 }
 

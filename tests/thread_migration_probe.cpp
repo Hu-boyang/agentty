@@ -1,18 +1,18 @@
-// thread_migration_probe — run the REAL save path over a REAL thread and
-// prove the migration is safe before trusting it with history.
+// thread_migration_probe - 运行 真实 保存
+// 路径过 a 真实 线程 并证明移民是安全的 之前相信它的历史。
 //
-// thread_migration_test covers the logic with synthetic messages.
-// This runs the same code over a thread off disk — 1200 tool calls, 10
-// images, whatever encoding the shell produced that day — and checks the
-// property that actually matters:
+// thread_migration_test用合成信息覆盖逻辑.
+// 这把代码运行在 A 上 线程 磁盘关闭——
+// 1200 工具 调用 10张图片,无论那天制成什么
+// 编码 检查实际重要的财产:
 //
-//   the legacy <id>.json is removed ONLY after the log reads back with
-//   every message, every tool output, and every image byte intact.
+//   遗产 <id>.JSON 被删除 仅 日志后, 每一个消息、
+//   每个工具输出和每个图像都会读回 字节 完好无损
 //
 //   ./build/agentty_standalone_tests thread_migration_probe <thread.json>
 //
-// The thread is copied into the test sandbox first, so the user's real
-// history is never touched. No argument = no-op pass.
+// 电话 线程 被复制到测试中 沙箱 首先,所以用户的真实历史
+// 从未被触及。无参数 = 没有 -op 过.
 
 #include <agentty/domain/conversation.hpp>
 #include "agtest_cap.hpp"
@@ -34,7 +34,7 @@ void check(bool ok, const char* what) {
     if (!ok) { std::printf("FAIL: %s\n", what); ++failures; }
 }
 
-} // namespace
+} // 命名空间结束。
 
 int main(int argc, char** argv) {
     if (argc < 2) {
@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // Stage into the harness sandbox — never operate on real history.
+    // 进入控制层 沙箱 - 永远不要在真实的历史上运作。
     const ThreadId id{src.stem().string()};
     const auto legacy = persistence::threads_dir() / (id.value + ".json");
     fs::copy_file(src, legacy, fs::copy_options::overwrite_existing, ec);
@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
     }
     const auto legacy_size = fs::file_size(legacy, ec);
 
-    // The thread as it exists today, via the legacy reader.
+    // 电话 线程 透过传统读者,
     auto before = persistence::load_thread_by_id(::agentty::IoAccess::grant(), id);
     if (!before) { std::printf("FAIL: could not load the staged thread\n"); return 1; }
 
@@ -77,7 +77,7 @@ int main(int argc, char** argv) {
                 id.value.c_str(), legacy_size / 1e6, before->messages.size(),
                 tools, tool_bytes / 1e6, images, image_bytes / 1e6);
 
-    // THE MIGRATION: the real save path, exactly as a turn would run it.
+    // 该 MIGRATION : 真实 保存 径,正转弯会运行它。
     const auto t0 = std::chrono::steady_clock::now();
     persistence::save_thread(::agentty::IoAccess::grant(), agtest::cap(), *before);
     persistence::flush_pending_saves(::agentty::IoAccess::grant(), agtest::cap());
@@ -96,7 +96,7 @@ int main(int argc, char** argv) {
                     legacy_size / 1e6, sz / 1e6);
     }
 
-    // Everything must survive, byte for byte.
+    // 万物必须生存 字节 费用 字节.
     auto after = persistence::load_thread_by_id(::agentty::IoAccess::grant(), id);
     if (!after) { std::printf("FAIL: migrated thread does not load\n"); return 1; }
 
@@ -130,13 +130,13 @@ int main(int argc, char** argv) {
                         bad_text, bad_tool, bad_image);
     }
 
-    // The picker must still find it, exactly once, with its title.
+    // 电话 选择面板 一定还是找到它, 确切的一次, 与它的标题。
     const auto all = persistence::load_all_threads(::agentty::IoAccess::grant(), agtest::cap());
     std::size_t seen = 0;
     for (const auto& t : all) if (t.id.value == id.value) ++seen;
     check(seen == 1, "listed exactly once after migrating");
 
-    // A second save (i.e. the next turn) must be a no-op, not a corruption.
+    // 一会儿 保存 (i.e . 下一转)必须是不 -op 而不是腐败
     persistence::save_thread(::agentty::IoAccess::grant(), agtest::cap(), *after);
     persistence::flush_pending_saves(::agentty::IoAccess::grant(), agtest::cap());
     auto again = persistence::load_thread_by_id(::agentty::IoAccess::grant(), id);

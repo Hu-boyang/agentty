@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Drive agentty in a pty and report the cursor escapes it writes per step.
+"""在 PTY 中驱动 agentty，报告每一步写出的光标控制序列。
 
-Usage: agentty_caret_probe.py BINARY STEP...
-A step is a literal string to type, a key name (ENTER ESC UP DOWN CK
-FOCUSIN FOCUSOUT), or WAITn.n to just listen. Set DUMP=<step> to print
-that step's raw bytes.
+用法：agentty_caret_probe.py BINARY STEP...
+每一步可以是要输入的文本、按键名称（ENTER ESC UP DOWN CK
+FOCUSIN FOCUSOUT），或只监听一段时间的 WAITn.n。
+设置 DUMP=<step> 可打印指定步骤的原始字节。
 """
 import os, pty, sys, time, select, re, fcntl, termios, struct
 
@@ -34,7 +34,7 @@ def pump(secs):
 KEYS = {"ENTER": b"\r", "ESC": b"\x1b", "DOWN": b"\x1b[B", "UP": b"\x1b[A",
         "CK": b"\x0b", "FOCUSIN": b"\x1b[I", "FOCUSOUT": b"\x1b[O"}
 pump(2.0)
-os.write(fd, b"\r")          # dismiss the sandbox-off splash
+os.write(fd, b"\r")          # 驳回 沙箱-off 喷出
 pump(1.5)
 for s in steps:
     if s.startswith("WAIT"):

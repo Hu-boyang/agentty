@@ -1,14 +1,14 @@
-// Navigation through a grouped picker.
+// 通过一个分组的选择面板进行导航.
 //
-// Section headers are NON-SELECTABLE: they carry no action, so a cursor
-// landing on one is a dead keypress. The reducer indexes the header-FREE
-// match list and the view maps that onto a display position — which means
-// nothing in the reducer has to know headers exist, and no arrow key can
-// stop on one.
+// 节次 头文件 已经 NON-SELECTABLE :它们没有动作,
+// 所以一个光标降落在其中就是死键压。 状态更新函数 索引 头
+// 文件-FREE 匹配列表和显示位置的视图映射, 这意味着在
+// 状态更新函数 一定要知道,我必须知道 头文件 已存在,
+// 任何箭头键都无法停止。
 //
-// This pins that end to end, because the failure is silent: a cursor on a
-// header still renders (the row just looks unselected), so the only symptom
-// is an arrow press that appears to do nothing.
+// 将结束的钉子钉上, 因为失败是沉默的: 光标在 头
+// 文件 仍然 渲染 (这行看起来只是没有选择),
+// 所以唯一的症状是箭形的按键似乎毫无作用.
 
 #include "agtest.hpp"
 
@@ -28,21 +28,21 @@ using namespace agentty;
 
 namespace {
 
-// The rendered frame, minus styling.
+// 已作出 帧 减型号
 std::string frame(const Model& m) {
     return maya::render_to_string(ui::palette_panel(m), 82);
 }
 
-// Which line carries the cursor bar, or -1. The bar is the ONE marker for
-// "you are here", so asking the rendered output is the honest check —
-// inspecting model state would only prove the model agrees with itself.
+// 哪个线条带有光标栏,或 -1.
+// 栏是"you are here"的ONE标记,
+// 所以要求输出是诚实的检查——检查模型状态只会证明模型自己同意.
 int cursor_line(const std::string& out) {
     int line = 0;
     std::size_t start = 0;
     while (start <= out.size()) {
         const std::size_t nl = out.find('\n', start);
         const std::string s = out.substr(start, nl - start);
-        // U+258E, in the row's marker lane (past the panel border + padding).
+        // U+258E,位于行标车道(过去为面板边框+垫板).
         if (s.find("\xe2\x96\x8e") != std::string::npos) return line;
         if (nl == std::string::npos) break;
         start = nl + 1;
@@ -51,8 +51,8 @@ int cursor_line(const std::string& out) {
     return -1;
 }
 
-// Is this rendered line a section header? Headers are the only rows drawn as
-// a rule running to the right edge.
+// 这是一条线还是一条线 头文件? 头文件 以规则方式划出的
+// 唯一一行,以运行到右边缘。
 bool is_header_line(const std::string& out, int want) {
     int line = 0;
     std::size_t start = 0;
@@ -85,7 +85,7 @@ void install_stub_deps() {
     });
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("palette nav: the cursor never lands on a section header") {
     install_stub_deps();
@@ -94,9 +94,9 @@ TEST_CASE("palette nav: the cursor never lands on a section header") {
     m.ui.panel.descend(pn::Palette{{}});
     m.d.pending_changes.push_back(FileChange{});
 
-    // Walk the whole list. Every stop must be a real, runnable row — the
-    // grouped view has headers interleaved, and an arrow that stops on one
-    // would look like a key that did nothing.
+    // 全部列。 每站必须是真实的,可运行的行。
+    // 组图显示 头文件 和一箭停止在一个人身上,
+    // 看起来像一个没有做任何事情的钥匙。
     const int rows = static_cast<int>(filtered_commands("").size());
     REQUIRE(rows > 0);
 
@@ -133,9 +133,9 @@ TEST_CASE("palette nav: moving up also skips headers") {
 }
 
 TEST_CASE("palette nav: the cursor index addresses the header-free list") {
-    // The reducer must stay header-UNAWARE. If it ever indexed the display
-    // rows instead, adding a section would silently shift every selection —
-    // and the symptom would be "Enter ran the wrong command", not a crash.
+    // 电话 状态更新函数 一定要留下来 头文件-UNAWARE 如果它把
+    // 显示行索引化,增加一个部分会默默地改变每个选择——症状是:
+    // "Enter ran the wrong command" 而不是坠机
     install_stub_deps();
 
     Model m;
@@ -146,13 +146,13 @@ TEST_CASE("palette nav: the cursor index addresses the header-free list") {
     const auto cmds = filtered_commands("");
     REQUIRE(!cmds.empty());
 
-    // Index 0 is the FIRST COMMAND, not the first display row (which is a
-    // header in the grouped view).
+    // 索引0是FIRST COMMAND,而不是第一个显示行(
+    // 在分组视图中是头文件).
     CHECK(o->index == 0);
     const auto out = frame(m);
     const int cl = cursor_line(out);
     CHECK(cl >= 0);
     CHECK_FALSE(is_header_line(out, cl));
-    // …and the row under the cursor is that first command.
+    // ...光标下的一行是第一个命令。
     CHECK(out.find(std::string{cmds.front()->label}) != std::string::npos);
 }

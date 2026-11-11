@@ -1,35 +1,35 @@
-// panel_draw_budget_test — a drawn control sizes to its panel.
+// panel_draw_budget_test——其面板的抽取控制大小.
 //
-// THE GAP THIS CLOSES
+// 本测试补齐的验证缺口。
 // ===================
-// maya::panel's item widgets render from their own value plus ItemCtx, and
-// nothing else. That is the modularity guarantee, and it is a good one --
-// an item widget physically cannot grow panel logic.
+// maya::panel 其项目部件 渲染 从自身值加 ItemCtx ,
+// 其它的。这是模块化的保证,而且它是一个很好的保证——
+// 一个项目部件实际上无法增强面板逻辑。
 //
-// But ItemCtx carried only facts a TEXT control needs. A control whose
-// glyphs are a picture -- a bar, a meter, a strip -- had no way to learn how
-// much room it was in, so every one hardcoded its own size. Slider drew
-// `constexpr int kCells = 12` on a 40-column split pane and on a 200-column
-// terminal alike.
+// 不过 ItemCtx 仅载有事实a TEXT 控制需要。一个控制,
+// 其格言是一张图片-- 条,仪表,条条-- 无法得知它有多少房间,所以每个硬码都
+// 用自己的尺寸。滑动画画 `constexpr int kCells = 12`
+// 40号公路 -column 拆分( E) 面板 和200块 -column
+// 终端 一样
 //
-// For a bar that is not a cosmetic issue: a bar's resolution IS its width.
-// At 12 cells the smallest visible step is 8%, so two settings a twentieth
-// apart draw identically. Freezing the size froze the information.
+// 对于一个不是化妆品问题的酒吧:一个酒吧的IS号决议的宽度.
+// 12 存储单元 最小可见的步数是 8%,
+// 所以两个设置是 20 个相隔的绘图。 冻结大小会冻结信息。
 //
-// ItemCtx::draw_budget is the missing fact, derived from min_width exactly
-// as edit_budget is -- and for the reason edit_budget's comment gives:
-// asking the LAYOUT how wide a cell is, inside a scroll viewport that
-// measures children against an unbounded width, is what produced the
-// "control reports 2^24 columns" class of bug.
+// ItemCtx::draw_budget 缺少的事实,来源于 min_width 完全
+// 一样 edit_budget 和原因 原因 edit_budget 其评论给出:
+// 问 LAYOUT 宽度多宽 存储单元 是在卷轴里 可视区域
+// 以无限制的宽度衡量儿童,
+// "control reports 2^24 columns" 类虫。
 //
-// WHAT IS PINNED
+// 内容 IS PINNED  ⁇
 // ==============
-// Both directions, because a budget that always grows is as wrong as one
-// that never does:
-//   • a wider panel draws a wider bar        (the bug)
-//   • bounded at both ends                   (not unbounded growth)
-//   • unmeasured budget still draws          (used outside a panel)
-//   • the ratio the bar encodes is unchanged (it is still the same datum)
+// 两者都不同 因为预算总是增长 和从未增长过的预算
+// 一样错误:
+//   • 扩大面板绘制宽条(bug)
+//   • 双端(无限制增长)
+//   • 未计量的预算仍在提取(在小组外使用)
+//   • 条码的比例不变(它仍然是同一个数据)
 
 #include "agtest.hpp"
 
@@ -51,8 +51,8 @@ const maya::panel::Theme& theme() {
     return t;
 }
 
-// Cells of bar in a rendered slider: the glyphs are ▆ (on) and ▁ (off), and
-// the numeric value follows after two spaces.
+// 制成的滑块中的存储单元:格法为  ⁇ (on)和(off),
+// 数值在两个空格后随行。
 int bar_cells(const Slider& s, int draw_budget) {
     ItemCtx ctx{.theme = theme(), .draw_budget = draw_budget};
     const auto [text, _] = render(s, ctx);
@@ -65,40 +65,40 @@ int bar_cells(const Slider& s, int draw_budget) {
     return n;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("draw budget: a wider panel draws a wider bar") {
     const Slider s{.value = 0.5};
-    // The reported defect: identical pictures at every width.
+    // 报告缺陷:照片每宽都一样。
     CHECK(bar_cells(s, 10) < bar_cells(s, 20));
     CHECK(bar_cells(s, 20) < bar_cells(s, 24));
 }
 
 TEST_CASE("draw budget: the bar is bounded at both ends") {
     const Slider s{.value = 0.5};
-    // A floor, because below it a bar stops being a scale and becomes
-    // texture -- a narrow panel should draw a small bar, not a smear.
+    // 地板,因为下面的条子不再是一个尺度,
+    // 变成纹理-- 狭小的面板应该画一个小的条子,而不是抹片。
     CHECK(bar_cells(s, 1) >= 8);
     CHECK(bar_cells(s, 4) >= 8);
-    // And a ceiling, because a bounded ratio is judged by proportion, not
-    // measured. Unbounded growth turns a settings list into a bar chart.
+    // 上限,因为一个定界比率是按比例来判断的,
+    // 而不是衡量的。无界增长将一个设置列表变成条形图。
     CHECK(bar_cells(s, 200) <= 24);
     CHECK(bar_cells(s, 4096) <= 24);
 }
 
 TEST_CASE("draw budget: an unmeasured budget still draws") {
-    // A control built outside a panel (a preview, a test, a host that has
-    // not measured yet) gets budget 0. It must fall back to its preference
-    // rather than to zero -- a control that vanishes when unmeasured is a
-    // control that vanishes in exactly the case nobody tests.
+    // 在面板外构建的控件(预览、测试、
+    // 尚未测量的主机)获得预算0. 它必须回到
+    // 它的偏好而不是零。 未测量时消失的控件
+    // 就是在没有人测试的情况下消失的控物。
     const Slider s{.value = 0.5};
     CHECK(bar_cells(s, 0) == 12);
 }
 
 TEST_CASE("draw budget: resizing does not change the value the bar encodes") {
-    // The bar got wider; it must still say the same thing. A half-full
-    // slider is half-full at every width -- if the fill ratio drifted with
-    // the budget, the picture would be lying about the datum.
+    // 酒吧越来越宽,它必须说同样的话。 -full 滑
+    // 动器是半 -full 如果预算的填充率随预算的变动而变化,
+    // 那么,情况就会是关于基准的谎言。
     for (int budget : {0, 8, 12, 16, 20, 24, 64}) {
         const auto cells = bar_cells(Slider{.value = 0.5}, budget);
         ItemCtx ctx{.theme = theme(), .draw_budget = budget};
@@ -107,7 +107,7 @@ TEST_CASE("draw budget: resizing does not change the value the bar encodes") {
         for (std::size_t i = 0; i + 2 < text.size(); i += 3)
             if (text.substr(i, 3) == "\xe2\x96\x86") ++on; else break;
         INFO("budget=", budget, " cells=", cells, " on=", on);
-        // Half, to within the rounding a discrete bar must do.
+        // 一半,到圆形内 一个离散的条必须这样做。
         CHECK(on * 2 >= cells - 1);
         CHECK(on * 2 <= cells + 1);
     }

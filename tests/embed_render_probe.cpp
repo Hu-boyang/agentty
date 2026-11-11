@@ -1,9 +1,9 @@
-// Visual probe for the embeddings pane. Not a test — it prints the real
-// rendered frame so a human can look at it. Same role as
+// 嵌入式视觉探测器 面板。不是测试,而是打印出真正的 帧 人类可以看它,
+// 和人类一样
 // palette_render_probe.cpp.
 //
-//   ./embed_render_probe            closed dropdown
-//   ./embed_render_probe --menu     dropdown open
+//   ./embed_render_probe 关闭的下拉
+//   ./embed_render_probe --menu 打开
 
 #include <cstdio>
 #include <cstdlib>
@@ -25,8 +25,8 @@ int main(int argc, char** argv) {
 
     const std::string arg = argc > 1 ? argv[1] : "";
 
-    // Smart Mode, for eyeballing the shared form layer on a second pane.
-    // --smart-advanced also shows the routing-policy rows (^A in the app).
+    // 智能模式,用于在第二面板上对共享形式层进行眼球.
+    // --smart-advanced 也显示路径 -policy 行数( ^A ),"在应用中".
     if (arg == "--smart" || arg == "--smart-advanced") {
         sf::Inputs in;
         in.enabled        = true;
@@ -64,9 +64,9 @@ int main(int argc, char** argv) {
     form.note     = "unsaved \xe2\x80\x94 ^T test, ^S save";
     form.cursor   = 0;
 
-    // --scroll: a short viewport with the cursor near the END, which is the
-    // case that actually failed on screen (the pane painted past the bottom
-    // edge and the last rows were unreachable).
+    // --scroll : 一个短 可视区域 光标位于
+    // END ,这就是屏幕上实际失败的情况(即: 面板
+    // 画过底边,最后一行无法到达。
     maya::ScrollState scroll;
     int viewport = 0;
     if (arg == "--scroll") {
@@ -79,8 +79,8 @@ int main(int argc, char** argv) {
         (void)agentty::form::keys::apply(form, a);
     }
 
-    // --edit: cursor on the Model row (a Text field), mid-edit — renders the
-    // caret, the edit-hued edge bar and the mode hint in the note line.
+    // --edit : 光标在 Model 行(一个文本字段),中 -edit
+    // — 渲染 编号 光标 编辑 -hued 边栏和注释行中模式提示。
     if (edit) {
         for (std::size_t i = 0; i < form.fields.size(); ++i)
             if (form.fields[i].is_text_like() && !form.fields[i].locked) {
@@ -91,8 +91,8 @@ int main(int argc, char** argv) {
         (void)agentty::form::keys::apply(form, a);
     }
 
-    // --width=N renders at that column count, so the flex layout can be
-    // verified at the narrow sizes where arithmetic-based versions broke.
+    // --width=N 渲染 以该列计数,
+    // 所以可以以算术的狭小尺寸验证弹性布局 -based 版本已崩溃。
     int width = 84;
     for (int i = 1; i < argc; ++i) {
         const std::string a{argv[i]};

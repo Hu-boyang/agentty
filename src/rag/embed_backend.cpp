@@ -1,14 +1,14 @@
-// embed_backend.cpp — implementation of the embedding backend boundary.
+// embed_backend.cpp —嵌入后端边界的实现。
 //
-// Split from adapter.cpp on purpose: adapter.cpp is the one TU that includes
-// <rag/rag.hpp> for the ENGINE, and it is already 2300 lines. This file owns
-// only the config->spec mapping, identity hashing, validation and the probe,
-// so the picker/reducer/tests can link against the boundary without dragging
-// in the whole retrieval engine.
+// 有意从adapter.cpp拆分：adapter.cpp是TU，
+// 其中包括ENGINE的<rag/rag.hpp>，并且已经是2300行。
+// 该文件仅拥有 config->spec 映射、身份哈希、验证和探测，
+// 因此 picker/reducer/tests 可以针对边界 链接，
+// 而无需拖入整个检索引擎。
 //
-// probe() does need rag-cpp (it builds an embedder to measure it), so it is
-// compiled out on platforms where rag-cpp is unavailable — the rest of the
-// file is pure and always builds.
+// probe()确实需要rag-cpp（它构建了一个嵌入器来测量它），
+// 因此它是在rag-cpp不可用的平台上编译出来的——文件的其余
+// 部分是纯粹的并且总是构建。
 
 #include "agentty/rag/embed_backend.hpp"
 #include "agentty/rag/rag_host.hpp"
@@ -35,14 +35,14 @@ namespace {
 
 using json = nlohmann::json;
 
-// FNV-1a. Same primitives adapter.cpp uses for its manifest fingerprints, so
-// identity hashing reads consistently with the rest of the retrieval layer.
+// FNV-1a。 adapter.cpp 的明显指纹使用
+// 相同的原语，因此身份哈希读取与检索层的其余部分一致。
 constexpr std::uint64_t kFnvOffset = 1469598103934665603ull;
 constexpr std::uint64_t kFnvPrime  = 1099511628211ull;
 
 void hash_text(std::uint64_t& h, std::string_view v) noexcept {
     for (unsigned char c : v) { h ^= c; h *= kFnvPrime; }
-    h ^= 0xFFu; h *= kFnvPrime;   // field separator: "ab"+"c" != "a"+"bc"
+    h ^= 0xFFu; h *= kFnvPrime;   // 字段分隔符："ab"+"c"!="a"+"bc"
 }
 void hash_u64(std::uint64_t& h, std::uint64_t v) noexcept {
     for (int i = 0; i < 8; ++i) { h ^= (v >> (i * 8)) & 0xFFu; h *= kFnvPrime; }
@@ -60,8 +60,8 @@ void hash_u64(std::uint64_t& h, std::uint64_t v) noexcept {
     return (v && v[0]) ? v : nullptr;
 }
 
-// Split "host:port" / "http://host:port" into parts. Tolerant on purpose:
-// users paste URLs, and rejecting them for a scheme prefix is hostile.
+// 将"host:port"/"http://host:port"分割成多个部分。故意容忍：
+// 用户粘贴 URL，并且拒绝它们作为方案前缀是敌对的。
 struct Endpoint { std::string host; std::uint16_t port = 0; bool tls = false; bool have_port = false; };
 
 [[nodiscard]] Endpoint parse_endpoint(std::string raw) {
@@ -83,24 +83,24 @@ struct Endpoint { std::string host; std::uint16_t port = 0; bool tls = false; bo
                     e.have_port = true;
                     raw.erase(colon);
                 }
-            } catch (...) { /* keep host intact */ }
+            } catch (...) { /* 保持主机完好无损 */ }
         }
     }
     e.host = std::move(raw);
     return e;
 }
 
-// What Auto dials before anything has been probed: the historical default.
+// 在探测任何内容之前自动拨号：历史默认值。
 [[nodiscard]] constexpr Backend concrete(Backend b) noexcept {
     return b == Backend::Auto ? Backend::Ollama : b;
 }
 
-} // namespace
+} // 命名空间结束。
 
-// ── Validation ───────────────────────────────────────────────────────────
+// ── 验证 ───────────────────────────────────────────────────────────
 Validity validate(const EmbedConfig& c) {
     if (c.backend == Backend::Disabled || c.backend == Backend::Auto)
-        return std::monostate{};   // nothing to get wrong
+        return std::monostate{};   // 没什么可出错的
 
     if (needs_endpoint(c.backend)) {
         if (trim(c.host).empty())
@@ -109,8 +109,8 @@ Validity validate(const EmbedConfig& c) {
             return Invalid{"port must be 1-65535"};
         if (c.host.find(' ') != std::string::npos)
             return Invalid{"host contains a space"};
-        // All digits and dots means an IPv4 address: it needs four parts
-        // of 0-255. Catches "127.0.0", which resolves nowhere useful.
+        // 所有数字和点表示IPv4地址：需要0-255的四个部分。
+        // 捕获 "127.0.0"，这解决不了任何有用的问题。
         if (std::all_of(c.host.begin(), c.host.end(),
                         [](unsigned char ch) { return std::isdigit(ch) || ch == '.'; })) {
             int parts = 0;
@@ -139,17 +139,17 @@ Validity validate(const EmbedConfig& c) {
     return std::monostate{};
 }
 
-// ── Identity ─────────────────────────────────────────────────────────────
+// ── 身份 ─────────────────────────────────────────────────────────────
 std::pair<std::string, std::string> prefixes(const EmbedConfig& c) {
-    // AGENTTY_EMBED_PREFIX=0 turns them off (for A/B).
+    // AGENTTY_EMBED_PREFIX=0 将其关闭（对于 A/B）。
     if (const char* e = std::getenv("AGENTTY_EMBED_PREFIX"); e && e[0] == '0') return {};
     if (!needs_model_name(concrete(c.backend))) return {};
     std::string m = c.model;
     for (auto& ch : m) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
     if (m.find("nomic-embed") != std::string::npos)
         return {"search_query: ", "search_document: "};
-    // qwen3-embedding is left bare: its instruction prefix scored worse on
-    // tests/rag_eval (held-out MRR .77 vs .80).
+    // qwen3-embedding 被保留：其指令前缀在 tests/rag_eval 上得分更
+    // 差（held-out MRR .77 vs .80）。
     const bool e5 = m.starts_with("e5-") || m.find("/e5-") != std::string::npos
                  || m.find("-e5-") != std::string::npos;
     if (e5 && m.find("instruct") == std::string::npos)
@@ -163,8 +163,8 @@ std::pair<std::string, std::string> prefixes(const EmbedConfig& c) {
 
 std::uint64_t identity(const EmbedConfig& c) {
     std::uint64_t h = kFnvOffset;
-    // The backend id is part of the geometry: the same weights served by
-    // Ollama vs loaded in-process differ in pooling/normalization.
+    // 后端ID是几何的一部分：-process中的Ollama与已加载提供的相同权重在pooling
+    // /normalization.中不同
     hash_text(h, id_of(concrete(c.backend)));
     if (needs_model_name(concrete(c.backend))) hash_text(h, c.model);
     if (needs_endpoint(concrete(c.backend))) {
@@ -178,13 +178,13 @@ std::uint64_t identity(const EmbedConfig& c) {
         hash_text(h, c.tokenizer_path);
     }
     hash_u64(h, c.dim);
-    // Prefixes change every stored vector, so they're part of the space.
+    // 前缀改变每个存储的向量，因此它们是空间的一部分。
     if (const auto [q, d] = prefixes(c); !q.empty() || !d.empty()) {
         hash_text(h, q);
         hash_text(h, d);
     }
-    // Deliberately NOT hashed: api_key. Rotating a credential must not throw
-    // away a perfectly valid index.
+    // 故意对 不 进行哈希处理：api_key。旋转 凭据 一定
+    // 不能丢弃完全有效的索引。
     return h;
 }
 
@@ -196,7 +196,7 @@ std::string identity_tag(const EmbedConfig& c) {
     return out;
 }
 
-// ── Spec minting ─────────────────────────────────────────────────────────
+// ── 薄荷丝 ─────────────────────────────────────────────────────────
 std::optional<std::string> spec_json(const EmbedConfig& c) {
     if (c.backend == Backend::Disabled) return std::nullopt;
     if (!is_valid(c)) return std::nullopt;
@@ -210,11 +210,11 @@ std::optional<std::string> spec_json(const EmbedConfig& c) {
             j["model"] = c.model;
             j["host"]  = c.host;
             j["port"]  = c.port;
-            // Ollama loads a model on first use (1-2 s for nomic-embed-text,
-            // more on a busy GPU) and a big batch takes a while too. 1.2 s
-            // timed out the very first probe, and agentty then ran BM25-only
-            // for the whole session. A dead endpoint still fails fast: the
-            // connect is refused, not timed out.
+            // Ollama 加载是首次使用的模型（对于nomic
+            // -embed-text需要1-2秒，在繁忙的GPU上更多）
+            // 并且大批量也需要一段时间。第一次探测超时 1.2 秒，
+            // 然后 agentty 在整个会话中运行 BM25-only。
+            // 死端点仍然会快速失败：连接被拒绝，而不是超时。
             j["timeout_ms"] = 30000;
             break;
         case Backend::OpenAI:
@@ -224,7 +224,7 @@ std::optional<std::string> spec_json(const EmbedConfig& c) {
             j["tls"]   = c.tls;
             if (!c.path.empty())    j["path"]    = c.path;
             if (!c.api_key.empty()) j["api_key"] = c.api_key;
-            j["timeout_ms"] = 8000;   // remote: allow for WAN latency
+            j["timeout_ms"] = 8000;   // 远程：允许WAN延迟
             break;
         case Backend::LlamaCpp:
             j["host"] = c.host;
@@ -243,10 +243,10 @@ std::optional<std::string> spec_json(const EmbedConfig& c) {
             break;
         case Backend::Auto:
         case Backend::Disabled:
-            break;   // unreachable: concrete() mapped Auto, Disabled returned
+            break;   // 无法访问：concrete() 映射自动，禁用返回
     }
-    // Only pin the dimension once it has been MEASURED. Never guessed: a
-    // wrong dim makes rag-cpp's HNSW silently drop every vector.
+    // 仅当尺寸为 MEASURED 时才固定尺寸。万万没想到：错误的
+    // 暗淡会使 rag-cpp 的 HNSW 默默地丢弃每个向量。
     if (c.dim > 0) j["dim"] = c.dim;
     return j.dump();
 }
@@ -278,9 +278,9 @@ std::string describe(const EmbedConfig& c) {
     return out;
 }
 
-// ── Environment ──────────────────────────────────────────────────────────
+// ── 环境 ──────────────────────────────────────────────────────────
 void apply_env(Io, EmbedConfig& c) {
-    // Legacy names first so the new ones win when both are present.
+    // 旧名称首先出现，因此当两者都存在时新名称获胜。
     if (const char* m = env_or_null("AGENTTY_EMBED_MODEL")) c.model = m;
     if (const char* h = env_or_null("AGENTTY_OLLAMA_HOST")) {
         const auto e = parse_endpoint(h);
@@ -292,7 +292,7 @@ void apply_env(Io, EmbedConfig& c) {
         std::string id{b};
         std::transform(id.begin(), id.end(), id.begin(),
                        [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
-        // Accept a couple of friendly aliases for the same row.
+        // 接受同一行的几个友好别名。
         if (id == "none" || id == "disabled" || id == "bm25") id = "off";
         if (id == "llamafile" || id == "llama.cpp")           id = "llamacpp";
         if (id == "openai-compatible" || id == "custom")      id = "openai";
@@ -303,7 +303,7 @@ void apply_env(Io, EmbedConfig& c) {
         if (!ep.host.empty()) c.host = ep.host;
         if (ep.have_port)     c.port = ep.port;
         c.tls = ep.tls;
-        // Default the port from the scheme when the URL omitted one.
+        // 当URL省略之一时，默认来自该方案的端口。
         if (!ep.have_port && ep.tls) c.port = 443;
     }
     if (const char* p = env_or_null("AGENTTY_EMBED_PATH"))       c.path           = p;
@@ -312,12 +312,12 @@ void apply_env(Io, EmbedConfig& c) {
     if (const char* k = env_or_null("AGENTTY_EMBED_API_KEY"))    c.api_key        = k;
 }
 
-// ── Probe ────────────────────────────────────────────────────────────────
+// ── 探测 ────────────────────────────────────────────────────────────────
 #if AGENTTY_HAS_RAGCPP
 
 namespace {
-// Auto's first choice when the model was left at the default: measured
-// better on tests/rag_eval, used only if it's already pulled.
+// 当模型保留为默认值时，Auto的第一选择：在tests/rag_eval上测量得更好，
+// 仅当它已经被拉动时才使用。
 constexpr std::string_view kAutoPreferred = "qwen3-embedding:0.6b";
 
 ProbeResult probe_one(const EmbedConfig& c) {
@@ -326,8 +326,8 @@ ProbeResult probe_one(const EmbedConfig& c) {
     if (auto v = validate(c); auto* bad = std::get_if<Invalid>(&v))
         return ProbeErr{bad->why};
 
-    // Probe with the dimension UNPINNED: we are here to learn it, and pinning
-    // a stale value would mask the very mismatch we want to detect.
+    // 具有尺寸UNPINNED的探针：我们来这里是为了学习它，
+    // 并且固定过期值将掩盖我们想要检测的非常不匹配。
     EmbedConfig probe_cfg = c;
     probe_cfg.dim = 0;
     const auto spec = spec_json(probe_cfg);
@@ -358,14 +358,14 @@ ProbeResult probe_one(const EmbedConfig& c) {
         return ProbeErr{"unknown error while probing the embedder"};
     }
 }
-}  // namespace
+}  // 命名空间结束。
 
 ProbeResult probe(const EmbedConfig& c) {
     if (c.backend == Backend::Auto && c.model == EmbedConfig{}.model) {
         EmbedConfig better = c;
         better.model = std::string{kAutoPreferred};
-        // A model that isn't pulled fails at once (404), so this costs
-        // nothing when it's absent.
+        // 未被拉出的模型立即失败（404)，因此当它不存在
+        // 时这不需要任何成本。
         if (auto r = probe_one(better); std::holds_alternative<ProbeOk>(r)) return r;
     }
     return probe_one(c);

@@ -1,16 +1,16 @@
-// exec_session_race_test — agentty's real Exec (src/tool/util/exec.cpp) under
-// concurrent use, built small enough to run under TSan.
+// exec_session_race_test — agentty 'real Exec (英语:
+// src/tool/util/exec.cpp )在同时使用下,建造的面积小到足以运行在TSan下.
 //
-// Several threads start background sessions, poll them, stop them, and drop
-// the last reference while the drain worker may still be writing, the shapes
-// process_start/poll/stop drive. Also runs foreground commands alongside. A
-// lock taken in the wrong order aborts (jaal lock_order_error); a data race
-// shows up under -fsanitize=thread; a self-join throws EDEADLK.
+// 几个 线程 开始背景课、调查、阻止 并删除最后的引用 排水 工作线程 可能还在写,
+// 形状 process_start/poll/stop 驱动器。同时运行前景命令。
+// A 锁 以错误顺序拍摄的中止( Q) jaal lock_order_error ;
+// 数据 竞态 出现在下面 -fsanitize=thread ;
+// 自定义 -join 掷出 EDEADLK.
 //
-// Sandbox off by default: the four sandbox symbols are stubbed below so this
-// links exec.cpp alone, not claybin. Built as exec_session_race_sandboxed
-// (EXEC_RACE_REAL_SANDBOX) it links the real sandbox instead and runs the
-// same sessions under claybin, with brokered syscalls.
+// 沙箱 默认关闭: 四 沙箱 符号 被压在下面 所以这个 链接 exec.cpp 一个人,
+// 不是 claybin。该结构为 exec_session_race_sandboxed
+// (EXEC_RACE_REAL_SANDBOX ) 其为: 链接 真实 沙箱
+// 改为在 claybin 和中介的syscalls。。
 
 #include "agentty/tool/util/exec.hpp"
 #include "agentty/tool/util/sandbox.hpp"
@@ -43,7 +43,7 @@ claybin_backend::SpawnResult spawn_in_sandbox(const std::vector<std::string>&, s
 std::expected<std::vector<std::string>, std::string>
 wrap_argv_for_exec(const std::vector<std::string>& argv, std::string_view,
                    const std::vector<std::string>&) {
-    return argv;   // unreachable: is_active() is false above
+    return argv;   // 无法到达: is_active( ) 以上为假
 }
 #endif
 }  // namespace agentty::tools::util::sandbox
@@ -56,11 +56,11 @@ void check(bool ok, const char* what) {
     if (!ok) { std::fprintf(stderr, "FAIL: %s\n", what); failures.fetch_add(1); }
 }
 
-// The same command shapes on each platform's shell: quick exit, a short
-// sleep then output and a non-zero exit, a burst of output, a long sleep.
-// Windows has no /bin/sh; cmd.exe covers them, with `ping -n N 127.0.0.1`
-// as the sleep (N-1 seconds; -n 1 is a few ms) since `timeout` needs a
-// console the session doesn't have.
+// 每个平台的壳上都具有相同的指令形状:快速退出,
+// 睡眠短然后输出和n-zero退出,输出破裂,睡眠长.
+// Windows 没有/ bin/sh; cmd.exe 盖上,
+// 用 `ping -n N 127.0.0.1` 用作睡眠(N-1秒; -n 1是几毫秒),
+// 因为 `timeout` 需要一个控制台 开会时没有。
 struct Scripts {
     const char* quick;
     const char* short_then_fail;
@@ -90,7 +90,7 @@ mt::ExecRequest sh(const std::string& script) {
 #else
 constexpr Scripts kS{
     "echo x",
-    // kill -0 on itself: a brokered syscall when the sandbox is on.
+    // 自行杀死 -0: 当沙箱 开机时, 由中介进行syscall.
     "sleep 0.05; kill -0 $$; echo y; exit 3",
     "yes | head -c 20000",
     "sleep 5",
@@ -107,8 +107,8 @@ mt::ExecRequest sh(const std::string& script) {
 }
 #endif
 
-// Start, read until it ends (or give up), stop, drop. The session's last
-// reference dies on whichever thread happens to hold it.
+// 开始, 读到结束( 或放弃) , 停止, 放下。
+// 会话的最后一个引用会以 线程 的哪个为对象终止。
 void session_round(mt::Exec& exec, int i) {
     auto s = exec.start(mt::Call{}, sh(i % 3 == 0 ? kS.quick : i % 3 == 1 ? kS.short_then_fail
                                                               : kS.burst));
@@ -119,10 +119,10 @@ void session_round(mt::Exec& exec, int i) {
         auto u = sess->read(std::chrono::milliseconds{i % 2 ? 0 : 20}, 1 << 20);
         if (!u.running && u.outcome) break;
     }
-    if (i % 4 == 0) sess->stop();   // stop a finished one: must be a no-op
+    if (i % 4 == 0) sess->stop();   // 停止一个完成的: 必须是 no-op
 }
 
-// Stop while it is still running, from another thread than the reader.
+// 停止,当它还在运行,从另一个 线程 而不是读者。
 void stop_while_polled(mt::Exec& exec) {
     auto s = exec.start(mt::Call{}, sh(kS.long_sleep));
     check(s.has_value(), "long session starts");
@@ -146,14 +146,14 @@ void foreground(mt::Exec& exec, const mt::Call& call, int i) {
         std::fprintf(stderr, "  start error: %s\n", f->reason.c_str());
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 int main() {
 #if defined(EXEC_RACE_REAL_SANDBOX)
     {
         namespace sb = agentty::tools::util::sandbox;
         agentty::sandbox_cfg::Config cfg;
-        cfg.configured = true;   // the default posture: filter + broker on
+        cfg.configured = true;   // 默认态势: 过滤器 + 经纪人
         sb::set_config(cfg);
         if (!sb::init(sb::Mode::On) || !sb::is_active()) {
             std::puts("exec_session_race_sandboxed: no sandbox on this host, skipped");
@@ -181,8 +181,8 @@ int main() {
     }
     for (auto& th : ts) th.join();
 
-    // Sessions handed across threads and dropped there: the last owner is
-    // not the thread that started them.
+    // 交接的会话 线程 掉在那里: 最后一个主人
+    // 不是 线程 开始于此
     std::vector<std::shared_ptr<mt::Session>> pile;
     for (int i = 0; i < 16; ++i)
         if (auto s = exec->start(mt::Call{}, sh(kS.short_then_print))) pile.push_back(*s);
@@ -195,9 +195,9 @@ int main() {
         return std::chrono::duration_cast<std::chrono::milliseconds>(clk::now() - t0).count();
     };
 
-    // Two readers on one session get disjoint bytes that add up to the
-    // whole stream: the cursor moves inside the same lock that hands out
-    // the bytes.
+    // 一场的两位读者会变得不相干 字节 等于是说
+    // 数据流 : 光标在相同范围内移动 锁 手伸出来
+    // 字节.
     {
         auto s = exec->start(mt::Call{}, sh("i=0; while [ $i -lt 2000 ]; do echo $i; i=$((i+1)); done"));
         check(s.has_value(), "counting session starts");
@@ -219,25 +219,25 @@ int main() {
         }
     }
 
-    // stop() and dropping the last handle never block, even when the child
-    // ignores SIGTERM and so takes the full grace to die.
+    // stop() 扔下最后一个把手 永远挡不住 即使孩子
+    // 忽略了 SIGTERM 故取满恩而死.
     {
         auto s = exec->start(mt::Call{}, sh("trap '' TERM; while :; do sleep 0.05; done"));
         check(s.has_value(), "stubborn session starts");
         if (s) {
             auto sess = *s;
-            (void)sess->read(std::chrono::milliseconds{100}, 0);   // let the trap install
+            (void)sess->read(std::chrono::milliseconds{100}, 0);   // 让陷阱安装
             auto t0 = clk::now();
             sess->stop();
             check(ms_since(t0) < 50, "stop() returns at once");
             t0 = clk::now();
-            sess.reset();   // last handle: the pump carries on alone
+            sess.reset();   // 最后一把:泵单独开动
             check(ms_since(t0) < 50, "dropping the last handle never blocks");
         }
     }
 
-    // stop() wakes the pump: the child gets SIGTERM promptly, not on the next
-    // poll tick.
+    // stop() 唤醒泵:孩子得到 SIGTERM 很快,
+    // 下次投票时就别提了
     {
         auto s = exec->start(mt::Call{}, sh(kS.long_sleep));
         check(s.has_value(), "sleeper starts");

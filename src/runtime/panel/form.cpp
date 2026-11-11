@@ -1,14 +1,14 @@
-// form.cpp — the shared form reducer.
+// form.cpp ——共享形式. 状态更新函数.
 //
-// State and behaviour only: no glyphs, no colours, no layout. Everything here
-// is a pure mutation on Form, so the whole interaction model is testable
-// without a terminal, and maya::Panel remains the single owner of appearance.
+// 状态和行为: 没有格言, 没有颜色, 没有布局。 这里的一切都
+// 是在形式上纯突变, 所以整个交互模型都是可以测试的,
+// 没有一个 终端 ,和 maya::Panel 仍然是唯一的外表主人。
 //
-// UTF-8 is handled without a text-shaping dependency: fields hold host names,
-// model ids, file paths and API keys, and a user pasting a non-ASCII path must
-// not be able to split a code point and corrupt the buffer. Cursor motion and
-// deletion therefore step over whole code points by inspecting continuation
-// bytes (0b10xxxxxx).
+// UTF -8号没有文字处理 -shaping 依赖性:字段拥有
+// 主机名称、模式 ID、文件路径和 API 键,用户粘贴一个非
+// -ASCII 路径不能分割代码点并损坏 缓冲区。通过检查续读,
+// 将光标移动和删除到整个码点上 字节 (0b10xxxx×) (
+// 中文(简体) ).
 
 #include "agentty/runtime/panel/form.hpp"
 
@@ -38,7 +38,7 @@ namespace {
     return i;
 }
 
-// Code points in [0, byte_pos) — maya renders in characters, we store bytes.
+// 代码点在 [0] 中, byte_pos) — maya 渲染 以字符表示,我们存储 字节.
 [[nodiscard]] std::size_t chars_before(const std::string& s, std::size_t byte_pos) {
     const std::size_t end = std::min(byte_pos, s.size());
     std::size_t n = 0;
@@ -69,20 +69,20 @@ void encode_utf8(std::string& out, char32_t ch) {
     }
 }
 
-// Can this code point be typed into a single-line field? Control characters
-// (C0, DEL, C1) would land raw in a saved config value, and surrogates or
-// anything past U+10FFFF have no valid UTF-8 encoding at all.
+// 这个代码点是否是 ? 带类型的 变成单曲 -line 字段吗 ?
+// Control 字符( 数字) C0, DEL, C1 将生地在 已保存 配置值,
+// 以及 U+10FFFF 的代理或任何信息都无效 UTF -8码
 [[nodiscard]] bool typeable(char32_t ch) noexcept {
     if (ch < 0x20 || ch == 0x7F) return false;            // C0 + DEL
     if (ch >= 0x80 && ch <= 0x9F) return false;          // C1
-    if (ch >= 0xD800 && ch <= 0xDFFF) return false;      // surrogates
+    if (ch >= 0xD800 && ch <= 0xDFFF) return false;      // 代孕人员
     return ch <= 0x10FFFF;
 }
 
-// A paste reduced to what could have been typed: decoded as UTF-8, with
-// invalid or overlong sequences, surrogates and control characters dropped.
-// Newlines and tabs go too, since every form field is single-line. Same rule
-// as typeable(), so a paste can't put in anything a key couldn't.
+// 贴子缩小到可以被拆为带类型的:解码为UTF-8,
+// 其序列无效或超长,代词和控字符都掉落.
+// 新建行和标签也去,因为每个窗体字段都是单的 -line。
+// 规则与 typeable() 所以贴纸不能放进钥匙里
 std::string clean_paste(std::string_view text) {
     std::string clean;
     clean.reserve(text.size());
@@ -107,7 +107,7 @@ std::string clean_paste(std::string_view text) {
     return clean;
 }
 
-// Shared bodies for the (value, cursor) pair Text/Secret/Path all carry.
+// 共享 正文 用于对(数值,光标)对 Text/Secret/Path 都带着
 void insert_at(std::string& value, std::size_t& cursor, char32_t ch) {
     if (!typeable(ch)) return;
     if (cursor > value.size()) cursor = value.size();
@@ -137,32 +137,32 @@ void move_at(const std::string& value, std::size_t& cursor, int delta) {
     while (delta > 0 && cursor < value.size()) { cursor = next_boundary(value, cursor); --delta; }
 }
 
-// Digits-only editing on a draft string, clamped once when the edit ends.
+// 数字-only编辑在草稿字符串上,编辑结束后夹住一次.
 //
-// `fresh` means this is the FIRST digit of an edit session, and it replaces
-// rather than appends: the value on screen when editing starts is the SAVED
-// one, not something the user typed, so "type 8 into a row showing 4096"
-// means 8, and 4-0-9-6 still types 4096.
+// `fresh` 意思是这里是 首次 编辑会话的位数, 它替换而不是附加:
+// 开始编辑时屏幕上的值是 SAVED 一种,不是用户的 带类型的 ,所以,
+// 我说 "type 8 into a row showing 4096"
+// 表示8,4-0-9-6仍然为4096型.
 //
-// The draft is NOT clamped per key. Clamping per key was the bug: on a
-// row whose min is above 0 (a 1-65535 port) a cleared value snapped to the
-// min, every later digit was appended to it, and nothing but numbers
-// starting with that digit could be entered (#97). On a 0-8 row it pinned
-// at max and went deaf. The draft only caps its length, so it can't
-// overflow; range is enforced in number_commit.
-constexpr std::size_t kNumberMaxDigits = 18;   // fits int64
+// 草案不是 被按住每根键。 每根键是错误 : 在分钟大于
+// 0 (一个 1-65535 端口) 的行上, 清除后的值
+// 会折叠到分钟, 每个后面的位数都会被附加到它上,
+// 并且只能输入数字。 在 0-8 行上, 它被钉在最大值上,
+// 并失聪。 草稿只封盖长度, 无法溢出; 范围被强制。
+// number_commit.
+constexpr std::size_t kNumberMaxDigits = 18;   // 装入64
 
 void number_insert(field::Number& n, char32_t ch, bool fresh) {
     if (ch < U'0' || ch > U'9') return;
     if (!n.editing) { n.editing = true; n.draft = std::to_string(n.value); }
     if (fresh) n.draft.clear();
-    if (n.draft == "0") n.draft.clear();          // no leading zeros
+    if (n.draft == "0") n.draft.clear();          // 无主 0
     if (n.draft.size() >= kNumberMaxDigits) return;
     n.draft.push_back(static_cast<char>(ch));
 }
 
-// The value a draft means: empty is "nothing typed", which keeps the old
-// value; otherwise the number, clamped into range.
+// 草稿的值表示: 空值为"nothing typed",
+// 使旧值保持; 否则数字, 被夹入范围。
 std::int64_t number_from_draft(const field::Number& n) {
     if (n.draft.empty()) return n.value;
     std::int64_t v = 0;
@@ -177,7 +177,7 @@ void number_commit(field::Number& n) {
     n.editing = false;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 std::string number_text(const field::Number& n) {
     return n.editing ? n.draft : std::to_string(n.value);
@@ -189,13 +189,13 @@ std::int64_t number_value(const field::Number& n) {
 
 namespace {
 
-// Keep the highlight inside the list, and the scroll window near it.
+// 将突出点保留在列表内,滚动窗口则贴近它.
 //
-// This is a HINT. The real window is only knowable at paint time (it depends on
-// the panel's real height), so maya::Panel re-derives it and guarantees the
-// highlight is on screen. Duplicating the exact arithmetic here would be two
-// owners for one measurement — the shape that made scrollback trims drift.
-// All the reducer owes is a sane starting point.
+// 这是 HINT。真正的窗口只有在油漆时间才能知道(取决
+// 于面板的真实高度),所以 maya::Panel
+// 内容 -derives 将精确的算术转换为两个所有者,
+// 一个测量结果—— 形状 回滚缓冲区 修剪漂移。
+// 全部的,我爱的 状态更新函数 欠债是一个正常的起点。
 void reclamp(focus::Choosing& d, int count) {
     if (count <= 0) { d.highlighted = 0; d.scroll = 0; return; }
     d.highlighted = std::clamp(d.highlighted, 0, count - 1);
@@ -205,9 +205,9 @@ void reclamp(focus::Choosing& d, int count) {
     d.scroll = std::clamp(d.scroll, 0, std::max(0, count - view));
 }
 
-} // namespace
+} // 命名空间结束。
 
-// ── Lookup ───────────────────────────────────────────────────────────────
+// ── 查询 ───────────────────────────────────────────────────────────────
 
 const Field* Form::find(std::string_view id) const noexcept {
     for (const auto& f : fields) if (f.id == id) return &f;
@@ -218,7 +218,7 @@ Field* Form::find(std::string_view id) noexcept {
     return nullptr;
 }
 
-// ── Projection helpers ───────────────────────────────────────────────────
+// ── 投影帮助 ───────────────────────────────────────────────────
 
 Options visible_options(const field::Choice& c) {
     Options out;
@@ -238,21 +238,21 @@ std::size_t caret_offset(const FieldValue& v, bool editing) noexcept {
     if (!editing) return std::string::npos;
     return std::visit([](const auto& f) -> std::size_t {
         using T = std::decay_t<decltype(f)>;
-        // A BYTE offset: maya splices the caret with substr on the value.
+        // A BYTE 资源 maya 连结 光标 ,在数值上带有子字符串。
         if constexpr (std::is_same_v<T, field::Text>
                    || std::is_same_v<T, field::Path>)
             return std::min(f.cursor, f.value.size());
-        // Secret draws dots, never the value; any non-npos means "editing".
+        // 秘密绘图点, 永远不要值; 任何非 -npos 表示 "editing".
         else if constexpr (std::is_same_v<T, field::Secret>)
             return chars_before(f.value, f.cursor);
         else if constexpr (std::is_same_v<T, field::Number>)
-            return number_text(f).size();   // digits append at the end
+            return number_text(f).size();   // 结尾的位数附加
         else
             return std::string::npos;
     }, v);
 }
 
-// ── Editing ──────────────────────────────────────────────────────────────
+// ── 编辑 ──────────────────────────────────────────────────────────────
 
 void insert(FieldValue& v, char32_t ch, bool fresh) {
     std::visit([&](auto& f) {
@@ -274,8 +274,8 @@ void backspace(FieldValue& v) {
                    || std::is_same_v<T, field::Path>)
             backspace_at(f.value, f.cursor);
         else if constexpr (std::is_same_v<T, field::Number>) {
-            // On the draft: Backspace removes the last typed digit and can
-            // empty the field, so a cleared row takes any number next.
+            // 关于草案: Backspace 删除最后 带类型的 数字并
+            // 可以空出字段,所以一个清除的行会占用任何数字的下一个.
             if (!f.editing) { f.editing = true; f.draft = std::to_string(f.value); }
             if (!f.draft.empty()) f.draft.pop_back();
         }
@@ -323,9 +323,9 @@ void cursor_end(FieldValue& v) {
 }
 
 void paste(FieldValue& v, std::string_view text) {
-    // Strip newlines/tabs: these are single-line fields, and a pasted newline
-    // used to submit the surrounding form by accident in the hand-rolled
-    // inputs this replaces.
+    // 脱 newlines/tabs : 这些是单 -line 字段,
+    // 以及用于在手部意外提交周围形式贴上的新线条 -rolled
+    // 输入此选项替换。
     const std::string clean = clean_paste(text);
 
     std::visit([&](auto& f) {
@@ -337,12 +337,12 @@ void paste(FieldValue& v, std::string_view text) {
             f.value.insert(f.cursor, clean);
             f.cursor += clean.size();
         } else if constexpr (std::is_same_v<T, field::Number>) {
-            // Digits append to the draft like typing. A paste that OPENS the
-            // edit starts from an empty draft (paste_into_focused), so
-            // pasting "4096" means 4096; mid-edit it extends what's typed.
+            // 数字附加在草稿中,比如打字。 OPENS 编辑从空草稿开始(
+            // paste_into_focused ),所以贴贴 "4096"
+            // 表示4096;中间 -edit 伸展了它的意义 带类型的.
             for (char c : clean)
                 if (c >= '0' && c <= '9')
-                    number_insert(f, static_cast<char32_t>(c), /*fresh=*/false);
+                    number_insert(f, static_cast<char32_t>(c), /*新鲜=*/false);
         }
     }, v);
 }
@@ -352,7 +352,7 @@ bool paste_into(Form& f, std::string_view text) {
     if (!f.editing() || !row || !row->editable() || row->locked) return false;
     paste(row->value, text);
     f.dirty = true;
-    f.edit_dirty = true;   // pasted bytes count toward commit-on-exit
+    f.edit_dirty = true;   // 粘贴 字节 数到承诺 -on-exit
     return true;
 }
 
@@ -361,11 +361,11 @@ bool paste_into_focused(Form& f, std::string_view text) {
     if (f.choosing()) return false;
     auto* row = f.focused();
     if (!row || !row->is_text_like() || !row->editable()) return false;
-    // Open the session only for a paste that will land something. paste()
-    // strips newlines/tabs from every single-line field and a Number row
-    // takes digits only; a paste with none of what the row accepts stays a
-    // no-op instead of leaving the row in an edit session with nothing typed
-    // (the half-state type-to-edit refuses for a letter on a Number row).
+    // 打开会话只为将落地的东西的贴面. paste()
+    // 条形 newlines/tabs 每一个 -line
+    // 字段和数字行只取数字;没有一行接受的粘贴保持否 -op
+    // 而不是在编辑时留下行 带类型的 (该半部分) -state
+    // 类型 -to-edit 拒绝在数字行上写字母。
     const bool numeric = std::holds_alternative<field::Number>(row->value);
     const std::string clean = clean_paste(text);
     const bool lands = numeric
@@ -373,7 +373,7 @@ bool paste_into_focused(Form& f, std::string_view text) {
         : !clean.empty();
     if (!lands) return false;
     begin_edit(f);
-    // A paste replaces a Number's saved value, as the first typed digit does.
+    // 粘贴取代数字 已保存 值,作为第一个 带类型的 数字是的。
     if (auto* n = std::get_if<field::Number>(&row->value)) n->draft.clear();
     return paste_into(f, text);
 }
@@ -411,8 +411,8 @@ void clear(FieldValue& v) {
             f.value.clear();
             f.cursor = 0;
         } else if constexpr (std::is_same_v<T, field::Number>) {
-            // Mid-edit ^U empties the draft (the next digit starts fresh);
-            // a clear outside an edit resets to the minimum.
+            // 中间 -edit ^U 空出草稿( 下一个数字
+            // 开始新); 编辑后的外部清晰到最小。
             if (f.editing) f.draft.clear();
             else           f.value = f.min;
         } else if constexpr (std::is_same_v<T, field::Slider>) {
@@ -431,8 +431,8 @@ void adjust(FieldValue& v, int dir) {
         } else if constexpr (std::is_same_v<T, field::Number>) {
             f.value = std::clamp<std::int64_t>(f.value + dir, f.min, f.max);
         } else if constexpr (std::is_same_v<T, field::Slider>) {
-            // Snap to the step grid so repeated ±steps can't accumulate
-            // floating-point drift into values like 0.6500000000000001.
+            // 与阶格相匹配,这样重复的±步不能累积浮
+            // -point漂移到像0.6500000000000001这样的值.
             const double stepped = f.value + dir * f.step;
             const double snapped = (f.step > 0.0)
                 ? std::round(stepped / f.step) * f.step
@@ -442,17 +442,17 @@ void adjust(FieldValue& v, int dir) {
     }, v);
 }
 
-// ── Form-level operations ────────────────────────────────
+// ── 表-level 业务 ────────────────────────────────
 
 void move(Form& f, int delta) {
-    if (f.choosing()) return;          // the dropdown owns the highlight
+    if (f.choosing()) return;          // 降下时拥有突出位置
     if (f.fields.empty()) return;
     const int n = static_cast<int>(f.fields.size());
     const int step = delta >= 0 ? 1 : -1;
 
-    // Headers are labels, not settings: stopping on one is a dead keypress.
-    // Skip them, but bound the walk by the row count so an all-header form
-    // (or one where every row is a header) terminates rather than spinning.
+    // 头文件是标签,而不是设置:停止在其中是一个死键压.
+    // 跳过,但行走的行走 如此数到 -header
+    // 窗体(或每行为 头文件 终止而不是旋转。
     int moved = 0;
     int guard = 0;
     while (moved < std::abs(delta) && guard < n) {
@@ -470,9 +470,9 @@ bool focus_row(Form& f, std::string_view id) {
 }
 
 void move_edge(Form& f, bool last) {
-    // Home/End: the first/last non-header field. A plain scan, not move()—
-    // the walk must not WRAP (End from the last row stays put rather than
-    // sweeping around to the top).
+    // Home/End : 数据 first/last 无 -header 字段。
+    // 纯扫描,不是 move() - 步行不能走 - 步行必须走 WRAP
+    // (End 而不是扫荡到顶端)
     if (f.choosing()) return;
     const int n = static_cast<int>(f.fields.size());
     if (last) {
@@ -491,9 +491,9 @@ void move_edge(Form& f, bool last) {
 }
 
 void move_page(Form& f, int delta) {
-    // PgUp/PgDn: stride WITHOUT wrapping — a page-move that teleports from
-    // the bottom back to the top is disorienting, so the walk clamps at the
-    // edges (landing on the last non-header field it passed).
+    // PgUp/PgDn : 脚步 无需 包页——一个页面
+    // -move 背向顶端的电传导口 正在失去方向 所以行走的夹在
+    // 边缘上(降落在最后的不 -header 字段通过)。
     if (f.choosing() || f.fields.empty()) return;
     const int n    = static_cast<int>(f.fields.size());
     const int step = delta >= 0 ? 1 : -1;
@@ -513,14 +513,14 @@ Activated activate(Form& f) {
 
     if (row->is_action()) return Activated::FiredAction;
 
-    // A Pick's candidates live in another overlay — the pane opens it and
-    // writes the result back. The form deliberately knows nothing about them.
+    // 选手的人选住另一个 覆盖面板 - 电话 面板 打开它,
+    // 然后写回结果。表格中故意对他们一无所知。
     if (row->is_pick()) return Activated::HandOff;
 
     if (row->is_choice()) {
-        // Open the dropdown WITHOUT touching the field: the highlight starts
-        // on the current selection and the value changes only on commit, so
-        // Esc is a true cancel rather than an undo.
+        // 打开下拉 无需 切换字段:突出点开始于当前选择,
+        // 值仅在承诺时更改,所以 Esc 是个真人
+        // 取消 而不是一个逆差。
         const auto& c = std::get<field::Choice>(row->value);
         focus::Choosing d;
         d.highlighted = c.normalized(c.index);
@@ -534,14 +534,14 @@ Activated activate(Form& f) {
         return Activated::StartedEditing;
     }
 
-    adjust(row->value, +1);            // Toggle and anything else adjustable
+    adjust(row->value, +1);            // 切换 和任何其他可调整的
     f.dirty = true;
     return Activated::Changed;
 }
 
 void begin_edit(Form& f) {
     f.focus = focus::Editing{};
-    f.edit_dirty = false;   // fresh session — commit-on-exit arms on first change
+    f.edit_dirty = false;   // 新的会议——承诺 -on-exit 第一次更改时的臂膀
     if (auto* row = f.focused())
         if (auto* n = std::get_if<field::Number>(&row->value)) {
             n->editing = true;
@@ -563,10 +563,10 @@ void rebuild(Form& f, Form next, std::string_view prefer) {
     const bool dirty = f.dirty;
     f = std::move(next);
     f.dirty = dirty;
-    f.focus = focus::Browsing{};   // an edit or dropdown can't outlive its row
+    f.focus = focus::Browsing{};   // 编辑或下拉不能超过其行
     const int n = static_cast<int>(f.fields.size());
     if (n == 0) { f.cursor = 0; return; }
-    // Same row by id, if it survived the rebuild.
+    // 同样的一行 以ID,如果它幸存重建。
     if (!id.empty())
         for (int i = 0; i < n; ++i)
             if (f.fields[static_cast<std::size_t>(i)].id == id
@@ -581,7 +581,7 @@ void rebuild(Form& f, Form next, std::string_view prefer) {
 void settle_cursor(Form& f) {
     const int n = static_cast<int>(f.fields.size());
     if (n == 0) { f.cursor = 0; return; }
-    // The nearest real row at the same position, looking down first.
+    // 距离同一位置最近的真行,先往下看.
     const int start = std::clamp(f.cursor, 0, n - 1);
     for (int d = 0; d < n; ++d)
         for (const int i : {start + d, start - d})
@@ -589,13 +589,13 @@ void settle_cursor(Form& f) {
                 f.cursor = i;
                 return;
             }
-    f.cursor = start;   // every row is a header: nothing better exists
+    f.cursor = start;   // 每行都是头文件:没有比这更好的了
 }
 
 bool escape(Form& f) {
     if (f.choosing()) { f.focus = focus::Browsing{}; return false; }   // cancel
-    if (f.editing())  { end_edit(f); return false; }                   // leave field
-    return true;                                                       // close form
+    if (f.editing())  { end_edit(f); return false; }                   // 离开字段
+    return true;                                                       // 关闭窗体
 }
 
 void dropdown_move(Form& f, int delta) {
@@ -634,7 +634,7 @@ void reset_field(Form& f, const FieldValue& dflt) {
     f.dirty = true;
 }
 
-// ── Builder ──────────────────────────────────────────────────────────────
+// ── 构建器 ──────────────────────────────────────────────────────────────
 
 namespace {
 void push(Form& form, std::string id, std::string label, std::string help, FieldValue v) {
@@ -645,7 +645,7 @@ void push(Form& form, std::string id, std::string label, std::string help, Field
     f.value = std::move(v);
     form.fields.push_back(std::move(f));
 }
-} // namespace
+} // 命名空间结束。
 
 Builder& Builder::toggle(std::string id, std::string label, bool on, std::string help) {
     push(form_, std::move(id), std::move(label), std::move(help), field::Toggle{on});

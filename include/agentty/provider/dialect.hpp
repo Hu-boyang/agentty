@@ -1,54 +1,54 @@
 #pragma once
-// agentty::provider — WHICH WIRE DIALECT does (provider, model) speak?
+// agentty::provider — 对应的 传输 DIALECT (提供商、模型)说话吗？
 //
 // ─────────────────────────────────────────────────────────────────────────
-// Why this file exists
+// 该文件为何存在
 // ─────────────────────────────────────────────────────────────────────────
-// A provider row carries a DEFAULT dialect (`ProviderDescriptor::wire`), but
-// a host is not always one dialect. The same OpenAI API key reaches both
-// /v1/chat/completions and /v1/responses; the same Copilot session serves
-// claude-* on chat and mai-code-* on Responses only. So "which dialect" is a
-// property of the (provider, model) PAIR, not of the row alone.
+// 提供商行携带DEFAULT方言（`ProviderDescriptor::wire`)，
+// 但主机并不总是一种方言。相同的 OpenAI API 密钥同时到达 /
+// v1/chat/completions 和 /v1/responses；同一 Copilot
+// 会话仅在聊天中为 claude-* 提供服务，在响应中为 mai-code-* 提供服务。
+// 因此 "which dialect" 是（提供者，模型）PAIR 的属性，而不是单独的行的属性。
 //
-// That question was previously answered in three places that disagreed:
+// 该问题先前在三个不同意的地方得到了回答：
 //
-//   1. the row's `wire` field                     (static, and it lied)
-//   2. copilot::prefers_responses_dialect()       (per-provider, hardcoded)
-//   3. wire_streams_reasoning_text()              (UI: "can we show ^R?")
+//   1.该行的`wire`字段（静态的，并且它撒了谎）
+//   2.copilot::prefers_responses_dialect()(per-provider，硬编码)
+//   3.wire_streams_reasoning_text()(UI:"can we show ^R?")
 //
-// (2) and (3) are the SAME question asked by different callers — one to pick
-// a URL, one to decide whether the thinking pane may promise output. When
-// they drift the UI promises reasoning the wire never sends, which is
-// exactly the bug the mislabelled `openai` row shipped. This header makes
-// them one function so the drift is unrepresentable.
-//
-// ─────────────────────────────────────────────────────────────────────────
-// Why the answer MATTERS (it is not a style preference)
-// ─────────────────────────────────────────────────────────────────────────
-// Per OpenAI's own reasoning guide, on Chat Completions:
-//
-//   • from GPT-5.4 on, tool calling is UNSUPPORTED with any reasoning_effort
-//     other than `none`;
-//   • GPT-6-class models drop chat function-calling entirely.
-//
-// An agent is a tool-calling reasoner by definition, so for those models the
-// chat dialect is not "degraded", it is a 400. Responses additionally keeps
-// reasoning state across tool rounds (`encrypted_content`, which our codec
-// already replays), which is what stops a long tool chain from re-deriving
-// its plan on every hop.
+// (2)和(3)是不同呼叫者提出的SAME问题——一个选择URL，
+// 一个决定思考的面板是否可以承诺输出。当他们漂移时，
+// UI 承诺推理 传输 永远不会发送，这正是错误标记
+// 的 `openai` 行带来的错误。这个 头文件 使
+// 它们成为一种功能，因此漂移是无法表示的。
 //
 // ─────────────────────────────────────────────────────────────────────────
-// Design constraints this obeys
+// 为什么答案是MATTERS（这不是风格偏好）
 // ─────────────────────────────────────────────────────────────────────────
-// • NO user-visible surface. The user picks a model, not a protocol. There
-//   is no picker row, no flag, no modal. The only thing they observe is that
-//   thinking shows up and tool chains stay coherent.
-// • Model-name matching ROTS. Every table here is a heuristic about a moving
-//   target, so a wrong guess must be SURVIVABLE, never fatal: the runtime
-//   records an observed failure (`note_dialect_rejected`) and the next turn
-//   routes the other way. The table is the prior; the wire is the truth.
-// • Answers are pure + cheap: callers hit this per frame (the ^R affordance
-//   asks it while the picker is open).
+// 根据 OpenAI 自己的推理指南，关于聊天完成：
+//
+//   ·从GPT-5.4开始，工具调用是UNSUPPORTED和任何reasoning_effort
+//     `none`除外；
+//   ·GPT-6-class型号-calling完全放弃聊天功能。
+//
+// 根据定义，代理是工具-calling推理器，因此对于这些模型，
+// 聊天方言不是"degraded"，而是400。响应另外在工具轮次
+// 之间保持推理状态（`encrypted_content`，
+// 我们的编解码器已经重播），这就是阻止长工具链从re
+// -deriving其每一跳的计划的原因。
+//
+// ─────────────────────────────────────────────────────────────────────────
+// 其遵循的设计约束
+// ─────────────────────────────────────────────────────────────────────────
+// ·NO用户-visible表面。用户选择模型，而不是协议。那里
+//   没有选择面板行、没有标志、没有弹出面板。他们唯一观察
+//   到的是思维出现并且工具链保持一致。
+// ·Model-name匹配ROTS。这里的每张表都是关于移动的启发式
+//   目标，因此错误的猜测一定是SURVIVABLE，绝不会是致命的：
+//   运行时记录观察到的故障（`note_dialect_rejected`)
+//   并且下一转弯路由相反的方向。该表是先验的； 传输 是事实。
+// • 答案是纯粹+便宜的：呼叫者按 帧（^R 可供性
+//   当 选择面板 打开时询问）。
 
 #include <cstdint>
 #include <string>
@@ -56,11 +56,11 @@
 
 namespace agentty::provider {
 
-// The dialect a concrete turn should be sent on.
+// 具体轮次应发送的方言。
 enum class Dialect : std::uint8_t {
-    Chat,        // OpenAI /chat/completions (or a compat host's equivalent).
-    Responses,   // OpenAI /responses.
-    Native,      // not an OpenAI-family dialect (Anthropic, Ollama, ACP).
+    Chat,        // OpenAI /chat/completions (或兼容主机的等效物)。
+    Responses,   // OpenAI/响应。
+    Native,      // 不是 OpenAI-family 方言（Anthropic、Ollama、ACP)。
 };
 
 [[nodiscard]] constexpr std::string_view dialect_name(Dialect d) noexcept {
@@ -72,56 +72,56 @@ enum class Dialect : std::uint8_t {
     return "";
 }
 
-// ── THE predicate ────────────────────────────────────────────────────────
+// ── 该 上游 ────────────────────────────────────────────────────────
 //
-// Which dialect should `model` on `provider_id` be streamed over? Consults,
-// in order: the row's advertised capability (no responses_path → Chat), the
-// per-turn runtime evidence below (a host that already rejected a dialect is
-// never retried on it), then the model-family prior.
+// `provider_id`上的`model`应该通过哪种方言进行流式传输？
+// 按顺序查询：行的广告功能（无 responses_path → 聊天）、
+// 下面的 per-turn 运行时 证据（已经拒绝方言的主机永远不会重试它），
+// 然后是前面的 model-family。
 //
-// `model` may be empty, meaning "does this provider EVER prefer Responses?"
-// — the provider-level question the picker asks before a model is chosen.
+// `model`可以为空，意味着"does this provider EVER prefer Responses?"
+// ——选择面板在选择模型之前询问的提供者-level问题。
 [[nodiscard]] Dialect dialect_for(std::string_view provider_id,
                                   std::string_view model) noexcept;
 
-// True when (provider, model) can actually deliver reasoning TEXT to the UI
-// on the dialect it will be dialled over. The ^R affordance and the thinking
-// pane both gate on this, so it MUST be the same authority that picks the
-// URL — hence its home here rather than beside the registry table.
+// 当（提供者、模型）能够实际将推理TEXT传递到将被拨叫
+// 的方言上的UI时，这是正确的。 ^R 可供性和思考 面板
+// 都在此门上，因此 必须 是选择 URL 的同一权威
+// - 因此它的家在这里而不是在 注册表 桌子旁边。
 [[nodiscard]] bool streams_reasoning_text(std::string_view provider_id,
                                           std::string_view model) noexcept;
 
-// ── Runtime correction (the anti-rot mechanism) ──────────────────────────
+// ── 运行时 更正(反对) -rot 机制) ──────────────────────────
 //
-// The family tables above are a PRIOR, and every prior about model names
-// goes stale the week a new family ships. These two calls let the wire
-// correct the table without a release:
+// 上面的系列表是 PRIOR，并且在新系列发货的那周，
+// 每个先前的型号名称都是 过期。这两个调用让
+// 传输修正了表格而无需发布：
 //
-//   • a host answering 404/400/`unsupported_api_for_model` on /responses
-//     demotes that (provider, model) to Chat for the rest of the process;
-//   • a host rejecting chat tool-calls for a reasoning model promotes it.
+//   ·主机在/responses上回答404/400/`unsupported_api_for_model`
+//     在该过程的其余部分中将该（提供者、模型）降级为聊天；
+//   ·拒绝推理模型聊天工具-calls的主机对其进行推广。
 //
-// Recorded per (provider, model) so one bad model never disables the dialect
-// for its neighbours. Process-scoped by design: it is an observation about
-// today's deployment, not a preference worth persisting into a config file
-// the user would then have to understand and un-set.
+// 按(提供者，模型)记录，因此一个坏模型永远不会禁用其邻居的方言。
+// Process-scoped 的设计：这是对
+// 当今部署的观察，而不是值得保留到配置文件中的偏好，
+// 然后用户必须理解并取消-set。
 void note_dialect_rejected(std::string_view provider_id,
                            std::string_view model, Dialect rejected) noexcept;
 
-// Test seam: drop all learned rejections so cases start from the prior.
+// 测试接口边界：丢弃所有习得的拒绝，因此情况从先前的情况开始。
 void reset_dialect_observations() noexcept;
 
-// ── Model-family priors (exposed for tests + the Copilot shim) ───────────
+// ── Model-family 先前(测试时暴露于+副驾驶shim) ───────────
 //
-// True when the model is a REASONING model whose tool calling is degraded or
-// outright rejected on Chat Completions — the population that must be on
-// Responses. Kept as one function with the measured/documented rationale
-// beside each family so the table has a single place to be updated.
+// 当模型是 REASONING 模型时为真，其工具调用在聊天
+// 完成上被降级或彻底拒绝——必须在响应上的群体。
+// 与每个系列旁边的 measured/documented
+// 基本原理保持为一个功能，因此该表有一个可以更新的位置。
 [[nodiscard]] bool model_requires_responses(std::string_view model) noexcept;
 
-// True when the model returns reasoning SUMMARY text on Responses. A model
-// can require Responses without emitting visible summaries, so this is a
-// strictly narrower question than the one above.
+// 当模型在响应上返回推理SUMMARY文本时为真。
+// 模型可以要求响应而不发出可见的摘要，因此这是一个
+// 比上面的问题严格范围更窄的问题。
 [[nodiscard]] bool model_emits_reasoning_summaries(std::string_view model) noexcept;
 
 } // namespace agentty::provider

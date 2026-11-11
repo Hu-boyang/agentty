@@ -1,15 +1,15 @@
-// cache_churn_bench — how much of the previous request's prefix does each new
-// request invalidate?
+// cache_churn_bench — 每条新请求的前
+// 缀有多少无效?
 //
-// Replays a REAL saved thread one request at a time (every prefix ending in
-// an assistant turn with tool calls = one agent-loop request), builds the
-// exact Anthropic `messages` body for each, and compares consecutive bodies.
-// The prompt cache can only reuse bytes up to the first difference, so
-//   invalidated = len(prev) - common_prefix(prev, next)
-// is prefix the API re-bills as cache_creation instead of cache_read. Ideal
-// is ~0 on every step (pure append). Reports the total and the worst steps
-// with the message index where the divergence starts.
-//   agentty_standalone_tests cache_churn_bench <thread.jsonl>
+// 重放一个 真实 已保存 线程 一次一个请求( 每个前缀以工具的助手转折结束)
+// 调用 = 一人代理, = 4人, =1人, 或1人,=1人 -loop ),
+// 建立精确的 Anthropic `messages` 正文 并比较连续 正文.
+// 电话 提示词缓存 只能重复使用 字节 至第一个差数,所以无效=len
+//   (prev) - common_prefix (prev,
+// 下)是前缀 API 内容 -bills 以 cache_creation
+// 改为 cache_read。理想是~0,每一步(纯附件)。
+// 在差异开始时,用信息索引报告全部步骤和最差步骤。
+//   agentty_standalone_tests cache_churn_bench <thread.jsonl>  ⁇
 
 #include <algorithm>
 #include <cstdio>
@@ -39,8 +39,8 @@ int main(int argc, char** argv) {
         Thread t = full;
         t.messages.resize(n);
         std::string body = provider::anthropic::messages_json_string(t);
-        // Strip cache_control markers: they are EXPECTED to move each turn
-        // and are not part of the cached content.
+        // 脱 cache_control 标记: 它们 EXPECTED
+        // 以移动每个转弯,而不是缓存内容的一部分。
         for (std::size_t p; (p = body.find(",\"cache_control\":{")) != std::string::npos;) {
             auto e = body.find('}', p);
             body.erase(p, e - p + 1);
@@ -53,7 +53,7 @@ int main(int argc, char** argv) {
             ++steps; total_prev += prev.size(); total_lost += lost;
             if (lost > 64) {
                 ++broke;
-                // Which wire message does the divergence fall in?
+                // 分歧是哪条传输信息?
                 std::size_t msg = 0, depth = 0;
                 bool in_str = false, esc = false;
                 for (std::size_t i = 0; i < c; ++i) {

@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
-"""disk_writes: agentty writes shared files one way (include/agentty/io/shared_file.hpp).
+"""disk_writes：agentty 统一通过 include/agentty/io/shared_file.hpp 写共享文件。
 
-  lock     no file lock outside the section: CrossProcessFileLock, flock(),
-           LockFileEx, fcntl F_SETLK*, or native_file_lock::acquire
-  rename   no rename(2)/MoveFileEx/fs::rename publishing a temp, which is how
-           a fixed ".tmp" name gets shared by two writers
-  truncate no truncating or appending ofstream/fopen: a reader can see the
-           file half-written, and two appenders can splice lines
-  setvbuf  no setvbuf(..., _IOFBF/_IOLBF, 0): the C standard allows size 0
-           with a NULL buffer, MSVC's UCRT treats it as an invalid argument
-           and fast-fails the process (0xC0000409, #115)
+  lock     指定边界之外禁止使用 CrossProcessFileLock、flock()、LockFileEx、
+           fcntl F_SETLK* 或 native_file_lock::acquire 加文件锁。
+  rename   禁止通过 rename(2)、MoveFileEx 或 fs::rename 发布临时文件，
+           避免两个写入方共用固定的 .tmp 名称。
+  truncate 禁止通过 ofstream/fopen 截断或追加；读者可能看到半写入文件，
+           两个追加方也可能把各自的行拼接在一起。
+  setvbuf  禁止 setvbuf(..., _IOFBF/_IOLBF, 0)。C 标准允许空缓冲区配合
+           大小 0，但 MSVC UCRT 会视为无效参数并快速终止进程，见 #115。
 
-Each rule has a short allowlist below: the primitive itself, and the few
-places that move whole files or directories around (migrations, `config
-move`) rather than write them. Comments and strings are ignored.
+每条规则下方有简短允许清单，仅包含原语自身，以及迁移或 config move 等
+移动整个文件或目录而非写入内容的位置。匹配时忽略注释和字符串。
 
-Usage: disk_writes.py ROOT
+用法：disk_writes.py ROOT
 """
 
 import os
@@ -29,20 +27,20 @@ RULES = {
         r"\bCrossProcessFileLock\b|[^\w.>:]flock\s*\(|\bLockFileEx\b|\bF_(OFD_)?SETLKW?\b"
         r"|native_file_lock::(try_)?acquire\b|\bacquire_within\s*<",
         {
-            "src/io/shared_file.cpp",     # the section
-            "src/util/storage_lock.cpp",  # the session-long "agentty is running" lock
+            "src/io/shared_file.cpp",     # 节次
+            "src/util/storage_lock.cpp",  # 本届会议的报告 -long "agentty is running" 锁
         },
     ),
     "rename": (
         r"\bfs::rename\s*\(|std::filesystem::rename\s*\(|[^\w.>]::rename\s*\(|[^\w.>:]rename\s*\("
         r"|\bMoveFileExW?\s*\(|\bReplaceFileW?\s*\(",
         {
-            "src/io/shared_file.cpp",           # write_atomic / create_exclusive
-            "src/tool/util/disk_files.cpp",     # the edit tool's writer (keeps symlinks, modes)
+            "src/io/shared_file.cpp",           # write_atomic / create_exclusive 数据
+            "src/tool/util/disk_files.cpp",     # 编辑工具的编目器(保持共鸣链接,模式)
             "include/agentty/tool/util/disk_files.hpp",
-            "src/config/inventory.cpp",         # `config move`: moves whole dirs, store idle
-            "src/rag/adapter.cpp",              # one-time move of old index files into cache/
-            "src/util/user_root.cpp",           # one-time legacy layout migration
+            "src/config/inventory.cpp",         # `config move`: 移动整个 dirs, 存储闲置
+            "src/rag/adapter.cpp",              # 单曲 -time 移动旧索引文件到 cache/
+            "src/util/user_root.cpp",           # 单曲 -time 遗留布局迁移
         },
     ),
     "truncate": (
@@ -51,10 +49,10 @@ RULES = {
         {
             "src/io/shared_file.cpp",
             "src/tool/util/disk_files.cpp",
-            "src/util/logx.cpp",                # the log: one process, O_APPEND
-            # AGENTTY_STARTUP_TRACE=<path>: a dev-only timing log the user
-            # names on the command line, appended by one process. Not a
-            # shared file; nothing else reads or writes it.
+            "src/util/logx.cpp",                # 日志:一个进程,O_APPEND
+            # AGENTTY_STARTUP_TRACE=<path> :
+            # dev 数据 -only 时间日志命令行上的用户名,
+            # 附加一个进程。 不是共享文件; 没有其它内容读写它。
             "include/agentty/util/startup_trace.hpp",
         },
     ),
@@ -66,7 +64,7 @@ RULES = {
 
 
 def strip(code):
-    """Blank comments and string literals, keeping line structure."""
+    """将注释和字符串字面量置空，保留行结构。"""
     out, i, n = [], 0, len(code)
     while i < n:
         c = code[i]
@@ -79,7 +77,7 @@ def strip(code):
             out.append("\n" * code.count("\n", i, j))
             i = j
         elif c == '"' or c == "'":
-            # Blank the literal but keep any newlines (raw strings span lines).
+            # 空白字面但保留任何新线条( 线条横线)。
             q, j = c, i + 1
             while j < n and code[j] != q:
                 j += 2 if code[j] == "\\" else 1
@@ -106,7 +104,7 @@ def main():
                 path = os.path.join(dp, f)
                 rel = os.path.relpath(path, root).replace(os.sep, "/")
                 raw = open(path, encoding="utf-8", errors="replace").read()
-                # Keep the quotes so the fopen mode check can see "w"/"a".
+                # 保留引文,这样fopen模式检查就可以看到"w"/"a".
                 code = strip(raw)
                 modes = raw.split("\n")
                 for no, line in enumerate(code.split("\n"), 1):
@@ -115,7 +113,7 @@ def main():
                             continue
                         probe = " " + line
                         if rule == "truncate" and "fopen" in line:
-                            probe = " " + modes[no - 1]   # needs the mode string
+                            probe = " " + modes[no - 1]   # 需要模式字符串
                         if rx.search(probe):
                             hits.append(f"{rel}:{no}: [{rule}] {modes[no - 1].strip()}")
     print("disk_writes: shared files go through persistence::with_shared_file / write_atomic")

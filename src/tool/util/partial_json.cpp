@@ -6,36 +6,36 @@
 
 namespace agentty::tools::util {
 
-// A small JSON walker that knows where in the grammar it is, so a cut can be
-// closed into valid JSON whatever it lands on: half a key (`{"co`), a key
-// without its colon (`{"a"`), half a literal (`tr`, `nul`), half a number
-// (`-`, `1.`, `1e`), a dangling comma, or an open string. The rule is to keep
-// every complete member and drop the one being written, except a value string
-// cut mid-text, which keeps its text so the live preview can show it.
+// 一点 JSON 手语法中知道它在哪里的行者,所以切片可以关闭成有效 JSON
+// 不论它落在什么上,都有一个钥匙 `{"co` ),一个没有结肠的密钥(
+// `{"a"` ),半升(含" ⁇ "," ⁇ "). `tr`,
+// `nul` ),半数字( `-`, `1.`, `1e` , 表示一个折叠的逗号,
+// 或打开字符串。规则是保留每个完整的成员并放下正在写入的,但一个值字符串
+// 切中 -text ,它保留了它的文本,这样现场预览就可以显示它。
 std::string close_partial_json(std::string_view raw) {
-    // What a container is waiting for next.
+    // 下一个容器在等着什么
     enum class Want : char {
-        KeyOrEnd,    // `{` just opened: a key or `}`
-        Key,         // after `,` in an object
-        Colon,       // after a key
-        Value,       // after `:` or `,` in an array / `[` (or `]`)
-        CommaOrEnd,  // a member is complete
+        KeyOrEnd,    // `{` 刚刚打开的: 密钥或 `}`
+        Key,         // 在对象中的`,`之后
+        Colon,       // 键后
+        Value,       // 之后 `:` 或 或 时 间 `,` / 数组中 `[` (或 减 减 ) `]`)
+        CommaOrEnd,  // 成员已填满
     };
     struct Frame { char open; Want want; };
     std::vector<Frame> stack;
-    // Byte offset in `out` to cut back to when the member being written is
-    // dropped: just before its key (objects) or its leading comma (arrays).
+    // 字节 减 减: `out` 以切回写入成员被
+    // 丢弃时的键:就在键(对象)或其主逗号(阵列)之前。
     std::vector<std::size_t> member_start;
 
     std::string out;
     out.reserve(raw.size() + 16);
-    bool top_done = false;      // a whole top-level value has been written
+    bool top_done = false;      // 已写入整个顶值 -level 值
 
-    // An open token at EOF: a string (key or value), or a bare literal/number.
+    // 打开的标志 EOF : 字符串( 键或值) , 或 空 literal/number.
     enum class Tok { None, KeyString, ValueString, Bare };
     Tok tok = Tok::None;
     bool escape = false;
-    std::size_t bare_from = 0;  // where the current bare token started in out
+    std::size_t bare_from = 0;  // 光线标志从那里开始
 
     auto in_array = [&] { return !stack.empty() && stack.back().open == '['; };
     auto value_done = [&] {
@@ -89,7 +89,7 @@ std::string close_partial_json(std::string_view raw) {
                 break;
             case ',':
                 if (want == Want::CommaOrEnd) {
-                    // the member before this comma is complete; a new one starts
+                    // 成员在此逗号完成之前; 开始一个新的逗号
                     if (member_start.size() == stack.size()) member_start.back() = out.size();
                     else member_start.push_back(out.size());
                     out.push_back(c);
@@ -115,12 +115,12 @@ std::string close_partial_json(std::string_view raw) {
                     tok = Tok::Bare;
                     out.push_back(c);
                 }
-                break;   // anything else is noise we can't place; drop it
+                break;   // 其它的都是我们无法定位的噪音,放下它
         }
     }
 
-    // ── Close what is open at EOF ──────────────────────────────────────
-    // A bare token is kept only if it is already a whole literal or number.
+    // ── 关闭在 EOF 打开的 ──────────────────────────────────────
+    // 光彩的标志只有在已经是一个完整的字面或数字时才保留。
     if (tok == Tok::Bare) {
         const std::string_view t{out.data() + bare_from, out.size() - bare_from};
         const bool literal = t == "true" || t == "false" || t == "null";
@@ -130,14 +130,14 @@ std::string close_partial_json(std::string_view raw) {
         if (literal || number) {
             value_done();
         } else {
-            out.resize(bare_from);   // `tr`, `-`, `1.`: not a value yet
+            out.resize(bare_from);   // `tr`, `-`, `1.` : 尚未为值
         }
         tok = Tok::None;
     }
     if (tok == Tok::ValueString) {
-        if (escape) out.pop_back();          // a lone `\` at the cut
+        if (escape) out.pop_back();          // 孤独 `\` 切开时
         // the cut can fall inside a multi-byte character (`é`, `日`); its
-        // leading bytes alone are not valid UTF-8, so drop them
+        // 仅领导字节就无效UTF-8,所以放弃它们
         {
             std::size_t k = out.size(), cont = 0;
             while (k > 0 && cont < 3
@@ -148,16 +148,16 @@ std::string close_partial_json(std::string_view raw) {
                 if (need > cont) out.resize(k - 1);
             }
         }
-        // a cut inside \uXXXX leaves an invalid escape: drop it
+        // 内部切开 \u\\\\ 留下无效的越狱: 放下它
         if (const auto u = out.rfind("\\u"); u != std::string::npos
             && out.size() - u < 6
             && out.find('"', u) == std::string::npos) {
             std::size_t bs = 0;
             for (std::size_t k = u; k > 0 && out[k - 1] == '\\'; --k) ++bs;
-            if (bs % 2 == 0) out.resize(u);   // the `\` really starts an escape
+            if (bs % 2 == 0) out.resize(u);   // 编号 `\` 真正开始逃跑
         }
-        // a high surrogate (\uD800-\uDBFF) needs its low half after it; a cut
-        // between the two leaves an escape no parser accepts, so drop it
+        // 高代孕(\uD800-\uDBFF)需要它的低半身后;
+        // 两人之间切开一个没有解析器接受的逃生, 所以放弃它
         if (out.size() >= 6 && out[out.size() - 6] == '\\' && out[out.size() - 5] == 'u') {
             std::size_t bs = 0;
             for (std::size_t k = out.size() - 6; k > 0 && out[k - 1] == '\\'; --k) ++bs;
@@ -168,8 +168,8 @@ std::string close_partial_json(std::string_view raw) {
         out.push_back('"');
         value_done();
     }
-    // A key cut mid-string leaves its frame wanting a key, but the key's
-    // bytes are in `out`. Mark it unfinished so the cut below removes it.
+    // 中键切除 -string 离开它的 帧 想要一把钥匙,
+    // 但钥匙是 字节 正在输入 `out` 标记它未完成,所以下面的切片会去掉它.
     const bool key_open = tok == Tok::KeyString;
     tok = Tok::None;
 
@@ -177,14 +177,14 @@ std::string close_partial_json(std::string_view raw) {
     while (!stack.empty()) {
         Frame& f = stack.back();
         const bool has_partial_member = member_start.size() == stack.size();
-        // Unfinished = anything but a complete member or an empty container.
-        // Only the innermost frame can be mid-member; outer frames are
-        // mid-value, and that value is the inner container being closed.
+        // 未完成 = 除完整成员或空容器外的任何东西。
+        // 惟内之内 帧 可以是中间 -member 外部;
+        // 外部 帧 中间 -value ,而这个值是内容器被关闭。
         const bool unfinished = innermost
             && (key_open || (f.want != Want::CommaOrEnd && f.want != Want::KeyOrEnd));
         if (unfinished && has_partial_member) out.resize(member_start.back());
         innermost = false;
-        // trim trailing whitespace and a now-dangling comma
+        // 沿白空间和现在的-dangling 逗号修剪
         while (!out.empty() && (out.back() == ' ' || out.back() == '\t'
                                 || out.back() == '\n' || out.back() == '\r'))
             out.pop_back();
@@ -200,24 +200,24 @@ std::string close_partial_json(std::string_view raw) {
 
 namespace {
 
-// Shared prefix walk for sniff_*: advance past `"key"` followed by `:` and
-// the opening `"` of its value. Returns the index just past the opening
-// quote, or std::string_view::npos if the expected prefix isn't there yet.
+// snow 的共享前缀行:先是 `"key"` 前进,
+// 然后是 `:` 和 `"` 打开。返回刚刚通过开口报价的索引,
+// 如果预期前缀还没有,则返回 std::string_view::npos。
 //
-// Perf note: this runs on the streaming hot path (called per alias per
-// preview tick, ~8x/sec during a turn). The previous implementation built
-// a `"key"` needle as a heap-allocated std::string and handed it to
-// std::string_view::find — O(N) scan per call, plus a malloc+free every
-// call. We now scan the buffer once looking for the opening `"`, then
-// memcmp against the key. Zero allocations; the inner loop is a single
-// byte compare that usually fails on the first char.
+// 标注: 此操作在 流式传输 高频路径 (称为每个预览勾选符的别名,
+// ~8x/sec 先前的执行工作已形成一个框架。 `"key"` 针
+// 头作为堆积 -allocated std::string 并
+// 把它交给了 std::string_view::find ——每
+// 台O(N)扫描 调用 ,加一个 maloc+ 免费 调用 我们
+// 现在扫描 缓冲区 曾经寻找开场 `"` ,然后对着键。 分配 ;
+// 内环是单 字节 比较第一个字符上通常失败的值。
 std::size_t sniff_prefix(std::string_view raw, std::string_view key) {
     if (key.empty() || raw.size() < key.size() + 4) return std::string_view::npos;
     const char* const base = raw.data();
     const std::size_t n    = raw.size();
     const std::size_t klen = key.size();
-    // Last index where `"key"` could still begin: need klen+2 bytes
-    // for the quoted key plus at least `:` `"` after it.
+    // 最后一个索引 `"key"` 仍然可以开始:需要 klen+2
+    // 字节 引用键加至少 `:` `"` 之后,我们再谈吧。
     const std::size_t last_start = n - (klen + 3);
     for (std::size_t i = 0; i <= last_start; ++i) {
         if (base[i] != '"') continue;
@@ -234,9 +234,9 @@ std::size_t sniff_prefix(std::string_view raw, std::string_view key) {
     return std::string_view::npos;
 }
 
-// Apply a JSON escape (`\X`) onto the output buffer. Unknown escapes
-// degrade to the literal byte — fine for streaming previews, where we
-// prefer a benign display over an exception.
+// 将JSON(`\X`)逃逸应用到输出缓冲区.
+// 未知逃逸物降解为字面字节——对流式传输预览的罚款,
+// 我们倾向于良性显示而不是例外.
 void apply_escape(char n, std::string& out) {
     switch (n) {
         case 'n':  out += '\n'; break;
@@ -251,7 +251,7 @@ void apply_escape(char n, std::string& out) {
     }
 }
 
-} // namespace
+} // 命名空间结束。
 
 std::optional<std::string>
 sniff_string(std::string_view raw, std::string_view key) {
@@ -262,7 +262,7 @@ sniff_string(std::string_view raw, std::string_view key) {
     while (p < raw.size()) {
         char c = raw[p];
         if (c == '\\') {
-            if (p + 1 >= raw.size()) return std::nullopt; // wait for next delta
+            if (p + 1 >= raw.size()) return std::nullopt; // 等待下一个三角洲
             apply_escape(raw[p + 1], out);
             p += 2;
         } else if (c == '"') {
@@ -291,7 +291,7 @@ decode_string_from(std::string_view raw, std::size_t offset) {
     while (p < raw.size()) {
         char c = raw[p];
         if (c == '\\') {
-            if (p + 1 >= raw.size()) break; // half-escape at buffer edge
+            if (p + 1 >= raw.size()) break; // 半个 -escape 时间 缓冲区 边
             apply_escape(raw[p + 1], out);
             p += 2;
         } else if (c == '"') {
@@ -310,28 +310,28 @@ decode_string_append(std::string_view raw,
                      std::string& out,
                      bool* closed)
 {
-    // Once the closing `"` was seen, later calls must not decode whatever
-    // follows it (the next JSON member) into the value.
+    // 关机后 `"` 之后被人看见了 调用 不得将其后的事物
+    // 解码(下), JSON 成员),输入值。
     if (closed && *closed) return true;
     if (!through || *through >= raw.size()) return false;
     std::size_t p = *through;
-    // Reserve a guess for the new bytes — most escapes are 1-byte
-    // expansions (`\n` → newline) so raw.size() - p is a tight upper
-    // bound on the decoded growth.
+    // 保留新猜测 字节 - 大部分越狱者是1人 - 大部分是1人
+    // -byte 扩建( `\n` ~新线)所以 raw.size ()
+    // - p是解码生长上紧的上方束缚.
     if (out.capacity() - out.size() < raw.size() - p)
         out.reserve(out.size() + (raw.size() - p));
     while (p < raw.size()) {
         char c = raw[p];
         if (c == '\\') {
-            // Half-escape at the buffer edge — stop without consuming
-            // the `\`. Next call (with more bytes) will see the full
-            // escape pair and resume cleanly.
+            // 半个 -escape 现场 缓冲区 边缘 - 停止而不
+            // 消耗 `\` 下一个 调用 (有较多) 字节 )会
+            // 看到完整的逃生对子,并恢复干净.
             if (p + 1 >= raw.size()) break;
             apply_escape(raw[p + 1], out);
             p += 2;
         } else if (c == '"') {
-            // Value closed. Advance past the `"` so future calls
-            // return immediately (idempotent post-close).
+            // 价值已关闭。 `"` 未来 调用 立即返回(
+            // 时间: 幂等 员额 -close).
             ++p;
             *through = p;
             if (closed) *closed = true;
@@ -354,8 +354,8 @@ sniff_string_progressive(std::string_view raw, std::string_view key) {
 
 bool
 ended_inside_string(std::string_view raw) noexcept {
-    // Same state machine as close_partial_json's main loop, minus the
-    // emit buffer. We only need the final `in_string` flag.
+    // 状态机器与 close_partial_json '主循环,
+    // 减去发射 缓冲区 我们只需要最后的 `in_string` 标志.
     bool in_string = false;
     bool escape    = false;
     for (char c : raw) {
@@ -367,10 +367,10 @@ ended_inside_string(std::string_view raw) noexcept {
         }
         if (c == '"') in_string = true;
     }
-    // A trailing lone `\` at the very edge of a string is also a
-    // half-finished value (close_partial_json drops it before
-    // synthesising the `"`); treat it as "ended inside" so callers
-    // refuse the salvage just the same.
+    // 一个落后的孤独 `\` 弦的边缘也是半 -finished
+    // 价值( 5) close_partial_json 合成
+    // 前先放下它 `"` ); 视之为 "ended inside"
+    // 所以打电话的人拒绝同样的救生
     return in_string;
 }
 

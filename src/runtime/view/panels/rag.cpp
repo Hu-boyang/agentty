@@ -1,8 +1,8 @@
-// rag_settings_view.cpp — the RAG mode picker overlay.
+// rag_settings_view.cpp - 电话 RAG 模式 选择面板 覆盖面板.
 //
-// Three rows: On / First turn only / Off — how proactive (pre-turn) retrieval
-// behaves. The current mode is marked; Enter/Space selects. A deliberately
-// tiny pane: one decision, not a wall of toggles.
+// 三行:在/只进行第一次/关闭——如何积极主动(前) -turn 检索行为。
+// 当前模式已标记; Enter/Space 选择,
+// 一个故意的微小 面板 :一个决定,而不是墙壁 切换.
 
 #include "agentty/runtime/view/panels.hpp"
 
@@ -31,12 +31,12 @@ Element rag_panel(const Model& m) {
     const auto* o = m.ui.panel.get<pn::Rag>();
     if (!o) return nothing();
 
-    // ONE pane, always the form. Mode and embedder are two rows of the same
-    // question; every glyph belongs to maya::Panel and this host does nothing
-    // but project state onto its Config.
+    // 一个 面板, 总是形式. Mode 和 嵌入器是同一问题的两行;
+    // 每个glyph属于maya::Panel, 而这个主机除了在它的配置
+    // 上显示项目状态之外,什么也做不了.
     //
-    // The registry makes this pane taller than a short terminal, so it
-    // scrolls — same viewport arithmetic every other picker uses.
+    // 电话 注册表 做这个 面板 高过短 终端 ,
+    // 所以它卷轴——同样 可视区域 算术 选择面板 使用时。
     return maya::Panel{form_config(o->embed.form, info,
                                   &m.ui.rag_settings_scroll,
                                   panel_detail::panel_viewport_h(),

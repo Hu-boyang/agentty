@@ -1,9 +1,9 @@
-// cmd::sniff_image_path — is this pasted path an image file?
+// cmd::sniff_image_path — 此粘贴路径是图像文件吗？
 //
-// A dropped file arrives as its path in a bracketed paste. Deciding whether
-// it names an image means stat-ing and reading the file, so it runs on a
-// worker and replies with ImagePathSniffed. The reducer attaches the image,
-// or pastes the text as text when the path turns out not to be one.
+// 放置的文件作为其在括号内的粘贴中的路径到达。决定是否命名图像
+// 意味着 stat-ing 并读取文件，因此它在 工作线程
+// 上运行并回复 ImagePathSniffed。
+// 状态更新函数 会附加图像，或者当路径不是一个时将文本粘贴为文本。
 
 #include "agentty/runtime/app/cmd_factory.hpp"
 
@@ -26,46 +26,46 @@ namespace {
 namespace fs = std::filesystem;
 using detail::detect_image_media_type;
 
-// Returns (path, media_type) if the paste looks like a single-line
-// path to a recognised image file. Empty path on no match.
+// 如果粘贴看起来像识别的图像文件的单个-line路径，则返回(路径，
+// media_type)。没有匹配项时路径为空。
 struct ImagePasteResult {
     std::string  path;
     const char*  media_type = nullptr;
-    std::string  body;       // raw image bytes
+    std::string  body;       // 原始图像字节
 };
 
-// Normalise a pasted path candidate:
-//   – expand a leading `~/` to $HOME (file managers / shells emit this)
-//   – unescape `\ ` / `\(` / `\)` / `\'` etc. (drag-drop on macOS and
-//     several Linux file managers backslash-escape every shell-special
-//     character so the path can be re-pasted into a shell verbatim)
-//   – drop CR if a CRLF terminal slipped one through
+// 规范化粘贴的候选路径：
+//   – 将前导 `~/` 扩展为 $HOME（文件管理器/shell 会发出此信息） –
+//   unescape `\ ` / `\(` / `\)` / `\'` 等（在
+//     macOS 上拖动 -drop 和几个 Linux 文件管理器反斜杠-escape
+//     每个 shell-special 字符，以便路径可以重新-pasted逐字进入外壳）
+//   – 如果 CRLF 终端 滑过，则掉落 CR
 std::string normalize_path_candidate(std::string_view in) {
-    // Trim trailing CR.
+    // 修剪尾随 CR。
     while (!in.empty() && (in.back() == '\r' || in.back() == ' ')) in.remove_suffix(1);
     std::string s;
     s.reserve(in.size());
     if (in.size() >= 2 && in[0] == '~' && in[1] == '/') {
-        // Unified home root ($HOME on POSIX/MSYS2, $USERPROFILE on native
-        // Windows) so a dropped `~/…` path expands on every platform.
+        // 统一主根（$HOME在POSIX/MSYS2上，
+        // $USERPROFILE在本机Windows上），因此删除的`~/…`路径在每个平台上扩展。
         const fs::path home = agentty::util::home_dir();
         if (!home.empty()) {
             s.append(home.string());
-            in.remove_prefix(1);  // keep the '/'
+            in.remove_prefix(1);  // 保留'/'
         }
     }
 #ifdef _WIN32
-    // On Windows the backslash is the PATH SEPARATOR, not a shell escape:
-    // a dropped native path `C:\Users\foo\bar` must survive verbatim.
-    // Stripping `\` here would mangle it to `C:Usersfoobar`. Take the
-    // whole remainder as-is (drag/drop sources on Windows don't
-    // shell-escape).
+    // 在 Windows 上，反斜杠是 PATH SEPARATOR，而不是 shell 转义：
+    // 被删除的本机路径`C:\Users\foo\bar`必须逐字保留。
+    // 此处剥离`\`会将其损坏为`C:Usersfoobar`。将剩余部分全部
+    // 视为 -is（Windows 上的 drag/drop 源代码不加壳
+    // -escape）。
     s.append(in);
 #else
     for (std::size_t i = 0; i < in.size(); ++i) {
         if (in[i] == '\\' && i + 1 < in.size()) {
-            // Shell-style escape (macOS / Linux file managers backslash
-            // every shell-special char). Drop the backslash, keep the char.
+            // Shell-style转义(
+            // macOS/Linux文件管理器反斜杠每个shell-special字符)。删除反斜杠，保留字符。
             s.push_back(in[i + 1]);
             ++i;
             continue;
@@ -78,34 +78,34 @@ std::string normalize_path_candidate(std::string_view in) {
 
 ImagePasteResult sniff_image_paste(std::string_view text) {
     ImagePasteResult r;
-    // Trim leading / trailing whitespace (incl. CR).
+    // 修剪前导/尾随空白(包括CR)。
     std::size_t a = 0, b = text.size();
     while (a < b && std::isspace(static_cast<unsigned char>(text[a]))) ++a;
     while (b > a && std::isspace(static_cast<unsigned char>(text[b - 1]))) --b;
     auto trimmed = text.substr(a, b - a);
     if (trimmed.empty()) return r;
-    // Must be a single line — embedded newlines hint at pasted prose
-    // rather than a path.
+    // 必须是单行——嵌入的换行符暗示粘贴的散文
+    // 而不是路径。
     if (trimmed.find('\n') != std::string_view::npos) return r;
-    if (trimmed.size() > 4096) return r;  // sane upper bound
+    if (trimmed.size() > 4096) return r;  // 理智上限
 
-    // Strip surrounding quotes (drag-and-drop on macOS / GNOME quotes
-    // paths automatically).
+    // 去除周围的引号（
+    // 自动将-and-drop拖到macOS/GNOME引号路径上）。
     if (trimmed.size() >= 2
         && (trimmed.front() == '\'' || trimmed.front() == '"')
         && trimmed.back() == trimmed.front()) {
         trimmed = trimmed.substr(1, trimmed.size() - 2);
     }
-    // file:// URIs land here on some desktops. Accept either two or
-    // three leading slashes (file:// vs file:///).
+    // file:// URI 在某些桌面上位于此处。接受两个或三个前导
+    // 斜杠（file:// 与 file:///）。
     constexpr std::string_view kFileUri = "file://";
     if (trimmed.size() > kFileUri.size()
         && trimmed.substr(0, kFileUri.size()) == kFileUri) {
         trimmed.remove_prefix(kFileUri.size());
-        // Some emitters use file:/// for absolute paths. Collapse the
-        // extra slash so the result starts with exactly one '/'.
+        // 一些发射器使用 file:/// 作为绝对路径。
+        // 折叠多余的斜杠，以便结果恰好以 1 '/' 开头。
         if (!trimmed.empty() && trimmed.front() == '/') {
-            // already absolute, fine
+            // 已经绝对好了
         }
     }
 
@@ -115,7 +115,7 @@ ImagePasteResult sniff_image_paste(std::string_view text) {
     fs::path p{candidate};
     std::error_code ec;
     if (!fs::is_regular_file(p, ec) || ec) return r;
-    // Sniff first 16 bytes for a magic prefix.
+    // 嗅探第一个 16 字节 的魔法前缀。
     std::ifstream in(p, std::ios::binary);
     if (!in) return r;
     char buf[16]{};
@@ -123,9 +123,9 @@ ImagePasteResult sniff_image_paste(std::string_view text) {
     auto got = static_cast<std::size_t>(in.gcount());
     auto* mt = detect_image_media_type(std::string_view{buf, got});
     if (!mt) return r;
-    // Slurp full bytes. 8 MiB cap — Anthropic's per-image limit is
-    // 5 MB and base64 expansion adds ~33 %, so anything bigger than
-    // ~6 MB on disk would fail server-side anyway.
+    // 吸满字节。 8 MiB 上限 — Anthropic 的 per-image
+    // 限制为 5 MB，base64 扩展增加了约 33%，因此磁盘上任何大于约
+    // 6 MB 的内容都会导致 server-side 失败。
     auto sz = fs::file_size(p, ec);
     if (ec || sz > 8 * 1024 * 1024) return r;
     in.clear();
@@ -140,7 +140,7 @@ ImagePasteResult sniff_image_paste(std::string_view text) {
     return r;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 Cmd sniff_image_path(std::string text) {
     return Cmd::task(

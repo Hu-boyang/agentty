@@ -1,15 +1,15 @@
-// commands.cpp — user-authored slash commands. See commands.hpp for the
-// format, discovery roots, and substitution contract. Structure mirrors
-// skills.cpp deliberately (same lenient frontmatter subset, same mtime-
-// signature cache) so the two loaders stay conceptually one thing.
+// commands.cpp 用户 -authored 斜线命令。
+// commands.hpp 结构镜像 skills.cpp
+// 故意( 相同的宽大前题子集, 相同的 mtime-
+// signition) 缓存 所以两个装货员在概念上 保持一件事。
 
 #include "agentty/util/user_root.hpp"
 #include "agentty/tool/commands.hpp"
 #include "agentty/util/home_dir.hpp"
 
 #include "agentty/scope/scope.hpp"
-#include "agentty/config/inventory.hpp"   // kCommandsLayout — the one declaration
-#include "agentty/util/capped_read.hpp"   // the one capped-read primitive
+#include "agentty/config/inventory.hpp"   // KCommands Layout——单一宣言
+#include "agentty/util/capped_read.hpp"   // 原始的封顶-read
 
 #include <maya/runtime.hpp>
 #include <algorithm>
@@ -43,8 +43,8 @@ constexpr int         kMaxDepth     = 3;   // namespace nesting (a:b:c)
     return std::string{v.substr(b, e - b)};
 }
 
-// NOTE: the local read_capped() is gone — see util/capped_read.hpp for why
-// three copies of it all shipped the same bug.
+// NOTE : 当地 read_capped () 已消失——见
+// util/capped_read.hpp 为什么三份都运走了同样的错误
 
 [[nodiscard]] bool parse_kv(const std::string& line,
                             std::string& key, std::string& val) {
@@ -60,11 +60,11 @@ constexpr int         kMaxDepth     = 3;   // namespace nesting (a:b:c)
     return !key.empty();
 }
 
-// Parse one <name>.md into a Command. Frontmatter is optional; only the
-// scalar keys `description` / `argument-hint` are recognised (commands
-// are simpler than skills — no block scalars needed; a block-scalar
-// description in the wild still parses, it just keeps the `|` marker
-// out and takes the first continuation line via the body fallback).
+// 解析 单曲 <name> . md 输入命令。 前置事项是可选的;
+// 只有scalar 键 `description` /
+// `argument-hint` 被识别( 命令比技能简单 —
+// — 不需要块级的缩写 ; 块) -scalar 野外的描述
+// 解析 保持了这个 `|` 标记并取出第一个通过 正文 回退).
 [[nodiscard]] Command parse_command(const std::string& raw,
                                     std::string name,
                                     const std::string& source) {
@@ -88,9 +88,9 @@ constexpr int         kMaxDepth     = 3;   // namespace nesting (a:b:c)
             if (!parse_kv(line, k, v)) continue;
             if      (k == "description")   c.description   = v;
             else if (k == "argument-hint") c.argument_hint = v;
-            // unknown keys tolerated (Claude has allowed-tools, model —
-            // not enforced here; the expanded prompt goes through the
-            // normal turn pipeline with the normal tool gates).
+            // 未知密钥被容忍( N) Claude 已允许
+            // -tools ,模式——此处不执行;
+            // 扩大范围 提示词 与正常的工具门一起穿过正常的转弯管道。
         }
     }
     if (fm_done && body_start != std::streampos(-1)) {
@@ -109,8 +109,8 @@ constexpr int         kMaxDepth     = 3;   // namespace nesting (a:b:c)
     return c;
 }
 
-// Recursively scan `dir` for *.md command files, joining subdirectory
-// names into the command name with ':' (git/fixup.md → git:fixup).
+// 递归扫描 `dir` *.md命令文件,将子目录名称合并到命令名称中,
+// 并带有 ':' (git/fixup.md ~  ⁇ :补.
 void scan_dir(const fs::path& dir, const std::string& prefix,
               const std::string& source, int depth,
               std::vector<Command>& out, std::string& sig) {
@@ -140,17 +140,17 @@ void scan_dir(const fs::path& dir, const std::string& prefix,
         if (!sec)
             sig += std::to_string(static_cast<long long>(
                        fmt.time_since_epoch().count())) + ";";
-        // Commands have no `agentty commands` CLI to report into, so an
-        // oversized file is skipped -- but the TooBig case is now named
-        // rather than hidden inside an empty string, so if that CLI ever
-        // ships the branch to fill in is already here.
+        // 命令没有 `agentty commands`
+        // CLI 以报告,所以一个超大小的文件被跳过 --
+        // 但是 TooBig 大小写现在被命名而不是隐藏在空字符串中,
+        // 所以如果 CLI 船已经到这里了
         const auto got = ::agentty::util::capped_read(p, kMaxBodyBytes);
         if (!::agentty::util::has_content(got)) continue;
         const std::string& raw = ::agentty::util::bytes_or_empty(got);
         if (raw.empty()) continue;
 
         std::string name = prefix.empty() ? stem : prefix + ":" + stem;
-        // Shadow: earlier roots win on a name collision.
+        // 阴影:早先的根在名称碰撞上获胜.
         if (std::ranges::any_of(out,
                 [&](const Command& e) { return e.name == name; }))
             continue;
@@ -172,33 +172,33 @@ void scan_root(const fs::path& root, const std::string& source,
         sig += source + ":" +
                std::to_string(static_cast<long long>(
                    mt.time_since_epoch().count())) + ";";
-    scan_dir(root, /*prefix=*/{}, source, /*depth=*/0, out, sig);
+    scan_dir(root, /*前缀=( 缩写)*/{}, source, /*深度=( 以千兆克计)*/0, out, sig);
 }
 
-// The scanned commands and the mtime signature they were scanned at.
+// 扫描命令和扫描时的Mtime签名。
 struct Cache {
     std::vector<Command> commands;
     std::string          sig = "\x01uninit";
 };
-// Replaced wholesale by a rescan, read by every lookup: a snapshot, so no
-// lock, rank or capability on the read path.
+// 批发部分改为批发部分, 由每次查询读取: a 快照 ,
+// 所以没有 锁 ,在读取路径上的级别或能力。
 maya::snapshot<Cache>& cache() {
     static maya::snapshot<Cache> c;
     return c;
 }
 
-} // namespace
+} // 命名空间结束。
 
 std::vector<Command> all(Io) {
-    // Scan outside the lock (directory walk + file reads), then keep the
-    // fresh list only if the signature moved.
+    // 在锁外扫描(指令行+文件读取),
+    // 然后只有在签名移动时保留新列表.
     std::string sig;
     std::vector<Command> fresh;
-    // Root ladder from scope::plan (Locus-major, Dialect-minor): project
-    // .agentty ▷ .agents ▷ .claude ▷ the same three under ~. scan_root does
-    // the first-name-wins shadow + mtime-sig per root. Project stays cwd-
-    // relative (env.project_root = ".") — commands has always resolved
-    // ".agentty/commands" against cwd.
+    // 根梯子从 scope::plan (乐库) -major 对话框 -minor 项目。
+    // agentty ..代理 .. . . .. .. 说出同样的三个在~. scan_root
+    // 执行第一个 -name-wins 阴影 + 时间 -sig 各个根。项目保持 cwd 相对(
+    // = = 3) env.project_root = "." )——命令始终解决.
+    // ".agentty/commands" 对抗Cwd。
     scope::Env env;
     env.home             = home_dir();
     env.user_native_base = ::agentty::util::user_root();
@@ -236,7 +236,7 @@ void invalidate_cache() {
 }
 
 std::string expand(std::string_view body, std::string_view args) {
-    // Whitespace-split positionals once.
+    // 空白空间 -split 一次位置。
     std::vector<std::string> pos;
     {
         std::size_t i = 0;
@@ -255,7 +255,7 @@ std::string expand(std::string_view body, std::string_view args) {
     out.reserve(body.size() + all_args.size());
     for (std::size_t i = 0; i < body.size(); ++i) {
         if (body[i] != '$') { out += body[i]; continue; }
-        // `$` at end of body: literal.
+        // `$` 结束 正文 :字义.
         if (i + 1 >= body.size()) { out += '$'; continue; }
         const char c = body[i + 1];
         if (c == '$') { out += '$'; ++i; continue; }          // $$ → $
@@ -282,19 +282,19 @@ std::optional<std::string> try_expand(Io io, std::string_view text) {
 }
 
 std::optional<std::string> try_expand(std::string_view text, const std::vector<Command>& known) {
-    // Shape: starts with '/', then a command name (no whitespace), then
-    // optional whitespace + arguments. Leading whitespace before '/'
-    // means it's prose, not a command.
+    // 形状: 起始 '/' ,然后是命令名称(没有白空),
+    // 然后是可选的白空 + 参数。在前导引白空 '/'
+    // 表示是传教,不是命令.
     if (text.empty() || text[0] != '/') return std::nullopt;
     std::size_t name_end = 1;
     while (name_end < text.size() &&
            !std::isspace(static_cast<unsigned char>(text[name_end])))
         ++name_end;
-    if (name_end == 1) return std::nullopt;   // bare "/"
+    if (name_end == 1) return std::nullopt;   // 赤色( 浅色) "/"
     const std::string_view name = text.substr(1, name_end - 1);
 
     const auto cmd = std::ranges::find(known, name, &Command::name);
-    if (cmd == known.end()) return std::nullopt;   // /etc/hosts, /unknown → plain text
+    if (cmd == known.end()) return std::nullopt;   // /etc/hosts,/未知  ⁇   ⁇  纯文本
 
     std::string_view args =
         name_end < text.size() ? text.substr(name_end + 1) : std::string_view{};

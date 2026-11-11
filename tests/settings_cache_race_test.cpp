@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// settings_cache_race_test.cpp — the real settings write-behind cache under
-// TSan, with an in-memory "disk".
+// settings_cache_race_test.cpp ——真实设置写入 -behind 缓存 下TSan,
+// 有一个英寸 -memory "disk".
 //
-//   1. many threads load, save and invalidate at once: no race, no crash,
-//      and after a final flush the disk holds the last value saved.
-//   2. a disk load that is still in flight when invalidate() announces an
-//      outside write must not cache the old file over it.
+//   1. 众多 线程 加载, 保存 无效:否 竞态 没有坠机,
+//      ,在最后冲洗后,磁盘持有最后值已保存。
+//   2. 磁盘 加载 还在飞行中,当 invalidate() 宣布一个
+//      外部写入不能使用 缓存 的旧文件。
 //
-// Run under: -DAGENTTY_SANITIZE_ALL=thread
+// 运行在 : -DAGENTTY_SANITIZE_ALL=thread 下
 
 #include "agentty/runtime/app/settings_cache.hpp"
 #include "agentty/util/teardown.hpp"
@@ -26,8 +26,8 @@
 namespace sc = agentty::app::settings_cache;
 using agentty::store::Settings;
 
-// settings_cache registers itself for outside-write notices; the test calls
-// invalidate() directly, so the hook is a no-op here.
+// settings_cache 外部注册本身 -write 通知; 测试 调用
+// invalidate() 直接,所以钩子是没有的 -op 给
 namespace agentty::persistence {
 void on_settings_written(std::function<void(const maya::unlocked&)>) {}
 }
@@ -40,7 +40,7 @@ void fail(const char* what) {
     ++g_failures;
 }
 
-// The fake disk: one value, guarded, plus a hook to stall a load mid-read.
+// 假盘:一个值, 被保护,加钩子拖住一个 加载 中点 -read.
 struct Disk {
     maya::guarded<std::string, maya::leaf> value{std::string{"v0"}};
     std::atomic<bool> stall_next_load{false};
@@ -103,15 +103,15 @@ void hammer(const sc::Seam& seam) {
 
 void stale_load_vs_invalidate(const sc::Seam& seam) {
     std::printf("--- settings cache: a load racing an invalidate ---\n");
-    sc::invalidate(agtest::cap());   // empty the cache
+    sc::invalidate(agtest::cap());   // 空出 缓存 数据
     g_disk.value.with(agtest::cap(), [](std::string& d) { d = "old"; });
 
-    // A load reads "old", then stalls before publishing.
+    // A 加载 读取 "old" ,然后在出版前拖拉。
     g_disk.stall_next_load = true;
     std::thread loader([&] { (void)seam.load(agtest::cap()); });
     while (!g_disk.load_started.load()) std::this_thread::yield();
 
-    // Meanwhile another process writes the file and we're told about it.
+    // 同时另一个过程写文件,我们被告知了这一点。
     g_disk.value.with(agtest::cap(), [](std::string& d) { d = "new"; });
     sc::invalidate(agtest::cap());
 
@@ -122,7 +122,7 @@ void stale_load_vs_invalidate(const sc::Seam& seam) {
         fail("a load that started before invalidate() cached the old file");
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 int main() {
     std::printf("=== settings_cache_race_test (run me under TSan) ===\n");

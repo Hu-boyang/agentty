@@ -1,6 +1,6 @@
-// Paste pane: Settings → Paste drives m.d.persisted.paste, a committed edit
-// is saved, and publish_derived hands the new value to the clipboard reader.
-// Also pins the paste.* registry rows and the settings.json round trip.
+// 粘贴 面板 : 设置 – 粘贴驱动器 m.d.persisted.paste ,
+// 一个承诺编辑是 已保存 ,和 publish_derived 将新值转到剪贴板阅读器。
+// 也贴在贴纸上。 * 注册表 横行和 settings.json 圆行.
 
 #include "agtest.hpp"
 #include "agtest_fx.hpp"
@@ -45,10 +45,10 @@ void focus_row(Model& m, std::string_view row_id) {
         if (row && row->id == row_id) return;
         m = send(std::move(m), key(form::keys::Intent::MoveNext));
     }
-    CHECK(false);   // not a paste row
+    CHECK(false);   // 不是一个粘贴行
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("paste pane: the General list has a door that opens it") {
     Model m;
@@ -70,7 +70,7 @@ TEST_CASE("paste pane: the General list has a door that opens it") {
 
 TEST_CASE("paste pane: a toggle persists and publishes") {
     Model m = send(Model{}, Msg{OpenPasteSettings{}});
-    m.published_paste = m.d.persisted.paste;   // as if published at startup
+    m.published_paste = m.d.persisted.paste;   // 仿佛在启动时发布
     focus_row(m, "paste.display");
     auto [m2, cmd] = app::update(std::move(m), key(form::keys::Intent::Activate));
     CHECK(m2.d.persisted.paste.display == false);
@@ -109,8 +109,8 @@ TEST_CASE("paste settings: decode_text off pastes richpaste lines as text") {
     Model m;
     m.d.persisted.paste.decode_text = false;
     m = send(std::move(m), Msg{ComposerPaste{line}});
-    // Not decoded: it goes the plain-text way (via the path check, which
-    // answers "not an image file").
+    // 解码器: 它会进入平原 -text 方式(通过路径检查,该路径回答)
+    // "not an image file").
     if (m.ui.composer.attachments.empty())
         m = send(std::move(m), Msg{ImagePathSniffed{.text = line}});
     REQUIRE(m.ui.composer.attachments.size() == 1);
@@ -119,7 +119,7 @@ TEST_CASE("paste settings: decode_text off pastes richpaste lines as text") {
 }
 
 TEST_CASE("paste: an unbracketed paste in pieces is one chip") {
-    // Three reads of one paste: one chip, holding all of it.
+    // 3个读一个糊:一个 标签 拿着所有东西
     Model m;
     const std::string a(4095, 'x');
     m = send(std::move(m), Msg{ComposerPaste{a}});
@@ -131,7 +131,7 @@ TEST_CASE("paste: an unbracketed paste in pieces is one chip") {
     CHECK(att.line_count == 2);
     CHECK(attachment::chip_label(att) == "Pasted text \xc2\xb7 2 lines \xc2\xb7 4 KB");
 
-    // Typing after it is text, not more paste.
+    // 后面打字是文字,而不是更多的贴纸。
     m = send(std::move(m), Msg{ComposerCharInput{U'k'}});
     CHECK(m.ui.composer.text.back() == 'k');
     CHECK(m.ui.composer.attachments.size() == 1);
@@ -144,7 +144,7 @@ TEST_CASE("paste: an image sent as text, in pieces, becomes the image") {
     REQUIRE(m.ui.composer.attachments.size() == 1);
     CHECK(m.ui.composer.attachments[0].kind == Attachment::Kind::Paste);
     m = send(std::move(m), Msg{ComposerPaste{line.substr(30), true, false, /*continues_paste=*/true}});
-    // The paste chip is replaced by the image chip.
+    // 贴面 标签 被图像替换 标签.
     bool image = false, paste_left = false;
     for (const auto& a : m.ui.composer.attachments) {
         if (a.kind == Attachment::Kind::Image) image = true;
@@ -156,7 +156,7 @@ TEST_CASE("paste: an image sent as text, in pieces, becomes the image") {
 }
 
 TEST_CASE("paste: an image still arriving shows progress, and can't be sent half done") {
-    // 3000 bytes of image: 4000 chars of base64; send the first half.
+    // 3000 字节 图像的四千个字符 base64 ;发送上半部分.
     const std::string data(4000, 'A');
     const std::string head = "richpaste:1:image/png::3000::";
     Model m;
@@ -164,12 +164,12 @@ TEST_CASE("paste: an image still arriving shows progress, and can't be sent half
     REQUIRE(m.ui.composer.attachments.size() == 1);
     CHECK(attachment::chip_label(m.ui.composer.attachments[0]) == "Receiving image \xc2\xb7 1 of 3 KB");
 
-    // Enter now would send base64 to the model: it's held, the draft kept.
+    // Enter 现在会发送 base64 给模型: 它被持有, 草稿被保存。
     m = send(std::move(m), Msg{ComposerSubmit{}});
     CHECK(m.ui.composer.attachments.size() == 1);
     CHECK(m.s.status.find("still arriving") != std::string::npos);
 
-    // Nothing more comes: the stall check marks it, the chip says so.
+    // 没有什么更多的了: 摊位检查标记它, 标签说。
     const auto gen = m.ui.armored_paste_gen;
     CHECK(gen > 0);
     m = send(std::move(m), Msg{ArmoredPasteStall{gen}});
@@ -187,10 +187,10 @@ TEST_CASE("paste: an image in pieces that finishes late still decodes, and a sta
     m = send(std::move(m), Msg{ComposerPaste{head + data.substr(0, 2000)}});
     const auto first = m.ui.armored_paste_gen;
     m = send(std::move(m), Msg{ComposerPaste{data.substr(2000), true, false, /*continues_paste=*/true}});
-    // The old check fires after the block completed: nothing to mark.
+    // 街区完工后的旧支票火灾:无任何标识.
     m = send(std::move(m), Msg{ArmoredPasteStall{first}});
-    // The paste chip is emptied and the image added (the same shape as the
-    // in-pieces case above): one image, not stalled, no paste text left.
+    // 贴面 标签 被清空,图像被添加(形状与输入的相同) -pieces
+    // 上方大小写 : 一张图像, 不停顿, 也不要粘贴文本。
     const Attachment* image = nullptr;
     bool paste_left = false;
     for (const auto& a : m.ui.composer.attachments) {
@@ -229,9 +229,9 @@ TEST_CASE("paste: a long single line shows its size, not a preview") {
 }
 
 TEST_CASE("paste: Ctrl+V answered with an image as text is the image, once") {
-    // Ctrl+V asked the terminal for an image (OSC 5522); the clipboard held
-    // an image copied as text. In tmux the same text can come back twice
-    // (OSC 5522 and OSC 52): one image chip, no pile of text.
+    // Ctrl +V 问 终端 图像( 图像) ( OSC ; 剪贴板上保存着一个复制为文本的图像。
+    // 在 tmux 中,同样的文本可以两次返回( ) OSC 财务报告和审定财务报表
+    // 以及审计委员会的报告 OSC 52: 一个图像 标签 ,没有一堆文本。
     const std::string line = "richpaste:1:image/png::12::iVBORw0KGgowMTIz";
     Model m;
     m.ui.clipboard_query_seq = 1;
@@ -254,19 +254,19 @@ TEST_CASE("paste: Ctrl+V asks kitty for images once, and an answer ends the walk
     ClipboardRead r;
     r.miss = ClipboardMiss::AskTerminal;
     r.ask  = TerminalAsk::Images;
-    r.walk.routes = {1, 4, 3};   // forward, terminal, tmux_buffer
+    r.walk.routes = {1, 4, 3};   // 前进, 终端, tmux_buffer
     r.walk.next = 1;
     m = send(std::move(m), Msg{msg::ComposerMsg{std::move(r)}});
     CHECK(m.ui.clipboard_walk.active());
     CHECK(m.ui.clipboard_wanted_image);
     const auto seq = m.ui.clipboard_query_seq;
-    // kitty answers with the text it has: that's the answer, not a race.
+    // 小猫用它有的文字来回答:这就是答案,而不是竞态.
     m = send(std::move(m), Msg{ComposerPaste{"hello"}});
     CHECK(!m.ui.clipboard_walk.active());
     CHECK(m.ui.clipboard_query_done == seq);
-    // A late timeout for that ask does nothing.
+    // 迟到 超时 因为这要求什么也没有做。
     m = send(std::move(m), Msg{ClipboardQueryTimeout{seq}});
-    REQUIRE(m.ui.composer.attachments.size() == 1);   // the text, pasted once
+    REQUIRE(m.ui.composer.attachments.size() == 1);   // 文本, 贴过一次
     CHECK(m.ui.composer.attachments[0].body.bytes() == "hello");
     CHECK(m.s.status.find("couldn't") == std::string::npos);
 }
@@ -281,7 +281,7 @@ TEST_CASE("paste: a silent terminal resumes the walk at the next route") {
     r.walk.next = 1;
     m = send(std::move(m), Msg{msg::ComposerMsg{std::move(r)}});
     const auto seq = m.ui.clipboard_query_seq;
-    // Past the wait with nothing back: the walk moves on (and is handed off).
+    // 过了等待,没有回头路:步行继续前进(然后被递解)。
     const auto late = m.ui.clipboard_query_deadline + std::chrono::seconds{1};
     auto [mm, _] = app::update(std::move(m), Msg{ClipboardQueryTimeout{seq}}, late);
     (void)_;
@@ -298,12 +298,12 @@ TEST_CASE("paste: a walk that ran out says what to set up, once") {
     r.error = "can't reach the clipboard";
     m = send(std::move(m), Msg{msg::ComposerMsg{std::move(r)}});
     CHECK(m.s.status.find("agentty paste setup") != std::string::npos);
-    CHECK(m.ui.clipboard_query_seq == 0);   // the terminal wasn't asked again
+    CHECK(m.ui.clipboard_query_seq == 0);   // 编号 终端 也没问过
 }
 
 TEST_CASE("paste: a clipboard reply that lost its escapes is the image, never text") {
-    // Ctrl+V's OSC 5522 reply came through with its ESC bytes stripped, in
-    // pieces. It must not land as text; what it carried is pasted.
+    // Ctrl+V's OSC 5522份答复通过。 ESC 字节
+    // 已剥去的,是碎的,不能结为文字,它所携带的,是贴着的。
     const std::string png = "\x89PNG\r\n\x1a\n0123";
     const std::string b64 = "iVBORw0KGgowMTIz";
     std::vector<std::string> pieces = {
@@ -330,6 +330,6 @@ TEST_CASE("paste settings: clipboard_configure installs them") {
     clipboard_configure(c);
     CHECK(clipboard_config().inline_kb == 7);
     CHECK(clipboard_save_dir() == "/tmp/agentty-paste-test-dir");
-    clipboard_configure(paste_cfg::Config{});   // leave defaults for the next test
+    clipboard_configure(paste_cfg::Config{});   // 下个测试的默认值
     CHECK(clipboard_config() == paste_cfg::Config{});
 }

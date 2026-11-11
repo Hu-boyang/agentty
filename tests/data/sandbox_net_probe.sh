@@ -1,6 +1,6 @@
 #!/bin/sh
-# Sandbox network probe, run INSIDE the box by sandbox_live_check / by hand.
-# Every line is a claim the audit made about the network boundary.
+# 沙箱 网络探测器,运行 内部 框由 sandbox_live_check - 手边的
+# 每条线都是对网络边界的审计所声称的。
 echo "== proxy env"
 env | grep -i '^\(http\|https\|all\)_proxy=' | sort
 echo "== own netns? (a fresh one has only lo)"

@@ -1,16 +1,16 @@
 #pragma once
-// AuthView — what the Model knows about credentials that live outside the
-// settings record.
+// AuthView
+// -Model对存在于设置记录之外的凭据的了解。
 //
-// A provider's sign-in state is spread over credentials.json, provider-owned
-// OAuth token files, env vars and the accounts registry. Reducers and views
-// used to ask the disk directly, which made update impure and re-statted
-// those files every frame.
+// 提供商的sign-in状态分布在credentials.json、
+// 提供商-owned OAuth令牌文件、环境变量和帐户注册表上。
+// 状态更新函数和视图用于直接询问磁盘，这使得更新不纯粹并且每个帧重新
+// -statted那些文件。
 //
-// The host reads them into this value (LoadAuthView effect, replying
-// AuthViewLoaded) at launch and after every effect that changes credentials.
-// Keys pasted into settings are NOT here: those are m.d.persisted.provider_keys.
-// provider::auth_source(p, settings, view) combines the two.
+// 主机在启动时以及在每次改变凭据的副作用之后将它们读入该值(
+// LoadAuthView 副作用，回复AuthViewLoaded)。
+// 粘贴到设置中的键在这里是NOT：那些是m.d.persisted.provider_keys。
+// provider::auth_source(p，设置，视图)将两者结合起来。
 
 #include <map>
 #include <string>
@@ -20,17 +20,17 @@
 namespace agentty::auth {
 
 struct ProviderAuth {
-    // A credential in this provider's own store: credentials.json for
-    // Anthropic, the token file for ChatGPT/Copilot/Kimi.
+    // 该提供商自己的商店中的凭据：Anthropic的credentials.json，
+    // ChatGPT/Copilot/Kimi.的令牌文件
     bool                     stored = false;
-    // The first env var from the provider's auth_env that is set, if any.
+    // 来自设置的提供者的auth_env的第一个环境变量，如果有的话。
     std::string              env_var;
-    // The accounts registry for this provider, newest first, and which one
-    // is active.
+    // 该提供商的账户注册表，最新的在前，以及哪个账户是
+    // 活动的。
     std::vector<std::string> accounts;
     std::string              active_account;
-    // A live credential not yet in the registry (a legacy single login). The
-    // account list registers it under this label when opened.
+    // 凭据尚未在注册表中（传统单次登录）。
+    // 帐户列表打开时将其注册在此标签下。
     std::string              unregistered_label;
 
     bool operator==(const ProviderAuth&) const = default;
@@ -38,7 +38,7 @@ struct ProviderAuth {
 
 struct AuthView {
     std::map<std::string, ProviderAuth, std::less<>> providers;
-    // False until the host has loaded it once.
+    // 假直到主机有已加载一次。
     bool loaded = false;
 
     [[nodiscard]] const ProviderAuth* find(std::string_view id) const {

@@ -1,24 +1,24 @@
-// src/rpc/peer.cpp — a jsonrpc Engine, driven on maya. See peer.hpp.
+// src/rpc/peer.cpp — jsonrpc引擎，在maya上驱动。参见 peer.hpp。
 //
-// Three tasks around two owners, no lock ever held across I/O:
+// 围绕两个所有者的三个任务，没有在 I/O 上执行过 锁:
 //
-//   reader  reads the channel, splits lines, steps Received, hands calls and
-//           notifications to the dispatch
-//   writer  drains the outbox to the channel, in order
-//   ticker  sleeps until next_deadline() and steps Tick
+//   读取器读取通道，分割行，步骤接收，将 调用 和 通知 交给
+//           分派 写入器将发件箱排空到通道，
+//   以便自动收报机休眠直到
+//   next_deadline() 和步骤 Tick
 //
-//   engine  guarded<Shared>: the Engine, completions not yet collected, the
-//           closed flag. Every transition happens under it.
-//   outbox  guarded<Outbox>: frames to write, in order.
+//   引擎guarded<Shared>:该引擎，尚未收集完成情况，
+//           已关闭标志。每个转变都发生在它之下。
+//   发件箱guarded<Outbox>:帧写，按顺序。
 //
-// Lock order: both are LEAVES. No body below takes another lock or does I/O;
-// effects (frames to send, calls to dispatch) are returned out of the body
-// and performed after it. Each task starts with the fresh thread's
-// `unlocked`, which is what lets it wait (writer, ticker) and hand the
-// dispatch a capability.
+// 锁订单：均为LEAVES。下面没有 正文 需要另一个 锁 或 I/O；
+// 副作用（帧要发送，调用到分派）从正文中返回并在其之后执行。
+// 每个任务都从新的 线程 的 `unlocked` 开始，
+// 这就是让它等待（写入器、自动收录器）并赋予
+// 分派 能力的原因。
 //
-// The tasks co-own Core, so a reader stuck in a blocking read can be
-// abandoned at shutdown without touching a dead Peer.
+// 任务co-own核心，因此陷入阻塞读取的读取器
+// 可以在关闭时被放弃，而不接触死的对端。
 
 #include "agentty/rpc/peer.hpp"
 
@@ -40,8 +40,8 @@
 #include "agentty/util/dbglog.hpp"
 #include "agentty/util/sendable.hpp"   // nlohmann::json
 
-// jsonrpc's values own everything they hold. jaal can't see past private
-// members or std::expected, so they are opted in here.
+// jsonrpc的值拥有它们所持有的一切。 jaal 看不到过去的私人成员或
+// std::expected，因此他们在此处被选择加入。
 MAYA_SENDABLE(jsonrpc::Engine);
 MAYA_SENDABLE(jsonrpc::RpcError);
 MAYA_SENDABLE(jsonrpc::Completed);
@@ -61,9 +61,9 @@ jsonrpc::Completed lost(std::string_view method) {
     return {jsonrpc::RequestId{0}, std::string(method),
             std::unexpected(jsonrpc::RpcError(jsonrpc::errc::ConnectionLost, "connection closed"))};
 }
-}  // namespace
+}  // 命名空间结束。
 
-// ── channels ───────────────────────────────────────────────────────────────
+// ── 频道 ───────────────────────────────────────────────────────────────
 
 Channel fd_channel(int in_fd, int out_fd) {
     Channel ch;
@@ -96,7 +96,7 @@ Channel fd_channel(int in_fd, int out_fd) {
 
 Channel stream_channel(std::istream& in, std::ostream& out) {
     Channel ch;
-    // Block for one byte, then take whatever else is already buffered.
+    // 块一个字节，然后获取已经缓冲的任何其他内容。
     ch.read = [&in](const maya::unlocked&, char* buf, std::size_t cap) -> std::size_t {
         auto* sb = in.rdbuf();
         if (!sb || cap == 0) return 0;
@@ -121,8 +121,8 @@ Channel stream_channel(std::istream& in, std::ostream& out) {
 }
 
 namespace {
-// One direction of an in-memory pipe. A leaf: every body is a few lines over
-// the buffer.
+// in-memory管道的一个方向。一片叶子：每个 正文 都比 缓冲区
+// 多几行。
 struct Pipe {
     std::string bytes;
     bool        closed = false;
@@ -154,11 +154,11 @@ bool pipe_write(const maya::below<maya::leaf>& cap, PipeLock& p, std::string_vie
 void pipe_close(const maya::below<maya::leaf>& cap, PipeLock& p) {
     p.with(cap, [](Pipe& s) { s.closed = true; });
 }
-}  // namespace
+}  // 命名空间结束。
 
 std::pair<Channel, Channel> channel_pair() {
-    auto ab = std::make_shared<PipeLock>();   // a writes, b reads
-    auto ba = std::make_shared<PipeLock>();   // b writes, a reads
+    auto ab = std::make_shared<PipeLock>();   // a写入，b读取
+    auto ba = std::make_shared<PipeLock>();   // b写入，a读取
     auto end = [](PipePtr in, PipePtr out) {
         Channel ch;
         ch.read = [in](const maya::unlocked& c, char* buf, std::size_t n) {
@@ -179,24 +179,24 @@ std::pair<Channel, Channel> channel_pair() {
 struct Peer::Core {
     struct Shared {
         jsonrpc::Engine engine;
-        // Completions not yet collected by their caller, by request id.
+        // 其调用者尚未通过请求ID收集完成。
         std::unordered_map<std::int64_t, jsonrpc::Completed> done;
-        // Cancelled calls still waiting for the peer, and when to give up.
+        // 已取消 调用还在等待对端，什么时候放弃。
         std::unordered_map<std::int64_t, Clock::time_point> give_up;
         bool closed = false;
-        bool stopped = false;   // stop() ran
+        bool stopped = false;   // stop()跑了
     };
     struct Outbox {
-        std::vector<std::string> frames;   // ready to write, in order
-        // Bytes held by an open batch, per thread, and its nesting depth.
+        std::vector<std::string> frames;   // 准备写入，按顺序
+        // 字节由开放批次持有，根据线程，及其嵌套深度。
         std::unordered_map<std::uint64_t, std::string> held;
         std::unordered_map<std::uint64_t, int>         depth;
         bool closed = false;
     };
 
-    // Set once at construction, then only read (and the channel's functions
-    // are safe to call from the reader and writer at once: read and write
-    // are separate ends, interrupt is for stop()).
+    // 在构造时设置一次，然后仅读取(并且通道的功能对于读
+    // 取器和写入器的调用来说是安全的：读取和写入是分开的端，
+    // 中断针对stop())。
     const Channel     ch;
     const Dispatch    dispatch;
     const std::string name;
@@ -215,9 +215,9 @@ struct Peer::Core {
 Peer::Peer(Channel ch, Dispatch d, std::string_view name)
     : core_(core_t::make(std::move(ch), std::move(d), std::string(name))) {}
 
-// A Peer is joins_on_destroy (peer.hpp), so no guarded<T> can own one and
-// this destructor never runs inside a lock body: the thread holds nothing,
-// and may join. Reviewed capability root (tests/lint/allowlist.txt).
+// 对端是joins_on_destroy (peer.hpp)，因此没有任何guarded
+// <T>可以拥有一个，并且该析构函数永远不会在锁 正文内部运行：线程不包含任何内容，
+// 并且可以加入。已审核能力根 (tests/lint/allowlist.txt)。
 Peer::~Peer() {
     maya::thread_root([this](const maya::unlocked& cap) { stop(cap); });
 }
@@ -239,9 +239,9 @@ void Peer::stop(const maya::unlocked& cap) noexcept {
     if (core_->ch.interrupt) {
         try { core_->ch.interrupt(cap); } catch (...) {}
     }
-    // A reader wedged in read() past the grace is abandoned; it co-owns Core.
-    // stop() is noexcept; a self-join (stop from the peer's own reader) aborts
-    // with its reason instead of throwing through here into terminate.
+    // 一位读者卡在read()，过去的恩典被放弃了；它是-owns核心。
+    // stop() 不例外； self-join（从 对端 自己
+    // 的阅读器停止）以其原因中止，而不是在这里抛出终止。
     (void)pool_.shutdown_noexcept(std::chrono::seconds(2));
 }
 
@@ -266,7 +266,7 @@ void Peer::write_core(const maya::below<maya::leaf>& cap, const core_t& c, std::
     c->write(cap, std::move(frame));
 }
 
-// ── the outbox ──────────────────────────────────────────────────────────────
+// ── 发件箱 ──────────────────────────────────────────────────────────────
 
 void Peer::Core::write(const maya::below<maya::leaf>& cap, std::string frame) {
     if (dispatch.trace) dispatch.trace(false, frame);
@@ -274,7 +274,7 @@ void Peer::Core::write(const maya::below<maya::leaf>& cap, std::string frame) {
     out.with(cap, [](Outbox& o, std::uint64_t key, std::string f) {
         if (o.closed) return;
         if (auto it = o.depth.find(key); it != o.depth.end() && it->second > 0)
-            o.held[key] += f;               // this thread is batching
+            o.held[key] += f;               // 该线程正在批处理
         else
             o.frames.push_back(std::move(f));
     }, thread_key(), std::move(frame));
@@ -299,18 +299,18 @@ void Peer::end_batch(const maya::below<maya::leaf>& cap) noexcept {
 
 void Peer::Core::writer(const maya::unlocked& cap) {
     for (;;) {
-        // Sleep until there is something to write, or the peer is closing.
-        // Frames queued before close still go out.
+        // 休眠直到有东西要写，或者对端关闭。
+        // 帧在关门前排队仍然出去。
         auto batch = out.wait_with(cap,
             [](const Outbox& o) { return !o.frames.empty() || o.closed; },
             [](Outbox& o) { return std::exchange(o.frames, {}); });
-        if (batch.empty()) return;   // closed with nothing left
+        if (batch.empty()) return;   // 关闭，一无所有
         std::string bytes;
         for (auto& f : batch) bytes += f;
         if (!ch.write(cap, bytes)) {
             util::dbglog("rpc.write", name + ": channel gone");
-            // Nothing can be sent any more: fail every waiting call now rather
-            // than leave it parked until the reader happens to see EOF.
+            // 不能再发送任何内容：现在使每个等待的调用失败，
+            // 而不是将其搁置直到读者碰巧看到EOF。
             close(cap, "write failed");
             out.with(cap, [](Outbox& o) { o.frames.clear(); });
             return;
@@ -318,10 +318,10 @@ void Peer::Core::writer(const maya::unlocked& cap) {
     }
 }
 
-// ── transitions and effects ───────────────────────────────────────────────
+// ── 过渡和 副作用 ───────────────────────────────────────────────
 
-// One transition under the owner. Completions are parked in `done` (which
-// wakes their callers); the rest is performed by the caller, outside the lock.
+// 所有者之下的一过渡。完成的任务停放在 `done`
+// （这会唤醒调用者）；其余部分由调用者在 锁 之外执行。
 jsonrpc::Effects Peer::Core::step(const maya::below<maya::leaf>& cap, jsonrpc::Event ev) {
     return s.with(cap, [](Shared& sh, jsonrpc::Event e) {
         auto fx = jsonrpc::step(sh.engine, std::move(e));
@@ -331,8 +331,8 @@ jsonrpc::Effects Peer::Core::step(const maya::below<maya::leaf>& cap, jsonrpc::E
     }, std::move(ev));
 }
 
-// Effects run outside every lock: the dispatch is handed the thread's
-// `unlocked`, so a handler can make a nested call or take any lock.
+// 副作用在每个锁之外运行：分派被交给线程的`unlocked`，
+// 因此处理函数可以形成嵌套的调用或采取任何锁。
 void Peer::Core::perform(const maya::unlocked& cap, jsonrpc::Effects fx) {
     for (auto& f : fx.send) write(cap, std::move(f));
     for (auto& n : fx.notifications) {
@@ -355,8 +355,8 @@ void Peer::Core::perform(const maya::unlocked& cap, jsonrpc::Effects fx) {
     }
 }
 
-// The transport ended (EOF, or stop()). Every waiting call fails; queued
-// frames still drain, then the writer leaves.
+// 传输层结束(EOF，或stop())。每次等待调用都失败；
+// 排队的 帧 仍然耗尽，然后作者离开。
 void Peer::Core::close(const maya::unlocked& cap, std::string reason) {
     perform(cap, s.with(cap, [](Shared& sh, std::string r) {
         jsonrpc::Effects fx;
@@ -370,13 +370,13 @@ void Peer::Core::close(const maya::unlocked& cap, std::string reason) {
     out.with(cap, [](Outbox& o) { o.closed = true; });
 }
 
-// ── the reader ─────────────────────────────────────────────────────────────
+// ── 读者 ─────────────────────────────────────────────────────────────
 
 void Peer::Core::reader(const maya::unlocked& cap, std::stop_token st) {
     jsonrpc::LineSplitter lines;
     std::string buf(64 * 1024, '\0');
-    // One frame that throws while being handled must not take the reader
-    // with it: a dead reader leaves the peer deaf for good, with no error.
+    // 一个在被处理时抛出的帧一定不能带走阅读
+    // 器：死掉的阅读器让对端永远聋，没有错误。
     auto take = [this, &cap](std::string line) {
         try {
             if (dispatch.trace) dispatch.trace(true, line);
@@ -389,7 +389,7 @@ void Peer::Core::reader(const maya::unlocked& cap, std::stop_token st) {
     };
     while (!st.stop_requested()) {
         const std::size_t n = ch.read(cap, buf.data(), buf.size());
-        if (n == 0) break;   // EOF or error
+        if (n == 0) break;   // EOF 或错误
         for (auto& line : lines.feed(std::string_view{buf.data(), n})) take(std::move(line));
     }
     if (!st.stop_requested())
@@ -397,12 +397,12 @@ void Peer::Core::reader(const maya::unlocked& cap, std::stop_token st) {
     close(cap, "eof");
 }
 
-// ── the ticker ─────────────────────────────────────────────────────────────
+// ── 滴答键 ─────────────────────────────────────────────────────────────
 //
-// Steps Tick when the nearest deadline passes, and Cancel when a cancelled
-// call's grace runs out. It sleeps in short slices so a nearer time armed
-// meanwhile is honoured promptly, and parks on the engine when there is
-// nothing to time (any with() wakes it to re-check).
+// 步骤 当最近的最后期限过去时打勾，当 已取消 调用 的
+// 宽限用完时打勾 取消。它会短时间休眠，因此可以立即遵守较近的时间，
+// 并在没有任何时间时停在引擎上（任何 with()
+// 都会将其唤醒以重新-check）。
 
 namespace {
 jsonrpc::Deadline next_due(const jsonrpc::Engine& e,
@@ -412,7 +412,7 @@ jsonrpc::Deadline next_due(const jsonrpc::Engine& e,
         if (!next || at < *next) next = at;
     return next;
 }
-}  // namespace
+}  // 命名空间结束。
 
 void Peer::Core::ticker(const maya::unlocked& cap, std::stop_token st) {
     while (!st.stop_requested()) {
@@ -455,7 +455,7 @@ jsonrpc::Completed Peer::call_raw(const maya::unlocked& cap, std::string_view me
     const jsonrpc::Deadline deadline =
         t.count() > 0 ? jsonrpc::Deadline{Clock::now() + t} : jsonrpc::Deadline{};
 
-    // Start it under the owner; a closed peer fails at once.
+    // 在所有者下启动它；关闭的 对端 立即失败。
     struct Started { std::int64_t id; jsonrpc::Effects fx; bool closed; };
     auto started = core_->s.with(cap, [](Core::Shared& s, std::string m, jsonrpc::Json p,
                                          jsonrpc::Deadline d) -> Started {
@@ -467,10 +467,10 @@ jsonrpc::Completed Peer::call_raw(const maya::unlocked& cap, std::string_view me
     if (started.closed) return lost(method);
     core_->perform(cap, std::move(started.fx));
 
-    // A stop on `cancel` may be requested from any thread, holding any lock,
-    // so its callback only raises a flag. This thread -- which holds nothing
-    // -- acts on it: run on_cancel, tell the peer, and fail the call now or
-    // once the grace runs out. Either way it settles as Cancelled.
+    // 持有任何锁的任何线程可以请求在`cancel`上停止，
+    // 因此其回调仅引发标志。这个 线程 没有任何内容，
+    // 对其进行操作：运行 on_cancel，告诉 对端，然后立即或在宽
+    // 限期结束后使 调用 失败。不管怎样，它都会被定为 已取消。
     const auto requested = std::make_shared<std::atomic<bool>>(false);
     std::optional<std::stop_callback<std::function<void()>>> on_stop;
     if (o.cancel.stop_possible())
@@ -479,9 +479,9 @@ jsonrpc::Completed Peer::call_raw(const maya::unlocked& cap, std::string_view me
         }});
     bool cancel_handled = false;
 
-    // Wait for this id's completion: a reply, a Tick past its deadline, a
-    // cancel, or close. Then take it, and drop any grace still armed. The
-    // wait is sliced so a cancel request is acted on within a few ms.
+    // 等待该id完成：回复、超过截止日期的勾选、
+    // 取消或关闭。然后拿走它，放下所有仍然武装的恩典。
+    // 等待被分割，以便在几毫秒内处理 取消 请求。
     for (;;) {
         auto [got, ready] = core_->s.wait_with_for(cap, 10ms,
             [](const Core::Shared& s, std::int64_t id) { return s.done.contains(id); },

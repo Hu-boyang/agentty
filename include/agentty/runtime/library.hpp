@@ -1,10 +1,10 @@
 #pragma once
-// agentty::Library — what is installed on disk: skills, their approvals,
-// slash commands and the hooks file, as a value.
+// agentty::Library-安装在磁盘上的内容：技能、
+// 其批准、斜线命令和钩子文件，作为值。
 //
-// Read on a worker (cmd::load_library) and held on the Model, so reducers
-// and panels look things up here instead of walking the disk on the UI
-// thread. Reloaded at startup and after each turn.
+// 在 工作线程 (cmd::load_library) 上读取并在 Model
+// 上保持，因此 状态更新函数 和面板在此处查找内容，而不是在 UI
+// 线程 上遍历磁盘。在启动时和每回合后重新加载。
 
 #include <string>
 #include <vector>
@@ -22,10 +22,10 @@ struct Library {
     std::vector<tools::skills::Shadowed>  shadowed;
     scope::Approvals                      skill_approvals;
     std::vector<tools::commands::Command> commands;
-    std::string                           hooks_file;      // "" when none
+    std::string                           hooks_file;      // "" 当没有时
     bool                                  hooks_pending = false;
-    // Subagent types that came from a project .agentty/agents/. The task card
-    // tags them; reading the directories from the view would be disk IO.
+    // 来自项目.agentty/agents/.的子代理类型任务卡对它们进行标记；
+    // 从视图中读取目录将是磁盘 IO。
     std::vector<std::string>              project_agents;
 
     [[nodiscard]] bool is_project_agent(std::string_view name) const noexcept {
@@ -39,7 +39,7 @@ struct Library {
             if (s.name == name) return &s;
         return nullptr;
     }
-    // Same scope, same name, two directories: worth flagging.
+    // 相同的范围，相同的名称，两个目录：值得标记。
     [[nodiscard]] bool shadowed_within_scope(std::string_view name) const noexcept {
         const auto* w = skill(name);
         if (!w) return false;
@@ -49,7 +49,7 @@ struct Library {
     }
 };
 
-// Read everything above from disk. Worker-side only.
+// 从磁盘读取以上所有内容。仅限 工作线程-side。
 [[nodiscard]] Library read_library(Io);
 
 }  // namespace agentty

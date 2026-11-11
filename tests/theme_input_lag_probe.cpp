@@ -1,14 +1,14 @@
-// Theme-browser INPUT LAG probe.
+// 主题 -browser INPUT LAG 探测器。
 //
-// theme_switch_leak_probe proved there is no leak: cost per switch is flat
-// forever. But flat-and-expensive still feels laggy if keys arrive faster
-// than a switch costs — holding ↓ on key-repeat delivers ~30 keys/sec, and
-// every one of them is dispatched and re-rendered.
+// theme_switch_leak_probe 证明没有漏水:每个开关的成本
+// 永远是平的。 -and-expensive 仍然感觉拉吉,如果钥匙到达的
+// 速度比开关成本快——按键保持QQ -repeat 交付~30 keys/sec ,
+// 他们每个人都被派遣和重新 -rendered.
 //
-// This measures the thing the user actually experiences: hold the key for N
-// seconds, then ask how far BEHIND the UI is when you let go. Latency, not
-// throughput — the number that decides whether the browser feels instant or
-// mushy.
+// 测量用户实际体验的事物: 握住键数秒 N,
+// 然后问其距离有多远 BEHIND 编号 UI 即时,
+// 而不是吞吐量 —— 浏览器是瞬间感觉还是
+// 模糊。
 #include "agentty/runtime/model.hpp"
 #include "agentty/runtime/msg.hpp"
 #include "agentty/runtime/app/deps.hpp"
@@ -32,7 +32,7 @@ using namespace agentty;
 using clk = std::chrono::steady_clock;
 
 int main(int argc, char** argv) {
-    // Typical X11/wayland key-repeat: ~25-30 chars/sec after the initial delay.
+    // 典型 X11/wayland 键 -repeat: ~25-30 chars/sec 初约后.
     const int    keys_per_sec = argc > 1 ? std::atoi(argv[1]) : 30;
     const double hold_secs    = argc > 2 ? std::atof(argv[2]) : 2.0;
     const int    msgs         = argc > 3 ? std::atoi(argv[3]) : 100;
@@ -50,12 +50,12 @@ int main(int argc, char** argv) {
     });
 
     Model m;
-    // A REAL thread when one is named (argv[4] or AGENTTY_THREAD), else a
-    // synthetic one. The difference matters more than it looks: frozen state
-    // is established by rehydrate_frozen, and a transcript that is mostly
-    // FROZEN renders from prebuilt Elements while the live tail does not.
-    // Measuring with everything live would blame the renderer for work no
-    // real session performs.
+    // A 真实 线程 当一个名称被命名(argv[4])或
+    // AGENTTY_THREAD ),否则,它是一个合成的。区别比它看起来
+    // 更重要: 冻结状态是由 rehydrate_frozen ,
+    // 并且记录稿主要是 FROZEN 渲染 活体时从预建元素中 末尾 才不会呢
+    // 衡量一切生活 将责怪 渲染器 工作时
+    // 没有真正进行。
     const char* thread_path = argc > 4 ? argv[4] : std::getenv("AGENTTY_THREAD");
     if (thread_path && *thread_path) {
         auto t = persistence::load_thread_file(::agentty::IoAccess::grant(), thread_path);
@@ -82,31 +82,31 @@ int main(int argc, char** argv) {
     m = app::update(std::move(m), Msg{OpenAppearance{}}).first;
     m = app::update(std::move(m), Msg{AppearancePickTheme{}}).first;
 
-    // A REAL session has most of its transcript frozen: m.ui.frozen holds
-    // already-built Elements, and only the last couple of screens are live
-    // tail rebuilt each frame. Leaving frozen_through at 0 makes the WHOLE
-    // transcript live, which measures a state no user is ever in — and
-    // exaggerates the cost linearly in conversation length.
+    // A 真实 其大部分记录被冻结: m.ui.frozen
+    // 已经搁置 -built 元素,只有最后的几台屏幕是直播的
+    // 末尾 重建每个 帧 离开 frozen_through
+    // 零点开始 整个 记录片现场直播,它衡量一个用户从未进入的
+    // 状态——并且以线性的方式夸大了对话长度的成本.
     //
-    // rehydrate_frozen() is what a theme change calls, and it re-seals from
-    // scratch under a row budget, so let it establish the realistic split
-    // rather than hand-seeding an index it would immediately overwrite.
-    // rehydrate_frozen() is what a theme change calls, and it re-seals from
-    // scratch under a row budget — so call it directly rather than hoping a
-    // headless render establishes the split (it does not; freezing is driven
-    // by the runtime's commit path, which no probe reaches).
+    // rehydrate_frozen () 主题的改变 调用 ,
+    // 它又会 -seals 预算从头到尾,所以,让它确定现实
+    // 的分割而不是手 -seeding 将立即覆盖一个指数。
+    // rehydrate_frozen () 主题的改变 调用 ,
+    // 它又会 -seals 预算从头到尾都是这样 调用
+    // 直接而不是希望一个无头的 渲染 确定拆分( 不;
+    // 冻结由 运行时 承诺路径,没有探测器到达。
     app::detail::rehydrate_frozen(m);
     std::printf("frozen: through=%zu of %zu msgs, %zu prebuilt rows\n",
                 m.ui.frozen_through, m.d.current.messages.size(),
                 m.ui.frozen.size());
 
-    // One ↓ the way the event loop does it: dispatch, then paint.
+    // 一条路 事件 循环执行 : 分派 ,然后涂画。
     //
-    // Split on purpose. maya's Program loop already coalesces RENDERS —
-    // dispatch only sets needs_render, and one frame is painted per batch —
-    // but it calls drain_pending() per EVENT, so the reducer runs once per
-    // key. If the reduce half dominates, coalescing renders buys nothing and
-    // the fix has to be in the reducer path.
+    // 故意分头走 maya 程序环路已连接 RENDERS — 分派
+    // 仅设定 needs_render ,并有一个 帧 被涂抹到每个批次,
+    // 但是 调用 drain_pending (单位) EVENT ,
+    // 所以,请 状态更新函数 如果减少一半, 则会连结 渲染 买不到东西,
+    // 修理必须在里面 状态更新函数 路径。
     double last_reduce_ms = 0, last_render_ms = 0;
     const auto one_key = [&] {
         auto r0 = clk::now();
@@ -120,7 +120,7 @@ int main(int argc, char** argv) {
         last_render_ms = std::chrono::duration<double, std::milli>(clk::now() - p0).count();
     };
 
-    // Warm the caches so we measure steady state, not first-paint.
+    // 温暖 缓存 所以我们衡量的是稳态,而不是第一 -paint.
     for (int i = 0; i < 5; ++i) one_key();
 
     auto t0 = clk::now();
@@ -138,8 +138,8 @@ int main(int argc, char** argv) {
     std::printf("  cost of ONE \u2193 (reduce+render) : %.2f ms"
                 "   (reduce %.2f + render %.2f)\n",
                 per_key_ms, last_reduce_ms, last_render_ms);
-    // What coalescing RENDERS alone would leave: the reducer still runs per
-    // key, so this is the floor any render-only fix can reach.
+    // 何谓连结 RENDERS 单独离开将: 状态更新函数 仍然运行每根键,
+    // 所以这是地板任意 渲染-only 修补可以到达。
     std::printf("  if renders coalesced          : %.2f ms/key "
                 "(reduce only)\n", last_reduce_ms);
     std::printf("  budget per key at %2d/s        : %.2f ms\n",
@@ -151,9 +151,9 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    // Every key costs more than its slot, so the backlog grows for as long as
-    // the key is held. THIS is what "laggy after a while" means: not a leak,
-    // a queue.
+    // 每把钥匙的成本都超过它的槽,所以只要钥匙被持有,积压的时间就会增加.
+    // 此 是什么 说吧 "laggy after a while" 意思是:不是漏水,
+    // 是排队.
     const double overrun_ms = work_ms - wall_ms;
     std::printf("\n  ✗ CANNOT keep up: %.1fx over budget\n",
                 per_key_ms / key_period_ms);

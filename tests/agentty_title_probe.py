@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Check agentty saves the window title at start and restores it at exit.
+"""检查 agentty 是否在启动时保存窗口标题，并在退出时恢复。
 
-Usage: agentty_title_probe.py BINARY
-Starts agentty in a pty, quits with ^C, and looks at the raw bytes: the
-title push (CSI 22;0t) must come before our title (OSC 0) and the pop
-(CSI 23;0t) must come at exit. Exit 0 when both are there in order.
+用法：agentty_title_probe.py BINARY
+在 PTY 中启动 agentty，按 ^C 退出并检查原始字节。
+标题入栈序列 CSI 22;0t 必须早于应用标题 OSC 0，
+退出时必须输出出栈序列 CSI 23;0t。两者顺序正确时返回 0。
 """
 import os, pty, select, sys, time
 
@@ -31,7 +31,7 @@ def pump(secs, buf):
 
 
 out = pump(2.5, b"")
-os.write(fd, b"\x03")          # ^C quits
+os.write(fd, b"\x03")          # ^C 退出
 out = pump(2.0, out)
 try:
     os.waitpid(pid, 0)

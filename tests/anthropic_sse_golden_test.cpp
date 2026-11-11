@@ -1,16 +1,16 @@
-// anthropic_sse_golden_test — byte/shape-identity guard for the Anthropic
-// SSE event parser (dispatch_event / feed_sse via StreamCtx).
+// anthropic_sse_golden_test — byte/shape-identity 守护着 Anthropic
+// SSE 事件 解析器 (dispatch_event / feed_sse 途经 StreamCtx).
 //
-// The SSE parser is being split out of transport.cpp into its own module.
-// That split must not change which agentty Msgs a given SSE stream produces.
-// This test scripts a realistic Anthropic stream — message_start (+usage),
-// a text content block with deltas, a tool_use block with input_json deltas,
-// a message_delta carrying stop_reason + final usage, and message_stop — then
-// pins a canonical rendering of the emitted Msg sequence. Any drift in the
-// parse behavior (dropped event, reordered emit, changed field) trips it.
+// 电话 SSE 解析器 正在被拆分出 transport.cpp 进入自己的模块。
+// 分拆不能改变 agentty 给定的女士 SSE 数据流 生产。
+// 这个测试脚本很现实 Anthropic 数据流 — message_start (
+// +usage),带有deltas的文本内容块, a tool_use 块为
+// input_json 三角洲, a message_delta 携带 stop_reason
+// + 最后使用,以及 message_stop - 然后把一个峡谷钉上 渲染 排放的
+// Msg。任何漂移在 解析 行为( 已删除) 事件 ,重新排队,改变场) 旅行它。
 //
-// Drives parse_sse_for_test, which runs the SAME feed_sse → dispatch_event
-// path the live on_chunk uses.
+// 驱动器 parse_sse_for_test ,运行 相同 feed_sse → dispatch_event
+// 路径 : on_chunk 使用时。
 
 #include <string>
 #include <utility>
@@ -28,10 +28,10 @@ namespace {
 using namespace agentty;
 using agentty::msg::StreamMsg;
 
-// Canonical one-line rendering of a stream Msg. Msg is a variant-of-variants:
-// the stream events are wrapped as Msg{StreamMsg{StreamXxx{...}}}, so we peel
-// the outer Msg to its StreamMsg, then visit the concrete event. Deterministic
-// — captures the discriminant + wire-relevant fields, nothing timing-dependent.
+// 条形棋子 -line 渲染 编号 a 数据流 Msg. Msg 是一个 变体-of-variants:
+// 编号 数据流 事件 被包裹为 Msg{StreamMsg{StreamXxx ~...
+// ~ 所以我们剥了外皮 ~ Msg 成员名单 StreamMsg ,然后访问混凝土 事件 .
+// 决定因素——抓捕歧视者+ 传输-relevant 字段,无时间 -dependent.
 std::string render_stream(const StreamMsg& sm) {
     return std::visit([](const auto& e) -> std::string {
         using T = std::decay_t<decltype(e)>;
@@ -57,10 +57,10 @@ std::string render_stream(const StreamMsg& sm) {
         else if constexpr (std::is_same_v<T, StreamFinished>)
             return "Finished(" + std::to_string(static_cast<int>(e.stop_reason)) + ")";
         else if constexpr (std::is_same_v<T, StreamError>)
-            // Include http_status: a mid-stream error's typed status is the
-            // difference between a retryable overload and a dead turn, and
-            // a renderer that drops it makes that untestable — which is
-            // exactly how the field went unasserted when it was added.
+            // 包含 http_status : 中间
+            // -stream 错误 带类型的 状态是可重试
+            // 超载和死转弯与 渲染器 使这个场变得无法
+            // 测试——这正是场在被添加时如何失去说服力。
             return "Error(" + e.message + ",status="
                  + std::to_string(e.http_status) + ")";
         else if constexpr (std::is_same_v<T, StreamHeartbeat>)
@@ -89,13 +89,13 @@ std::uint64_t fnv1a(const std::string& s) {
     return h;
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("anthropic sse golden") {
     namespace ap = agentty::provider::anthropic;
 
-    // A realistic stream: usage-bearing start, a text block, a tool_use block,
-    // a ping heartbeat, then delta(stop_reason)+usage and stop.
+    // 一个现实 数据流 : 使用量 -bearing 开始,文本块, a tool_use 块,
+    // 一个振动心跳,然后是三角形( stop_reason +使用和停止。
     const std::vector<std::pair<std::string, std::string>> events = {
         {"message_start",
          R"({"type":"message_start","message":{"usage":{"input_tokens":100,"output_tokens":1,"cache_creation_input_tokens":40,"cache_read_input_tokens":60}}})"},
@@ -124,7 +124,7 @@ TEST_CASE("anthropic sse golden") {
     const std::vector<Msg> msgs = ap::parse_sse_for_test(events);
     const std::string rendered = render_all(msgs);
 
-    // Feature-level assertions documenting the expected sequence.
+    // 特写-level 断言记录了预期的顺序.
     check(rendered.find("Started\n") != std::string::npos,
           "message_start emits Started");
     check(rendered.find("Usage(in=100,out=1,cc=40,cr=60)") != std::string::npos,
@@ -145,7 +145,7 @@ TEST_CASE("anthropic sse golden") {
     check(rendered.find("Finished(") != std::string::npos,
           "message_stop emits Finished with the captured stop_reason");
 
-    // Byte-identity of the whole rendered sequence.
+    // 字节-identity 整个过程。
     const std::uint64_t kGoldenHash = 0x2cc3af5474193951ull;
     const std::uint64_t got = fnv1a(rendered);
     if (kGoldenHash == 0) {
@@ -163,15 +163,15 @@ TEST_CASE("anthropic sse golden") {
 TEST_CASE("anthropic error events carry their typed status") {
     namespace ap = agentty::provider::anthropic;
 
-    // A mid-stream `event: error` arrives inside a 200 body — the status
-    // line is long gone. Anthropic types the failure for us anyway, in
-    // `error.type`, and the decoder must carry that through as the
-    // equivalent HTTP status so the retry ladder classifies via the
-    // compile-time-proven table instead of sniffing the human message.
+    // 中间 -stream `event: error` 到了
+    // 200码内 正文 ——状态线早已不通. Anthropic
+    // 键入失败的键入 `error.type` ,
+    // 解码器必须作为等价符通过 HTTP 状态如此 重试 梯级
+    // 通过 编译-time-proven 表格中没有嗅到人类的信息。
     //
-    // The prose here is deliberately unfamiliar: no substring the sniffer
-    // recognises. Without the typed status this classifies Terminal and
-    // the turn dies on a failure the server explicitly said to retry.
+    // 这里的散文是故意不熟悉的:没有底弦的嗅觉器识别。
+    // 带类型的 此分类状态 终端 转弯会
+    // 因服务器明确说的故障而死 重试.
     const std::vector<std::pair<std::string, std::string>> overloaded = {
         {"error",
          R"({"type":"error","error":{"type":"overloaded_error",)"
@@ -184,7 +184,7 @@ TEST_CASE("anthropic error events carry their typed status") {
     check(rendered.find("unusually high demand right now") != std::string::npos,
           "the human message is preserved alongside the type");
 
-    // And a rate limit, the other retryable one.
+    // 和一个利率限制, 另一个可重试。
     const std::vector<std::pair<std::string, std::string>> limited = {
         {"error",
          R"({"type":"error","error":{"type":"rate_limit_error",)"
@@ -194,10 +194,10 @@ TEST_CASE("anthropic error events carry their typed status") {
     check(rendered.find("status=429") != std::string::npos,
           "rate_limit_error surfaces as 429");
 
-    // An unknown type means NO OPINION: 0 leaves the reducer on its
-    // existing string path rather than inventing a classification. Getting
-    // this wrong in the confident direction is how a future error type
-    // would start being mis-retried.
+    // 未知类型表示NOXXXX OPINION:0 将
+    // 状态更新函数留在其现有的字符串路径上,而不是发明分类。
+    // 在自信的方向上让这个错误是未来的错误类型如何开始被
+    // 错误的-retried。
     const std::vector<std::pair<std::string, std::string>> unknown = {
         {"error",
          R"({"type":"error","error":{"type":"some_future_error",)"
@@ -211,20 +211,20 @@ TEST_CASE("anthropic error events carry their typed status") {
 TEST_CASE("anthropic parallel tool blocks stay separate") {
     namespace ap = agentty::provider::anthropic;
 
-    // Two tool_use blocks open at once, their input_json deltas
-    // INTERLEAVED. Anthropic puts an `index` on every content_block frame,
-    // and that index is the block's identity for its whole life: start,
-    // every delta, stop.
+    // 两位 tool_use 块块一开,他们的 input_json 三角洲
+    // INTERLEAVED. Anthropic 写一个 `index` 时值
+    // content_block 帧 ,这个指数是这个街区的 整个生命的特征: 开始,
+    // 每个三角洲,停止。
     //
-    // The decoder used to keep ONE `current_tool_id` and route every delta
-    // to whichever block opened last — the `latest_tool_item` shape from
-    // docs/TOOL_CALL_ATTRIBUTION.md, which has shipped as a bug in
-    // openai-python, opik, strands, zed, and twice here. On this stream it
-    // appends block 0's arguments to block 1's call, producing JSON that
-    // still parses and a tool that runs with another call's path.
+    // 用来保存的解码器 一个 `current_tool_id` 并引导每个
+    // 三角洲到上次打开的区块—— `latest_tool_item` 形状
+    // 从 docs/TOOL_CALL_ATTRIBUTION.md ,
+    // 它已经作为错误在 Openai 中运出 -python 鱼线 鱼丝 鱼尾
+    // 和两杯在这 数据流 它将块0的参数附加到块1的参数 调用 ,
+    // 生产 JSON 仍然这样 解析 和一个工具运行在另一个 调用 路经.
     //
-    // Claude emits blocks one at a time today, so the old code was safe by
-    // luck rather than by construction. This removes the luck.
+    // Claude今天一次发出一个阻断,所以旧代码通过
+    // 运气而不是建筑是安全的,这消除了运气。
     const std::vector<std::pair<std::string, std::string>> events = {
         {"message_start",
          R"({"type":"message_start","message":{"usage":{"input_tokens":1}}})"},
@@ -232,7 +232,7 @@ TEST_CASE("anthropic parallel tool blocks stay separate") {
          R"({"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_A","name":"read"}})"},
         {"content_block_start",
          R"({"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_B","name":"grep"}})"},
-        // Interleaved, and deliberately not in open order.
+        // 互相干扰,故意不公开
         {"content_block_delta",
          R"({"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"pattern\":"}})"},
         {"content_block_delta",
@@ -248,8 +248,8 @@ TEST_CASE("anthropic parallel tool blocks stay separate") {
 
     const std::string rendered = render_all(ap::parse_sse_for_test(events));
 
-    // Each call receives its OWN bytes. Before the fix both accumulated
-    // onto toolu_B — the block that opened last — and toolu_A got none.
+    // 每一个 调用 接收其 自身 字节。在修复之前,两者都累积到
+    // toolu_B ——最后打开的块——和 toolu_A 什么都没有。
     check(rendered.find(R"(ToolUseDelta(toolu_A,{"path":))") != std::string::npos,
           "block 0's first delta lands on block 0's call");
     check(rendered.find(R"(ToolUseDelta(toolu_A,"a.txt"}))") != std::string::npos,
@@ -259,16 +259,16 @@ TEST_CASE("anthropic parallel tool blocks stay separate") {
     check(rendered.find(R"(ToolUseDelta(toolu_B,"b"}))") != std::string::npos,
           "block 1's second delta lands on block 1's call");
 
-    // Crucially: NO crossover. block 1's payload must never appear under
-    // block 0's id — that is the corruption this whole seam exists to
-    // prevent, and it is invisible downstream because the result parses.
+    // 关键是: NO 交叉,1号街区 载荷 绝对
+    // 不能出现在0号区名下, 接口边界 存在是为了预防,
+    // 它也是无形的 下游 因为结果 解析.
     check(rendered.find(R"(ToolUseDelta(toolu_A,{"pattern":))") == std::string::npos,
           "block 1's bytes never land on block 0's call");
     check(rendered.find(R"(ToolUseDelta(toolu_B,{"path":))") == std::string::npos,
           "block 0's bytes never land on block 1's call");
 
-    // And each closes exactly once. The stop names its own index, so it
-    // cannot end the wrong call or leave the right one open forever.
+    // 每个都关闭一次。停止名称是它自己的索引,
+    // 所以它不能结束错误的调用, 也不能永远打开正确的一个。
     check(rendered.find("ToolUseEnd(toolu_A)") != std::string::npos,
           "block 0 ends");
     check(rendered.find("ToolUseEnd(toolu_B)") != std::string::npos,

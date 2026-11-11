@@ -1,15 +1,15 @@
-// Every sandbox preset must survive a RESTART.
+// 每一个 沙箱 预设必须幸存 RESTART.
 //
-// Reported: "I select Airgapped and restart and it shows Custom." The pane's
-// Preset row is derived (detect_posture compares the config against what each
-// preset would produce), so a preset that does not round-trip through the
-// settings file comes back as Custom -- and worse, the walls the user chose are
-// not the walls that load.
+// 报告: "I select Airgapped and restart and it shows Custom."
+// 电话 面板 '预设行是衍生出来的( ) detect_posture
+// 将配置与每个预设将产生的东西相比较,所以一个不绕 -trip
+// 通过设置文件会以自定义的形式回来——更糟糕的是,
+// 用户选择的墙壁不是墙壁 加载.
 //
-// This drives the real path a restart takes: apply the preset, save to an
-// on-disk settings file, load it back the way main() does, and ask the pane's
-// own question. Plus the field-by-field diff, so a failure names the field
-// that did not survive instead of just saying "Custom".
+// 这驱动一个重新启动所需的真实路径: 应用预设, 保存 改为:
+// -disk 设置文件, 加载 回来的路 main() 问, 面板 问题本身,
+// 加上字段 -by-field diff,所以一个失败 命名没有
+// 生存的球场 而不是仅仅说 "Custom".
 #include "agtest.hpp"
 #include "agtest_cap.hpp"
 
@@ -57,7 +57,7 @@ const char* name(sb::Posture p) {
     return "?";
 }
 
-// Which fields differ, by name -- so a failure says what was lost.
+// 哪个字段不同,名字不同, 失败说明了丢失了什么。
 std::string diff(const sb::Config& a, const sb::Config& b) {
     std::string d;
     auto f = [&](const char* n, bool same) { if (!same) d += std::string{" "} + n; };
@@ -100,14 +100,14 @@ sb::Config reload(const sb::Config& cfg) {
 constexpr sb::Posture kPresets[] = {sb::Posture::Permissive, sb::Posture::Balanced,
                                     sb::Posture::Hardened, sb::Posture::Airgapped};
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("sandbox presets: each one is still itself after a restart") {
     TmpHome home;
     for (auto p : kPresets) {
         CAPTURE(name(p));
         const auto chosen = sb::apply_posture(sb::Config{}, p);
-        REQUIRE(sb::detect_posture(chosen) == p);   // sanity: detect knows it
+        REQUIRE(sb::detect_posture(chosen) == p);   // 理智:检测到它
         const auto back = reload(chosen);
         INFO("lost on reload:" << diff(chosen, back));
         CHECK(back == chosen);
@@ -116,9 +116,9 @@ TEST_CASE("sandbox presets: each one is still itself after a restart") {
 }
 
 TEST_CASE("sandbox presets: switching between them survives a restart") {
-    // The reported sequence is a SWITCH, not a fresh pick: the user was on
-    // one preset, chose another, and restarted. Every ordered pair, so a
-    // field one preset sets and the next one forgets to reset is caught.
+    // 报告序列是SWITCH,而不是一个新鲜的选择:
+    // 用户在一个预设上,选择另一个,然后重新开始。
+    // 每个定购对,所以一个域一个预设集,下一个则忘记重设。
     TmpHome home;
     for (auto from : kPresets) {
         for (auto to : kPresets) {
@@ -135,10 +135,10 @@ TEST_CASE("sandbox presets: switching between them survives a restart") {
 }
 
 TEST_CASE("sandbox settings: every numeric field keeps the value it was saved with") {
-    // The root cause, pinned below the presets: the loader range-checked a
-    // 64-bit unsigned field by casting its max to long long (-1), so EVERY
-    // positive memory_mb / tmp_mb reloaded as the default. Each numeric
-    // field, at a value no preset uses, plus the extremes of each width.
+    // 根因, 被固定在预设下方: 装载器范围 -checked a
+    // 64-bit 将最大值投到长(-1),所以没有符号字段 每个
+    // 阳性 memory_mb / tmp_mb 重新装入为默认值。
+    // 每个数值字段,以不预设值表示,加上每个宽度的极端值。
     TmpHome home;
     sb::Config c = sb::apply_posture(sb::Config{}, sb::Posture::Balanced);
     c.memory_mb = 3072;
@@ -153,8 +153,8 @@ TEST_CASE("sandbox settings: every numeric field keeps the value it was saved wi
     INFO("lost on reload:" << diff(c, back));
     CHECK(back == c);
 
-    // the width boundaries: still accepted at max, rejected (default) past it.
-    c.memory_mb = 1ull << 40;   // well past 32 bits
+    // 宽度边界: 仍以最大值接受, 拒绝( 默认) 超过它。
+    c.memory_mb = 1ull << 40;   // 过了32位
     c.max_procs = 0xFFFFFFFFu;
     back = reload(c);
     CHECK(back.memory_mb == c.memory_mb);
@@ -162,9 +162,9 @@ TEST_CASE("sandbox settings: every numeric field keeps the value it was saved wi
 }
 
 TEST_CASE("sandbox presets: the user's own lists do not knock a preset to Custom") {
-    // Paths, ports and hosts are deliberately NOT part of a posture (see
-    // apply_posture). A user with an extra read path or an allowlist who
-    // picks Airgapped is on Airgapped.
+    // 路径、端口和主机是故意的NOT 部分姿态(见apply_posture).
+    // 拥有额外读取路径或允许清单的用户选择Airgapped
+    // 是在Airgaped上.
     TmpHome home;
     for (auto p : kPresets) {
         CAPTURE(name(p));

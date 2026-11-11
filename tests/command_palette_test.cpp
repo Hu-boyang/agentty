@@ -1,13 +1,13 @@
-// command_palette_test — locks the Ctrl+K palette's row catalog + filter UX.
+// command_palette_test — 锁 编号 Ctrl +K 调色板行 目录 + 过滤器 UX.
 //
-// The palette is pure data (kCommands) + one pure function (filtered_commands),
-// so it's cheaply unit-testable without any UI/runtime. This pins the two
-// invariants that keep every row working and discoverable:
-//   1. CATALOG COMPLETENESS — every Command enum value has exactly one row.
-//      A missing row = a dead palette entry; the dispatcher switch would still
-//      compile but the command could never be selected.
-//   2. FILTER UX — matching spans label + description + shortcut (discovery by
-//      intent), and label hits rank above description-only hits.
+// 调色板是纯数据( kCommands) + 一个纯函数( ) filtered_commands ),
+// 所以这是便宜的单位 -testable 没有任何 UI/runtime.
+// 双胞胎都穿这个 不变量 使每行都能够工作,并且可以发现:
+//   1. CATALOG COMPLETENESS——每一命令枚举的价值完全一行。
+//      缺少行 = 已死调色板条目; 分派器 开关时仍
+//      会 编译 但命令永远无法被选中。
+//   2. FILTER UX——匹配的标注段段+描述段+快捷键(发现者为:
+//      标签点击率在描述值之上 -only点击率
 
 #include "agtest.hpp"
 
@@ -19,7 +19,7 @@
 using namespace agentty;
 
 
-// Every enum value, so we can assert the catalog covers each exactly once.
+// 每一个 枚举 价值,这样我们就可以断言 目录 每一件都盖一次
 static constexpr std::array kAll = {
     Command::NewThread, Command::ReviewChanges,
     Command::AcceptAll,
@@ -39,7 +39,7 @@ static bool has_id(const std::vector<const CommandDef*>& v, Command id) {
 }
 
 TEST_CASE("command palette") {
-    // ── 1. catalog completeness (enum ⇄ kCommands bijection) ──────────────
+    // ── 1. 目录 完整性( 4) 枚举 命令双弹出) ──────────────
     check(kCommands.size() == kAll.size(),
           "kCommands has exactly one row per Command enum value");
     for (Command id : kAll) {
@@ -47,14 +47,14 @@ TEST_CASE("command palette") {
         for (const auto& c : kCommands) if (c.id == id) ++n;
         check(n == 1, "each Command id appears exactly once in kCommands");
     }
-    // Every row has a non-empty label + description (no blank palette rows).
+    // 每行都有非-empty标签+描述(无空白调色板行).
     for (const auto& c : kCommands) {
         check(c.label && *c.label, "row has a label");
         check(c.description && *c.description, "row has a description");
         check(c.shortcut != nullptr, "row has a (possibly empty) shortcut");
     }
 
-    // ── 2. empty query returns every row, in catalog order ────────────────
+    // ── 2. 空查询返回每行, 按目录顺序 ────────────────
     {
         auto all = filtered_commands("");
         check(all.size() == kCommands.size(), "empty query returns all rows");
@@ -64,45 +64,45 @@ TEST_CASE("command palette") {
         check(ordered, "empty query preserves catalog order");
     }
 
-    // ── 3. label match ────────────────────────────────────────────────────
+    // ── 3. 标签匹配 ────────────────────────────────────────────────────
     {
         auto r = filtered_commands("thread");
         check(has_id(r, Command::NewThread) && has_id(r, Command::OpenThreads),
               "\"thread\" matches New thread + Open threads");
     }
 
-    // ── 4. DESCRIPTION match (discovery by intent) ────────────────────────
+    // ── 4. DESCRIPTION 匹配(通过意图发现) ────────────────────────
     {
-        // "diff" is only in Review changes' DESCRIPTION, not its label.
+        // "diff" 只在“审查”修改中进行。 DESCRIPTION 而不是它的标签。
         auto r = filtered_commands("diff");
         check(has_id(r, Command::ReviewChanges),
               "\"diff\" finds Review changes via its description");
     }
     {
-        // "summary" only in Compact context's description.
+        // "summary"仅在Compact语境描述中出现.
         auto r = filtered_commands("summary");
         check(has_id(r, Command::CompactContext),
               "\"summary\" finds Compact context via description");
     }
 
-    // ── 5. SHORTCUT match ─────────────────────────────────────────────────
+    // ── 5. SHORTCUT 匹配( E) ─────────────────────────────────────────────────
     {
         auto r = filtered_commands("ctrl+g");
         check(has_id(r, Command::RunCodeBlock),
               "\"ctrl+g\" finds Run code block via its shortcut");
     }
 
-    // ── 6. case-insensitive ───────────────────────────────────────────────
+    // ── 6. 案件-insensitive ───────────────────────────────────────────────
     {
         auto r = filtered_commands("QUIT");
         check(has_id(r, Command::Quit), "filter is case-insensitive");
     }
 
-    // ── 6b. a pane one level down is still FINDABLE ───────────────────────
-    // Appearance has no palette row on purpose (one door: Settings →
-    // Appearance). That only works if the words people type to look for it
-    // land on the door. If someone ever trims Settings' description back to
-    // "the live toggles", this fails — which is the point.
+    // ── 6b. a 面板 下一层还剩 FINDABLE ───────────────────────
+    // 外观没有调色板行( 一个门: 设置 ~ 外观 )。
+    // 只有人们输入的词在门上找到时才有效。
+    // 如果有人将设置描述剪切回"the live toggles",
+    // 则失败 — 这就是重点。
     {
         for (std::string_view q : {"theme", "appearance", "colors", "motion",
                                    "density"}) {
@@ -112,14 +112,14 @@ TEST_CASE("command palette") {
         }
     }
 
-    // ── 7. label hits rank ABOVE description-only hits ────────────────────
+    // ── 7. 标签点击级别 上方 说明 -only 点击数 ────────────────────
     {
-        // "changes" is in the LABELS of AcceptAll/RejectAll/ReviewChanges and
-        // also in the DESCRIPTION of RewindCheckpoint ("...conversation...").
-        // Whatever matches by label must precede any description-only match.
+        // "changes" 是在,在 LABELS 备注 AcceptAll/RejectAll/ReviewChanges 以及《
+        // 公约》第2条 DESCRIPTION 备注 RewindCheckpoint ("...conversation...").
+        // 无论什么标签匹配,都必须在任何描述-only匹配之前.
         auto r = filtered_commands("change");
-        // Find the first description-only match and the last label match;
-        // assert no label match comes after a description-only one.
+        // 查找第一个描述 -only 匹配, 并显示最后的标签匹配;
+        // 声明在描述后没有标签匹配。 -only 一个
         bool seen_desc_only = false, ok = true;
         for (const auto* c : r) {
             std::string_view lab{c->label};
@@ -129,12 +129,12 @@ TEST_CASE("command palette") {
                 static_cast<char>(std::tolower((unsigned char)ch)));
             label_hit = low.find("change") != std::string_view::npos;
             if (!label_hit) seen_desc_only = true;
-            else if (seen_desc_only) ok = false;   // label hit after a desc-only
+            else if (seen_desc_only) ok = false;   // 标签在 desc-only 之后被击中
         }
         check(ok, "label matches rank above description-only matches");
     }
 
-    // ── 8. no match → empty ──────────────────────────────────────────────
+    // ── 8. 无对 = 空 ──────────────────────────────────────────────
     check(filtered_commands("zznotacommandzz").empty(),
           "a non-matching query returns no rows");
 }
@@ -142,33 +142,33 @@ TEST_CASE("command palette") {
 TEST_CASE("command palette — categories, gating, danger") {
     // ── every row has a category; danger rows are exactly the destructive set
     {
-        // The commands that discard work or mutate the worktree.
+        // 丢弃工作或变异工作树的命令.
         auto is_expected_danger = [](Command c) {
             return c == Command::RejectAll || c == Command::RewindCheckpoint;
         };
         for (const auto& c : kCommands) {
             check(c.danger == is_expected_danger(c.id),
                   "danger flag matches the destructive-action set");
-            // category_label is empty only for General (Quit / Update).
+            // category_label 仅为普通( 退出 / 更新) 空。
             bool general = (c.category == Category::General);
             check(category_label(c.category).empty() == general,
                   "only General rows have no category badge");
         }
     }
 
-    // ── category name is searchable (discovery by section) ────────────────
+    // ── 类别名称可以搜索(按区域发现) ────────────────
     {
         auto r = filtered_commands("changes");
-        // The Changes cluster surfaces as a group.
+        // 变化组群以组形式显示。
         check(has_id(r, Command::ReviewChanges) && has_id(r, Command::AcceptAll)
               && has_id(r, Command::RejectAll),
               "\"changes\" surfaces the whole Changes category");
     }
 
-    // ── visibility gating: dead BULK rows are hidden, entry point stays ──
+    // ── 可见度 : 已隐藏的 BULK 行, 输入点 保留 ──
     {
-        // No pending diff → Accept-all / Reject-all disappear, but "Review
-        // changes" (the entry point) stays discoverable.
+        // 没有 待处理 接受 = 接受 – 接受 i 接受 o i i o o diff = -all 拒绝 -all 消失,
+        // 但,我还是要... "Review changes" (入口)仍然可以发现。
         PaletteContext no_diff;
         no_diff.has_pending_changes = false;
         auto r = filtered_commands("", no_diff);
@@ -178,28 +178,28 @@ TEST_CASE("command palette — categories, gating, danger") {
               "Review changes stays visible (entry point, toasts when empty)");
         check(has_id(r, Command::NewThread), "unrelated commands stay visible");
 
-        // With a diff the bulk actions come back.
+        // 有了分数 散装动作就会回来
         PaletteContext with_diff;
         with_diff.has_pending_changes = true;
         check(has_id(filtered_commands("", with_diff), Command::AcceptAll),
               "pending changes shows Accept-all");
     }
     {
-        // No fenced reply → Run code block hidden.
+        // 没有栅栏回复 – 隐藏运行代码块。
         PaletteContext no_block;
         no_block.has_code_block = false;
         check(!has_id(filtered_commands("", no_block), Command::RunCodeBlock),
               "no code block hides Run code block");
     }
     {
-        // No update available → Update agentty hidden (pre-existing contract).
+        // 没有可用的更新 – 更新 agentty 隐藏( 前) -existing 合同)。
         PaletteContext no_update;
         no_update.update_available = false;
         check(!has_id(filtered_commands("", no_update), Command::UpdateAgentty),
               "no update hides Update agentty");
     }
 
-    // ── command_visible predicate agrees with the filter ─────────────────
+    // ── command_visible 上游同意过滤器 ─────────────────
     {
         PaletteContext ctx;
         ctx.has_pending_changes = false;
@@ -217,44 +217,44 @@ TEST_CASE("command palette — scored fuzzy ranking") {
         return -1;
     };
 
-    // ── "re": label PREFIX hits rank above a description-only match ──────
+    // ── "re" 标签 PREFIX 命中值在描述值上方 -only 匹配( E) ──────
     {
         auto r = match_commands("re", PaletteContext{});
         int rev = rank_of(r, Command::ReviewChanges);
         int rew = rank_of(r, Command::RewindCheckpoint);
         int rej = rank_of(r, Command::RejectAll);
-        int nt  = rank_of(r, Command::NewThread);   // matches "f-re-sh" in desc
+        int nt  = rank_of(r, Command::NewThread);   // 匹配 desc 中的 "f-re-sh"
         check(rev >= 0 && rew >= 0 && rej >= 0, "the Re* commands all match");
         check(nt < 0 || (rev < nt && rew < nt && rej < nt),
               "label 're' prefix hits outrank a description-only 're'");
     }
 
-    // ── acronym typing: "rcb" → Run Code Block via word boundaries ───────
+    // ── 缩略语打字:"rcb" – 通过字段边界运行代码块 ───────
     {
         auto r = match_commands("rcb", PaletteContext{});
         check(!r.empty() && r.front().cmd->id == Command::RunCodeBlock,
               "'rcb' acronym-matches 'Run Code Block' first");
     }
 
-    // ── positions point at the matched label characters ──────────────────
+    // ── 匹配标签字符的位置点 ──────────────────
     {
         auto r = match_commands("new", PaletteContext{});
         check(!r.empty() && r.front().cmd->id == Command::NewThread,
               "'new' → New thread first");
-        // "New thread": 'n','e','w' at offsets 0,1,2.
+        // "New thread": 'n'、'e'、'w', 单位:千美元。
         const auto& pos = r.front().positions;
         check(pos.size() == 3 && pos[0] == 0 && pos[1] == 1 && pos[2] == 2,
               "positions mark the matched leading characters");
     }
 
-    // ── exact label wins over a longer label that also matches ──────────
+    // ── 准确标签胜过一个也匹配的更长标签 ──────────
     {
         auto r = match_commands("quit", PaletteContext{});
         check(!r.empty() && r.front().cmd->id == Command::Quit,
               "'quit' → Quit ranks first (exact label)");
     }
 
-    // ── empty query: catalog order, no positions ───────────────────────
+    // ── 空查询: 目录 顺序, 无位置 ───────────────────────
     {
         auto r = match_commands("", PaletteContext{});
         check(r.front().cmd->id == kCommands.front().id,

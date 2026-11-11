@@ -1,15 +1,15 @@
-// plugin.cpp â€” the MCP plugin manager. See plugin.hpp for the contract.
-// The editing functions are pure JSON-file surgery (testable without a
-// terminal); cli() is the argv shell over them.
+// plugin.cpp _______________________________________ MCP 插件管理器。 见 plugin.hpp 合同的。
+// 编辑功能纯洁 JSON-file 手术(无试验) 终端);
+// cli() 是他们的舰体壳。
 
 #include "agentty/tool/plugin.hpp"
 #include "agentty/util/user_root.hpp"
 
 #include "agentty/scope/scope.hpp"
-#include "agentty/config/inventory.hpp"   // kMcpApprovals — the one name
+#include "agentty/config/inventory.hpp"   // kMcp 核准—— 一个名称
 #include "agentty/io/shared_file.hpp"
 
-#include "agentty/util/sendable.hpp"  // json is Sendable
+#include "agentty/util/sendable.hpp"  // JSON 可发送
 
 #include <nlohmann/json.hpp>
 
@@ -28,30 +28,30 @@ namespace agentty::tools::plugin {
 
 namespace {
 
-// Every config MUTATION (add/remove/toggle) is one load→modify→store inside
-// the file's shared-file section (io/shared_file.hpp): the lane stops our own
-// worker threads racing, the file lock stops another agentty (a TUI and
-// `agentty plugin add` in another terminal). Measured before: 20 of 20
-// concurrent `plugin add` pairs lost one server.
+// 每一个配置 MUTATION (add/remove/toggle )是一(一个) 加载 修改
+// 文件共享的存储 -file 节次( io/shared_file.hpp : 车道阻挡了我们自己的
+// 车道 工作线程 线程 赛车,文件 锁 停止另一个 agentty (a TUI 财务报告和
+// 已审计财务报表 `agentty plugin add` 在另一个 终端 20个同时计量的
+// 20个以上 `plugin add` 双对丢失了一个服务器。
 [[nodiscard]] persistence::Lane& mutations() {
     static persistence::Lane m;
     return m;
 }
 
-// Read an entry's `disabled` flag WITHOUT throwing on a malformed value. A
-// hand-edited `"disabled": "true"` (string, not bool) makes nlohmann's
-// value("disabled", false) throw type_error.302 â€” which would crash a toggle
-// or the connect loop. Treat any non-bool as "not disabled" (fail-open: a
-// garbled flag never silently hides a server).
+// 读条目 `disabled` 标志 无需 丢入一个错误的值。一只手 -edited
+// `"disabled": "true"` (弦,而非布尔)使nlohmann的值
+// ( "disabled" ,假)抛出 type_error 302  ⁇ ),将坠毁 a
+// 切换 或连接环路。处理任何非 -bool 以 "not disabled" (失败)
+// -open : 条纹 标志 永远不默默隐藏服务器。
 [[nodiscard]] bool entry_disabled(const json& entry) noexcept {
     if (!entry.is_object()) return false;
     auto it = entry.find("disabled");
     return it != entry.end() && it->is_boolean() && it->get<bool>();
 }
 
-// Read + parse the file. Distinguishes "absent" (fresh empty doc, ok=true)
-// from "present but broken" (ok=false â€” never rewrite a file we couldn't
-// parse; a typo'd hand-edit must not be destroyed by `plugin add`).
+// 读 + 解析 文件。 区分 "absent"( 新鲜的空文件, ok= true) 从
+// "present but broken" (ok=false _____) 中“ 永远不要重写我们无法重写
+// 解析 的文件; 一种 typo'd hand-edit 绝不能被 `plugin add` 销毁 ”。
 struct Loaded {
     json doc = json::object();
     bool ok  = true;
@@ -62,16 +62,16 @@ struct Loaded {
     Loaded out;
     std::error_code ec;
     if (!fs::exists(path, ec) || ec) return out;
-    // exists() is true for a DIRECTORY, and opening one succeeds on Linux --
-    // the failure surfaces later as an exception out of the first read,
-    // which nlohmann's noexcept parse does not catch. `mkdir mcp.json` used
-    // to abort the process with `basic_filebuf::underflow error reading the
-    // file: Is a directory`, naming neither agentty nor the path.
+    // exists() 真实的对一个 DIRECTORY ,打开后成功 Linux - 故障
+    // 后来作为例外出现, 出现在第一个读数中, Nlohmann的 noexcept
+    // 解析 无法捕捉。 `mkdir mcp.json` 用于中止进程
+    // `basic_filebuf::underflow error reading the file: Is a directory` ,
+    // 则两个名称都没有 agentty 或道路。
     //
-    // Treat it as "present but broken" rather than absent: ok=false is what
-    // stops every writer here from clobbering a file it could not read, and
-    // a directory in that position is exactly something we must not
-    // overwrite.
+    // 当作是 "present but broken" 而不是
+    // 缺席: OK=假说是阻止了所有作者 乱打一个它无法读到的文件,
+    // 而一个处于这个位置的目录 恰恰是我们不能覆盖
+    // 的东西。
     if (!fs::is_regular_file(path, ec)) {
         out.existed = true;
         out.ok = false;
@@ -80,13 +80,13 @@ struct Loaded {
     out.existed = true;
     auto bytes = persistence::peek_file(path);
     if (!bytes) { out.ok = false; return out; }
-    out.doc = json::parse(*bytes, nullptr, /*throw=*/false);
+    out.doc = json::parse(*bytes, nullptr, /*投掷=*/false);
     if (!out.doc.is_object()) { out.ok = false; out.doc = json::object(); }
     return out;
 }
 
-// A SYMLINKed mcp.json (a dotfiles repo) is written through to its target, so
-// the rename replaces the real file and the link survives.
+// 一个SYMLINKed mcp.json(一个点文件仓库)被写到它的目标,
+// 所以重命名取代了真实文件,链接存活下来.
 [[nodiscard]] fs::path write_target(const fs::path& path) {
     std::error_code ec;
     if (fs::is_symlink(path, ec)) {
@@ -102,9 +102,9 @@ struct Loaded {
         {.durability = persistence::Durability::Durable, .keep_mode = true});
 }
 
-// The servers object key: honour an existing "servers" spelling (the
-// bridge accepts both), default to the Claude-Desktop-compatible
-// "mcpServers" for new files.
+// 服务器对象密钥: 遵守已有的 "servers" 拼写(桥桥接接受两者),
+// 默认为 Claude-Desktop-compatible
+// "mcpServers" 用于新文件。
 [[nodiscard]] const char* servers_key(const json& doc) {
     if (doc.contains("servers") && doc["servers"].is_object()
         && !doc.contains("mcpServers"))
@@ -112,7 +112,7 @@ struct Loaded {
     return "mcpServers";
 }
 
-} // namespace
+} // 命名空间结束。
 
 fs::path config_path(Io, bool project) {
     return config_path(project, project ? fs::path{} : ::agentty::util::user_root());
@@ -124,23 +124,23 @@ fs::path config_path(bool project, const fs::path& user_root) {
 }
 
 namespace {
-// Must match the bridge's kMcpApprovalsLeaf + hashing exactly â€” both sides
-// read/write the SAME user-root store keyed by the SAME content hash.
+// 桥面必须和两侧的 kMpPApprovalsLeaf + hashing 完全吻合
+// read/write 编号 相同 用户 -root 存储键入 相同 内容散列。
 constexpr std::string_view kMcpApprovalsLeaf =
     ::agentty::config::kMcpApprovals;
 
-// The current project mcp.json's content hash, or empty if there's no file.
+// 当前项目mcp.json的内容散列,如果没有文件则空.
 [[nodiscard]] std::string project_config_hash(Io io) {
-    const fs::path cfg = config_path(io, /*project=*/true);
-    // Same reason as load(): exists-and-opens is not the same as readable,
-    // and a directory here would throw out of the slurp below.
+    const fs::path cfg = config_path(io, /*项目=*/true);
+    // 和我们的原因一样 load() : 存在 -and-opens
+    // 和可读性不同,这里的目录会从下面的泥浆中丢出。
     std::error_code ec;
     if (!fs::is_regular_file(cfg, ec)) return {};
     auto bytes = persistence::read_file(io, cfg);
     if (!bytes) return {};
     return scope::content_hash(*bytes);
 }
-}  // namespace
+}  // 命名空间结束。
 
 bool is_project_config_trusted(Io io) {
     if (const char* e = std::getenv("AGENTTY_MCP_ALLOW_PROJECT");
@@ -152,9 +152,9 @@ bool is_project_config_trusted(Io io) {
     return scope::load_approvals(kMcpApprovalsLeaf).approved(h);
 }
 
-// The spawn-identity hash for one server: the command + url + args that would
-// actually run. Canonical + stable so the file side (plugin.cpp) and the live
-// side (bridge connect loop) agree. Empty command AND url â†’ empty hash.
+// 一个服务器的产卵-identity hash: 命令 + url + args ,
+// 将实际运行. Canonical + 稳定, 因此文件侧(plugin.cpp)
+// 和活的侧( 桥连接环) 同意. 空命令 和 url #Q 空散列。
 std::string server_spec_hash(const std::string& command,
                              const std::string& url,
                              const std::vector<std::string>& args) {
@@ -167,7 +167,7 @@ std::string server_spec_hash(const std::string& command,
 }
 
 namespace {
-// Adapt a JSON server entry into the string-based hash.
+// 适应a JSON 服务器输入字符串 -based 散货
 [[nodiscard]] std::string spec_hash_of_entry(const nlohmann::json& entry) {
     if (!entry.is_object()) return {};
     std::vector<std::string> args;
@@ -178,7 +178,7 @@ namespace {
                             entry.value("url", std::string{}), args);
 }
 
-// Load one server entry's spec hash from a config file, or empty if absent.
+// 加载 一个服务器条目的 spec hash 从配置文件, 或空的, 如果缺少的话。
 [[nodiscard]] std::string server_hash_from_file(const fs::path& path,
                                                 const std::string& name) {
     Loaded l = load(path);
@@ -189,46 +189,46 @@ namespace {
         return {};
     return spec_hash_of_entry(l.doc[key][name]);
 }
-}  // namespace
+}  // 命名空间结束。
 
 bool is_server_trusted(Io io, const fs::path& path, const std::string& name) {
-    // Blanket grants first: the env opt-in, then a whole-file approval â€” both
-    // keep working, so nothing that trusted a config before regresses.
+    // 块 授权 第一: 隐藏选择 -in ,然后是整个 -file 批准 ——
+    // —— 两者都继续工作,因此在倒退之前,没有哪个方面相信一个配置。
     if (is_project_config_trusted(io)) return true;
     const std::string h = server_hash_from_file(path, name);
-    if (h.empty()) return false;   // http/no-command server â€” not gated here
+    if (h.empty()) return false;   // http/no-command 服务器 QQ ” 此处未锁定
     return scope::load_approvals(kMcpApprovalsLeaf).approved(h);
 }
 
 bool approve_project_config(Io io, const lock_levels::below_file_lane& cap) {
     const std::string h = project_config_hash(io);
-    if (h.empty()) return false;   // nothing to approve
+    if (h.empty()) return false;   // 没有什么要批准的
     scope::Approvals a;
     a.approve(h);
-    return scope::save_approvals(io, cap, kMcpApprovalsLeaf, a);   // merges
+    return scope::save_approvals(io, cap, kMcpApprovalsLeaf, a);   // 合并
 }
 
 bool approve_server(Io io, const lock_levels::below_file_lane& cap, const fs::path& path,
                     const std::string& name) {
     const std::string h = server_hash_from_file(path, name);
-    if (h.empty()) return false;   // nothing spawnable to vouch for
+    if (h.empty()) return false;   // 没有产物可以保证
     scope::Approvals a;
     a.approve(h);
-    return scope::save_approvals(io, cap, kMcpApprovalsLeaf, a);   // merges
+    return scope::save_approvals(io, cap, kMcpApprovalsLeaf, a);   // 合并
 }
 
 namespace {
-// One load→edit→store cycle in the file's section. `edit` gets the parsed
-// doc and returns nullopt to write it back, or a result to stop without
-// writing. The section takes the lock on the symlink's TARGET, so editing
-// through a link and editing the real file contend.
+// 一个 加载 编辑 存储周期 在文件的一节。 `edit`
+// 获得解析的 doc 并返回无选择的写回, 或生成一个结果
+// 不写就停止。 区域将选择 锁 和声链接上 TARGET ,
+// 因此通过 a 编辑 链接 编辑真实文件
 enum class Need { Any, Existing };
 using Edit = std::optional<EditResult>;
 
 template <class F, class... Args>
 EditResult mutate(const lock_levels::below_file_lane& cap, const fs::path& path, Need need, F edit,
                   Args... args) {
-    (void)edit;   // captureless: called as F{} inside the lock
+    (void)edit;   // 无捕捉器:在锁内称为FQQ
     return persistence::with_shared_file(cap, mutations(), write_target(path),
         [](const maya::held<lock_levels::file_lane>&, persistence::Held, std::string p, Need n,
            Args... a) {
@@ -241,7 +241,7 @@ EditResult mutate(const lock_levels::below_file_lane& cap, const fs::path& path,
         }, path.string(), need, std::move(args)...);
 }
 
-// The servers object (created if absent), and a named entry or null.
+// 服务器对象( 如果不存在则创建) , 以及一个命名的条目或无效。
 json& servers_of(json& doc) {
     const char* key = servers_key(doc);
     if (!doc.contains(key) || !doc[key].is_object()) doc[key] = json::object();
@@ -253,7 +253,7 @@ json* existing_entry(json& doc, const std::string& name) {
         return nullptr;
     return &doc[key][name];
 }
-} // namespace
+} // 命名空间结束。
 
 EditResult add_server(Io /*io*/, const lock_levels::below_file_lane& cap, const fs::path& path, const ServerSpec& spec,
                       bool force) {
@@ -263,23 +263,23 @@ EditResult add_server(Io /*io*/, const lock_levels::below_file_lane& cap, const 
         return EditResult::AlreadyExists;
     json entry;
     if (spec.type == "passthrough") {
-        // Passthrough: url + declared tool names. No command, no spawn.
+        // 过关: url + 已宣布的工具名称。 没有命令, 没有产卵。
         entry = {{"type", "passthrough"}, {"url", spec.url},
                  {"passthrough", spec.passthrough}};
     } else if (!spec.url.empty()) {
-        // HTTP/SSE server: a `url` transport, no local command. `type`
-        // defaults to "http" but honours an explicit spec.type ("sse").
+        // HTTP/SSE 服务器: a `url` 传输层 ,没有本地命令。
+        // `type` 默认为 "http" 却能遵守明确的 spec.type ("sse").
         entry = {{"type", spec.type.empty() ? "http" : spec.type},
                  {"url", spec.url}};
     } else {
-        // `type: stdio` is the emerging cross-client convention (MCP config
-        // standard proposals; Claude Code / VS Code / Cursor tag it). agentty's
-        // command-based add flow is stdio; writing it explicitly makes the
-        // file portable to stricter clients that require the tag.
+        // `type: stdio` 正在出现的十字 -client 公约》
+        // MCP 配置标准提案; Claude 代码 / VS 代码/ 光标标记它。
+        // agentty '命令' 命令 -based 添加流量是stdio;
+        // 写它明确使文件可移植到更严格的客户端,需要标记.
         entry = {{"type", "stdio"}, {"command", spec.command}};
         if (!spec.args.empty()) entry["args"] = spec.args;
     }
-    // Overwrite-in-place (force) replaces the entry wholesale (documented).
+    // 覆盖-in-place(强制)取代条目批发(有文件记载).
     servers[spec.name] = std::move(entry);
     return std::nullopt;
     }, spec, force);
@@ -292,9 +292,9 @@ EditResult add_server_raw(Io, const lock_levels::below_file_lane& cap, const fs:
     auto& servers = servers_of(doc);
     if (servers.contains(name) && !force)
         return EditResult::AlreadyExists;
-    // Verbatim. Every key the source carried -- env, headers, timeoutMs,
-    // tools.exclude -- survives, because the schema is the same one agentty
-    // reads. Rebuilding the entry from a ServerSpec is what loses them.
+    // 横线。源代码所携带的每个密钥 -- env, 头文件, timeoutMs,
+    // tools.exclude - 活下来了,因为... 模式定义 同一个
+    // agentty 重新构建从 a 创建条目 ServerSpec 失去他们的东西
     servers[name] = std::move(entry);
     return std::nullopt;
     }, name, entry, force);
@@ -307,8 +307,8 @@ EditResult update_server(Io, const lock_levels::below_file_lane& cap, const fs::
     json& entry = *found;
     if (!entry.is_object()) entry = json::object();
 
-    // Rewrite only what the spec owns; foreign keys (env, headers,
-    // timeoutMs, tools) stay byte-for-byte.
+    // 只重写 spec 拥有的; 外键( env, ) 头文件, timeoutMs
+    // 工具) 留下来 字节-for-byte.
     if (spec.type == "passthrough") {
         entry["type"] = "passthrough";
         entry["url"]  = spec.url;
@@ -369,7 +369,7 @@ EditResult set_server_disabled(Io, const lock_levels::below_file_lane& cap, cons
         if (!entry || !entry->is_object()) return EditResult::NotFound;
         if (entry_disabled(*entry) == disabled) return EditResult::Ok;   // no-op-Ok
         if (disabled) (*entry)["disabled"] = true;
-        else          entry->erase("disabled");   // absent == enabled (clean)
+        else          entry->erase("disabled");   // 已启用 \\ (清除)
         return std::nullopt;
     }, name, disabled);
 }
@@ -393,22 +393,22 @@ EditResult set_tool_enabled(Io, const lock_levels::below_file_lane& cap, const f
     if (!found || !found->is_object()) return EditResult::NotFound;
     json& entry = *found;
 
-    // tools.exclude is the disabled set. Enabling removes from it;
-    // disabling adds. Preserve any tools.include/pin the user set.
+    // tools.exclude 是禁用集。允许删除;禁用添加。
+    // 保留任意 tools.include/pin 用户设置。
     json& tools = entry["tools"];
     if (!tools.is_object()) tools = json::object();
     json& excl = tools["exclude"];
     if (!excl.is_array()) excl = json::array();
 
-    // Rebuild the array either with or without `bare`.
+    // 重建使用或没有 `bare` 的阵列。
     json rebuilt = json::array();
     bool present = false;
     for (const auto& v : excl) {
         if (v.is_string() && v.get<std::string>() == bare) { present = true; continue; }
         rebuilt.push_back(v);
     }
-    if (!enabled) rebuilt.push_back(bare);   // disable = ensure present
-    // No-op if already in the desired state.
+    if (!enabled) rebuilt.push_back(bare);   // 禁用=确保存在
+    // 没有 -op 如果已经处于理想状态的话
     const bool changed = enabled ? present : !present;
     if (!changed) return EditResult::Ok;
 
@@ -438,7 +438,7 @@ EditResult set_tool_pinned(Io, const lock_levels::below_file_lane& cap, const fs
         rebuilt.push_back(v);
     }
     if (pinned) rebuilt.push_back(bare);
-    if (pinned == present) {   // already in the desired state
+    if (pinned == present) {   // 已经处于理想状态
         if (pin.empty()) tools.erase("pin");
         if (tools.empty()) entry.erase("tools");
         return EditResult::Ok;
@@ -510,13 +510,13 @@ int usage() {
     return 2;
 }
 
-} // namespace
+} // 命名空间结束。
 
 int cli(Io io, const maya::unlocked& cap, const std::vector<std::string>& argv) {
     if (argv.empty()) return usage();
     const std::string& verb = argv[0];
 
-    // Common flags, position-independent after the verb.
+    // 常见 标志 ,位置(单位:千美元) -independent 动词之后。
     bool project = false, force = false;
     std::vector<std::string> rest;
     for (std::size_t i = 1; i < argv.size(); ++i) {
@@ -534,15 +534,15 @@ int cli(Io io, const maya::unlocked& cap, const std::vector<std::string>& argv) 
         }
         std::printf("%s:\n", path.string().c_str());
         for (const auto& s : servers) {
-            // Show the command line for stdio servers, or the url for HTTP/SSE
-            // servers (which have no command) so the row isn't blank.
+            // 显示 stdio 服务器的命令行, 或 HTTP/SSE
+            // 服务器的 URL (没有命令), 因此该行不是空白。
             std::string detail = s.command;
             for (const auto& a : s.args) detail += " " + a;
             if (detail.empty() && !s.url.empty()) detail = s.url;
-            // For a project config, show whether each server is trusted to
-            // connect (âœ“) or is gated pending approval (â€”). User configs are
-            // always trusted, so no marker there. HTTP/SSE (url, no command)
-            // servers spawn nothing and aren't gated, so no mark either.
+            // 对于工程配置,请显示每个服务器是否被信任连接(
+            // QQ)或已加闸 待处理 批准 ( ) ) 用户配置总是信任的,
+            // 所以没有标记。 HTTP/SSE 服务器
+            // 没有产生任何结果 也没有门 所以也没有标记
             const char* mark = "";
             if (project && !s.command.empty())
                 mark = is_server_trusted(io, path, s.name) ? "\u2713 " : "\u2014 ";
@@ -555,9 +555,9 @@ int cli(Io io, const maya::unlocked& cap, const std::vector<std::string>& argv) 
     }
 
     if (verb == "approve") {
-        // Grant per-server trust for a project stdio server: record its spec
-        // hash so agentty will spawn it. Only meaningful for --project (user
-        // configs are already trusted). Headless equivalent of the picker's
+        // 授权 百分比 -server 对工程 stdio 服务器的信任: 记录其
+        // spec hash so agentty 只会给人带来结果 --project
+        // (用户配置已经信任)。无头等同 选择面板's
         // "trust & enable".
         if (rest.size() != 1) return usage();
         if (!project) {
@@ -603,16 +603,16 @@ int cli(Io io, const maya::unlocked& cap, const std::vector<std::string>& argv) 
     }
 
     if (verb == "add") {
-        // Shape: <name> then exactly one recipe flag (or `--`).
+        // 形状 : <name> 那时,一个秘方 标志 (或 减 减 ) `--`).
         if (rest.size() < 2) return usage();
         ServerSpec spec;
         spec.name = rest[0];
-        // NAME VALIDATION. The server name becomes half of every projected
-        // tool identifier (`mcp__<server>__<tool>`) and a JSON object key.
-        // `__` inside it would make the server/tool split ambiguous; path
-        // separators / control bytes / an empty or giant name break the
-        // registry, provider APIs, or the config file itself. Reject early
-        // with an actionable message instead of writing a broken entry.
+        // NAME VALIDATION. 服务器名称成为每个预计工具标识符(
+        // `mcp__<server>__<tool>`)和JSON对象键的一半.
+        // `__` 里面会让 server/tool 分割模糊;
+        // 路径分隔符/ 控制 字节 空或巨名称断开
+        // 注册表 , APIs, 或配置文件本身。
+        // 提前拒绝可操作消息, 而不是写入破碎的条目。
         {
             const std::string& n = spec.name;
             auto bad = [&](const char* why) {
@@ -643,9 +643,9 @@ int cli(Io io, const maya::unlocked& cap, const std::vector<std::string>& argv) 
         } else if (recipe == "--python") {
             if (tail.empty()) return usage();
             spec.command = "python3";
-            // Absolutise the script path: agentty's cwd at connect time is
-            // whatever directory the user launches from, not where they ran
-            // `plugin add` â€” a relative path would break silently.
+            // 排除脚本路径 : agentty 连接时间的 cwd
+            // 是用户从哪个目录发射,而不是运行在哪里 `plugin add`
+            // ————”相对的道路会悄悄地打破.
             std::error_code ec;
             fs::path script = fs::absolute(tail[0], ec);
             if (!ec) tail[0] = script.string();
@@ -656,7 +656,7 @@ int cli(Io io, const maya::unlocked& cap, const std::vector<std::string>& argv) 
             spec.args.push_back("-y");
             for (auto& t : tail) spec.args.push_back(std::move(t));
         } else if (recipe == "--http" || recipe == "--sse") {
-            // Remote transport â€” a url, no local command (so not trust-gated).
+            // 远程 传输层 QQ) url, 本地命令( 所以不信任) -gated).
             if (tail.empty()) return usage();
             if (tail[0].rfind("http://", 0) != 0 && tail[0].rfind("https://", 0) != 0) {
                 std::fprintf(stderr, "url must start with http:// or https://\n");
@@ -683,8 +683,8 @@ int cli(Io io, const maya::unlocked& cap, const std::vector<std::string>& argv) 
                         detail.c_str(), path.string().c_str());
             std::printf("restart agentty to connect (tools appear as "
                         "mcp__%s__<tool>)\n", spec.name.c_str());
-            // A url server spawns no local command, so it's never trust-gated;
-            // only stdio project servers need approval.
+            // url服务器产物没有本地命令,所以它从不信任-gated;
+            // 只有stdio项目服务器需要批准.
             if (project && spec.url.empty())
                 std::printf("note: project servers are untrusted until"
                             " approved â€” run\n      agentty plugin approve %s"

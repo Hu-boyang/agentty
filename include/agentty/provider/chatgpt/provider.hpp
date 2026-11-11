@@ -1,27 +1,27 @@
 #pragma once
 
-// ChatGPT-authenticated Codex provider — a native, in-process bridge to the
-// OpenAI Responses backend (the same endpoint that powers Codex in the desktop
-// app and chatgpt.com/codex). There is NO `codex` binary at runtime.
+// ChatGPT-authenticated Codex提供者——到OpenAI响应
+// 后端的本机in-process桥（与桌面应用程序中的Codex和chatgpt.com/codex相同的端点）。
+// 运行时 处有 NO `codex` 二进制程序。
 //
-// Design goals (parity with the Anthropic / OpenAI / Ollama transports):
+// 设计目标（与Anthropic/OpenAI/Ollama 传输层平价）：
 //
-//   • Reverse-engineered OAuth, works like Claude. Authentication is the
-//     ChatGPT Auth-Code + PKCE flow (`agentty login` → ChatGPT); tokens are
-//     stored encrypted and auto-refreshed in-process. No delegation to an
-//     external CLI, no ~/.codex secrets.
-//   • Direct Responses-API streaming. One turn maps to one SSE request against
-//     chatgpt.com/backend-api/codex/responses; tool calls, reasoning, and text
-//     are surfaced as first-class agentty stream events.
-//   • Cross-platform + native speed. Pure HTTPS transport, no subprocess on any
-//     platform.
+//   ·反向-engineered OAuth，与Claude类似。认证是
+//     ChatGPT认证-Code+PKCE流(`agentty login`→ChatGPT)；
+//     令牌加密存储，auto-refreshed 存储在 -process 中。
+//     没有委派给外部 CLI，没有 ~/.codex 秘密。
+//   ·直接响应-API 流式传输。一回合对应一个 SSE 请求
+//     chatgpt.com/backend-api/codex/responses;工具调用、
+//     推理和文本显示为first-class agentty 数据流 事件。
+//   ·Cross-platform+本机速度。纯 HTTPS 传输层，任何上都没有子进程
+//     平台。
 
 #include <memory>
 #include <string>
 #include <vector>
 
 #include "agentty/provider/provider.hpp"
-#include "agentty/provider/stream_epilogue.hpp"  // StreamResult (complete type for the concept check)
+#include "agentty/provider/stream_epilogue.hpp"  // StreamResult（概念检查的完整类型）
 #include "agentty/util/io.hpp"
 
 namespace agentty::provider::chatgpt {
@@ -40,21 +40,21 @@ private:
     std::unique_ptr<Impl> impl_;
 };
 
-// The Codex model line-up exposed when signed in with ChatGPT OAuth. Fetched
-// live from the account's `/models` catalog (mirrors codex-rs); cached for the
-// process. Falls back to a small bundled list when offline / not signed in.
+// 使用 ChatGPT OAuth 登录时暴露的 Codex 模型
+// 线-up。从账户的`/models` 目录（镜像代码x-rs）实时获取；
+// 为进程缓存。离线/未登录时，会退回到一个小的捆绑列表。
 [[nodiscard]] std::vector<ModelInfo> list_models(Io, const maya::unlocked& cap);
 
-// Snapshot of the already-fetched catalog — NEVER touches the network.
-// Empty until the first live list_models() succeeds. This is what UI-thread
-// call sites (provider switch, recall validation) must use: list_models()
-// blocks on a catalog HTTP round-trip when the cache is cold, which froze
-// the reducer for the full timeout when switching to ChatGPT offline.
+// 已经-fetched 目录 — NEVER的快照触及网络。
+// 为空，直到第一个活动list_models()成功。这是 UI-thread
+// 调用 站点（提供商切换、召回验证）必须使用的：当 缓存 冷时，
+// list_models() 在 目录 HTTP round-trip 上阻塞，
+// 当切换到 ChatGPT 离线时，这会将 状态更新函数 冻结为完整的 超时。
 [[nodiscard]] std::vector<ModelInfo> list_models_cached();
 
-// The account's default model slug (first catalog entry). Callers that need a
-// concrete model id — e.g. provider-switch defaulting — should use this instead
-// of hardcoding a slug the account may not offer.
+// 帐户的默认模型段（第一个目录条目）。需要具体型号 ID 的调用者
+// - e.g。 provider-switch 默认 - 应该使用它
+// 而不是硬编码帐户可能不提供的 slug。
 [[nodiscard]] std::string default_model(Io, const maya::unlocked& cap);
 
 static_assert(provider::Provider<ChatGptProvider>);

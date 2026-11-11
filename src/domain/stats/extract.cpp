@@ -1,22 +1,22 @@
-// extract.cpp — Facts → Metrics. One function per section, nothing else.
+// extract.cpp—事实→指标。每个部分一个功能，没有别的。
 //
-// Every function here is a projection: it reads counters and writes rows.
-// No counting happens in this file (that is fold.cpp) and no formatting
-// (that is unit.hpp) — which is what lets a new statistic be a fold line
-// plus a row here, with the view untouched.
+// 这里的每个函数都是投影：它读取计数器并写入行。
+// 在该文件中没有发生计数（即fold.cpp)并且没有格式化
+// （即unit.hpp)——这使得新的统计数据成为归并行
+// 加上此处的一行，并且视图保持不变。
 
 #include "agentty/domain/stats/tabs.hpp"
 
 namespace agentty::stats {
 namespace {
 
-// Hue slots. An int on Metric::Part rather than a maya::Color, because
-// domain/ does not depend on the renderer — the panel maps these onto the
-// theme. Named so a reader of an extractor can see what the band means.
+// 色调槽。 Metric::Part 上的 int 而不是
+// maya::Color，因为 domain/ 不依赖于 渲染器 —
+// 面板将它们映射到主题上。如此命名，以便提取器的读者可以了解该带的含义。
 enum Hue { kNeutral = 0, kGood = 1, kWarn = 2, kBad = 3, kAccent = 4,
-           // The catch-all slice of a categorical chart. Its own slot
-           // because "other" is the ABSENCE of a category — it must not
-           // draw in a colour that makes it look like one more of them.
+           // 分类图表的catch-all切片。它自己的插槽，
+           // 因为 "other" 是某个类别的 ABSENCE
+           // - 它不得使用使其看起来像其中一个的颜色绘制。
            kOther = -1 };
 
 void ranked_rows(const Tally& t, std::vector<Metric>& out, Unit u = Unit::Count) {
@@ -36,16 +36,16 @@ void kv(std::vector<Metric>& out, std::string label, Unit u, double v,
                          .of = 0, .detail = std::move(detail)});
 }
 
-// ── Session ─────────────────────────────────────────────────────────────
+// ── 会话 ─────────────────────────────────────────────────────────────
 
 void session_hero(const Facts& f, std::vector<Metric>& out) {
     const auto turns = f.session.assistant_turns;
-    // The hero is a SENTENCE, not a row: figure first, then the clause
-    // that says what it means. "5 turns" alone makes the reader look for
-    // the verdict; "— no errors" is the verdict.
-    // The caption is its own LINE now, not a clause trailing the figure,
-    // so it starts with a word rather than an em dash — a line that opens
-    // with punctuation reads as a fragment that lost its first half.
+    // 英雄是SENTENCE，不是一行：先是数字，然后是说明其
+    // 含义的子句。 "5 turns"本身就让读者寻找判决；
+    // "— no errors" 是判决。
+    // 标题现在是它自己的LINE，而不是数字后面的子句，
+    // 因此它以单词而不是长破折号开头——以标点符号
+    // 开头的行读起来就像丢失了前半部分的片段。
     std::string caption;
     if (f.session.errors)
         caption = std::to_string(f.session.errors)
@@ -74,18 +74,18 @@ void session_counts(const Facts& f, std::vector<Metric>& out) {
            static_cast<double>(f.session.compact_summaries));
 }
 
-// Where the provider-facing time went: waiting for the first byte,
-// generating, and tools executing. A session's total time is the least
-// actionable number on the panel — "1m05s" tells you nothing you can
-// fix. The SPLIT does: the three phases have three different causes and
-// three different remedies.
+// 提供者-facing时间去了哪里：等待第一个字节、
+// 生成和工具执行。会话的总时间是面板上最不可行的数字
+// - "1m05s" 没有告诉您任何可以修复的内容。
+// SPLIT 确实如此：三个阶段具有三种不同的原因和三
+// 种不同的补救措施。
 //
-// Measured as CONSECUTIVE machine time, not wall-clock: each turn
-// contributes ttft + generation, each settled tool contributes its own
-// execution window. Concurrent tools' windows overlap, so the three
-// slices can sum to MORE than the session's wall-clock — that is a
-// statement about where machine effort went, and the caption says so
-// rather than implying a wall-clock bill.
+// 测量为CONSECUTIVE机器时间，而不是wall
+// -clock：每一轮贡献ttft+生成，每个固定工具贡献
+// 其自己的执行窗口。并发工具的窗口重叠，因此三个切片的
+// 总和可以是 MORE，而不是会话的 wall-clock
+// ——这是关于机器工作去向的声明，标题是这么说的，
+// 而不是暗示 wall-clock 账单。
 void session_where_time_went(const Facts& f, std::vector<Metric>& out) {
     const double ttft  = static_cast<double>(f.stream.ttft.sum());
     const double gen   = static_cast<double>(f.stream.stream_ms.sum());
@@ -97,7 +97,7 @@ void session_where_time_went(const Facts& f, std::vector<Metric>& out) {
     m.unit   = Unit::Millis;
     m.value  = all;
     m.detail = format(Unit::Millis, all);
-    // Same for the time ring: shares as percentages, durations below.
+    // 时间环相同：份额为百分比，持续时间如下。
     auto share = [&](double v) { return format(Unit::Ratio, v / all); };
     m.parts = {
         {"wait "  + share(ttft),  ttft,  kWarn},
@@ -109,20 +109,20 @@ void session_where_time_went(const Facts& f, std::vector<Metric>& out) {
 
 void session_time(const Facts& f, std::vector<Metric>& out) {
     if (!f.session.measured_turns) return;
-    // The absolute durations the ring above shows as shares. Kept as a
-    // separate section so the ring stays readable: a legend carrying both
-    // "48%" and "59s" is a legend nobody finishes reading.
+    // 上面的环显示为份额的绝对持续时间。作为一个单独的部分保留，
+    // 以便戒指保持可读性：同时带有 "48%" 和
+    // "59s" 的图例是没有人读完的图例。
     if (f.stream.ttft.sum())
         kv(out, "Waiting",    Unit::Millis, static_cast<double>(f.stream.ttft.sum()));
     if (f.stream.stream_ms.sum())
         kv(out, "Generating", Unit::Millis, static_cast<double>(f.stream.stream_ms.sum()));
     if (f.tools.latency.sum())
         kv(out, "Tools",      Unit::Millis, static_cast<double>(f.tools.latency.sum()));
-    // Per turn: the streaming phases (ttft + generation, the same terms
-    // wall_ms already sums) plus the tool time that turn round-tripped
-    // through. Concurrent windows overlap, so this is machine time and can
-    // exceed wall-clock on a parallel-heavy turn — a bigger number here is
-    // a busier session, not a lie about how long the user waited.
+    // 每转：流式传输阶段(ttft+生成，
+    // 相同的术语wall_ms已经求和)加上转过-tripped的工具时间。
+    // 并发窗口重叠，因此这是机器时间，并且可以在并行
+    // -heavy轮上超过wall-clock——这里更大的数字
+    // 是更繁忙的会话，而不是关于用户等待多长时间的谎言。
     kv(out, "Average turn",     Unit::Millis,
        (static_cast<double>(f.session.wall_ms)
           + static_cast<double>(f.tools.latency.sum()))
@@ -133,27 +133,27 @@ void session_time(const Facts& f, std::vector<Metric>& out) {
            "older turns predate telemetry");
 }
 
-// ── Models ──────────────────────────────────────────────────────────────
+// ── 模型 ──────────────────────────────────────────────────────────────
 
 void models_by_model(const Facts& f, std::vector<Metric>& out) {
     ranked_rows(f.models.by_model, out);
 }
 void models_by_provider(const Facts& f, std::vector<Metric>& out) {
-    // Only worth a section when more than one provider actually served —
-    // otherwise it restates the section above with fewer rows.
+    // 只有当多个提供者实际提供服务时才值得一个部分
+    // ——否则它会用更少的行重述上面的部分。
     if (f.models.by_provider_hint.size() < 2) return;
     ranked_rows(f.models.by_provider_hint, out);
 }
 
-// ── Smart Mode ──────────────────────────────────────────────────────────
+// ── 智能模式 ──────────────────────────────────────────────────────────
 
 void smart_hero(const Facts& f, std::vector<Metric>& out) {
     const double share = f.smart.routed
         ? static_cast<double>(f.smart.delegated) / static_cast<double>(f.smart.routed)
         : 0.0;
-    // The denominator is part of the sentence. "62%" of WHAT is the first
-    // question a share invites, and a hero that does not answer it sends
-    // the reader to the table below to reconstruct it.
+    // 分母是句子的一部分。 内容 的 "62%"
+    // 是分享邀请的第一个问题，没有回答的英雄
+    // 会将读者带到下表来重建它。
     out.push_back(Metric{
         .label = format(Unit::Ratio, share),
         .unit  = Unit::Ratio,
@@ -174,7 +174,7 @@ void smart_by_model(const Facts& f, std::vector<Metric>& out) {
     ranked_rows(f.smart.by_model, out);
 }
 
-// ── Tokens ──────────────────────────────────────────────────────────────
+// ── 脚本 ──────────────────────────────────────────────────────────────
 
 void tokens_totals(const Facts& f, std::vector<Metric>& out) {
     const double total = static_cast<double>(f.tokens.input + f.tokens.output);
@@ -188,11 +188,11 @@ void tokens_totals(const Facts& f, std::vector<Metric>& out) {
                                       / static_cast<double>(f.tokens.output)
                                   : 0.0));
     kv(out, "Total", Unit::Tokens, total);
-    // Per-turn figures live in the SAME section as the totals: they share
-    // the unit, so they share the bar's scale, and seeing "largest turn"
-    // against "total" is the comparison that says whether one turn
-    // dominated the thread. Split across two sections each got its own
-    // scale and the relationship vanished.
+    // Per-turn数字作为总计存在于SAME部分中：
+    // 它们共享单位，因此它们共享条的比例，
+    // 并且查看"largest turn"与"total"
+    // 是表明一回合是否主导线程的比较。分成两个部分，
+    // 每个部分都有自己的规模，这种关系消失了。
     const auto& h = f.tokens.per_turn_output;
     if (h.count()) {
         kv(out, "Average turn", Unit::Tokens, h.mean());
@@ -217,14 +217,14 @@ void cache_band(const Facts& f, std::vector<Metric>& out) {
     m.label = "input tokens by origin";
     m.unit  = Unit::Tokens;
     m.value = total;
-    // The hit rate goes in the ring's centre: it is the tab's answer, and
-    // a reader looking at a ring is already looking at the hole.
+    // 命中率位于环的中心：它是标签的答案，
+    // 并且看环的读者已经在看孔。
     m.detail = format(Unit::Ratio,
                       static_cast<double>(f.cache.hits) / total) + " hit";
-    // Percentages, not raw counts, in the legend. A ring already shows the
-    // proportions as ANGLES — restating them as token counts makes the
-    // reader do the division the chart just did for them. The absolute
-    // numbers live one section down, where they can be compared exactly.
+    // 图例中的百分比，而不是原始计数。一个环已经将比例
+    // 显示为 ANGLES——将它们重新表述为令牌计数，
+    // 使读者可以进行图表刚刚为他们所做的除法。
+    // 绝对数字位于下一节，可以在其中进行精确比较。
     auto pct = [&](std::uint64_t n) {
         return format(Unit::Ratio, static_cast<double>(n) / total);
     };
@@ -240,10 +240,10 @@ void cache_rates(const Facts& f, std::vector<Metric>& out) {
     const double prefix = static_cast<double>(f.cache.hits + f.cache.writes
                                             + f.cache.misses);
     if (prefix <= 0) return;
-    // The hit rate carries its own per-turn trend. A session average hides
-    // the shape that decides what to do about it: a cache that WARMED (low
-    // then high, the healthy case) and one that keeps missing on every
-    // turn can report the same number.
+    // 命中率具有其自身的per-turn趋势。
+    // 会话平均值隐藏了决定如何处理它的形状：缓存 和
+    // WARMED（先低后高，健康情况）和每回合都丢失的
+    // 一个可以报告相同的数字。
     out.push_back(Metric{
         .label  = "Hit rate",
         .unit   = Unit::Ratio,
@@ -254,32 +254,32 @@ void cache_rates(const Facts& f, std::vector<Metric>& out) {
        static_cast<double>(f.cache.turns_with_cache));
 }
 
-// The absolute counts the ring shows as angles. Its own section because
-// the ring's legend carries percentages — a key holding both "80%" and
-// "93k" is one nobody finishes reading — and because these three share a
-// unit, so they get a common bar scale here and can be compared exactly.
+// 环的绝对计数显示为角度。它有自己的部分，因为戒指的图
+// 例带有百分比——一把同时持有 "80%" 和 "93k"
+// 的钥匙是没有人读完的——而且因为这三个共享一个单位，
+// 所以它们在这里有一个共同的条形刻度，可以精确比较。
 void cache_tokens(const Facts& f, std::vector<Metric>& out) {
     if (f.cache.hits + f.cache.writes + f.cache.misses == 0) return;
-    // Cache reads are ~10% the price of fresh input on every provider that
-    // offers them, so this first row is the single biggest lever on a long
-    // thread's cost.
+    // 缓存读取大约是每个提供它们的提供商的新
+    // 输入价格的10%，因此第一行是长线程成本的
+    // 最大杠杆。
     kv(out, "Served from cache", Unit::Tokens, static_cast<double>(f.cache.hits));
     kv(out, "Written to cache",  Unit::Tokens, static_cast<double>(f.cache.writes));
     kv(out, "Sent uncached",     Unit::Tokens, static_cast<double>(f.cache.misses));
 }
 
-// ── Tools ───────────────────────────────────────────────────────────────
+// ── 工具 ───────────────────────────────────────────────────────────────
 
-// The same tally as a RING. A ring answers "what is this session MADE
-// of", which on a real thread is the reading that matters — 458 shell
-// calls against 40 reads is a working style, and it is legible as two
-// wedges where a column of numbers has to be computed.
+// 与 RING 相同。一个环回答 "what is this session MADE of"，
+// 这在真正的 线程 上是重要的读数 - 458 shell
+// 调用 对 40 个读数是一种工作方式，
+// 并且它像两个楔子一样清晰，其中必须计算一列数字。
 //
-// The ranked bars that used to sit beneath this said the same thing
-// twice: same tally, same percentages, three times the height. The ring
-// carries the top slices with their shares in the legend, and the tail
-// collapses — a wedge under a percent is not distinguishable from its
-// neighbour anyway, so listing it individually buys nothing.
+// 曾经位于其下方的排名条说了两次相同的事情：相同的计数、
+// 相同的百分比、三倍的高度。该环带有顶部切片
+// 及其在图例中的份额，而 末尾 则崩溃了——无论如何，
+// 低于百分之一的楔形与其相邻的楔形都无法区分，
+// 因此单独列出它并没有什么意义。
 void tools_mix(const Facts& f, std::vector<Metric>& out) {
     const double total = static_cast<double>(f.tools.by_name.total());
     if (total <= 0) return;
@@ -291,8 +291,8 @@ void tools_mix(const Facts& f, std::vector<Metric>& out) {
     m.unit   = Unit::Count;
     m.value  = total;
     m.detail = format(Unit::Count, total);
-    // Tool names, not states: the slices need distinguishable colours,
-    // not a good/bad reading.
+    // Tool名称，而不是说明：切片需要可区分的颜色，
+    // 而不是good/bad读数。
     m.categorical = true;
 
     double shown = 0;
@@ -303,10 +303,10 @@ void tools_mix(const Facts& f, std::vector<Metric>& out) {
                            v, static_cast<int>(i)});
     }
     if (const double rest = total - shown; rest > 0)
-        // kOther, not the next ramp slot. "other" is the ABSENCE of a
-        // category, and giving it a category's colour makes it look like
-        // one more tool — which it demonstrably did: it drew in the same
-        // magenta as the largest slice.
+        // k其他，不是下一个斜坡槽。 "other" 是
+        // 一个类别的 ABSENCE，给它一个类别的颜色使
+        // 它看起来像又一个工具 - 它明显做到了：它绘制了与
+        // 最大切片相同的洋红色。
         m.parts.push_back({"other " + format(Unit::Ratio, rest / total),
                            rest, kOther});
     out.push_back(std::move(m));
@@ -341,30 +341,30 @@ void tools_latency(const Facts& f, std::vector<Metric>& out) {
     kv(out, "Total",   Unit::Millis, static_cast<double>(h.sum()));
 }
 
-// One row per occupied bucket of a histogram. The bucket's RANGE is the
-// label, its count the value — so the reader sees where the samples
-// actually landed instead of two quantiles standing in for a shape.
+// 直方图的每个占用桶一行。桶的 RANGE 是标签，
+// 它的计数是值 - 因此读者看到的是样本
+// 实际落在的位置，而不是代表形状的两个分位数。
 //
-// Takes the unit because a histogram is unit-agnostic: the same log2
-// buckets hold milliseconds, bytes or tokens, and only the caller knows
-// which. Hard-coding Millis here is how a byte spread ends up labelled
+// 取单位是因为直方图是单位-agnostic:相同的log2桶
+// 保存毫秒、字节或令牌，并且只有调用者知道是哪一个。
+// Hard-coding Millis 以下是 字节 价差最终被标记的方式
 // "16ms–32ms".
 //
-// `stride` merges adjacent sub-buckets. Hist stores QUARTER-octaves so
-// that a p50 and a p95 in the same octave report different numbers — but
-// a chart wants coarser bins than a quantile does: thirty of them across
-// a pane leaves each bar two cells wide, which is a texture rather than
-// a distribution. Merging back to whole octaves for display keeps the
-// quantiles precise and the picture legible, which is the whole reason
-// the two are computed separately.
+// `stride`合并相邻的子-buckets。
+// Hist 存储 QUARTER-octaves，
+// 以便同一八度音阶中的 p50 和 p95 报告不同的数字 -
+// 但图表需要比分位数更粗糙的分箱：面板 中的 30 个分箱使
+// 每个条形有 2 个 存储单元 宽，这是纹理而不是分布。
+// 合并回整个八度音阶进行显示可以保持分位数精确且图片清晰，
+// 这就是两者单独计算的全部原因。
 void dist_rows(const Hist& h, std::vector<Metric>& out,
                Unit u = Unit::Millis, int stride = Hist::kSub) {
     if (!h.count()) return;
     const auto [lo, hi] = h.occupied();
     if (hi < lo) return;
     if (stride < 1) stride = 1;
-    // Align the first bin to an octave boundary so a bar's range is a
-    // round number — "64ms–128ms", not "80ms–160ms".
+    // 将第一仓与八度音阶边界对齐，使得小节的范围是整数——"64ms–128ms"，
+    // 而不是"80ms–160ms"。
     const int first = (lo / stride) * stride;
     const double total = static_cast<double>(h.count());
 
@@ -380,9 +380,9 @@ void dist_rows(const Hist& h, std::vector<Metric>& out,
     for (const auto& bn : bins) peak = std::max(peak, bn.n);
 
     for (const auto& bn : bins) {
-        // Empty bins INSIDE the occupied range are kept: a gap is a real
-        // feature of a bimodal distribution (fast local calls, slow
-        // network ones) and closing it up hides exactly that.
+        // 保留占据范围的空箱INSIDE：间隙是
+        // 双峰分布的真实特征（快速本地调用，
+        // 慢速网络）并且将其关闭正好隐藏了这一点。
         const auto floor_v = Hist::bucket_floor(bn.lo_b);
         const auto ceil_v  = Hist::bucket_floor(bn.lo_b + stride);
         out.push_back(Metric{
@@ -402,21 +402,21 @@ void stream_ttft_dist(const Facts& f, std::vector<Metric>& out) {
     dist_rows(f.stream.ttft, out);
 }
 
-// How big each turn's frame payload was. Bytes and TOKENS answer
-// different questions and only one of them is billed — a spread that is
-// tight says the provider frames consistently, a bimodal one says short
-// acknowledgements and long generations are arriving through the same
-// path, which is what a stalled-looking stream usually turns out to be.
+// 每转的帧 载荷有多大。 字节 和 TOKENS
+// 回答不同的问题，并且只对其中一个进行计费 -
+// 供应商 帧 一致表示价差很小，双峰则表示简短
+// 的确认和长世代通过相同的路径到达，
+// 这就是停滞的 -looking 数据流 通常的情况。
 void stream_bytes_dist(const Facts& f, std::vector<Metric>& out) {
     dist_rows(f.stream.bytes, out, Unit::Bytes);
 }
 
-// ── Reasoning ────────────────────────────────────────────────────────────
+// ── 理由说明 ────────────────────────────────────────────────────────────
 
-// The verdict. "Is extended thinking earning its keep" is a question
-// about SHARE: what fraction of the output went to reasoning tokens the
-// user never reads. Under ~10% effort is barely engaging; over ~50% the
-// model is spending most of its budget deliberating.
+// 一审判决。 "Is extended thinking earning its keep"
+// 是关于 SHARE 的问题：输出的哪一部分用于用户从未
+// 读取的推理标记。低于 10% 的努力几乎没有吸引力；
+// 超过 50% 的模型将大部分预算用于审议。
 void reasoning_hero(const Facts& f, std::vector<Metric>& out) {
     if (!f.reasoning.turns) return;
     const double share = f.tokens.output
@@ -438,11 +438,11 @@ void reasoning_rows(const Facts& f, std::vector<Metric>& out) {
                 ? static_cast<double>(f.reasoning.turns)
                     / static_cast<double>(f.session.assistant_turns)
                 : 0.0));
-    // The split that says what the thinking was FOR. Deliberating and
-    // then calling a tool is reasoning about what to do; deliberating and
-    // only answering is reasoning instead of doing. Neither is wrong, but
-    // the ratio is the difference between effort buying decisions and
-    // effort buying prose.
+    // 分裂说明了FOR的想法。深思熟虑然后
+    // 调用工具就是推理要做什么；深思熟虑而唯一
+    // 的回答是推理而不是行动。两者都没有错，
+    // 但这个比率是努力购买决策和努力购买散文
+    // 之间的差异。
     if (f.reasoning.turns) {
         kv(out, "…then acted", Unit::Count,
            static_cast<double>(f.reasoning.thought_then_acted),
@@ -456,13 +456,13 @@ void reasoning_rows(const Facts& f, std::vector<Metric>& out) {
     if (f.reasoning.blocks) {
         kv(out, "Thinking blocks", Unit::Count,
            static_cast<double>(f.reasoning.blocks));
-        // Its own ROW, not a note on the one above.
+        // 它自己的ROW，上面没有注释。
         //
-        // The note cell takes whatever is left past the value, which on a
-        // split column is a few cells — "1 per turn" truncated to "1 per…"
-        // and even "1/turn" to "1/tu…". A rate that cannot say its own
-        // unit is not worth the cell; as a row it gets a label, a bar and
-        // the full value column like everything else.
+        // 注释存储单元采用该值之后剩下的任何内容，在分割列上是一些
+        // 存储单元-"1 per turn"被截断为"1 per…"，
+        // 甚至"1/turn"被截断为"1/tu…"。
+        // 不能说自己单位的费率不值存储单元；作为一行，它像其他所有内容
+        // 一样有一个标签、一个条形图和完整的值列。
         if (f.reasoning.turns)
             kv(out, "Blocks per turn", Unit::Count,
                static_cast<double>(f.reasoning.blocks)
@@ -491,9 +491,9 @@ void reasoning_tokens(const Facts& f, std::vector<Metric>& out) {
     }
 }
 
-// Effort is supposed to ADAPT: hard turns think longer, easy ones barely
-// at all. A flat line here means it is not adapting, which is the one
-// finding that would send a user to the Smart Mode settings.
+// 努力应该是ADAPT：困难的转弯需要更长的时间，
+// 简单的转弯几乎没有。这里的平线意味着它没有适应，
+// 这是将用户发送到智能模式设置的一个发现。
 void reasoning_trend(const Facts& f, std::vector<Metric>& out) {
     if (f.reasoning.ms_series.size() < 2) return;
     out.push_back(Metric{.label  = "thinking time per turn",
@@ -501,9 +501,9 @@ void reasoning_trend(const Facts& f, std::vector<Metric>& out) {
                          .series = f.reasoning.ms_series});
 }
 
-// Where the thinking time actually landed. An average of 2.4s could be
-// two turns at 2.4s or one at 200ms and one at 4.6s, and only the second
-// shape says the effort setting is doing anything.
+// 思考时间实际落地的地方。平均 2.4 秒可能是 2.4
+// 秒的两圈，或者 200 毫秒的一圈和 4.6 秒的一圈，
+// 只有第二个形状表示努力设置正在做任何事情。
 void reasoning_dist(const Facts& f, std::vector<Metric>& out) {
     dist_rows(f.reasoning.per_turn_ms, out);
 }
@@ -511,13 +511,13 @@ void reasoning_dist(const Facts& f, std::vector<Metric>& out) {
 // ── Stream ──────────────────────────────────────────────────────────────
 
 void stream_health(const Facts& f, std::vector<Metric>& out) {
-    // Lead with the verdict. A list of zeroes is the answer "everything is
-    // fine" spelled in a way that makes the reader work it out.
+    // 主导判决。零列表就是答案 "everything is fine"，
+    // 其拼写方式可以让读者找到答案。
     //
-    // "Troubled turns" rather than "Turns that hit trouble": a label has a
-    // column's worth of room beside its meter, and a sentence-length one
-    // spends it all then truncates. The noun phrase says the same thing
-    // and leaves the picture its width.
+    // "Troubled turns" 而不是
+    // "Turns that hit trouble"：标签在其仪表旁边有一
+    // 列的空间，而句子 -length 则将其全部用完然后截断。
+    // 名词短语表达了同样的意思，并留下了图片的宽度。
     const bool clean = f.stream.degraded_turns == 0;
     kv(out, "Troubled turns", Unit::Count,
        static_cast<double>(f.stream.degraded_turns),
@@ -530,10 +530,10 @@ void stream_health(const Facts& f, std::vector<Metric>& out) {
         kv(out, "Stalls",         Unit::Count, static_cast<double>(f.stream.stalls));
 }
 
-// The RATES, each with its own per-turn trend. A rate is the one kind of
-// number where the average is actively misleading: "1.0k/s" over a
-// session that started fast and degraded is a figure that never happened,
-// and the sparkline is what shows it.
+// RATES，各有其各自的per-turn趋势。
+// 速率是平均值具有误导性的一种数字：快速启动且性能
+// 下降的会话中的 "1.0k/s" 是一个从未发生过的数字，
+// 迷你图显示了这一点。
 void stream_rates(const Facts& f, std::vector<Metric>& out) {
     if (!f.stream.ttft_series.empty()) {
         out.push_back(Metric{
@@ -556,11 +556,11 @@ void stream_rates(const Facts& f, std::vector<Metric>& out) {
 }
 
 void stream_timing(const Facts& f, std::vector<Metric>& out) {
-    // TTFT and generation time answer different questions — one is "did the
-    // provider make me wait", the other "was generation slow" — and they
-    // have different fixes, so they are never summed. They share a UNIT
-    // though, which is what lets the panel scale them on one bar and make
-    // the split visible at a glance.
+    // TTFT和生成时间回答不同的问题——一个是
+    // 提供方是否让用户等待？
+    // 另一个是"was generation slow"——并且它们有不同的修复，
+    // 因此它们永远不会被求和。不过，它们共享一个 UNIT，这使得面板可以在一个
+    // 条上缩放它们，并使分割一目了然。
     if (f.stream.ttft.count()) {
         kv(out, "First byte",     Unit::Millis, f.stream.ttft.mean());
         kv(out, "First byte p95", Unit::Millis, f.stream.ttft.quantile(0.95));
@@ -572,9 +572,9 @@ void stream_timing(const Facts& f, std::vector<Metric>& out) {
 }
 
 void stream_throughput(const Facts& f, std::vector<Metric>& out) {
-    // Its own section because it is a RATE: on the timing bar above it
-    // would be a bytes-per-second figure scaled against milliseconds,
-    // which is a comparison that means nothing.
+    // 它自己的部分，因为它是RATE：在上面的计时条上，
+    // 它将是相对于毫秒缩放的字节-per-second数字，
+    // 这是没有任何意义的比较。
     const double secs = static_cast<double>(f.stream.stream_ms.sum()) / 1000.0;
     if (secs <= 0 || !f.stream.wire_bytes) return;
     kv(out, "Bytes delivered", Unit::Bytes,
@@ -583,14 +583,14 @@ void stream_throughput(const Facts& f, std::vector<Metric>& out) {
        static_cast<double>(f.stream.wire_bytes) / secs);
 }
 
-// ── Context ─────────────────────────────────────────────────────────────
+// ── 内容 ─────────────────────────────────────────────────────────────
 
 void context_rows(const Facts& f, std::vector<Metric>& out) {
-    // NOT "Largest prefix". It is the PEAK of the very series the Trend
-    // plots, and the plot's caption states it ("prefix tokens per turn
-    // peak 17k") — so as a row it was the same number twice, and it cost
-    // the tab a whole column to hold one figure beside a chart that had
-    // already said it.
+    // 不 "Largest prefix"。它是趋势图绘制的系列中的
+    // PEAK，并且该图的标题说明了它 (
+    // "prefix tokens per turn peak 17k") - 因此，
+    // 作为一行，它是相同的数字两次，并且选项卡花费了一整列来在已经说明的图表
+    // 旁边保留一个数字。
     if (f.context.compactions)
         kv(out, "Compactions", Unit::Count,
            static_cast<double>(f.context.compactions),
@@ -604,7 +604,7 @@ void context_plot(const Facts& f, std::vector<Metric>& out) {
                          .series = f.context.prefix_series});
 }
 
-// ── Retrieval ───────────────────────────────────────────────────────────
+// ── 检索 ───────────────────────────────────────────────────────────
 
 void retrieval_rows(const Facts& f, std::vector<Metric>& out) {
     kv(out, "Context injections", Unit::Count,
@@ -612,11 +612,11 @@ void retrieval_rows(const Facts& f, std::vector<Metric>& out) {
     if (f.retrieval.with_confidence) {
         const double avg = f.retrieval.confidence_sum
                          / static_cast<double>(f.retrieval.with_confidence);
-        // A confidence is a share of a KNOWN whole (1.0), so unlike the
-        // section-scaled bars this one is measured against the real
-        // ceiling — "82% confident" against a full meter says whether the
-        // funnel was sure, where 82% of the section's largest ratio would
-        // always read as full.
+        // 置信度是 KNOWN 整体 (1.0) 的份额，
+        // 因此与部分 -scaled 条不同，该条是针对真实
+        // 上限进行测量的 — "82% confident" 相
+        // 对于完整仪表表示漏斗是否确定，其中该部分最大比率的 82
+        // % 始终会读为满。
         out.push_back(Metric{.label = "Average confidence",
                              .unit  = Unit::Ratio,
                              .value = avg,
@@ -624,25 +624,25 @@ void retrieval_rows(const Facts& f, std::vector<Metric>& out) {
     }
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 namespace sections {
 
-// The DONUT LEADS, everywhere it appears.
+// DONUT LEADS，它无处不在。
 //
-// A ring is the one figure on a tab that answers "what is this made of"
-// at a glance, and a reader who has to scroll past three tables to reach
-// it has already read the tables the hard way. It also has a fixed height
-// while the tables around it grow with the thread, so anywhere but the
-// top it moves down the page as the session runs.
+// 环是标签上一眼就回答"what is this made of"
+// 的一个图形，并且必须滚动经过三个表格才能到达它的读者已经
+// 以艰难的方式阅读了表格。它也有一个固定的高度，
+// 而它周围的表格随着 线程 的增长而增长，因此除了顶部之外的任何地方，
+// 它都会在会话运行时向下移动到页面上。
 //
-// Same rule on every tab that has one: Session, Cache, Tools.
-// The HERO leads. It is the tab's answer, and a reader who takes one
-// glance should take it from the top-left — the figure below is the
-// working, not the headline. It also has to come first structurally: the
-// panel holds the leading hero out of the column flow, and a hero that
-// is not first flows like any other cell and lands wherever balancing
-// puts it, which on this tab was the FOOT of the left column.
+// 每个具有以下选项卡的规则相同：会话、缓存、工具。
+// HERO领先。这是选项卡的答案，读者一眼就应该
+// 从顶部的-left 中看出——下图是工作内容，
+// 而不是标题。它在结构上也必须是第一位的：面板将
+// 领先的英雄排除在列流之外，而不是第一个英雄像
+// 任何其他 存储单元 一样流动，并落在平衡放置的
+// 任何地方，在此选项卡上是左列的 FOOT。
 const std::array<Section, 4> session{{
     {"",          Viz::Hero,  &session_hero},
     {"",          Viz::Donut, &session_where_time_went},
@@ -672,13 +672,13 @@ const std::array<Section, 3> cache{{
     {"Rates",  Viz::Spark, &cache_rates},
 }};
 
-// Both tool breakdowns are RINGS, and the mix leads.
+// 两种工具故障都是RINGS，并且混合领先。
 //
-// The ranked bars that used to sit here said the same thing as the mix
-// ring twice over: same tally, same percentages, three times the height.
-// And `calls by outcome` is a composition of two or three states, which
-// is what a ring shows best — a band spends the full width to draw a
-// 4% sliver that a wedge makes obvious.
+// 曾经坐在这里的排名酒吧说了两次与混合环相同的
+// 事情：相同的计数、相同的百分比、三倍的高度。
+// `calls by outcome`是两种或三种状态的组合，
+// 这是环最能体现的——带子花费整个宽度来绘制4%的条子，
+// 楔形物使该条子变得明显。
 const std::array<Section, 4> tools{{
     {"",             Viz::Donut, &tools_mix},
     {"",             Viz::Donut, &tools_status},

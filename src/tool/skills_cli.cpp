@@ -1,52 +1,52 @@
-// agentty::tools::skills — the `agentty skill` CLI and the approvals store.
+// agentty::tools::skills - 电话 `agentty skill` CLI 还有批准书店
 //
-// WHY THIS EXISTS, AND WHY IT ISN'T A SETUP SCREEN
+// 原因 此 EXISTS, 和 原因 IT ISN'T A SETUP SCREEN
 //
-// A skill is instructions, not sandboxed code. Most are prose ("house
-// style for docs") and cost nothing but catalog room. Some tell the agent
-// to run programs, reach the network, and write credentials into the
-// user's repo — and THAT is the same threat class as a project-local MCP
-// server, which agentty already solved: scope::Trust, approval pinned to
-// CONTENT, never to a name (the MCPoison lesson, CVE-2025-54136).
+// 技能是指示,而不是沙盒编码。大多数是传言( "house style for docs"
+// 并且除了钱之外,没有付出什么代价 目录。有人告诉代理运行程序, 访问网络,
+// 并写入 凭据 输入用户的 仓库 ——和 该 和项目一样的威胁等级
+// -local MCP 服务器, 哪个 agentty 已解决 :
+// scope::Trust , 核准额以 CONTENT 永远不要给
+// 名字(MCPoison的课, CVE-2025-54136).
 //
-// So a capability enters agentty exactly one way: the user names it.
+// 所以一个能力进入agentty 完全一种方式:用户命名它.
 //
 //     agentty skill add github.com/user/repo
 //
-// Same command for a vendor's skill, a local directory, and a company's
-// internal skill. No first-run screen, no menu entry, no bundled default
-// — because the moment one vendor gets placement there is no principled
-// answer for the next one, and the setup flow becomes a billboard one
-// good PR at a time.
+// 同样的指令是销售商的技能,本地目录和公司的内部技能。
+// -run 屏幕,没有菜单条目,没有捆绑的默认——因为
+// 一旦一个供应商得到安置,下一个供应商就没有原则性答案,
+// 设置流程就成了一个好的广告牌 PR 一次是,
+// 我和他在一起的时候
 //
-// THE LOAD-BEARING PART: agentty writes the disclosure, not the skill.
+// 该 LOAD-BEARING PART: agentty 写公开,而不是技能。
 //
-// The consent prompt is RENDERED from the skill's declared `effects:` and
-// `source:`. A skill author cannot write their own reassuring summary —
-// they can only declare capability, and agentty turns declarations into
-// plain sentences. A skill that under-declares gets a prompt that
-// under-sells it, but it also doesn't get to LIE in the prompt, which is
-// the failure mode worth designing against.
+// 同意书 提示词 谓 RENDERED 技术的申报 `effects:`
+// 财务报告和已审计财务报表 `source:` 技能作者不能写出
+// 他们自己的令人放心的总结——他们只能宣布能力,以及 agentty
+// 将声明变成简单的句子。 -declares 获得一个
+// 提示词 下边 -sells 但它也无法到达 LIE 输入 提示词 ,
+// 这是值得设计出来的失败模式。
 //
-// Credit: the frontmatter-declared-capability idea comes from PR #47
-// (Arag Agrawal, Cohesivity). That PR proposed a bundled effectful skill
-// with a first-run screen; the placement is what agentty declined, but it
-// was right that there was a real gap — there was no vocabulary for "this
-// skill will run programs and reach the network", and no install path
-// that treated every source the same.
+// 功劳:前题 -declared-capability 想法来自
+// PR 47号(阿拉格·阿格拉瓦尔,Cohessivity).
+// PR 提出捆绑有效技能,并附有第一个 -run 屏幕; 位置是什么
+// agentty 却没有词汇来形容
+// 此技能将执行程序并访问网络。
+// 没有安装路径来对待每个源。
 
 #include "agentty/tool/skills.hpp"
 
 #include "agentty/scope/scope.hpp"
-#include "agentty/config/inventory.hpp"   // kSkillsApprovals — the one name
+#include "agentty/config/inventory.hpp"   // kSkills 核准——一个名称
 #include "agentty/util/home_dir.hpp"
 #include "agentty/util/user_root.hpp"
 
 #include <nlohmann/json.hpp>
 
-// The inventory and the skills header must name the same store. Both exist
-// because skills.hpp is consumed by callers that must not pull the
-// inventory in; this keeps them from drifting.
+// 库存和技能 头文件 两者都存在,
+// 因为 skills.hpp 被不得将库存运入的
+// 呼叫者消耗;这使他们无法漂移。
 static_assert(agentty::tools::skills::kApprovalsLeaf
                   == agentty::config::kSkillsApprovals,
               "skills approvals leaf must match the inventory");
@@ -74,10 +74,10 @@ namespace fs = std::filesystem;
 namespace agentty::tools::skills {
 namespace {
 
-// ── Approvals store ────────────────────────────────────────────────────────
+// ── 核准储存 ────────────────────────────────────────────────────────
 
-// Is stdin a terminal? agentty ships on Windows too, so this can't just be
-// isatty() from <unistd.h>.
+// 有点不妥 终端? agentty 船舶 Windows 也这样,所以这不能只是 isatty()
+// 发件人 <unistd.h>.
 [[nodiscard]] bool stdin_is_tty() noexcept {
 #if defined(_WIN32)
     return ::_isatty(::_fileno(stdin)) != 0;
@@ -86,44 +86,44 @@ namespace {
 #endif
 }
 
-// One size limit, used by BOTH the pre-install check and the copy. Two
-// different limits is how add/list ended up disagreeing about whether a
-// skill existed.
+// 使用一个尺寸限制 两者 预选 -install 检查和复制 有
+// 两个不同的限制是 add/list 最后,对于是否存在技能,
+// 人们意见不一。
 constexpr std::uintmax_t kMaxSkillFile = 2u * 1024 * 1024;   // 2 MB
 constexpr std::uintmax_t kMaxSkillTotal = 8u * 1024 * 1024;  // 8 MB
 constexpr int            kMaxSkillFiles = 128;
 
-// A skill's `name:` is author-controlled, and `skill add` builds an
-// INSTALL PATH out of it. That combination is a filesystem-write
-// primitive unless the name is constrained, and it was: a skill declaring
+// 技术 `name:` 作者为作者 -controlled ,
+// 和 `skill add` 构建一个 INSTALL PATH 退出它。
+// 组合是一个文件系统 -write 原始的,除非名字被限制,它是一个技能宣告
 //
 //   name: ../../../../tmp/PWNED
 //
-// installed to ~/.agentty/skills/../../../../tmp/PWNED — outside the skills
-// root, from a prose skill that never even prompts. An absolute name
-// (`name: /etc/cron.d/x`) ignored the root entirely.
+// 安装到 ~/.agentty/skills/../../../../tmp/PWNED
+// ——在技能根之外,从一种从未有过的传言技能. 提示词。绝对名称( =
+// `name: /etc/cron.d/x` )完全忽略了根.
 //
-// So: one path component, no separators, no dots-only, conservative
-// charset. Anything else is refused BY NAME rather than sanitised into
-// something else — silently installing "foo" when the file said
-// "../../foo" would be its own surprise.
+// 所以: 一个路径组件, 没有分隔符, 没有点 -only
+// 保守的字符集,其他的都拒绝 BY NAME 而不是沉浸在别的
+// 东西中——默默地安装 "foo" 当文件说
+// "../../foo" 这将是它自己的惊喜。
 [[nodiscard]] bool safe_component_impl(std::string_view n) {
     if (n.empty() || n.size() > 64) return false;
     if (n == "." || n == "..") return false;
-    if (n.front() == '.' || n.front() == '-') return false;  // no dotfiles, no flag-lookalikes
+    if (n.front() == '.' || n.front() == '-') return false;  // 没有点文件,没有 标志-lookalikes
     for (const char c : n) {
         const auto u = static_cast<unsigned char>(c);
         const bool ok = (u >= 'a' && u <= 'z') || (u >= 'A' && u <= 'Z')
                      || (u >= '0' && u <= '9') || c == '-' || c == '_' || c == '.';
-        if (!ok) return false;   // rejects '/', '\\', NUL, spaces, UTF-8
+        if (!ok) return false;   // 拒绝 '/', '\\', NUL 空间, UTF-8
     }
     return true;
 }
 
-// Belt and braces: even with a safe component, verify the resolved
-// destination is genuinely inside the skills root before writing. Catches
-// anything the charset check misses (symlinked root, odd platform
-// semantics) — the same containment check the workspace boundary uses.
+// 带和带:即使有安全组件,在写前,
+// 也要在技能根内真实地验证已解决的目的地。
+// 捕捉字符集检查遗漏的任何东西(连结根,
+// 奇数平台语义) — 相同的封存检查工作区边界使用。
 [[nodiscard]] bool inside_impl(const fs::path& root, const fs::path& child) {
     std::error_code ec;
     const auto r = fs::weakly_canonical(root, ec);
@@ -138,18 +138,18 @@ constexpr int            kMaxSkillFiles = 128;
     return true;
 }
 
-// Describe a SKILL.md before installing it, using THE parser — not a
-// second one. This briefly had its own mini-parser and it diverged
-// immediately: block scalars (`description: |`) rendered as a bare "|" in
-// the consent prompt while loading fine afterwards, so the user approved
-// a description they never actually saw.
+// 说明a SKILL.md 在安装前, 使用 该 解析
+// 器 而不是第二次,这有它自己的迷你 -parser
+// 并立即分化: `description: |` 被当做
+// 赤裸裸的 "|" 同意时 提示词 之后装入精细,
+// 所以用户批准了他们从未实际看到过的描述.
 std::optional<Skill> peek_skill(const fs::path& md) {
-    // Size-check BEFORE reading. A 10 MB SKILL.md used to be parsed and
-    // screened (~2s of work the user waits on with no output) and then
-    // installed — while the LOADER silently drops oversized files, so
-    // `skill list` then said "no skills installed" and add/list
-    // contradicted each other. Refuse early, at the same limit the copy
-    // enforces, so there is one answer.
+    // Size-check BEFORE读. A 10 MB
+    // SKILL.md曾经被解析和筛选(~2s 用户等待的工作没有输出),
+    // 然后安装——而LOADER默默地放下了超大小的文件,
+    // 因此`skill list`于是说
+    // "no skills installed"和add/list相互矛盾. 拒绝早,
+    // 同样限制副本执行,所以有一个答案.
     std::error_code ec;
     const auto sz = fs::file_size(md, ec);
     if (!ec && sz > kMaxSkillFile) return std::nullopt;
@@ -165,10 +165,10 @@ std::optional<Skill> peek_skill(const fs::path& md) {
     return s;
 }
 
-// ── Effects → plain sentences ──────────────────────────────────────────────
-// One line per declared bit, in bit order so the prompt never reorders
-// between runs. The wording says what the AGENT will be told to do, not
-// what the skill "can" do — a skill can't do anything; it persuades.
+// ── 副作用 − 普通句子 ──────────────────────────────────────────────
+// 每个声明位点一行,按位顺序排列,这样 提示词 运行之间
+// 永远不要重排顺序。 AGENT 将受劝戒,而不教他如何做;
+// "can" 做——技能不能做任何事情;它说服人.
 struct EffectLine {
     std::string_view label;
     std::string_view gloss;
@@ -187,19 +187,19 @@ std::vector<EffectLine> effect_lines(EffectSet e) {
     return out;
 }
 
-// The consent screen. Everything here is derived: the skill contributes
-// its name, description, source and declared effects — never a sentence,
-// and its description is SANITISED before it is shown (91% of confirmed
-// malicious skills carry injection; a description that can open a new line
-// can impersonate agentty's own framing).
+// 同意屏幕。 这里所有的东西都是由它衍生出来的: 技能贡献
+// 它的名称、描述、来源和声明 副作用 - 从来没有一句话,
+// 它的描述是: SANITISED 在显示之前( 已确认的
+// 恶意技能的91% 携带注射; 能够打开新线的描述可以冒充)
+// agentty 自己的框架。
 //
-// The screen is deliberately NOT uniform. Anthropic measured 93% approval
-// on Claude Code permission prompts; a screen that looks the same every
-// time is one people learn to dismiss. So a clean prose skill gets a quiet
-// two-line note, a clean effectful skill gets the routine prompt, and a
-// skill with findings gets a visually different screen with the default
-// answer flipped. Differentiation is the only intervention the habituation
-// literature found durable.
+// 屏幕是故意的NOT统一. Anthropic在
+// Claude代码权限提示词上测得93%的认可率;
+// 每次有人学会解雇时屏幕看起来都是一样的。 因此,
+// 清真传教技能得到一个安静的2-line音符,
+// 干净的功效技能得到常规的提示词, 和发现的技能得到
+// 一个视觉不同的屏幕, 默认的答案被翻转。 区别是习惯文献
+// 唯一认为持久的干预。
 void print_consent(const Skill& s, const std::vector<Finding>& findings) {
     const bool critical = std::ranges::any_of(findings, [](const Finding& f) {
         return f.severity == Finding::Severity::Critical;
@@ -207,8 +207,8 @@ void print_consent(const Skill& s, const std::vector<Finding>& findings) {
 
     std::printf("\n");
     if (critical) {
-        // Different shape, different words, different default. A user who
-        // has approved twenty skills should FEEL that this one is not those.
+        // 不同的形状,不同的词,不同的默认。
+        // 一个已经批准20个技能的用户应该FEEL认为这个不是那些。
         std::printf("  ━━━ REVIEW THIS ONE ━━━\n\n");
     }
 
@@ -233,8 +233,8 @@ void print_consent(const Skill& s, const std::vector<Finding>& findings) {
     }
     std::printf("\n");
 
-    // Findings, if any. These are agentty's words about what it saw in the
-    // body — the skill gets no say in this section.
+    // 调查结果,如果有的话。 agentty 说到它所看到
+    // 的 正文 ——本节中技艺无发言权.
     if (!findings.empty()) {
         std::printf("  reading the file, agentty noticed:\n");
         for (const auto& f : findings) {
@@ -248,13 +248,13 @@ void print_consent(const Skill& s, const std::vector<Finding>& findings) {
         }
         std::printf("\n");
 
-        // The honest caveat. Snyk's own scanners miss things; saying
-        // "scanned, looks fine" would be the harmful sentence here.
+        // 诚实的警告 Snyk自己的扫描仪漏掉了东西 说
+        // "scanned, looks fine"是有害的句子
         std::printf("  this is pattern matching over text, not proof of intent —\n");
         std::printf("  and a skill with no findings has not been proven safe.\n\n");
     }
 
-    // The sentence people most need and least expect.
+    // 判决最需要,最不期望
     std::printf("  skills are instructions, not sandboxed code. agentty cannot\n");
     std::printf("  enforce what is written above — it is what the skill declared.\n");
     if (!s.origin.empty())
@@ -270,20 +270,20 @@ std::string read_file(const fs::path& p) {
     return ss.str();
 }
 
-// Where `skill add` installs to: the user root, so it is available in
-// every workspace and a cloned repo can't overwrite it.
+// `skill add`安装到的地方:用户根,
+// 所以每工作区中都可以使用,一个克隆的仓库不能覆盖它.
 fs::path install_dir_for(std::string_view name) {
     return util::user_root() / "skills" / std::string{name};
 }
 
-// A skill directory is data, not a tree to traverse. Copying it with
-// `recursive` followed symlinks: a `dir-escape -> /tmp` symlink made the
-// copy walk into /tmp, and a `leak.txt -> /etc/passwd` symlink would have
-// copied the target's CONTENT into the user's skills directory. Neither is
-// something a skill install should be able to do.
+// 技能目录是数据,不是 源码树 复制到 `recursive`
+// 后面的符号: a `dir-escape -> /tmp`
+// 共鸣让复制品走进/tmp,
+// 和 a `leak.txt -> /etc/passwd` 共鸣会复制目标
+// CONTENT 输入用户的技能目录。技能安装也不应该完成。
 //
-// Copy plain files only, one level of real subdirectory, skip symlinks
-// entirely, and cap the total — a skill is text plus a few resources.
+// 只复制纯文件,一个级的真子目录,完全跳过共鸣,
+// 并封顶总——一个技能是文本加上几个资源.
 struct CopyResult {
     bool ok = false;
     std::string error;
@@ -299,9 +299,9 @@ CopyResult copy_skill_tree(const fs::path& from, const fs::path& to) {
     std::uintmax_t total = 0;
     int files = 0;
 
-    // follow_directory_symlink is OFF, and every entry is re-checked with
-    // is_symlink() because the recursive iterator can still hand back link
-    // entries themselves.
+    // follow_directory_symlink 谓 OFF ,
+    // 每个条目都是 -checked 与 is_symlink ()因为递归延绳仍然可以
+    // 交回 链接 输入本身。
     fs::recursive_directory_iterator it(
         from, fs::directory_options::skip_permission_denied, ec);
     if (ec) { out.error = ec.message(); return out; }
@@ -316,7 +316,7 @@ CopyResult copy_skill_tree(const fs::path& from, const fs::path& to) {
             fs::create_directories(to / rel, ec);
             continue;
         }
-        if (!e.is_regular_file()) continue;     // fifo, socket, device: not data
+        if (!e.is_regular_file()) continue;     // fifo, 套接字, 设备: 不是数据
 
         const auto sz = e.file_size(ec);
         if (ec) continue;
@@ -344,7 +344,7 @@ CopyResult copy_skill_tree(const fs::path& from, const fs::path& to) {
     return out;
 }
 
-// ── add ────────────────────────────────────────────────────────────────────
+// ── 添加( E) ────────────────────────────────────────────────────────────────────
 
 int verb_add(Io io, const maya::unlocked& cap, const std::vector<std::string>& argv) {
     if (argv.empty()) {
@@ -355,11 +355,11 @@ int verb_add(Io io, const maya::unlocked& cap, const std::vector<std::string>& a
     const bool force = std::ranges::find(argv, std::string{"--force"}) != argv.end();
     const bool yes   = std::ranges::find(argv, std::string{"--yes"})   != argv.end();
 
-    // Local directory: copy it. Remote: not fetched here — agentty has no
-    // business shelling out to git for this, and a network fetch inside a
-    // CLI verb wants its own design (checkout pinning, cache, offline).
-    // Declared here so the shape is right; the remote arm is the next
-    // commit's job.
+    // 本地目录: 复制它。 远程: 未在此获取...
+    // agentty 网络在内部获取 CLI 动词
+    // 要自己的设计(检查出针, 缓存 ,离线).
+    // 在这里宣布了形状是正确的;远程臂是下一个承诺
+    // 的工作。
     fs::path from = fs::path{src};
     if (!fs::exists(from / "SKILL.md")) {
         if (src.starts_with("github.com/") || src.starts_with("https://")) {
@@ -373,8 +373,8 @@ int verb_add(Io io, const maya::unlocked& cap, const std::vector<std::string>& a
         return 1;
     }
 
-    // Parse BEFORE installing, so the consent prompt describes the real
-    // file rather than a promise about it.
+    // 解析 BEFORE安装,所以同意的提示词描述的是
+    // 真实文件而不是对此的承诺.
     const auto parsed = peek_skill(from / "SKILL.md");
     if (!parsed) {
         std::error_code sz_ec;
@@ -393,9 +393,9 @@ int verb_add(Io io, const maya::unlocked& cap, const std::vector<std::string>& a
     }
     Skill s = *parsed;
 
-    // An empty or bodyless SKILL.md installs cleanly and then does nothing
-    // — it occupies a catalog slot and tokens on every turn to say nothing
-    // at all. Almost always a mistake (wrong path, truncated download).
+    // 空或无体 SKILL.md 安装干净,
+    // 然后什么都不做——它占据着 目录 每回合都出现一个不
+    // 说话的插槽和符号。几乎总是错误(错误路径、短路下载)。
     if (s.body.empty() && s.description.empty()) {
         std::fprintf(stderr,
             "refusing to install: %s has no body and no description.\n"
@@ -409,8 +409,8 @@ int verb_add(Io io, const maya::unlocked& cap, const std::vector<std::string>& a
                           || src.starts_with("https://")))
         s.origin = src;
 
-    // The name becomes a PATH. Refuse anything that isn't one plain
-    // component before it can be used for one — see safe_component().
+    // 名字变成一个 PATH 拒绝任何不是普通部件的东西,
+    // 然后将其用于一个部件——见 safe_component().
     if (!safe_skill_name(s.name)) {
         std::fprintf(stderr,
             "refusing to install: the skill's name is not a plain directory\n"
@@ -421,9 +421,9 @@ int verb_add(Io io, const maya::unlocked& cap, const std::vector<std::string>& a
 
     const auto dest = install_dir_for(s.name);
 
-    // Second, independent check: the resolved destination must actually be
-    // under the skills root. Cheap, and it doesn't rely on the charset
-    // rule above being exhaustive.
+    // 第二,独立检查:解析目的地必须实际在技能根下.
+    // 便宜,它不依赖上面的字符集
+    // 规则是详尽的.
     const auto skills_root = util::user_root() / "skills";
     if (!path_inside(skills_root, dest)) {
         std::fprintf(stderr,
@@ -432,10 +432,10 @@ int verb_add(Io io, const maya::unlocked& cap, const std::vector<std::string>& a
         return 1;
     }
 
-    // Installing a name another directory already claims would create a
-    // skill that silently never loads — the user would see a success
-    // message and then never see the skill again. Refuse with the
-    // conflicting path rather than writing a file that does nothing.
+    // 安装另一个目录已经声称的名称将创造出一种技能,
+    // 它从不默默地 加载 —— 用户会看到一个成功的消息,
+    // 然后再也不会看到技能。 拒绝使用相互冲突的路径,
+    // 而不是写一个无所事事的文件。
     if (const auto clash = find(IoAccess::grant(), s.name);
         clash && !clash->dir.empty()
               && fs::weakly_canonical(clash->dir) != fs::weakly_canonical(dest)) {
@@ -450,8 +450,8 @@ int verb_add(Io io, const maya::unlocked& cap, const std::vector<std::string>& a
     }
 
     if (fs::exists(dest / "SKILL.md") && !force) {
-        // Never clobber a skill the user may have edited. (This rule came
-        // from PR #47, which got it right and tested it.)
+        // 绝不要对用户编辑过的技能进行划痕。 (此规则来自 PR #47,
+        // 因为它得到了正确的并测试了它。)
         std::fprintf(stderr,
             "skill \"%s\" already installed at %s\n"
             "re-run with --force to overwrite\n",
@@ -459,11 +459,11 @@ int verb_add(Io io, const maya::unlocked& cap, const std::vector<std::string>& a
         return 1;
     }
 
-    // Screen the BODY, not the frontmatter. The arXiv corpus found shadow
-    // features (capability present in code, absent from the docs) in 100%
-    // of advanced attacks — so a skill's own account of itself is the least
-    // reliable input available, and a declares-nothing/does-everything
-    // mismatch is itself the signal.
+    // 屏幕显示 BODY 不是头条,是 arXiv 100%的
+    // 高级攻击中发现影子特征(密码中存在能力,文件中没有这种
+    // 能力)——因此,技能本身的叙述是现有最不可靠的输入,
+    // a declares-nothing/does-everything
+    // 错配本身就是信号.
     const auto findings = screen_body(s.body);
     const bool critical = std::ranges::any_of(findings, [](const Finding& f) {
         return f.severity == Finding::Severity::Critical;
@@ -471,10 +471,10 @@ int verb_add(Io io, const maya::unlocked& cap, const std::vector<std::string>& a
 
     print_consent(s, findings);
 
-    // --yes is for scripts, and it stops at critical findings. An
-    // unattended flag that silently installs something carrying an
-    // instruction-override or a persistence payload is the flag doing harm
-    // on the user's behalf; make automation say so explicitly.
+    // --yes 用于脚本,它停留在关键的结论。
+    // 标志 静静地安装一些带指令的东西 -override
+    // 或 单 持久化 载荷 是那个 标志 代表用户
+    // 进行伤害; 使自动化明确表明这一点。
     if (critical && yes) {
         std::fprintf(stderr,
             "refusing --yes: this skill has critical findings. install it\n"
@@ -485,10 +485,10 @@ int verb_add(Io io, const maya::unlocked& cap, const std::vector<std::string>& a
     }
 
     if ((needs_trust_gate(s.effects) || critical) && !yes) {
-        // No TTY means nobody can answer. Printing a prompt into a pipe
-        // and reading EOF used to exit 0 having installed NOTHING — a
-        // silent no-op that reported success, which in CI reads as "the
-        // skill is there" right up until it isn't.
+        // 没有 TTY 意思是没人能回答 打印一个 提示词 进入
+        // 管道和读取 EOF 安装后用于退出 0 无内容 -
+        // 沉默不语 -op 报告成功,其中 CI 读作
+        // "the skill is there" 直到它没有。
         if (!stdin_is_tty()) {
             std::fprintf(stderr,
                 "this skill needs approval and there is no terminal to ask.\n"
@@ -497,9 +497,9 @@ int verb_add(Io io, const maya::unlocked& cap, const std::vector<std::string>& a
             return 1;
         }
 
-        // Findings flip the default. Routine installs lead with [1] install;
-        // a flagged one leads with reading the file, and the safe answer is
-        // the first thing your eye lands on.
+        // 发现会翻转默认值。 常规安装铅 与 [1] 安装;
+        // 标记的一 读取文件的导线, 安全答案是您
+        // 眼球着陆的第一件事。
         if (critical)
             std::printf("  [2] print it first   [3] cancel   [1] install anyway\n\n> ");
         else
@@ -519,21 +519,21 @@ int verb_add(Io io, const maya::unlocked& cap, const std::vector<std::string>& a
         }
     }
 
-    // Copy plain files only — no symlinks, no device nodes, size-capped.
-    // This used to be fs::copy(recursive), which followed a
-    // `dir-escape -> /tmp` symlink into /tmp and, when it errored, left a
-    // half-populated directory while still printing success and exiting 0.
+    // 只复制纯文件——无符号链接,无设备节点,大小-capped.
+    // 这曾经是 fs::copy 后继的(复验)
+    // `dir-escape -> /tmp` 连接到/tmp,当它出错时,
+    // 留下了一半 -populated 目录中仍然打印成功并退出 0。
     const auto copied = copy_skill_tree(from, dest);
     if (!copied.ok) {
         std::fprintf(stderr, "install failed: %s\n", copied.error.c_str());
         std::error_code rm;
-        fs::remove_all(dest, rm);   // don't leave a half-skill behind
+        fs::remove_all(dest, rm);   // 别留下半个 -skill 后面
         return 1;
     }
 
-    // A skill whose SKILL.md didn't make it is not installed, whatever the
-    // copy said. Verifying the one file that matters turns a silent
-    // half-failure into an error the user can act on.
+    // 一种技术,他 SKILL.md 检查一个文件,
+    // 它会变成一个沉默的半个文件 -failure
+    // 进入用户可以操作的错误。
     if (!fs::exists(dest / "SKILL.md")) {
         std::fprintf(stderr, "install failed: SKILL.md did not copy\n");
         std::error_code rm;
@@ -546,14 +546,14 @@ int verb_add(Io io, const maya::unlocked& cap, const std::vector<std::string>& a
                     copied.skipped_links,
                     copied.skipped_links == 1 ? "" : "s");
 
-    // Approve what we just showed — but key the approval off the skill as
-    // the LOADER parses it, not off peek_skill's cheaper read. The two
-    // trim the body differently, and an approval that doesn't match the
-    // hash computed at load time is worse than none: the user answers a
-    // prompt and the skill still shows PENDING forever.
+    // 批准我们刚才展示的 关键是批准 技术作为 LOADER
+    // 解析 关上它,不要关上它 peek_skill 更
+    // 便宜的读物,两个修剪 正文 不同的, 和不匹配 散列
+    // 计算 加载 时间比没有更糟糕: 用户回答 a 提示词
+    // 和技能仍然显示 PENDING 永远
     if (needs_trust_gate(s.effects)) {
-        // all() re-scans when a root's mtime signature changes, which the
-        // copy above just did — so find() sees the freshly installed file.
+        // all() 内容 -scans 当根的 mtime 签名发生变化时,
+        // 上面的复制刚刚做了这个—— 所以 find() 查看新安装的文件。
         const auto installed = find(IoAccess::grant(), s.name);
         if (!installed) {
             std::fprintf(stderr,
@@ -572,7 +572,7 @@ int verb_add(Io io, const maya::unlocked& cap, const std::vector<std::string>& a
     return 0;
 }
 
-// ── list ───────────────────────────────────────────────────────────────────
+// ── 列表 ───────────────────────────────────────────────────────────────────
 
 int verb_list() {
     const auto all_skills = all(IoAccess::grant());
@@ -598,17 +598,17 @@ int verb_list() {
             std::printf("    from %s\n", s.origin.c_str());
     }
 
-    // Name collisions. A skill that lost one is invisible everywhere else
-    // — not in this list, not in the panel, not to `approve` — so if it is
-    // never mentioned the user has no way to discover that something is
-    // sitting on disk wearing a name another skill answers to.
+    // 名称碰撞。失去一个技能的技巧在其它任何地方都看不见
+    // ——不是在本列表中,也不是在面板中,
+    // 也不是到`approve`——所以,如果从未提及过,
+    // 用户就无法发现磁盘上有些东西在戴着另一个技能答案。
     const auto shadows = shadowed(IoAccess::grant());
     if (!shadows.empty()) {
         std::printf("\n");
         for (const auto& sh : shadows) {
             const bool same_scope = shadowed_within_scope(IoAccess::grant(), sh.name);
-            // Cross-scope is the documented override and gets a quiet
-            // note; same-scope is a real problem and says so.
+            // 十字记 -scope 是一个记录的超音速并获得一个静音符;
+            // 相同 -scope 是个真正的问题,所以说
             std::printf("%s \"%s\" is also declared by %s%s\n",
                         same_scope ? "!!" : "  ",
                         sanitize_author_text(sh.name, 64).c_str(),
@@ -624,7 +624,7 @@ int verb_list() {
     return 0;
 }
 
-// ── remove ─────────────────────────────────────────────────────────────────
+// ── 删除 ─────────────────────────────────────────────────────────────────
 
 int verb_remove(const std::vector<std::string>& argv) {
     if (argv.empty()) {
@@ -637,11 +637,11 @@ int verb_remove(const std::vector<std::string>& argv) {
         return 1;
     }
 
-    // `list` shows the FRONTMATTER name; the directory may be called
-    // something else. Removing only by directory meant a user could see
-    // "dangerous" in the list and have `remove dangerous` fail — unable to
-    // uninstall the thing in front of them. Try the directory first, then
-    // resolve by declared name.
+    // `list` 显示 FRONTMATTER 名称;
+    // 目录可能被称为其他东西。只有目录删除,用户才能看到
+    // "dangerous" 列表中包含且 `remove dangerous`
+    // 失败 —— 无法解开它们面前的设置。 先尝试目录,
+    // 然后用已声明的名称解决。
     auto dest = install_dir_for(argv[0]);
     if (!fs::exists(dest)) {
         if (const auto s = find(IoAccess::grant(), argv[0]);
@@ -672,7 +672,7 @@ int verb_remove(const std::vector<std::string>& argv) {
     return 0;
 }
 
-// ── approve ────────────────────────────────────────────────────────────────
+// ── 核准 ────────────────────────────────────────────────────────────────
 
 int verb_approve(Io io, const maya::unlocked& cap, const std::vector<std::string>& argv) {
     if (argv.empty()) {
@@ -706,9 +706,9 @@ void usage() {
         "a skill with no declared effects is prose and is never gated.\n");
 }
 
-} // namespace
+} // 命名空间结束。
 
-// ── Public ─────────────────────────────────────────────────────────────────
+// ── 公开 ─────────────────────────────────────────────────────────────────
 
 bool safe_skill_name(std::string_view name) noexcept {
     return safe_component_impl(name);

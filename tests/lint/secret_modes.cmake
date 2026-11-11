@@ -1,34 +1,34 @@
-# secret_modes.cmake — files under credentials/ are created 0600, structurally.
+# secret_modes.cmake - 下方的文件 credentials/ 结构上是0600的。
 #
-# `~/.agentty/credentials/` is the one directory where a permission audit
-# should find no exceptions. It holds OAuth refresh tokens, API keys and the
-# saved-account registry; the directory is 0700 and every file in it is 0600.
+# `~/.agentty/credentials/` 是一个目录,
+# 其中 权限 审计中应该没有例外,它有OAuth刷新的标志, API 键和
+# 已保存-account 注册表 ;目录为0700,其中每个文件为0600.
 #
-# Except one wasn't. accounts.json sat at 0644 among seven 0600 siblings,
-# because it is written with std::ofstream -- which creates at 0666 & ~umask --
-# while credentials.json, the provider-key vault and even the auth lockfile all
-# pass an explicit mode. Measured on a live install, not hypothesised.
+# 只不过有一个没有 accounts.json 坐在644号的七位6000
+# 兄弟姐妹中 因为书写着 std::ofstream -- 创建于 066 & ~
+# umask -- 同时 credentials.json ,提供者 -key 保险库,
+# 甚至认证锁文件都通过一个明确模式。在实时安装上测量,而不是假设。
 #
-# That was contained (the 0700 directory means nothing could read it anyway)
-# and it was still worth fixing: the containment is one `chmod 755`, or one
-# $AGENTTY_HOME pointed at a pre-existing directory, away from being the only
-# thing between a token registry and another local account. Defence in depth
-# means the file mode is not load-bearing on the directory mode.
+# 7:00目录中包含的 毕竟是一无所有 但仍然值得修复: 封装
+# 是一 `chmod 755` ,或一个 $AGENTTY_HOME
+# 指向前一个 -existing 目录,远离 唯一的东西在
+# 符号之间 注册表 和另一个本地账户。在深度中防御表示文件
+# 模式不是 加载-bearing。在目录模式下。
 #
-# This lint catches the CAUSE rather than the symptom: a writer in the auth or
-# accounts layer that creates a file without saying what mode it wants. A
-# chmod-after-write is fine here -- those payloads are sealed ciphertext, so
-# the create-to-chmod window exposes nothing -- so the rule is "the writer
-# names a mode somewhere", not "the writer must use open()".
+# 这件小衣 CAUSE 而不是症状: 写作者在 author 或 帐号层中创建文件,
+# 而不说它想要什么模式。 chmod -after-write 这儿很好,
+# 那些 载荷 被封存的密码,所以创建 -to-chmod 窗口不暴露任何信息 -- --
+# 因此规则是 "the writer names a mode somewhere" ,
+# 没有 "the writer must use open()".
 #
-# Usage: cmake -DROOT=<repo root> -P secret_modes.cmake
+# 用法: 制作( make) -DROOT=<repo root > , 转动 -P secret_modes.cmake
 
 if(NOT DEFINED ROOT)
     message(FATAL_ERROR "secret_modes: -DROOT=<repo root> required")
 endif()
 
-# The files that persist secrets. Each must name 0600 (or S_IRUSR|S_IWUSR)
-# somewhere, since each creates a file under credentials/.
+# 坚持秘密的文件。每个文件必须命名 0600(或 S_IRUSR|S_IWUSR
+# ) 某处,因为每个文件都根据 credentials/.
 set(_writers
     "${ROOT}/src/io/accounts.cpp"
     "${ROOT}/src/io/auth.cpp"
@@ -43,28 +43,28 @@ foreach(_f IN LISTS _writers)
     endif()
     file(RELATIVE_PATH _rel "${ROOT}" "${_f}")
 
-    # Does it create a file at all? ofstream / open / atomic_write all count.
+    # 它是否创建了文件 ? 流 / 打开 / atomic_write 全部数到齐。
     file(STRINGS "${_f}" _creates
          REGEX "std::ofstream|::open\\(|atomic_write")
     if(NOT _creates)
         continue()
     endif()
 
-    # If so, it has to actually CALL something that sets the mode.
+    # 如果是这样,它必须实际 CALL 的东西设置模式。
     #
-    # Matching the mode VALUE is not enough, and the attempts to do so are
-    # instructive. Matching `0600` anywhere hits the explanatory comment above
-    # the writer. Stripping comment LINES still hits
-    # `#include <sys/stat.h>   // chmod -- 0600 ...`, which is code with a
-    # trailing comment. Both versions passed a file whose chmod I had deleted.
+    # 匹配模式 值 还不够,而且这样做的尝试是具有启发性的。
+    # `0600` 任意点击作者上面的解释性评论。删除注释 LINES
+    # 仍然点击
+    # `#include <sys/stat.h>   // chmod -- 0600 ...` ,
+    # 这是带有后缀注释的代码。两个版本都通过了一个文件,其chmod I已删除。
     #
-    # So the check is on the CALL, which is the thing that has to exist:
+    # 所以,检查是在CALL, 这是必须存在的东西:
     #
-    #   chmod(...)                  POSIX, after the write
-    #   open(..., S_IRUSR...)       POSIX, at create
-    #   fs::permissions(...)        C++, used by keys.cpp / account_switch.cpp
+    #   chmod(...) POSIX, 写法打开后(...,
+    #   S_IRUSR.) POSIX, 创建 fs::permissions
+    #   (...) C++, 由 keys.cpp / account_switch.cpp 使用
     #
-    # A value can be mentioned; a call has to be made.
+    # 可以提到一个值;必须得出调用。
     file(STRINGS "${_f}" _mode_calls
          REGEX "::chmod\\(|[^a-z_]chmod\\(|fs::permissions\\(|O_CREAT[^)]*S_IRUSR")
     set(_modes "")

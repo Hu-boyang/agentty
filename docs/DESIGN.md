@@ -1,243 +1,210 @@
-# agentty — the one idea
+# agentty 的核心设计
 
-agentty is a type-theoretic agent. Every value is typed, every state machine is
-a sum type, every fallible operation is `std::expected<T, E>`, every
-cross-cutting concern (effects, identity, capabilities) is a type-level
-fact. The **dynamism boundary** — JSON, network, terminal IO — is one thin
-layer at the edge; everything past it is fully typed.
+agentty 用类型表达 Agent 的行为。值具有明确类型，状态机使用和类型，可能失败的操作返回
+`std::expected<T, E>`，副作用、身份和能力等跨领域约束也体现在类型中。
+JSON、网络和终端 I/O 位于一层薄薄的动态边界内，越过边界后使用带类型的数据。
 
-This document is the contract you accept when contributing. If a change makes
-the codebase look inconsistent — if it requires a reader to ask "wait, is
-this *that* style or *this* style?" — it doesn't go in. There is one style.
+本文规定贡献代码时需要遵守的设计约束。新增代码应与现有代码保持一致，使阅读者能够沿用同一套理解方式。
 
 ---
 
-## The seven rules
+## 七项规则
 
-### 1. State machines are `std::variant`. Every alternative carries its own data.
+### 1. 状态机使用 std::variant，每个分支拥有自身数据
 
-A state with N possible shapes is a closed sum type — never an `enum + bool +
-maybe_field` constellation. Each alternative owns the data that's only valid
-in that state.
+具有多种形态的状态应表达为封闭和类型。每个分支保存只在该状态下有效的数据，
+避免把枚举、布尔值和可能无效的字段拼在一起。
 
 ```cpp
-// ✗ Bool encodes a state machine. `output` is meaningless when error=false?
+// ✗ output 的含义依赖 error，状态关系需要调用者记住。
 struct ToolExecOutput { ToolCallId id; std::string output; bool error; };
 
-// ✓ Sum type. Each arm owns exactly the data that's valid in it.
+// ✓ 各分支拥有自身数据。
 struct ToolExecOutput { ToolCallId id; std::expected<std::string, ToolError> result; };
 ```
 
-Already-correct examples to read: `ToolUse::Status` (Pending/Approved/
-Running/Done/Failed/Rejected — each with its own fields), `Phase`, `Msg`,
-`provider::ErrorClass`.
+可参考 `ToolUse::Status` 的 Pending / Approved / Running / Done / Failed / Rejected
+状态、`Phase`、`Msg` 和 `provider::ErrorClass`。
 
-Indicator you're violating this: a comment that says "this field is only
-valid when X is true." That's a sum type screaming to escape.
+“此字段仅在 X 为真时有效”这样的注释，通常意味着应将字段移入和类型的对应分支。
 
-### 2. Fallible operations return `std::expected<T, FooError>`. `FooError` carries an `enum class Kind`.
+### 2. 可能失败的操作返回 std::expected，错误类型包含 Kind 枚举
 
-No string error returns. No exceptions across layer boundaries (catch at the
-boundary; convert to typed). The kind is enumerated; the detail is a free
-string for human reading.
+错误通过明确类型传递，并在层边界捕获异常、转换成对应错误。枚举描述错误种类，
+自由文本补充供人阅读的细节。
 
 ```cpp
-// ✗ Errors are strings. Caller must substring-match to react.
+// ✗ 下游必须匹配字符串才能判断错误。
 std::expected<Response, std::string> send(...);
 
-// ✓ Errors are typed. Caller dispatches via switch.
+// ✓ 调用者根据 kind 分派。
 enum class HttpErrorKind { Tls, Timeout, Refused, Status, Cancel };
 struct HttpError { HttpErrorKind kind; int http_status = 0; std::string detail; };
 std::expected<Response, HttpError> send(...);
 ```
 
-Already-correct: `ToolError`, `ExecResult`, `provider::ErrorClass`.
+可参考 `ToolError`、`ExecResult` 和 `provider::ErrorClass`。
+下游需要匹配错误消息中的子串时，应检查上游是否遗漏了带类型的错误信息。
 
-If you find yourself string-matching error messages downstream, that's a
-sign the upstream layer should have returned a typed error.
-
-### 3. Strong typedefs for IDs. Never raw `std::string` for an ID, path, URL, or name.
+### 3. ID、路径、URL 和名称使用强类型
 
 ```cpp
-// ✗
+// ✗ 调用者可以交换参数，编译器无法发现。
 void run(std::string id, std::string path, std::string command);
-// ↑ caller can swap arguments freely, compiler is silent
 
-// ✓
+// ✓ 不同概念由不同类型表达。
 void run(ToolCallId id, FilePath path, BashCommand command);
 ```
 
-Already-correct: `ToolCallId`, `ThreadId`, `ModelId`, `CheckpointId`,
-`ToolName`. Add new tagged types when introducing new conceptual identities;
-follow `domain/id.hpp`'s `Id<Tag>` pattern.
+可参考 `ToolCallId`、`ThreadId`、`ModelId`、`CheckpointId` 和 `ToolName`。
+新增概念时，遵循 `domain/id.hpp` 的 `Id<Tag>` 模式定义带标签的类型。
 
-### 4. One source of truth per concept.
+### 4. 每个概念有唯一的权威定义
 
-A policy decision lives in **exactly one** function. A field's invariants
-are checked in **exactly one** place. No tool can override the permission
-policy; no caller can hand-roll its own version of `provider::classify`.
+策略决策和字段不变量各自在一处定义。工具不能覆盖权限策略，调用者也不能自行复制
+`provider::classify` 的分类逻辑。
 
 ```cpp
-// ✗ Per-tool lambdas — easy to forget, easy to make inconsistent.
+// ✗ 每个工具分别维护权限判断，容易遗漏或产生差异。
 t.needs_permission = [](Profile p){ return p != Profile::Write; };
 
-// ✓ Tool declares its capabilities; ONE pure function decides.
+// ✓ 工具声明能力，由唯一的策略函数决策。
 t.effects = {Effect::WriteFs};
-// permission(effects, profile) lives in tools/policy.hpp — only place.
+// permission(effects, profile) 定义在 tools/policy.hpp。
 ```
 
-Already-correct: `provider::classify` (one error classifier), `policy::
-permission` (one permission decider), `update` (one reducer with one
-`std::visit`).
+可参考 `provider::classify`、`policy::permission` 和基于 `std::visit` 的 `update`。
 
-### 5. Layered separation. Domain types are pure values. I/O lives behind concepts.
+### 5. 分层隔离，领域类型只保存值，I/O 通过概念接口提供
 
-```
-include/agentty/domain/      ← pure value types only. No I/O. No UI. No threads.
-include/agentty/{io,provider,tool}/ ← satisfies a concept; injected via deps.
-src/runtime/              ← Elm loop. update is pure. Cmd carries the IO.
-third_party/maya/         ← presentation and runtime API; runtime delegates to jaal.
+```text
+include/agentty/domain/            纯值类型，不做 I/O、不含界面和线程
+include/agentty/{io,provider,tool}/ 通过概念接口提供能力，由 deps 注入
+src/runtime/                      Elm 循环，update 返回包含 I/O 的 Cmd
+third_party/maya/                  展示与运行时 API，运行时委托给 jaal
 ```
 
-A function in `domain/` that opens a file is a violation. A reducer that
-calls `http::send` directly is a violation (return a `cmd::io_task`).
-A view function that mutates the model is a violation.
+领域函数不能打开文件，状态更新函数应返回 `cmd::io_task`，由副作用执行 `http::send`。
+视图函数也不能修改模型。
 
-A reducer or view calling one of agentty's IO functions doesn't compile:
-every function that does IO or changes process-wide state takes an
-`agentty::Io` (`util/io.hpp`), and reducers and views never have one. Effect
-bodies get it from `cmd::io_task` / `io_task_isolated` / `io_stream`; the
-host holds its own. Only the files in `tests/lint/io_roots.txt` may mint
-one (the `io_roots` lint). Raw std/OS calls (clocks, getenv, fstream) can't
-carry a token, so `elm_purity` still bans those by name.
+所有执行 I/O 或修改进程全局状态的 agentty 函数都需要 `agentty::Io` 令牌
+（见 `util/io.hpp`）。状态更新函数和视图拿不到令牌，因此无法调用这些函数。
+副作用主体通过 `cmd::io_task`、`io_task_isolated` 或 `io_stream` 获得令牌，
+宿主持有自己的令牌。只有 `tests/lint/io_roots.txt` 列出的文件可以创建令牌，
+由 `io_roots` 检查约束。
 
-The dynamism boundary — JSON parsing, raw HTTP, terminal escape sequences —
-is **one layer**. Past it, code speaks in typed values.
+原始标准库和操作系统调用（时钟、getenv、fstream 等）无法附加令牌，因此
+`elm_purity` 仍按名称禁止这些调用。原始 JSON、HTTP 和终端转义序列集中在动态边界，
+边界内侧使用带类型的数据。
 
-### 6. Effects in types, not in conventions.
+### 6. 用类型声明副作用
 
-If a function modifies the filesystem, that's a fact about its type. It
-gets `Effect::WriteFs`. The capability is the *only* thing the policy reads.
+函数会修改文件系统时，这一事实应通过 `Effect::WriteFs` 表达。
+权限策略只读取这些能力声明。
 
 ```cpp
-// ✗ The policy is wherever you remembered to put it.
+// ✗ 每个调用点自行记住哪些工具需要确认。
 if (tool_name == "bash" || tool_name == "write" || ...) prompt();
 
-// ✓ The capability is in the type. The policy is one function.
+// ✓ 统一依据工具能力决策。
 if (policy::permission(td->effects, profile) == Decision::Prompt) prompt();
 ```
 
-Already-correct: `tools::Effect`, `tools::EffectSet`, `tools::policy::
-permission`. Add new effects (`Clipboard`, `Browser`) by extending the
-enum + the policy table — never by adding a per-call override.
+可参考 `tools::Effect`、`tools::EffectSet` 和 `tools::policy::permission`。
+增加 `Clipboard`、`Browser` 等副作用时，应扩展枚举和策略表。
 
-### 7. No `bool` for state. No `optional<T>` for "absent because state X".
+### 7. 用显式状态表达字段的有效范围
 
 ```cpp
-// ✗ The bool encodes "is something happening." The optional encodes "do
-//   we have a result." Two phantom state machines, no exhaustiveness.
+// ✗ active 与 result 隐含两套需要同步的状态关系。
 bool active;
 std::optional<Result> result;
 
-// ✓ Make the state machine explicit. The compiler will tell you if you
-//   forget an arm.
+// ✓ 明确列出所有状态，遗漏分支时编译器可以报错。
 using Status = std::variant<Idle, InFlight, Done, Failed>;
 Status status;
 ```
 
-`bool` is fine for things that are genuinely binary AND independent of
-other state — `expanded`, `collapsed`, `dim`. It is NOT fine for things
-that gate the validity of other fields.
+`expanded`、`collapsed`、`dim` 等真正独立的二元属性可以使用 `bool`。
+决定其他字段是否有效的状态应使用明确的和类型。
 
 ---
 
-## Patterns by layer
+## 各层采用的模式
 
-### Domain (`include/agentty/domain/`)
-- Pure value types. `std::variant` for state, `std::expected` for fallibility.
-- `to_string(X)` for every enum/variant — used by serialization and rendering.
-- Strong IDs via `Id<Tag>`.
-- No I/O. No threads. No `static` mutable state.
+### 领域层 include/agentty/domain/
 
-### IO + Provider (`include/agentty/io/`, `include/agentty/provider/`)
-- Satisfies a concept; injected via `deps()` so tests inject fakes.
-- All public methods return `std::expected<T, FooError>` with a typed `Kind`.
-- Catch all exceptions at the boundary; convert to typed.
-- Raw JSON / strings stay inside; typed values come out.
+- 只包含值类型。用 `std::variant` 表达状态，用 `std::expected` 表达失败。
+- 为枚举或变体提供 `to_string(X)`，供序列化和渲染使用。
+- 通过 `Id<Tag>` 提供强类型 ID。
+- 不执行 I/O、不创建线程、不持有静态可变状态。
 
-### Tools (`include/agentty/tool/`, `src/tool/`, `third_party/mcp-cpp/src/tools/`)
-- The [registry](../src/tool/registry.cpp) obtains the tool catalog from
-  mcp-cpp's toolset through the
-  [bridge](../src/tool/mcp_tools_bridge.cpp), which translates schemas,
-  effects, results and file changes into agentty types.
-- General tool implementations live in
-  [mcp-cpp](../third_party/mcp-cpp/src/tools/); agentty owns the
-  [host adapters](../src/tool/mcp_tools_backends.cpp), state, execution,
-  permissions and sandbox boundary.
-- Each tool declares its `effects` — never its own permission lambda.
-- Schemas remain JSON at the dispatch boundary.
+### I/O 与提供方层 include/agentty/io/、include/agentty/provider/
 
-### Runtime (`src/runtime/`)
-- The live runtime calls `AgenttyApp::update(Model&, DomainMsg, now)` in
-  [program.hpp](../include/agentty/runtime/app/program.hpp). It records the
-  supplied time, calls the free per-domain overload and publishes derived
-  state. The handlers in [update/](../src/runtime/app/update/) mutate the
-  model and return `Cmd`; I/O belongs to the returned effects.
-- `update(Model, Msg) → (Model, Cmd)` in
-  [update.cpp](../src/runtime/app/update.cpp) is the whole-message test
-  entry. Its visitor calls the same domain handlers with a deterministic
-  fold time and performs the same publication step.
-- `view(Model) → Element` — pure function. No state mutation.
-- `subscribe(Model) → Sub<Msg>` — pure function. Returns the subscriptions
-  active in this state.
-- Side effects go through `Cmd::task` / `Cmd::after`.
+- 通过概念接口提供能力，经 `deps()` 注入，使测试可以替换为伪实现。
+- 公共方法返回带有明确错误 `Kind` 的 `std::expected<T, FooError>`。
+- 在边界捕获异常并转换为带类型的错误。
+- 原始 JSON 和字符串留在实现内部，对外返回带类型的值。
 
-### View (`src/runtime/view/*`)
-- Reads `Model`, returns `Element`. Never mutates.
-- Width-aware widgets use `ComponentElement` with a `measure` callback so
-  the parent layout can size them correctly.
-- Per-speaker / per-state colors come from `palette.hpp` — not hard-coded.
+### 工具层 include/agentty/tool/、src/tool/、third_party/mcp-cpp/src/tools/
+
+- [注册表](../src/tool/registry.cpp)通过[桥接层](../src/tool/mcp_tools_bridge.cpp)
+  从 mcp-cpp 工具集获得工具目录。桥接层将模式定义、副作用、结果和文件变化转换成 agentty 类型。
+- 通用工具位于 [mcp-cpp](../third_party/mcp-cpp/src/tools/)。agentty 拥有
+  [宿主适配器](../src/tool/mcp_tools_backends.cpp)、状态、执行、权限和沙箱边界。
+- 每个工具声明自身 `effects`，权限判断由统一策略提供。
+- 模式定义在分派边界仍使用 JSON。
+
+### 运行时 src/runtime/
+
+- 实际运行时调用 [program.hpp](../include/agentty/runtime/app/program.hpp) 中的
+  `AgenttyApp::update(Model&, DomainMsg, now)`，记录传入时间，调用对应领域的自由函数重载，
+  再发布派生状态。[update/](../src/runtime/app/update/) 中的处理函数修改模型并返回 `Cmd`，
+  I/O 由返回的副作用执行。
+- [update.cpp](../src/runtime/app/update.cpp) 的 `update(Model, Msg) → (Model, Cmd)`
+  是处理完整消息的测试入口。它用确定的时间调用相同的领域处理函数，并执行相同的发布步骤。
+- `view(Model) → Element` 是不修改状态的纯函数。
+- `subscribe(Model) → Sub<Msg>` 是纯函数，返回当前状态所需的订阅。
+- 副作用通过 `Cmd::task` / `Cmd::after` 执行。
+
+### 视图层 src/runtime/view/*
+
+- 读取 `Model` 并返回 `Element`，不修改模型。
+- 需要感知宽度的组件通过带 `measure` 回调的 `ComponentElement` 向父布局报告尺寸。
+- 各发言方和状态的颜色由 `palette.hpp` 提供。
 
 ---
 
-## Reading guide for new contributors
+## 新贡献者的阅读路线
 
-Follow the [source reading entry](../README.md) from startup to rendering:
+沿[源码阅读入口](../README.md)从启动读到渲染。
 
-1. [`src/runtime/main.cpp`](../src/runtime/main.cpp), then
-   [`program.hpp`](../include/agentty/runtime/app/program.hpp) — startup,
-   dependencies and runtime hooks.
-2. [`model.hpp`](../include/agentty/runtime/model.hpp),
-   [`domain/`](../include/agentty/domain/) and
-   [`msg.hpp`](../include/agentty/runtime/msg.hpp) — state and events.
-3. [`update.hpp`](../include/agentty/runtime/app/update.hpp) and
-   [`update/`](../src/runtime/app/update/) — the live per-domain handlers;
-   [`update.cpp`](../src/runtime/app/update.cpp) provides the whole-message
-   test entry.
-4. [`cmd_factory.cpp`](../src/runtime/app/cmd_factory.cpp) and
-   [`provider/dispatch.cpp`](../src/provider/dispatch.cpp) — side effects
-   and model request routing. Then read the
-   [tool contracts](../include/agentty/tool/),
-   [host bridge](../src/tool/mcp_tools_bridge.cpp) and
-   [mcp-cpp tool implementations](../third_party/mcp-cpp/src/tools/).
-5. [`view.cpp`](../src/runtime/view/view.cpp), then
-   [view components and panels](../src/runtime/view/) — presentation.
+1. 读 [`src/runtime/main.cpp`](../src/runtime/main.cpp)，再读
+   [`program.hpp`](../include/agentty/runtime/app/program.hpp)，理解启动、依赖与运行时钩子。
+2. 读 [`model.hpp`](../include/agentty/runtime/model.hpp)、
+   [`domain/`](../include/agentty/domain/) 和 [`msg.hpp`](../include/agentty/runtime/msg.hpp)，
+   理解状态与事件。
+3. 读 [`update.hpp`](../include/agentty/runtime/app/update.hpp) 和
+   [`update/`](../src/runtime/app/update/) 的领域处理函数，再看
+   [`update.cpp`](../src/runtime/app/update.cpp) 提供的完整消息测试入口。
+4. 读 [`cmd_factory.cpp`](../src/runtime/app/cmd_factory.cpp) 与
+   [`provider/dispatch.cpp`](../src/provider/dispatch.cpp)，理解副作用与模型请求路由。
+   然后读[工具接口](../include/agentty/tool/)、[宿主桥接层](../src/tool/mcp_tools_bridge.cpp)
+   和 [mcp-cpp 工具实现](../third_party/mcp-cpp/src/tools/)。
+5. 读 [`view.cpp`](../src/runtime/view/view.cpp)，再读[视图组件与面板](../src/runtime/view/)。
 
-If the document disagrees with the current implementation, the code and
-tests are the source of truth; update the document accordingly.
+文档与实现不一致时，以代码和测试为准，并相应更新文档。
 
 ---
 
-## Worked examples — "what does this look like in agentty?"
+## 具体示例
 
-### Typed errors at the dynamism boundary
+### 动态边界上的带类型错误
 
-`http::Client::send` returns `HttpResult = std::expected<Response, HttpError>`.
-The HttpError carries an `enum class HttpErrorKind { Cancelled, Resolve,
-Connect, Tls, Protocol, SocketHangup, Timeout, PeerClosed, Status, Body,
-Unknown }` — every internal failure site (poll() error, SSL_connect
-failure, nghttp2 frame error, idle timeout, …) constructs the right kind
-via a static factory. The error classifier dispatches on `kind`:
+`http::Client::send` 返回 `HttpResult = std::expected<Response, HttpError>`。
+`HttpErrorKind` 包含 Cancelled、Resolve、Connect、Tls、Protocol、SocketHangup、Timeout、
+PeerClosed、Status、Body、Unknown。poll()、SSL_connect、nghttp2 帧或空闲超时等故障，
+都通过静态工厂构造正确的错误类型。分类器根据 `kind` 分派。
 
 ```cpp
 constexpr ErrorClass classify(const http::HttpError& e) noexcept {
@@ -259,83 +226,69 @@ constexpr ErrorClass classify(const http::HttpError& e) noexcept {
 }
 ```
 
-No substring sniffing. Adding a new `HttpErrorKind` fails to compile here
-until handled — the policy is exhaustive by construction.
+新增 `HttpErrorKind` 后必须补齐处理分支才能通过编译，策略因此保持穷尽。
 
-### Sum-type credentials
+### 和类型凭据
 
-`auth::Credentials = std::variant<cred::None, cred::ApiKey, cred::OAuth>`.
-Each alternative owns the data only valid in its state — `None` has no
-data, `ApiKey` has just `key`, `OAuth` has `access_token / refresh_token /
-expires_at_ms`. Operations are free functions that `std::visit` the
-variant, so adding a new alternative (e.g. `cred::DeviceFlow`) won't
-compile until every accessor handles it.
+`auth::Credentials = std::variant<cred::None, cred::ApiKey, cred::OAuth>`。
+None 不含数据，ApiKey 只保存 key，OAuth 保存 access_token / refresh_token / expires_at_ms。
+操作通过自由函数中的 `std::visit` 访问变体。增加 `cred::DeviceFlow` 等分支时，
+所有访问函数都必须补齐分支才能编译。
 
-### Typed deserialization
+### 带类型的反序列化
 
-`persistence::load_thread_file(path) → std::expected<Thread,
-DeserializeError>`. `DeserializeError::Kind = { JsonParse, MissingField,
-InvalidValue, InvalidVariantTag, Io }`. `parse_message`, `parse_thread`,
-`parse_tool_status` propagate typed errors via the monadic shape. The
-directory-walking loader logs the kind + field path to stderr instead
-of `catch (...) { continue; }` — the user sees *which* file was bad and
-*why*.
+`persistence::load_thread_file(path)` 返回 `std::expected<Thread, DeserializeError>`。
+`DeserializeError::Kind` 包含 JsonParse、MissingField、InvalidValue、InvalidVariantTag 和 Io。
+`parse_message`、`parse_thread`、`parse_tool_status` 用单子式组合传递错误。
+遍历目录的加载器将错误种类和字段路径记录到 stderr，让用户知道哪个文件损坏以及原因，
+避免通过 `catch (...) { continue; }` 静默忽略故障。
 
-### Derived state, not parallel state
+### 派生状态
 
-`StreamState::active()` is a derived `bool` (= `!is_idle()`), not a
-field. There used to be a `bool active` that callers had to keep in
-lock-step with `phase`; readers had to remember the invariant ("active
-iff phase != Idle"). Now there's nothing to remember — the variant is
-the truth, the bool is a view of it.
+`StreamState::active()` 从 `!is_idle()` 推导结果。过去单独保存 `bool active`，
+调用者必须让它与 phase 同步，记住 active 当且仅当 phase != Idle 的不变量。
+现在变体状态是权威来源，布尔值只是对它的一种观察。
 
-### Sum-type pickers
+### 和类型选择面板
 
-`pick::OneAxis = variant<Closed, OpenAt{index}>` for the model picker
-and thread list. `pick::TwoAxis = variant<Closed, OpenAtCell{file,
-hunk}>` for diff review. `pick::Modal` for the todo overlay. The
-checkpoint rewind picker (`CheckpointPickerState = variant<Closed,
-Open{index}>`, in `runtime/checkpoint_picker.hpp`) follows the same
-OneAxis shape — one row per user turn, `Select` hands the pinned
-snapshot to the existing `RestoreCheckpoint` rewind. The
-canonical `bool open + int index` anti-pattern (where `index` is
-meaningless when `open == false`) is gone everywhere; opening is
-`m.ui.x = pick::OpenAt{i}`, closing is `m.ui.x = pick::Closed{}`,
-mutating is `if (auto* p = pick::opened(m.ui.x)) p->index = …`.
+模型选择和会话列表使用 `pick::OneAxis = variant<Closed, OpenAt{index}>`。
+差异审查使用 `pick::TwoAxis = variant<Closed, OpenAtCell{file, hunk}>`。
+待办覆盖面板使用 `pick::Modal`。
+检查点回退面板的 `CheckpointPickerState = variant<Closed, Open{index}>`
+（见 `runtime/checkpoint_picker.hpp`）同样采用单轴结构，每个用户轮次一行，Select 将固定的快照交给
+已有的 RestoreCheckpoint 回退逻辑。
 
-### Effects-in-types for permission
+这避免了 `bool open + int index` 中关闭时 index 无意义的问题。
+打开时赋值 `m.ui.x = pick::OpenAt{i}`，关闭时赋值 `m.ui.x = pick::Closed{}`，
+修改时使用 `if (auto* p = pick::opened(m.ui.x)) p->index = …`。
 
-Each tool declares a `tools::EffectSet` (subset of `{ReadFs, WriteFs,
-Net, Exec}`). The single `tools::policy::permission(EffectSet, Profile)
-→ Decision` constexpr function is the only thing that decides whether
-a tool prompts. Adding a new effect is one enum entry + one switch arm
-in the policy; no per-tool override is possible — `ToolDef::needs_
-permission` is gone from the type.
+### 副作用类型与权限
 
-### Tool result via `expected`, not parallel bool
+每个工具声明 `tools::EffectSet`，取值为 ReadFs / WriteFs / Net / Exec 的子集。
+唯一的 `tools::policy::permission(EffectSet, Profile) → Decision` constexpr 函数
+决定是否需要确认。增加副作用时扩展枚举和策略分支，工具不提供单独覆盖权限的逻辑，
+`ToolDef::needs_permission` 已从类型中移除。
 
-`Msg::ToolExecOutput { id, std::expected<std::string, ToolError> result }`
-— used to be `{id, output, bool error}` where `output` meant different
-things based on the bool. Reducer just dispatches `if (e.result) …
-else …` and the typed `ToolError::kind` flows through to the view.
+### 使用 expected 表达工具结果
 
-These six examples — taken together — are what "type-theoretic C++"
-looks like in this codebase. Match them when adding new code.
+`Msg::ToolExecOutput` 保存 id 和 `std::expected<std::string, ToolError> result`。
+过去的 `{id, output, bool error}` 让 output 的含义依赖布尔值。
+现在状态更新函数使用 `if (e.result) … else …`，并将 `ToolError::kind` 传到视图。
+
+这些示例展示了本项目用类型表达约束的方式，新增代码应遵循相同模式。
 
 ---
 
-## Compile-time proofs ("if it builds, it's right")
+## 编译期证明
 
-C++26's `consteval` + `static_assert` lets us turn invariants into
-build-time proofs. Where agentty can prove a property at compile time, it
-*does* — and any future change that would break the property breaks the
-build instead of producing a wrong answer at runtime.
+C++26 的 `consteval` 与 `static_assert` 可以把不变量转化为构建时检查。
+能够在编译期证明的属性应在编译期验证，使破坏属性的修改直接导致构建失败。
 
-### Trust matrix (`include/agentty/tool/policy.hpp`)
+### 信任矩阵 include/agentty/tool/policy.hpp
 
-The permission policy `(EffectSet × Profile) → Decision` is a `constexpr`
-function, so each cell of the trust matrix can be `static_assert`-ed.
-The `proofs` namespace at the bottom of the header is the matrix:
+权限策略 `(EffectSet × Profile) → Decision` 是 constexpr 函数，
+信任矩阵的每个单元都可以通过 static_assert 验证。
+头文件末尾的 proofs 命名空间描述了这个矩阵。
 
 ```cpp
 static_assert(permission(kPure,  Profile::Write) == Decision::Allow);
@@ -343,33 +296,28 @@ static_assert(permission(kExec,  Profile::Write) == Decision::Allow);
 static_assert(permission(kRead,  Profile::Ask)   == Decision::Allow);
 static_assert(permission(kWrite, Profile::Ask)   == Decision::Prompt);
 static_assert(permission(kRead,  Profile::Minimal) == Decision::Prompt);
-// … 17 cells total + 5 structural properties
+// 共 17 个单元和 5 项结构属性。
 ```
 
-A reader can verify the policy by reading these `static_assert`s. A
-contributor changing the policy gets a **build error** at the cell that
-broke. There is no test runner, no fixture file — the proof lives next
-to the function it checks.
+读者可以直接检查这些断言。修改策略时，出错单元会产生构建错误，
+证明与被验证的函数放在一起，无需单独运行测试或加载测试数据。
 
-### HTTP error → ErrorClass mapping (`include/agentty/provider/error_class.hpp`)
+### HTTP 错误到 ErrorClass 的映射 include/agentty/provider/error_class.hpp
 
-Same shape, applied to the retry policy:
+重试策略也采用同一方式。
 
 ```cpp
 static_assert(classify(HttpError{HttpErrorKind::Timeout, 0, ""}) == ErrorClass::Transient);
 static_assert(classify(HttpError{HttpErrorKind::Status, 429, ""}) == ErrorClass::RateLimit);
 static_assert(classify(HttpError{HttpErrorKind::Status, 401, ""}) == ErrorClass::Auth);
-// … every HttpErrorKind + every status that has a defined retry semantics
+// 覆盖每个 HttpErrorKind，以及具有明确重试语义的状态码。
 ```
 
-If someone reorders the switch arms in `classify` or adds a new
-HttpErrorKind without updating it, the build breaks before any HTTP
-request can take a wrong branch.
+调整 classify 的分支顺序，或增加错误种类而遗漏处理时，会在 HTTP 请求走错分支前使构建失败。
 
-### Tool catalog (`include/agentty/tool/spec.hpp`)
+### 工具目录 include/agentty/tool/spec.hpp
 
-The catalog of every tool — name, effects, FGTS opt-in — is a
-`constexpr std::array`, and the invariants are `consteval` predicates:
+工具名称、副作用和 FGTS 开关存放在 constexpr std::array 中，不变量由 consteval 谓词表达。
 
 ```cpp
 static_assert(all_names_unique());
@@ -379,46 +327,37 @@ static_assert(readonly_invariants());
 static_assert(only_web_is_net());
 ```
 
-The lookup is a `consteval` function and the per-tool factories use a
-`FixedName` non-type template parameter:
+查找函数是 consteval 函数，各工具工厂使用 FixedName 非类型模板参数。
 
 ```cpp
-constexpr const auto& kSpec = spec::require<"bash">();   // ✓ compiles
-constexpr const auto& kSpec = spec::require<"bsh">();    // ✗ static_assert
+constexpr const auto& kSpec = spec::require<"bash">();   // ✓ 可以编译
+constexpr const auto& kSpec = spec::require<"bsh">();    // ✗ static_assert 失败
 ```
 
-So a typo in a tool factory becomes a build error at the tool's
-translation unit. The catalog is *the* source of truth for capabilities;
-no factory can override its declared effects, no factory can register
-itself under a name not in the catalog.
+工具工厂中的名称拼写错误会在对应编译单元报错。目录统一定义能力，
+工厂不能覆盖已声明的副作用，也不能注册目录之外的名称。
 
-### Refinement types (`include/agentty/domain/refined.hpp`)
+### 精化类型 include/agentty/domain/refined.hpp
 
-`Refined<T, Predicate>` carries a type-level proof that some predicate
-holds on its inner value. Constructors are private; the only way to
-make one is `try_make`, which validates and returns `expected`.
+`Refined<T, Predicate>` 在类型层面保证内部值满足谓词。
+构造函数为私有，只能通过执行验证并返回 expected 的 try_make 创建对象。
 
 ```cpp
 auto cmd = NonEmpty<std::string>::try_make(args.command);
 if (!cmd) return std::unexpected(ToolError::invalid_args("..."));
-// past this point, `cmd->value()` is provably non-empty.
+// 从这里开始，可以证明 cmd->value() 非空。
 
-using Port = Bounded<std::uint16_t, 1, 65535>;   // 0 / 65536+ unrepresentable
+using Port = Bounded<std::uint16_t, 1, 65535>;   // 无法表示 0 或 65536 以上的值
 ```
 
-The refinement primitives have their own `static_assert` self-tests
-(`namespace tests` in the header). Adding a new refinement should add
-a static_assert next to it.
+这些基础类型在头文件的 tests 命名空间中包含 static_assert 自检。
+新增精化类型时，也应在附近添加对应断言。
 
-### Why this matters
+### 编译期证明的意义
 
-A reader skimming `policy.hpp`, `error_class.hpp`, `spec.hpp` sees the
-proofs first and the implementations second. They don't have to trust
-the implementation — the proofs are right there, evaluated at compile
-time. A Rust contributor would write `#[test]` for these and run them
-in CI; we write `static_assert` and the test runs every build. Same
-discipline, smaller blast radius.
+阅读 policy.hpp、error_class.hpp 和 spec.hpp 时，可以先读证明，再读实现。
+证明由编译器实际检查。类似的属性在 Rust 中可以用 `#[test]` 放到 CI 运行，
+这里则通过 static_assert 在每次构建时验证。
 
-The rule for new code: **if it can be a `constexpr` predicate, write the
-predicate AND the `static_assert`s that pin it.** Don't ship a runtime
-table without compile-time correctness checks for its rows.
+新增代码应同时提供可写成 constexpr 的谓词，以及固定其行为的 static_assert。
+运行时表格的各行也应具有编译期正确性检查。

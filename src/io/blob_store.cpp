@@ -1,8 +1,8 @@
-// agentty::blobs — content-addressed payload store. See blob_store.hpp.
+// agentty::blobs —内容-addressed 载荷存储。参见 blob_store.hpp。
 
 #include "agentty/io/blob_store.hpp"
 
-#include "agentty/io/persistence.hpp"   // threads_dir, write_json_atomic
+#include "agentty/io/persistence.hpp"   // threads_dir，write_json_atomic
 
 #include <cstdint>
 #include <cstdio>
@@ -21,15 +21,15 @@ fs::path dir() {
 }
 
 std::string name_for(std::string_view bytes) {
-    // FNV-1a over the bytes. Not cryptographic — this names a local cache
-    // entry, it doesn't authenticate anything. 64 bits over a few thousand
-    // payloads is a collision probability far below the disk's own error
-    // rate, and the length is mixed into the name as a cheap second
-    // dimension.
+    // FNV-1a超过字节。非加密 — 这命名为本地
+    // 缓存 条目，它不验证任何内容。 64 位超过
+    // 几千个 载荷 是远远低于磁盘自身错误率的碰撞概率，
+    // 并且长度被混合到名称中作为廉价的第二
+    // 维度。
     //
-    // The exact format ("%016llx-%zx") is load-bearing: every blob already
-    // on disk is named by it, so changing it would orphan every image in
-    // every existing thread. Do not "clean this up".
+    // 确切的格式("%016llx-%zx")是加载-bearing：磁盘
+    // 上已有的每个blob都由它命名，因此改变它会孤立每个现有线程中的
+    // 每个图像。不要"clean this up"。
     std::uint64_t h = 1469598103934665603ull;
     for (unsigned char c : bytes) {
         h ^= c;
@@ -46,26 +46,26 @@ std::string put(const std::string& bytes) {
     const std::string n = name_for(bytes);
     const fs::path out = dir() / n;
     std::error_code ec;
-    // Content-addressed: if it's already there it is byte-identical by
-    // construction, so rewriting it would be pure I/O for no change.
+    // Content-addressed：如果它已经存在，则通过构造它是字
+    // 节-identical，因此重写它将是纯粹的I/O，没有任何改变。
     if (fs::exists(out, ec)) {
-        // Refresh mtime: the GC only reclaims blobs older than its grace
-        // window, so a blob being re-referenced by a save in flight must
-        // look fresh even though its bytes are old.
+        // 刷新时间：GC仅回收早于其宽限窗口的斑点，
+        // 因此飞行中的保存重新-referenced的斑点必须看起来新鲜，
+        // 即使其字节是旧的。
         fs::last_write_time(out, fs::file_time_type::clock::now(), ec);
         return n;
     }
-    // Reuses the atomic temp+fsync+rename writer: a blob is only ever
-    // published complete, so a crash mid-write can't leave a reference
-    // pointing at a truncated payload.
+    // 重用原子临时+fsync+重命名写入器：blob
+    // 仅被完整发布，
+    // 因此mid-write崩溃不能留下指向被截断的载荷的引用。
     if (!persistence::write_json_atomic(::agentty::IoAccess::grant(), out, bytes)) return {};
     return n;
 }
 
 std::string get(const std::string& name) {
     if (name.empty()) return {};
-    // Defend the join: a thread file is user-writable, and a crafted
-    // "../../" name must not read outside the blob directory.
+    // 保护连接：线程文件是user-writable，
+    // 并且精心设计的"../../"名称不得在blob目录之外读取。
     if (name.find('/') != std::string::npos
         || name.find('\\') != std::string::npos
         || name.find("..") != std::string::npos) return {};

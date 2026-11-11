@@ -1,10 +1,10 @@
-// agentty::mcp::oauth — interactive OAuth 2.1 login for MCP servers.
+// agentty::mcp::oauth-MCP服务器的交互式OAuth 2.1登录。
 //
-// Protocol logic (PKCE, RFC 9207 iss validation, DCR/CIMD, token parsing) is
-// mcp-cpp's <mcp/auth.hpp>. This TU is the I/O + lifecycle: agentty's HTTP
-// client, a cross-platform loopback callback server on an EPHEMERAL port (MCP
-// redirect URIs are dynamic, unlike Codex's fixed 1455), the browser open, and
-// an at-rest-encrypted per-server token store.
+// 协议逻辑（PKCE、RFC 9207 iss验证、DCR/CIMD、令牌解析)是mcp
+// -cpp的<mcp/auth.hpp>。这个TU是I/O +生命周期：agentty
+// 的HTTP客户端，EPHEMERAL端口上的跨-platform环回回调服务器（MCP
+// 重定向URI是动态的，与Codex的固定1455不同），浏览器打开，
+// 以及at-rest-encrypted per-server令牌存储。
 
 #include "agentty/mcp/oauth.hpp"
 #include "agentty/version.hpp"
@@ -61,7 +61,7 @@ std::int64_t now_ms_impl() {
         .count();
 }
 
-// ── URL splitting (scheme/host/port/path) ──────────────────────────────────
+// ── URL 拆分( E) scheme/host/port/path) ──────────────────────────────────
 struct Url { std::string scheme, host, path; std::uint16_t port = 0; bool tls = true; bool ok = false; };
 
 Url split_url(std::string_view u) {
@@ -83,8 +83,8 @@ Url split_url(std::string_view u) {
     return r;
 }
 
-// ── One HTTP GET/POST via agentty's client, returning parsed JSON ──────────
-// Returns {status, body}. status 0 on transport failure (detail in body).
+// ── 1 HTTP GET/POST通过agentty的客户端,返回解析的JSON ──────────
+// 返回{状态，正文}。 传输层 故障时状态为 0（详细信息参见 正文）。
 struct HttpOut { int status = 0; std::string body; std::string www_authenticate; };
 
 HttpOut do_http(http::HttpMethod method, const std::string& url,
@@ -100,7 +100,7 @@ HttpOut do_http(http::HttpMethod method, const std::string& url,
     req.path      = u.path;
     req.plaintext = !u.tls;
     req.body      = body;
-    req.max_body_bytes = 1ull * 1024 * 1024;   // metadata/token JSON is tiny
+    req.max_body_bytes = 1ull * 1024 * 1024;   // metadata/token JSON 很小
     req.headers.push_back({"accept", "application/json"});
     req.headers.push_back({"user-agent", ::agentty::user_agent()});
     if (method == http::HttpMethod::Post)
@@ -110,11 +110,11 @@ HttpOut do_http(http::HttpMethod method, const std::string& url,
 
     http::Timeouts tos; tos.total = std::chrono::milliseconds(20'000);
     auto res = http::default_client(::agentty::IoAccess::grant()).send(req, tos);
-    // agentty's send() delivers ANY HTTP status — including a 401 — as a
-    // successful Response with headers + body intact (only transport failures
-    // become an unexpected HttpError). So a 401's WWW-Authenticate challenge is
-    // read directly off res->headers here; no well-known fallback is needed
-    // unless the challenge is missing/unparseable or the server never 401s.
+    // agentty的send()提供ANY HTTP状态——包括401
+    // ——作为完整的头文件+正文的成功响应（仅传输层失败变成意外的HttpError）。
+    // 因此，401 的 WWW-Authenticate 挑战是直接从
+    // res->头文件 读取的；不需要well-known 回退，
+    // 除非挑战是missing/unparseable或者服务器从不401。
     if (!res) {
         out.body = res.error().render();
         return out;
@@ -129,9 +129,9 @@ HttpOut do_http(http::HttpMethod method, const std::string& url,
     return out;
 }
 
-// ── Loopback callback server on an EPHEMERAL port ──────────────────────────
+// ── EPHEMERAL 端口的循环后台 回调 服务器 ──────────────────────────
 struct Callback {
-    std::uint16_t port = 0;   // filled by open_loopback
+    std::uint16_t port = 0;   // 由open_loopback填写
     std::string   redirect_uri;
 };
 
@@ -143,7 +143,7 @@ using sock_t = SOCKET;
 using sock_t = int;
 #endif
 
-// Bind 127.0.0.1:0, return the socket + assigned port. kInvalid on failure.
+// 绑定127.0.0.1:0，返回socket+分配的端口。 k失败时无效。
 sock_t open_loopback(std::uint16_t& out_port, std::string& err) {
 #if defined(_WIN32)
     static std::once_flag wsa_once;
@@ -159,7 +159,7 @@ sock_t open_loopback(std::uint16_t& out_port, std::string& err) {
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    addr.sin_port = htons(0);                       // ephemeral
+    addr.sin_port = htons(0);                       // 临时
     if (::bind(srv, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
 #if defined(_WIN32)
         closesocket(srv);
@@ -200,7 +200,7 @@ std::string query_param(std::string_view target, std::string_view key) {
         auto eq = pair.find('=');
         if (eq != std::string_view::npos && pair.substr(0, eq) == key) {
             std::string v(pair.substr(eq + 1));
-            // percent-decode
+            // 百分比-decode
             std::string dec; dec.reserve(v.size());
             for (std::size_t j = 0; j < v.size(); ++j) {
                 if (v[j] == '%' && j + 2 < v.size()) {
@@ -218,8 +218,8 @@ std::string query_param(std::string_view target, std::string_view key) {
     return {};
 }
 
-// Accept one request on `srv`, extract code/state/iss, reply with a page.
-// Borrows `srv`: the caller's SockGuard closes it on every path.
+// 接受`srv`上的一个请求，提取code/state/iss，回复一页。
+// 借用`srv`：调用者的SockGuard在每条路径上关闭它。
 CallbackResult wait_for_callback(sock_t srv, int timeout_s) {
     CallbackResult out;
 #if defined(_WIN32)
@@ -244,8 +244,8 @@ CallbackResult wait_for_callback(sock_t srv, int timeout_s) {
         sock_t cli = ::accept(srv, nullptr, nullptr);
         if (cli == kInvalid) continue;
 
-        // Wait for the request with select(), so a peer that connects and
-        // sends nothing (a browser preconnect) can't hang us past the deadline.
+        // 等待带有select()的请求，因此连接并且不发送
+        // 任何内容（浏览器预连接）的对端不能让我们超过截止时间。
         const auto read_until = std::min(deadline, std::chrono::steady_clock::now() + std::chrono::seconds(10));
         std::string reqbuf; char buf[4096];
         while (reqbuf.size() <= 16384) {
@@ -272,7 +272,7 @@ CallbackResult wait_for_callback(sock_t srv, int timeout_s) {
             const auto sp2 = reqbuf.find(' ', sp + 1);
             if (sp2 != std::string::npos) target = reqbuf.substr(sp + 1, sp2 - sp - 1);
         }
-        // Not the callback (empty preconnect, favicon): drop it and keep waiting.
+        // 不是 回调 (空的预连接、图标)：丢弃它并继续等待。
         if (target.find('?') == std::string::npos) { close_sock(cli); continue; }
         out.code  = query_param(target, "code");
         out.state = query_param(target, "state");
@@ -299,11 +299,11 @@ CallbackResult wait_for_callback(sock_t srv, int timeout_s) {
     }
 }
 
-// ── Token store (per-server, encrypted, chmod 600) ─────────────────────────
+// ── 托肯存储器( 每1个) -server ,加密,chmod 600) 互联网档案馆的存檔,存档日期2011-09-02. ─────────────────────────
 fs::path tokens_dir() { return auth::config_dir() / "mcp_tokens"; }
 
 fs::path token_path(const std::string& server) {
-    // Sanitize server name into a safe filename.
+    // 将服务器名称清理为安全文件名。
     std::string safe;
     for (char c : server) safe.push_back((std::isalnum((unsigned char)c) || c=='-' || c=='_') ? c : '_');
     return tokens_dir() / (safe + ".json");
@@ -355,19 +355,19 @@ std::optional<StoredToken> load_token(const std::string& server) {
     try { return from_json(json::parse(plain)); } catch (...) { return std::nullopt; }
 }
 
-// ── Well-known metadata URL derivation (RFC 8414) ──────────────────────────
+// ── 不错 -known 元数据 URL 衍生( 4) RFC 8414) ──────────────────────────
 std::string as_metadata_url(const std::string& issuer) {
-    // <issuer>/.well-known/oauth-authorization-server (strip one trailing /).
+    // <issuer>/.well-known/oauth-authorization-server (剥离一尾随/)。
     std::string base = issuer;
     if (!base.empty() && base.back() == '/') base.pop_back();
     return base + "/.well-known/oauth-authorization-server";
 }
 
-// Refresh a token in place. Returns the refreshed token, or nullopt on failure.
+// 就地刷新令牌。返回刷新的令牌，或失败时返回 nullopt。
 std::optional<StoredToken> refresh(const StoredToken& tok) {
     if (tok.refresh_token.empty() || tok.client_id.empty() || tok.issuer.empty())
         return std::nullopt;
-    // Re-fetch AS metadata for the token endpoint (cheap, and issuer-bound).
+    // Re-fetch AS 令牌端点的元数据（便宜的，以及发行者-bound）。
     HttpOut md = do_http(http::HttpMethod::Get, as_metadata_url(tok.issuer));
     if (md.status != 200) return std::nullopt;
     ::mcp::auth::AuthServerMetadata as;
@@ -378,7 +378,7 @@ std::optional<StoredToken> refresh(const StoredToken& tok) {
     at.refresh_token = tok.refresh_token;
     at.resource      = tok.resource;
     std::string form = ::mcp::auth::refresh_request_form(at, tok.client_id);
-    HttpOut tr = do_http(http::HttpMethod::Post, as.token_endpoint, form, /*form=*/true);
+    HttpOut tr = do_http(http::HttpMethod::Post, as.token_endpoint, form, /*形式=*/true);
     if (tr.status != 200) return std::nullopt;
     try {
         auto nt = ::mcp::auth::parse_token_response(json::parse(tr.body), tok.issuer, tok.resource);
@@ -391,7 +391,7 @@ std::optional<StoredToken> refresh(const StoredToken& tok) {
     } catch (...) { return std::nullopt; }
 }
 
-} // namespace
+} // 命名空间结束。
 
 std::int64_t StoredToken::now_ms() noexcept { return now_ms_impl(); }
 
@@ -399,17 +399,17 @@ LoginResult login(Io io, const std::string& server_name, const std::string& endp
                   const std::string& metadata_url_in, const std::string& client_id,
                   int timeout_s) {
     LoginResult r;
-    // 1. Locate the protected-resource-metadata URL.
+    // 1.定位受保护的-resource-metadata URL。
     std::string metadata_url = metadata_url_in;
     if (metadata_url.empty()) {
-        // Probe the endpoint; expect a 401 with a WWW-Authenticate challenge.
+        // 探测端点；预计会出现带有 WWW-Authenticate 挑战的 401。
         HttpOut probe = do_http(http::HttpMethod::Post, endpoint_url,
             R"({"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}})");
         if (probe.status == 401 && !probe.www_authenticate.empty()) {
             if (auto u = ::mcp::auth::parse_challenge(probe.www_authenticate)) metadata_url = *u;
         }
         if (metadata_url.empty()) {
-            // Fall back to the conventional well-known on the endpoint origin.
+            // 回落到端点原点上的常规井-known。
             Url u = split_url(endpoint_url);
             if (!u.ok) { r.message = "invalid endpoint URL"; return r; }
             metadata_url = u.scheme + "://" + u.host +
@@ -418,7 +418,7 @@ LoginResult login(Io io, const std::string& server_name, const std::string& endp
         }
     }
 
-    // 2. GET protected-resource metadata → authorization server(s).
+    // 2.GET受保护的-resource元数据→授权服务器。
     HttpOut prm = do_http(http::HttpMethod::Get, metadata_url);
     if (prm.status != 200) {
         r.message = "could not fetch resource metadata (" + metadata_url +
@@ -432,7 +432,7 @@ LoginResult login(Io io, const std::string& server_name, const std::string& endp
     const std::string issuer = pr.authorization_servers.front();
     const std::string resource = pr.resource.empty() ? endpoint_url : pr.resource;
 
-    // 3. GET AS metadata.
+    // 3.GETAS元数据。
     HttpOut asmd = do_http(http::HttpMethod::Get, as_metadata_url(issuer));
     if (asmd.status != 200) {
         r.message = "could not fetch authorization-server metadata for " + issuer;
@@ -442,7 +442,7 @@ LoginResult login(Io io, const std::string& server_name, const std::string& endp
     try { as = ::mcp::auth::parse_authorization_server_metadata(json::parse(asmd.body)); }
     catch (const std::exception& e) { r.message = std::string("bad AS metadata: ") + e.what(); return r; }
 
-    // 4. Open the loopback callback FIRST (need the port for the redirect URI).
+    // 4、打开环回回调 首次(需要用于重定向的端口URI)。
     std::uint16_t port = 0; std::string sockerr;
     sock_t srv = open_loopback(port, sockerr);
 #if defined(_WIN32)
@@ -450,8 +450,8 @@ LoginResult login(Io io, const std::string& server_name, const std::string& endp
 #else
     if (srv < 0) { r.message = sockerr; return r; }
 #endif
-    // Every return below used to leak the listener (registration failure,
-    // bad CIMD id, a throw from random_urlsafe...) and keep its port bound
+    // 下面的每个返回都用于泄漏侦听器（注册失败、错误的 CIMD id、
+    // 从 random_urlsafe 抛出...）并保持其端口绑定
     // for the life of the process. Own it here; wait_for_callback borrows it.
     struct SockGuard {
         sock_t s;
@@ -468,17 +468,17 @@ LoginResult login(Io io, const std::string& server_name, const std::string& endp
     } srv_guard{srv};
     const std::string redirect_uri = "http://127.0.0.1:" + std::to_string(port) + "/callback";
 
-    // 5. Register the client. Preferred order per 2026-07-28: a caller-supplied
-    //    CIMD https URL (no AS round-trip — the URL IS the client_id), else a
-    //    caller-supplied pre-registered public client_id, else Dynamic Client
-    //    Registration (application_type=native). If none apply, we can't proceed.
+    // 5、注册客户端。 2026 年 7 月 28 日的首选订单：来电者 -supplied
+    //    CIMD https URL (无 AS round-trip — URL IS client_id)，
+    //    否则呼叫者-supplied pre-registered 公共client_id，
+    //    否则动态客户端注册(application_type=本机)。如果没有一个适用，我们就无法继续。
     ::mcp::auth::ClientRegistration client;
     if (!client_id.empty() && client_id.rfind("https://", 0) == 0) {
-        // CIMD: the client_id is a stable metadata-document URL bound to `issuer`.
+        // CIMD:client_id是绑定到`issuer`的稳定元数据-document URL。
         try { client = ::mcp::auth::cimd_client(client_id, issuer); }
         catch (const std::exception& e) { r.message = std::string("invalid CIMD client_id: ") + e.what(); return r; }
     } else if (!client_id.empty()) {
-        // Pre-registered public client (PKCE, token_endpoint_auth_method=none).
+        // Pre-registered公共客户端(PKCE，token_endpoint_auth_method=无)。
         client.client_id = client_id;
         client.issuer    = issuer;
     } else if (as.registration_endpoint) {
@@ -498,8 +498,8 @@ LoginResult login(Io io, const std::string& server_name, const std::string& endp
         return r;
     }
 
-    // 6. Begin PKCE flow; open the browser; wait for the redirect.
-    const std::string verifier_seed = auth::random_urlsafe(io, 48);   // >= 32 bytes entropy
+    // 6.开始PKCE流程；打开浏览器；等待重定向。
+    const std::string verifier_seed = auth::random_urlsafe(io, 48);   // >= 32 字节 熵
     const std::string state = auth::random_urlsafe(io, 24);
     ::mcp::auth::AuthSession sess = ::mcp::auth::begin(
         as, client, redirect_uri, resource, verifier_seed, state);
@@ -512,7 +512,7 @@ LoginResult login(Io io, const std::string& server_name, const std::string& endp
     CallbackResult cb = wait_for_callback(srv, timeout_s);
     if (!cb.error.empty()) { r.message = cb.error; return r; }
 
-    // 7. Validate (state + RFC 9207 iss) and exchange the code for a token.
+    // 7.验证(状态+RFC 9207 iss)并将代码交换为令牌。
     ::mcp::auth::RedirectParams rp;
     rp.code = cb.code; rp.state = cb.state;
     if (!cb.iss.empty()) rp.iss = cb.iss;
@@ -521,7 +521,7 @@ LoginResult login(Io io, const std::string& server_name, const std::string& endp
     catch (const std::exception& e) { r.message = std::string("authorization rejected: ") + e.what(); return r; }
 
     HttpOut tr = do_http(http::HttpMethod::Post, token_req["token_endpoint"].get<std::string>(),
-                         token_req["__form"].get<std::string>(), /*form=*/true);
+                         token_req["__form"].get<std::string>(), /*形式=*/true);
     if (tr.status != 200) { r.message = "token exchange failed: HTTP " + std::to_string(tr.status); return r; }
 
     ::mcp::auth::AccessToken at;
@@ -544,8 +544,8 @@ LoginResult login(Io io, const std::string& server_name, const std::string& endp
 }
 
 namespace {
-// The refresh itself, inside the token file's section: re-read first, so a
-// token another process just refreshed (and rotated) is used, not replaced.
+// 刷新本身，在令牌文件的部分内：首先是re-read，
+// 因此使用刚刚刷新（和旋转）的另一进程的令牌，而不是替换。
 std::optional<std::string> bearer_for_locked(const maya::held<locks::auth_refresh>& cap,
                                              const std::string& server_name) {
     auto tok = load_token(server_name);
@@ -556,8 +556,8 @@ std::optional<std::string> bearer_for_locked(const maya::held<locks::auth_refres
                std::string name, StoredToken t) -> std::optional<StoredToken> {
                 if (auto disk = load_token(name); disk && !disk->expired()) return disk;
                 if (auto fresh = refresh(t)) { (void)save_token(name, *fresh); return fresh; }
-                // Stale token: the server will 401 and the transport says how
-                // to sign in again.
+                // 过期令牌：服务器将返回401并且传输层说明
+                // 如何再次登录。
                 return t;
             }, server_name, *tok);
         if (!tok) return std::nullopt;
@@ -565,13 +565,13 @@ std::optional<std::string> bearer_for_locked(const maya::held<locks::auth_refres
     if (tok->access_token.empty()) return std::nullopt;
     return tok->authorization_header();
 }
-}  // namespace
+}  // 命名空间结束。
 
 std::optional<std::string> bearer_for(const locks::below_auth_refresh& cap,
                                       const std::string& server_name) {
-    // One refresh at a time: two callers seeing the same expired token would
-    // both refresh, and a server that rotates refresh tokens rejects the
-    // second. A guarded<bool> is just the lock; the work runs inside it.
+    // 一次一次刷新：看到相同过期令牌的两个调用者都将刷新，
+    // 并且轮换刷新令牌的服务器拒绝第二个。
+    // Guarded<bool> 就是 锁；作品在其中运行。
     static maya::guarded<bool, locks::auth_refresh> lane;
     return lane.with(cap,
         [](const maya::held<locks::auth_refresh>& h, bool&, std::string name)
@@ -594,8 +594,8 @@ bool has_token(const std::string& server_name) {
 }
 
 namespace {
-// Resolve <server> → endpoint URL from mcp.json (same precedence as bridge.cpp:
-// $AGENTTY_MCP_CONFIG, then ./.agentty/mcp.json, then ~/.agentty/mcp.json).
+// 从 mcp.json 解析 <server> → 端点 URL (与 bridge.cpp 的优先级相同：
+// $AGENTTY_MCP_CONFIG，然后./.agentty/mcp.json，然后~/.agentty/mcp.json)。
 fs::path resolve_mcp_config() {
     std::error_code ec;
     if (const char* env = std::getenv("AGENTTY_MCP_CONFIG"); env && env[0]) {
@@ -603,8 +603,8 @@ fs::path resolve_mcp_config() {
         return fs::is_regular_file(p, ec) ? p : fs::path{};
     }
     if (auto local = fs::path{".agentty"} / "mcp.json"; fs::is_regular_file(local, ec)) return local;
-    // Single per-user root (~/.agentty or $AGENTTY_HOME — see
-    // util/user_root.hpp) — the same place the bridge + plugin write it.
+    // 单个 per-user 根（~/.agentty 或 $AGENTTY_HOME
+    // — 参见 util/user_root.hpp) — 与桥 + 插件写入它的位置相同。
     if (auto user = util::user_root() / "mcp.json";
         fs::is_regular_file(user, ec)) {
         return user;
@@ -619,7 +619,7 @@ json load_mcp_servers() {
     if (!f) return json::object();
     try {
         json doc = json::parse(f);
-        // servers may live at top level or under "mcpServers"/"servers".
+        // 服务器可以位于顶层或"mcpServers"/"servers"之下。
         if (doc.contains("mcpServers") && doc["mcpServers"].is_object()) return doc["mcpServers"];
         if (doc.contains("servers") && doc["servers"].is_object())     return doc["servers"];
         return doc.is_object() ? doc : json::object();
@@ -633,8 +633,8 @@ std::string endpoint_of(const json& servers, const std::string& name) {
     return s.value("url", std::string{});
 }
 
-// Resolve a pre-registered / CIMD client_id for the server, if any: the
-// server's "client_id" field in mcp.json, else $AGENTTY_MCP_CLIENT_ID.
+// 解析服务器的pre-registered/CIMD client_id，如果有的话：服务器的
+// "client_id"字段在mcp.json中，否则$AGENTTY_MCP_CLIENT_ID。
 std::string client_id_of(const json& servers, const std::string& name) {
     if (servers.contains(name) && servers[name].is_object()) {
         std::string cid = servers[name].value("client_id", std::string{});
@@ -643,7 +643,7 @@ std::string client_id_of(const json& servers, const std::string& name) {
     if (const char* env = std::getenv("AGENTTY_MCP_CLIENT_ID"); env && env[0]) return env;
     return {};
 }
-} // namespace
+} // 命名空间结束。
 
 int cmd_mcp_login(Io io, const std::string& server_name, const std::string& metadata_url,
                   const std::string& client_id) {
@@ -661,7 +661,7 @@ int cmd_mcp_login(Io io, const std::string& server_name, const std::string& meta
     }
     std::fprintf(stderr, "Authorizing agentty for MCP server '%s' (%s)...\n",
                  server_name.c_str(), endpoint.c_str());
-    // --client-id wins; else the server's mcp.json "client_id"; else the env var.
+    // --client-id胜；否则服务器的 mcp.json "client_id"；否则环境变量。
     std::string cid = client_id.empty() ? client_id_of(servers, server_name) : client_id;
     LoginResult res = login(io, server_name, endpoint, metadata_url, cid);
     if (res.ok) {

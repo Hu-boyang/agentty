@@ -1,14 +1,14 @@
 #pragma once
-// agentty::rag::embed — storage for the embeddings API key.
+// agentty::rag::embed-嵌入API密钥的存储。
 //
-// Separate from embed_backend.hpp on purpose: that header is pure config
-// (usable from tests, the picker, and the wire path with no IO), while this
-// one touches the keystore and the filesystem. Keeping the split means the
-// config layer can be reasoned about without dragging in credential IO.
+// 故意与 embed_backend.hpp 分开：头
+// 文件 是纯配置（可从测试、选择面板 和 传输 路径中使用，
+// 没有 IO），而这个涉及密钥库和文件系统。
+// 保持分割意味着可以在不拖入 凭据 IO 的情况下推理配置层。
 //
-// The key is keyed by ENDPOINT rather than globally, so pointing two projects
-// at two different gateways cannot leak one's credential into the other's
-// request. It is never written to settings.json — see embed_secret.cpp.
+// 该密钥由ENDPOINT而不是全局加密，因此将两个项目指向两个不同的网
+// 关不能将一个项目的凭据泄漏到另一个请求中。它永远不会写入
+// settings.json — 请参阅 embed_secret.cpp。
 
 #include <string>
 
@@ -18,16 +18,16 @@
 
 namespace agentty::rag::embed {
 
-// The storage key for this config's endpoint, or "" when the backend takes
-// no credential (in-process models, Ollama, llama.cpp).
+// 该配置的端点的存储密钥，或者当后端不采用凭据时的""(在-process型号、
+// Ollama、llama.cpp中)。
 [[nodiscard]] std::string endpoint_key(const EmbedConfig& c);
 
-// Fetch the stored key for an endpoint ("" when none). Never throws.
+// 获取端点的存储密钥（当没有时为""）。从不抛出。
 [[nodiscard]] std::string load_key(const std::string& endpoint);
 
-// Persist (or, with an empty key, erase). Returns false if the secret could
-// not be secured — callers must treat that as "not saved" rather than
-// silently writing plaintext.
+// 保留（或者，使用空键，擦除）。如果无法保护秘密，
+// 则返回 false — 调用者必须将其视为 "not saved"，
+// 而不是默默地写入明文。
 bool store_key(Io, const lock_levels::below_file_lane&, const std::string& endpoint,
                const std::string& key);
 

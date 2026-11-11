@@ -1,38 +1,38 @@
 #pragma once
-// agentty::settings::registry — every user-facing setting, as one table.
+// agentty::settings::registry —每个用户-facing设置，作为一张表。
 //
-// THE PROBLEM. agentty grew ~35 genuine policy knobs that existed only as
-// environment variables. Each one was declared in four places — a field on the
-// config struct, a line in `from_env()`, a line in the settings load, a line in
-// the settings save — and surfaced in none. They were undiscoverable (you had
-// to read the source to learn they existed), session-only (export it or lose
-// it), and unvalidated (`env_float("...", 0.65f)` happily accepts 900).
+// 该 PROBLEM。 agentty 增加了大约 35 个仅作为
+// 环境变量存在的真正策略旋钮。每个都在四个地方声明——配置结构上的一个字段、
+// `from_env()` 中的一行、加载 设置中的一行、保存 设置中的
+// 一行——但没有出现。它们是不可发现的（你必须阅读源代码才能知道它们的存在），
+// session-only（导出它或丢失它），并且未经验证（
+// `env_float("...", 0.65f)` 很乐意接受 900）。
 //
-// THE FIX. A setting is a ROW. The table below is the single source of truth,
-// and everything else is DERIVED from it by walking:
+// 该 FIX。设置是 ROW。下表是唯一的事实来源，
+// 其他所有内容都是通过步行得出的 派生：
 //
-//   * env reading      — read `.env`, clamp to `.range`
-//   * settings.json    — load/save keyed on `.id`
-//   * the settings UI  — SettingDef -> form::Field
-//   * validation       — `.range` enforced in exactly one place
-//   * `agentty config` — list/get/set, free
+//   *环境读取——读取`.env`，夹至`.range`
+//   * settings.json — load/save 在 `.id` 上键入
+//   *设置UI —SettingDef->form::Field
+//   * 验证——`.range`仅在一处强制执行
+//   * `agentty config` — list/get/set，免费
 //
-// Adding a knob is adding a row, not four edits across three files. Same
-// promise as `kProviders`: "adding a provider is a table row".
+// 添加旋钮是添加行，而不是跨三个文件的四次编辑。与 `kProviders` 相同的承诺：
+// 添加提供方只需增加一行表项。
 //
-// ── The binding is part of the row ───────────────────────────────────────
-// `slot` is a pointer-to-member into store::RagConfig, so the row knows how to
-// READ and WRITE its own value. Without it, every walker would need its own
-// switch on `id` — which is precisely the duplication this table exists to
-// remove. Pointer-to-member is constexpr-constructible, so the whole table
-// stays a compile-time constant.
+// ── 电话 绑定 属于行 ───────────────────────────────────────
+// `slot`是-to-member到store::RagConfig的指针，
+// 因此该行知道如何READ和WRITE其自身的值。如果没有它，每个步行者都
+// 需要在 `id` 上有自己的开关——这正是该表要删除的重复项。
+// 指针-to-member是constexpr-constructible，
+// 所以整个表保持编译-time常量。
 //
-// ── Tier is an editorial judgement, and it matters ───────────────────────
-// Not everything that CAN be exposed SHOULD be. `autocut_sensitivity` is an
-// engine-tuning constant a user has no way to evaluate; making it prominent
-// would be making a confusing thing discoverable rather than useful. Advanced
-// rows are hidden behind a keypress. The bar for Basic: would a reasonable
-// user reasonably choose either way, and can they tell which they prefer?
+// ── 等级是编辑判断,它很重要 ───────────────────────
+// 并不是CAN被暴露于SHOULD的一切。
+// `autocut_sensitivity` 是一个引擎-tuning 常量，
+// 用户无法评估；让它变得突出会让一个令人困惑的东西变得容易被发现
+// 而不是有用。高级行隐藏在按键后面。基本的标准：一个理性的用户
+// 会合理地选择任何一种方式吗？他们能说出他们更喜欢哪种方式吗？
 
 #include <array>
 #include <cstdint>
@@ -44,28 +44,28 @@
 #include <variant>
 #include <vector>
 
-#include "agentty/domain/web_search_config.hpp"  // web_search.* rows: bounds + struct
-#include "agentty/domain/paste_config.hpp"       // paste.* rows: bounds + struct
-#include "agentty/domain/smart_tuning.hpp"   // shipped defaults + ranges
-#include "agentty/runtime/panel/form.hpp"           // Builder (add_rows)
+#include "agentty/domain/web_search_config.hpp"  // web_search.*行：边界+结构
+#include "agentty/domain/paste_config.hpp"       // 粘贴.*行：边界+结构
+#include "agentty/domain/smart_tuning.hpp"   // 发货默认值+范围
+#include "agentty/runtime/panel/form.hpp"           // 建造者(add_rows)
 #include "agentty/store/store.hpp"
 #include "agentty/util/io.hpp"
 
 namespace agentty::settings::registry {
 
-// Where a row appears in the settings UI.
+// 设置UI中出现一行。
 enum class Group : std::uint8_t {
-    Sources,      // which corpora are indexed
-    Pipeline,     // retrieval stages
-    Fusion,       // how lexical + dense scores combine
-    Proactive,    // pre-turn injection
-    Infra,        // persistence, tracing, feedback
-    Routing,      // Smart Mode's numeric policy
-    WebSearch,    // web_search: availability, result count, exclusions
-    WebSearchServices, // web_search: which services answer, in what order
-    PasteRoutes,  // paste: where Ctrl+V may read the clipboard from
-    PasteFiles,   // paste: size limit, what a pasted file becomes
-    PasteExpert,  // paste: pin one agent socket
+    Sources,      // 哪些语料库被索引
+    Pipeline,     // 检索阶段
+    Fusion,       // 词汇+密集分数如何结合
+    Proactive,    // pre-turn注射
+    Infra,        // 持久化，追踪，反馈
+    Routing,      // 智能模式的数值策略
+    WebSearch,    // web_search:可用性、结果计数、排除
+    WebSearchServices, // web_search:哪些服务应答，按什么顺序
+    PasteRoutes,  // 粘贴：Ctrl+V可以从其中读取剪贴板
+    PasteFiles,   // 粘贴：大小限制，粘贴后的文件会变成什么
+    PasteExpert,  // 粘贴：针脚一代理套接字
 };
 
 [[nodiscard]] constexpr std::string_view label_of(Group g) noexcept {
@@ -85,48 +85,48 @@ enum class Group : std::uint8_t {
     return "";
 }
 
-// Basic rows are always shown; Advanced hide behind a keypress. See the
-// header comment — this is a judgement about whether a user can act on the
-// knob, not about how obscure it is.
+// 基本行始终显示；高级隐藏在按键后面。请参阅 头文件
+// 注释 - 这是关于用户是否可以对旋钮进行操作的判断，
+// 而不是关于它有多晦涩。
 enum class Tier : std::uint8_t { Basic, Advanced };
 
-// What kind of control the row is. Deliberately NOT a variant of values: the
-// value lives in the config struct and is reached through `slot`, so a row
-// carries only its TYPE and its bounds.
+// 该行是什么类型的控制。故意 不 和 变体 的值：该值
+// 存在于配置结构中，并通过 `slot` 到达，
+// 因此一行仅包含其 TYPE 及其边界。
 enum class Type : std::uint8_t { Bool, Real, Int, Enum, Text };
 
-// WHICH config struct a row binds to.
+// WHICH配置结构行绑定到。
 //
-// The table started life RAG-only and every accessor took a RagConfig. Smart
-// Mode's numeric policy has the same problem RAG's did — knobs that existed
-// only as environment variables, so undiscoverable, session-only and
-// unvalidated — and deserves the same solution.
+// 该表开始生命RAG-only，并且每个访问者获取RagConfig。
+// 智能模式的数字策略具有与 RAG 相同的问题 - 仅作为环境
+// 变量存在的旋钮，因此无法发现，session-only 且
+// 未经验证 - 并且值得相同的解决方案。
 //
-// Both owners are DOMAIN types that store::Settings composes, so a row binds
-// to the thing the runtime actually reads. That is what makes a UI edit take
-// effect: the pane writes the same struct the router holds, with no shape to
-// convert between and no fan-out step to forget.
+// 两个所有者都是 store::Settings 组成的 DOMAIN 类型，
+// 因此一行绑定到 运行时 实际读取的内容。这就是 UI 编辑采用 副作用
+// 的原因：面板 写入路由器保存的相同结构，没有可在之间转换的形状，
+// 也没有需要忘记的 fan-out 步骤。
 //
-// Search is the third, for the same reason: web_search's policy is a domain
-// type (web_search_cfg::Config) the tool layer reads as-is. Its rows are the only
-// ones the Web Search pane renders, and the only ones of Type::Text — an
-// exclusion list is free text, not a number or an enum.
+// 搜索是第三个，同理：web_search的策略是域类型（
+// web_search_cfg::Config)，工具层读为-is。
+// 它的行是唯一的 Web 搜索 面板 渲染 和唯一的 Type::Text
+// — 排除列表是自由文本，而不是数字或 枚举。
 //
-// Paste is the fourth: how Ctrl+V and `agentty paste` read the clipboard
-// (paste_cfg::Config, handed to richpaste by io/clipboard.cpp).
+// 粘贴第四：Ctrl+V和`agentty paste`如何读取剪贴板(paste_cfg::Config，
+// 由io/clipboard.cpp交给richpaste)。
 enum class Owner : std::uint8_t { Rag, Smart, WebSearch, Paste };
 
-// Pointer-to-member into the persisted config. The row's read/write binding.
-// One alternative per (type, owner) pair; `Owner` says which half is live.
+// 将指针-to-member放入持久化配置中。该行是 read/write 绑定。
+// 每对（类型、所有者）一个替代方案； `Owner` 表示哪一半是实时的。
 //
-// The member-pointer TYPE is always spelled through the alias below, never
-// inline: MSVC cannot parse a namespace-qualified pointer-to-member written
-// directly as a template argument — `std::variant<bool store::RagConfig::*>`
-// dies with C3083/C2059 at the `*` (it only knows `<tag>::*` in declarator
-// context, which is why the `&store::RagConfig::field` initializers further
-// down compile everywhere). Routing every use through a named alias turns
-// each into a plain type argument: identical type, parseable by all three
-// compilers.
+// 成员-pointer TYPE总是通过下面的别名来拼写，从不内联：MSVC
+// 不能解析命名空间-qualified指针-to-member直接作为模板参数写入
+// ——`std::variant<bool store::RagConfig::*>`
+// 在`*`处随着C3083/C2059消亡(它只知道声明器上下文中的
+// `<tag>::*`，这就是`&store::RagConfig::field`
+// 初始化器进一步到处都是 编译）。通过命名别名路由每个使用，
+// 将每个使用变成一个普通类型参数：相同的类型，可由所有三个 编译器
+// 解析。
 template <class C, class M>
 using MemberPtr = M C::*;
 
@@ -148,42 +148,42 @@ using Slot = std::variant<
     MemberPtr<paste_cfg::Config, int>,
     MemberPtr<paste_cfg::Config, std::string>>;
 
-// The struct a member pointer points into: `bool web_search_cfg::Config::*` →
-// web_search_cfg::Config. owner() is derived from this.
+// struct a成员指针指向：`bool web_search_cfg::Config::*`→
+// web_search_cfg::Config。 owner()就是由此衍生出来的。
 template <class M> struct member_class;
 template <class C, class T> struct member_class<T C::*> { using type = C; };
 template <class M>
 using member_class_t = typename member_class<M>::type;
 
 struct SettingDef {
-    std::string_view id;      // settings.json key AND form field id ("rag.mmr")
-    std::string_view env;     // legacy env name; "" = no env alias
+    std::string_view id;      // settings.json键AND表单字段ID("rag.mmr")
+    std::string_view env;     // 旧版环境名称； "" = 无环境别名
     std::string_view label;   // UI
-    std::string_view help;    // one-line description
+    std::string_view help;    // one-line说明
     Group            group;
     Tier             tier;
     Type             type;
     Slot             slot;
 
-    // Bounds for Real/Int. Ignored otherwise. ENFORCED — a value outside the
-    // range is clamped at every entry point (env, json, UI), so the config
-    // can never hold one.
+    // Real/Int.的界限否则被忽略。 ENFORCED — 超出
+    // 范围的值会被限制在每个入口点（env、JSON、UI），
+    // 因此配置永远无法保留该值。
     double           min = 0.0;
     double           max = 1.0;
-    double           step = 0.05;   // Real: slider granularity
+    double           step = 0.05;   // Real:滑块粒度
 
-    // Enum options, pipe-separated ("convex|rrf"). Parsed once into the
-    // form's Choice row; the stored value is the option string itself.
+    // 枚举选项，管道-separated ("convex|rrf")。
+    // 解析一次到表单的 Choice 行；存储的值是选项字符串本身。
     std::string_view options;
 
-    // Which config struct `slot` points into. DERIVED from the slot rather
-    // than stored alongside it: a row that declared its owner separately
-    // could declare it wrongly, and the walkers would then skip a row that
-    // was reachable or visit one that was not.
+    // `slot`指向哪个配置结构体。 派生 来自槽，
+    // 而不是存储在它旁边：单独声明其所有者的行
+    // 可能会错误地声明它，然后步行者将跳过可到达
+    // 的行或访问不可访问的行。
     //
-    // Keyed on the member pointer's CLASS, not on each (class, type) pair:
-    // with three owners the old "Rag if one of these five, else Smart" chain
-    // would have filed every search row under Smart, silently.
+    // 键控在成员指针的CLASS上，而不是在每个（类、类型）对上：
+    // 对于三个所有者，旧的 "Rag if one of these five, else Smart"
+    // 链会默默地在 Smart 下归档每个搜索行。
     [[nodiscard]] constexpr Owner owner() const noexcept {
         return std::visit([]<class M>(M) constexpr {
             using C = member_class_t<M>;
@@ -203,16 +203,16 @@ struct SettingDef {
     }
 };
 
-// ── The table ────────────────────────────────────────────────────────────
-// Ordered by Group, then by how likely a user is to want it. Reading this
-// top-to-bottom should read like the settings screen, because it IS the
-// settings screen.
-// The size is DEDUCED, not declared. A hand-maintained count is one more
-// thing to keep in step with the rows themselves — exactly the duplication
-// this table exists to remove — and getting it wrong is a wall of
-// "too many initializers" rather than a useful message.
+// ── 桌子上写着 ────────────────────────────────────────────────────────────
+// 按组排序，然后按用户想要它的可能性排序。阅读这个 top
+// -to-bottom 应该像设置屏幕一样阅读，
+// 因为它 IS 设置屏幕。
+// 尺寸为DEDUCED，未声明。 hand-maintained
+// 计数是与行本身保持同步的另一件事 - 正是该表存在要删除的
+// 重复项 - 错误的是 "too many initializers"
+// 的墙而不是有用的消息。
 inline constexpr std::array kSettings = std::to_array<SettingDef>({
-    // ── Sources ─────────────────────────────────────────────────────────
+    // ── 资料来源 ─────────────────────────────────────────────────────────
     {"rag.skills", "AGENTTY_RAG_SKILLS", "Index skills",
      "let retrieval search your installed skills",
      Group::Sources, Tier::Basic, Type::Bool, &store::RagConfig::skills},
@@ -223,7 +223,7 @@ inline constexpr std::array kSettings = std::to_array<SettingDef>({
      "also index resources exposed by MCP servers",
      Group::Sources, Tier::Basic, Type::Bool, &store::RagConfig::mcp_resources},
 
-    // ── Pipeline ────────────────────────────────────────────────────────
+    // ── 管道 ────────────────────────────────────────────────────────
     {"rag.contextual", "AGENTTY_RAG_CONTEXTUAL", "Contextual chunks",
      "give each chunk a short situating preamble at index time",
      Group::Pipeline, Tier::Basic, Type::Bool, &store::RagConfig::contextual},
@@ -252,8 +252,8 @@ inline constexpr std::array kSettings = std::to_array<SettingDef>({
      "join adjacent chunks so a passage isn't cut mid-thought",
      Group::Pipeline, Tier::Basic, Type::Bool, &store::RagConfig::stitch},
 
-    // Power modes: each costs latency or model round-trips, so each is off by
-    // default and says what it costs.
+    // 电源模式：每种模式都会产生延迟或型号 round-trips，
+    // 因此每种模式默认关闭并说明其成本。
     {"rag.expand", "AGENTTY_RAG_EXPAND", "Multi-query",
      "ask the model for query variants — better recall, one extra round trip",
      Group::Pipeline, Tier::Basic, Type::Bool, &store::RagConfig::expand},
@@ -270,7 +270,7 @@ inline constexpr std::array kSettings = std::to_array<SettingDef>({
      "follow entity links between chunks; quadratic build on large corpora",
      Group::Pipeline, Tier::Advanced, Type::Bool, &store::RagConfig::graph},
 
-    // ── Fusion ──────────────────────────────────────────────────────────
+    // ── 组合 ──────────────────────────────────────────────────────────
     {"rag.fusion", "AGENTTY_RAG_FUSION", "Fusion",
      "how keyword and semantic scores combine",
      Group::Fusion, Tier::Basic, Type::Enum, &store::RagConfig::fusion,
@@ -287,7 +287,7 @@ inline constexpr std::array kSettings = std::to_array<SettingDef>({
      Group::Fusion, Tier::Advanced, Type::Real, &store::RagConfig::bm25_weight,
      0.0, 3.0, 0.1},
 
-    // ── Infrastructure ──────────────────────────────────────────────────
+    // ── 基础设施 ──────────────────────────────────────────────────
     {"rag.persist", "AGENTTY_RAG_PERSIST", "Cache index",
      "keep the built index under .agentty/ so restarts are warm",
      Group::Infra, Tier::Basic, Type::Bool, &store::RagConfig::persist},
@@ -295,17 +295,17 @@ inline constexpr std::array kSettings = std::to_array<SettingDef>({
      "fold per-stage timings into the retrieval label",
      Group::Infra, Tier::Advanced, Type::Bool, &store::RagConfig::trace},
 
-    // ── Routing (Smart Mode) ─────────────────────────────────────
-    // Smart Mode's FEATURE surface (the master switch and the three model
-    // slots) is the Ctrl+S overlay — those are choices about WHICH MODEL, and
-    // belong next to a model picker. These three are its numeric POLICY, and
-    // they are here for the same reason the RAG tuning rows are: they existed
-    // only as environment variables, which made them undiscoverable,
-    // session-only and unvalidated.
+    // ── 运行( 智能模式) ─────────────────────────────────────
+    // 智能模式的FEATURE表面(主开关和三个型号插槽)是
+    // Ctrl+S 覆盖面板——这些是关于WHICH MODEL的选择，
+    // 并且属于型号选择面板的旁边。这三个是其数字 POLICY，
+    // 它们在这里的原因与 RAG 调整行的原因相同：它们仅作为
+    // 环境变量存在，这使得它们不可发现、session
+    // -only 且未经验证。
     //
-    // All Advanced. "At what feature score does a turn become Complex" is not
-    // a question a user can answer cold — but it IS the spend dial, so it has
-    // to be reachable rather than a source-code constant.
+    // 所有高级。 "At what feature score does a turn become Complex"
+    // 不是一个用户可以冷酷回答的问题，但它是 IS 支出拨号，因此它必须是可访问的，
+    // 而不是一个 source-code 常量。
     {"smart.complex_threshold", "AGENTTY_SMART_COMPLEX_THRESHOLD",
      "Complexity cut",
      "feature score at which a turn routes as Complex; lower spends more",
@@ -323,14 +323,14 @@ inline constexpr std::array kSettings = std::to_array<SettingDef>({
      &smart::RoleConfig::bias_clamp,
      smart::tuning::kBiasClampMin, smart::tuning::kBiasClampMax, 1},
 
-    // The two rows that decide whether Smart Mode saves you money at all.
+    // 这两行决定智能模式保存是否给你钱。
     //
-    // Basic tier, unlike the three above: "should a one-word turn run on my
-    // most expensive model" IS a question a user can answer cold, and it is
-    // the difference between Smart Mode working and Smart Mode being
-    // decoration. Before these existed the main turn was pinned to Strategic
-    // in the dispatch path with no way to change it — a user's 577-turn
-    // trace had 142 trivial/simple turns all billed at flagship rate.
+    // 基础层，与上面三个不同：
+    // 只有一个词的请求是否也要使用最昂贵模型？
+    // IS是用户可以冷酷回答的问题，这就是智能模式工作和智能模式
+    // 装饰之间的区别。在这些存在之前，主要转弯被固定到 分派 路径中的战略，
+    // 无法更改它 - 用户的 577-turn 跟踪有 142 个
+    // trivial/simple 转弯，全部按旗舰费率计费。
     {"smart.route_main_turn", "AGENTTY_SMART_ROUTE_MAIN", "Route the main turn",
      "let a turn's complexity choose its model, not just its effort",
      Group::Routing, Tier::Basic, Type::Bool,
@@ -341,10 +341,10 @@ inline constexpr std::array kSettings = std::to_array<SettingDef>({
      &smart::RoleConfig::main_turn_floor,
      0.0, 0.0, 0.0, "utility|implementation|strategic"},
 
-    // ── web_search (Settings → Web Search) ─────────────────────────────
-    // Applied at the two seams agentty owns — wire advertisement and the
-    // dispatch closure — never inside mcp-cpp, which implements the tool.
-    // See domain/web_search_config.hpp for what that does and does not reach.
+    // ── web_search(安排 ) – 网络搜索(Web搜索) ─────────────────────────────
+    // 应用于两个接口边界 agentty拥有——传输广告和
+    // 分派关闭——从未在实现该工具的mcp-cpp内部应用。
+    // 参见domain/web_search_config.hpp了解其达到和未达到的内容。
     {"web_search.mode", "AGENTTY_WEB_SEARCH", "Web search",
      "auto: the model decides the count, as before \xc2\xb7 on: your counts apply \xc2\xb7 off: no web search",
      Group::WebSearch, Tier::Basic, Type::Enum, &web_search_cfg::Config::mode_text,
@@ -363,9 +363,9 @@ inline constexpr std::array kSettings = std::to_array<SettingDef>({
      "domains to leave out, separated by spaces or commas: pinterest.com w3schools.com",
      Group::WebSearch, Tier::Basic, Type::Text, &web_search_cfg::Config::exclude_sites},
 
-    // Which services answer, first to succeed wins. The options are the ids of
-    // mcp-cpp's catalogue (mcp/tools/web_search.hpp); the pane shows its labels.
-    // tests/web_search_services_test.cpp pins this list to the catalogue.
+    // 哪个服务回答，先成功者获胜。选项为mcp-cpp的目录id（
+    // mcp/tools/web_search.hpp）； 面板 显示其标签。
+    // tests/web_search_services_test.cpp将该列表固定到目录。
     {"web_search.primary", "AGENTTY_WEB_SEARCH_PRIMARY", "Primary",
      "asked first. Free needs no account; API key needs one, stored encrypted",
      Group::WebSearchServices, Tier::Basic, Type::Enum, &web_search_cfg::Config::primary,
@@ -383,9 +383,9 @@ inline constexpr std::array kSettings = std::to_array<SettingDef>({
      Group::WebSearchServices, Tier::Basic, Type::Enum, &web_search_cfg::Config::language,
      0.0, 0.0, 0.0, web_search_cfg::kLanguages},
 
-    // ── Paste (Settings → Paste) ─────────────────────────────────────────────
-    // How Ctrl+V and `agentty paste` read the clipboard (richpaste). Read by
-    // io/clipboard.cpp; see domain/paste_config.hpp.
+    // ── 粘贴( 安排 ) – 粘贴) ─────────────────────────────────────────────
+    // Ctrl+V和`agentty paste`如何读取剪贴板(richpaste)。 io/clipboard.cpp 阅读；
+    // 参见 domain/paste_config.hpp.
     {"paste.forwards", "AGENTTY_PASTE_FORWARDS", "Laptop over ssh",
      "over ssh, read your laptop's clipboard through `agentty paste setup`",
      Group::PasteRoutes, Tier::Basic, Type::Bool, &paste_cfg::Config::forwards},
@@ -420,16 +420,16 @@ inline constexpr std::array kSettings = std::to_array<SettingDef>({
 
 inline constexpr int kCount = static_cast<int>(kSettings.size());
 
-// ── Lookup ───────────────────────────────────────────────────────────────
+// ── 查询 ───────────────────────────────────────────────────────────────
 [[nodiscard]] constexpr const SettingDef* find(std::string_view id) noexcept {
     for (const auto& s : kSettings)
         if (s.id == id) return &s;
     return nullptr;
 }
 
-// ── Compile-time proofs ──────────────────────────────────────────────────
-// A reader should not have to trust that the table is well-formed; the
-// invariants are checked where they are written.
+// ── 编译-time 证明 ──────────────────────────────────────────────────
+// 读者不必相信该表是well-formed；
+// 检查 不变量 的写入位置。
 namespace proofs {
 
 consteval bool ids_unique() {
@@ -457,17 +457,17 @@ consteval bool ranges_sane() {
     return true;
 }
 
-// An Enum row without options is a dropdown with nothing in it.
+// 没有选项的枚举行是其中没有任何内容的下拉列表。
 consteval bool enums_have_options() {
     for (const auto& s : kSettings)
         if (s.type == Type::Enum && s.options.empty()) return false;
     return true;
 }
 
-// The slot's type must match the declared Type, or a walker will write
-// through the wrong member and silently corrupt an unrelated setting. Checked
-// across BOTH owners, so a Settings-owned row is held to the same standard as
-// a RagConfig-owned one.
+// 槽的类型必须与声明的类型相匹配，否则遍历器将写入错误的成员
+// 并悄悄地破坏不相关的设置。对 两者 所有者进行了检查，
+// 因此 Settings-owned 行与 RagConfig-owned
+// 行保持相同的标准。
 consteval bool slots_match_types() {
     for (const auto& s : kSettings) {
         switch (s.type) {
@@ -499,9 +499,9 @@ consteval bool slots_match_types() {
                  && !std::holds_alternative<MemberPtr<paste_cfg::Config, std::string>>(s.slot))
                     return false;
                 break;
-            // Free text binds a string like Enum does, but carries no options
-            // to validate against — so it is kept to the owners that need it
-            // (exclusion lists, paths) rather than offered to every string slot.
+            // 自由文本像枚举一样绑定字符串，
+            // 但不携带验证选项——因此它保留给需要它的所有者
+            // （排除列表、路径），而不是提供给每个字符串槽。
             case Type::Text:
                 if (!std::holds_alternative<MemberPtr<web_search_cfg::Config, std::string>>(s.slot)
                  && !std::holds_alternative<MemberPtr<paste_cfg::Config, std::string>>(s.slot))
@@ -513,12 +513,12 @@ consteval bool slots_match_types() {
     return true;
 }
 
-// Every id is namespaced, so a settings.json key cannot collide with an
-// unrelated top-level field — and the PREFIX must agree with the owner the
-// slot points into. That second half is what keeps "which struct holds this"
-// answerable by reading the id: a row called "rag.…" that writes into
-// store::Settings would be a lie the walkers could not catch, since each one
-// only ever sees rows it can reach.
+// 每个id都是命名空间的，因此settings.json键不能与不
+// 相关的top-level字段冲突——并且PREFIX必须与槽指向的所有者一致。
+// 后半部分是通过读取 id 让 "which struct holds this"
+// 负责的原因：写入 store::Settings 的名为
+// "rag.…" 的行将是步行者无法捕捉到的谎言，因为每个步行
+// 者只能看到它可以到达的行。
 consteval bool ids_namespaced() {
     for (const auto& s : kSettings) {
         const bool rag    = s.id.starts_with("rag.");
@@ -534,10 +534,10 @@ consteval bool ids_namespaced() {
     return true;
 }
 
-// The registry and smart::tuning both name the shipped defaults and ranges.
-// tuning is the source; these rows mirror it. Pin them together so a change
-// to one is a compile error rather than a silent disagreement between what
-// the UI clamps to and what a bare env read clamps to.
+// 注册表和smart::tuning都命名了出厂默认值和范围。
+// 调音是源；这些行反映了它。将它们固定在一起，
+// 这样对一个的更改就是 编译 错误，而不是 UI 所钳制的
+// 内容和裸环境读取所钳制的内容之间无声的分歧。
 consteval bool smart_rows_match_tuning() {
     for (const auto& s : kSettings) {
         if (s.id == "smart.complex_threshold")
@@ -553,9 +553,9 @@ consteval bool smart_rows_match_tuning() {
     return true;
 }
 
-// The search rows' bounds are web_search_cfg's constants, and the tool layer
-// clamps to the same constants at dispatch. Pin the two together so a row
-// cannot advertise a range the dispatch seam then disagrees with.
+// 搜索行的边界是web_search_cfg的常数，
+// 并且工具层在分派处钳位到相同的常数。将两者固定在一起，
+// 这样一行就不能公布 分派 接口边界 不同意的范围。
 consteval bool web_search_rows_match_config() {
     for (const auto& s : kSettings) {
         if (s.id == "web_search.count")
@@ -568,8 +568,8 @@ consteval bool web_search_rows_match_config() {
     return true;
 }
 
-// The paste rows' bounds are paste_cfg's constants, and io/clipboard.cpp
-// clamps to the same constants. Pin them together.
+// 粘贴行的边界是paste_cfg的常数，
+// 并且io/clipboard.cpp钳位到相同的常数。将它们钉在一起。
 consteval bool paste_rows_match_config() {
     for (const auto& s : kSettings) {
         if (s.id == "paste.max_mb")
@@ -596,21 +596,21 @@ static_assert(paste_rows_match_config(),
 
 } // namespace proofs
 
-// ── Derived operations (settings_registry.cpp) ───────────────────────────
-// Each walks the table. None of them names an individual setting.
+// ── 衍生业务(settings_registry.cpp) ───────────────────────────
+// 每个人都走在桌子上。他们都没有指定单独的设置。
 //
-// Every accessor is overloaded per owner. A row is only reachable through the
-// struct it binds to, so passing the wrong one is a compile error rather than
-// a silent no-op — and each walker naturally SKIPS rows it cannot reach.
+// 每个访问器对于每个所有者来说都是过载的。一行只能通过
+// 所绑定的结构体，因此传错对象会在编译时被发现，避免
+// 一个无声的no-op——每个步行者自然有SKIPS行它无法到达。
 
-// The registry's env overrides, read once. Env vars are fixed at exec, so a
-// reducer or view takes this from Model::env instead of calling getenv.
+// 注册表的环境覆盖，读取一次。环境变量在 exec 处是固定的，
+// 因此 状态更新函数 或视图从 Model::env 获取它，而不是调用 getenv。
 struct EnvSnapshot {
-    // (variable, value) for every row whose variable is set and non-empty.
+    // (变量，值)对于其变量被设置且非-empty的每一行。
     std::vector<std::pair<std::string, std::string>> set;
-    // AGENTTY_SMART_MODE: the session pin on the master switch.
+    // AGENTTY_SMART_MODE：主交换机上的会话引脚。
     std::optional<bool> smart_enabled;
-    // AGENTTY_SMART_NO_INTERNAL / _NO_ORCHESTRATE / _NO_SUBAGENTS.
+    // AGENTTY_SMART_NO_INTERNAL/_NO_ORCHESTRATE/_NO_SUBAGENTS。
     bool smart_no_internal    = false;
     bool smart_no_orchestrate = false;
     bool smart_no_subagents   = false;
@@ -621,23 +621,23 @@ struct EnvSnapshot {
     }
 };
 
-// Reads the process environment.
+// 读取进程环境。
 [[nodiscard]] EnvSnapshot read_env(Io);
 
-// Apply environment overrides on top of `c`. Clamps to each row's range.
+// 在`c`之上应用环境覆盖。钳位到每行的范围。
 void apply_env(store::RagConfig& c, const EnvSnapshot& env);
 void apply_env(smart::RoleConfig& c, const EnvSnapshot& env);
 void apply_env(web_search_cfg::Config& c, const EnvSnapshot& env);
 void apply_env(paste_cfg::Config& c, const EnvSnapshot& env);
-// Same, reading the environment now. For CLI paths with no Model.
+// 同样，正在读取现在的环境。对于没有 Model 的 CLI 路径。
 void apply_env(Io, store::RagConfig& c);
 void apply_env(Io, smart::RoleConfig& c);
 void apply_env(Io, web_search_cfg::Config& c);
 void apply_env(Io, paste_cfg::Config& c);
 
-// Read/write a row's value as a string — the shape `agentty config get/set`
-// and the JSON walkers both want. Returns false for an unknown id or a value
-// the row cannot hold.
+// Read/write 行的值作为字符串——形状 `agentty config get/set`
+// 和 JSON 步行者都想要。对于未知的 id 或该行无法容纳的值，
+// 返回 false。
 [[nodiscard]] std::string get(const store::RagConfig& c, const SettingDef& d);
 [[nodiscard]] std::string get(const smart::RoleConfig& c, const SettingDef& d);
 [[nodiscard]] std::string get(const web_search_cfg::Config& c, const SettingDef& d);
@@ -651,30 +651,30 @@ void apply_env(Io, paste_cfg::Config& c);
 [[nodiscard]] bool        set(paste_cfg::Config& c, const SettingDef& d,
                               std::string_view value);
 
-// True when the row still holds its shipped default — used to keep
-// settings.json clean (only non-default rows are written).
+// 当该行仍然保持其出厂默认值时为真——用于保持 settings.json
+// 干净（仅写入非 -default 行）。
 [[nodiscard]] bool is_default(const store::RagConfig& c, const SettingDef& d);
 [[nodiscard]] bool is_default(const smart::RoleConfig& c, const SettingDef& d);
 [[nodiscard]] bool is_default(const web_search_cfg::Config& c, const SettingDef& d);
 [[nodiscard]] bool is_default(const paste_cfg::Config& c, const SettingDef& d);
 
-// The env var that is OVERRIDING this row right now, or "" when none is set.
-// A row under an override renders LOCKED and names the variable, instead of
-// looking editable and silently losing the edit on the next read.
+// 该行现在的环境变量是 OVERRIDING，或者当没有设置时是 ""。
+// 覆盖渲染 LOCKED下的行并对变量进行命名，
+// 而不是看起来可编辑并在下次读取时默默地丢失编辑。
 [[nodiscard]] std::string env_override(const SettingDef& d, const EnvSnapshot& env);
 
-// Restore a row to its shipped default.
+// 将行恢复为其出厂默认值。
 void reset(store::RagConfig& c, const SettingDef& d);
 void reset(smart::RoleConfig& s, const SettingDef& d);
 void reset(web_search_cfg::Config& c, const SettingDef& d);
 void reset(paste_cfg::Config& c, const SettingDef& d);
 
-// One row: label, help, control kind, range, env lock and provenance, all from
-// the table. Split out of add_rows for a pane that must put its own rows
-// BETWEEN registry rows (Web Search hangs each service's dials under its slot).
+// 一行：标签、帮助、控制类型、范围、环境锁和出处，全部来自表。
+// 从 add_rows 中拆分出一个窗格，该窗格必须将自己的行
+// BETWEEN 注册表行（Web 搜索将每个服务的拨号盘挂在其插槽下）。
 template <class C>
 inline void add_row(form::Builder& b, const C& cfg, const EnvSnapshot& env, const SettingDef& d) {
-    {   // (scope kept from add_rows' loop body, so the diff stays a move)
+    {   // （范围保持在 add_rows' 循环 正文 范围内，因此差异保持移动）
         const std::string id{d.id};
         const std::string label{d.label};
         const std::string help{d.help};
@@ -709,33 +709,33 @@ inline void add_row(form::Builder& b, const C& cfg, const EnvSnapshot& env, cons
                 break;
             }
             case Type::Text:
-                // Free text: the value is the user's own string, verbatim.
-                // Normalising happens where it is USED (web_search_cfg), so the
-                // row shows exactly what was typed.
+                // 自由文本：该值是用户自己的逐字字符串。
+                // 标准化发生在USED (web_search_cfg)处，
+                // 因此该行准确地显示了带类型的。
                 b.text(id, label, get(cfg, d), help);
                 break;
         }
 
-        // An env var overriding this row makes it READ-ONLY and names the
-        // variable. The row would otherwise look editable and silently lose
-        // the edit on the next read — layered config's worst failure, and the
-        // reason `origin` exists at all.
+        // 覆盖该行的环境变量使其成为 READ-ONLY 并命名该变量。
+        // 否则，该行看起来是可编辑的，并且在下一次读取时默默
+        // 地丢失编辑 - 分层配置最严重的失败，
+        // 以及 `origin` 存在的原因。
         if (const std::string var = env_override(d, env); !var.empty()) {
             b.origin("env: " + var);
             b.lock("env: " + var);
         }
-        // Provenance: a row still on its shipped value says so, which is the
-        // difference between "I never touched this" and "I set it to that".
+        // 出处：其发货价值上的一行如此说明，这是"I never touched this"
+        // 和"I set it to that"之间的差异。
         else if (is_default(cfg, d)) b.origin("default");
     }
 }
 
-// ── Rows ───────────────────────────────────────────────────
+// ── 行数 ───────────────────────────────────────────────────
 //
-// The inverse of add_row: write a form row's value back into `cfg` through
-// the table. Every pane commits through this, so a field kind is converted to
-// a setting string in exactly one place. A locked row (env override) is
-// skipped so a shell export is never overwritten.
+// add_row的逆：通过表将表单行的值写回到`cfg`中。
+// 每个 面板 都通过此提交，因此字段类型会在一个位置转换
+// 为设置字符串。会跳过锁定的行（env 覆盖），
+// 因此 shell 导出永远不会被覆盖。
 template <class C>
 inline bool read_row(C& cfg, const SettingDef& d, const form::Field& row) {
     if (row.locked) return false;
@@ -756,7 +756,7 @@ inline bool read_row(C& cfg, const SettingDef& d, const form::Field& row) {
     }, row.value);
 }
 
-// Write every row of `owner` that the form holds back into `cfg`.
+// Write表格将`owner`的每一行保留成`cfg`。
 template <class C>
 inline void read_rows(C& cfg, const form::Form& f, Owner owner) {
     for (const auto& d : kSettings) {
@@ -765,34 +765,34 @@ inline void read_rows(C& cfg, const form::Form& f, Owner owner) {
     }
 }
 
-// Project this table's rows onto a form. THE way a pane renders settings —
-// label, help, control kind, range, group header, env lock and provenance all
-// come from the row, so a pane contributes only WHICH rows it owns.
+// 将该表的行投影到表单上。 该 方式的 面板 渲染 设置 — 标签、
+// 帮助、控制类型、范围、组 头文件、环境 锁 和出处都来自该行，
+// 因此 面板 仅贡献其拥有的 对应的 行。
 //
-// This lives here rather than in one pane's .cpp because both panes need it.
-// It was private to the RAG pane, so the Smart Mode pane hand-rolled its three
-// rows instead: labels, help strings and ranges retyped from the table they
-// were already declared in, and the env-lock/provenance handling quietly
-// reimplemented and subtly different. Two panes rendering settings two ways is
-// exactly the duplication the table exists to remove.
+// 这存在于此处而不是存在于一个 面板 的 .cpp 中，因为两个 面板 都需要它。
+// 它对于RAG 面板来说是私有的，因此智能模式面板将
+// -rolled改为它的三行：标签、帮助字符串和从它们已经
+// 声明的表中重新键入的范围，
+// 并且env-lock/provenance处理悄悄地重新实现并且略有不同。
+// 两个面板 渲染设置两种方式正是将表存在的重复项删除。
 //
-// `first` and `last_group` thread across calls so group headers stay correct
-// when a pane walks more than one owner. A pane that must put rows of its own
-// BETWEEN registry rows walks the table itself and calls add_row (above).
+// `first`和`last_group` 线程穿过调用，因此当面板行走
+// 超过一个所有者时，组头文件保持正确。必须放置其自己的 BETWEEN
+// 注册表 行的 面板 会遍历表本身和 调用 add_row（上图）。
 template <class C>
 inline void add_rows(form::Builder& b, const C& cfg, const EnvSnapshot& env,
                      Owner owner, bool advanced, bool& first, Group& last_group) {
     for (const auto& d : kSettings) {
         if (d.owner() != owner) continue;
 
-        // Advanced rows are hidden, not disabled: a knob whose effect a user
-        // cannot judge is noise on the main screen, but it still has to be
-        // reachable (`a`) rather than env-only.
+        // 高级行被隐藏，而不是被禁用：用户无法判断其副作用的
+        // 旋钮是主屏幕上的噪音，但它仍然必须是可到达的（
+        // `a`)而不是env-only。
         if (d.tier == Tier::Advanced && !advanced) continue;
 
-        // A group header separates sections. It is a real field kind, not a
-        // locked text row: faking it leaked a placeholder into the value
-        // column and let the cursor land on a label that does nothing.
+        // 组头文件分隔各部分。它是一种真正的字段类型，
+        // 而不是锁定的文本行：伪造它会将占位符泄漏到值列中，
+        // 并使光标落在不执行任何操作的标签上。
         if (first || d.group != last_group) {
             b.header(std::string{label_of(d.group)});
             last_group = d.group;

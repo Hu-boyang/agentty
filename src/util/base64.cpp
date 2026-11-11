@@ -13,8 +13,8 @@ constexpr char kAlphabet[] =
     "abcdefghijklmnopqrstuvwxyz"
     "0123456789+/";
 
-// Inverse table — built once. -1 = invalid, -2 = whitespace (skip),
-// -3 = padding ('=').
+// 反式表——建一次. -1 = 无效, -2 = 白空(skip),
+// -3 = 垫('=').
 constexpr auto kDecodeTable = []{
     std::array<int8_t, 256> t{};
     for (auto& v : t) v = -1;
@@ -26,7 +26,7 @@ constexpr auto kDecodeTable = []{
     return t;
 }();
 
-} // namespace
+} // 命名空间结束。
 
 std::string base64_encode(const unsigned char* data, std::size_t len) {
     std::string out;
@@ -63,9 +63,9 @@ std::string base64_decode(std::string_view encoded) {
     for (char c : encoded) {
         auto u = static_cast<unsigned char>(c);
         int v = kDecodeTable[u];
-        if (v == -2) continue;            // whitespace
+        if (v == -2) continue;            // 空白区
         if (v == -3) { seen_pad = true; continue; }
-        if (v < 0 || seen_pad) return {}; // invalid char or data after pad
+        if (v < 0 || seen_pad) return {}; // 无效字符或数据后页
         buf = (buf << 6) | static_cast<std::uint32_t>(v);
         bits += 6;
         if (bits >= 8) {

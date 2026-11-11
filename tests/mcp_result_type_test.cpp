@@ -1,22 +1,22 @@
-// mcp_result_type_test — the `resultType` field is REQUIRED from protocol
-// 2026-07-28, which is the version we advertise.
+// mcp_result_type_test - 电话 `resultType` 字段为
+// REQUIRED 2026-07-28协议, 这是我们广告的版本。
 //
-// The spec is unusually explicit about both halves:
+// 两种情况都不同寻常地明确:
 //
-//   "Servers implementing this protocol version MUST include this field."
+//   "Servers implementing this protocol version MUST include this field."（实现此协议版本的服务器必须包含该字段。）
 //
-//   "For backward compatibility, when a client receives a result from a
-//    server implementing an earlier protocol version (which does not include
-//    `resultType`), the client MUST treat the absent field as `complete`."
+//   为保持向后兼容，当客户端收到旧协议版本服务器的结果，
+//    而该版本没有 resultType 字段时，
+//    必须将缺失字段视为 complete。
 //
-// So this is two contracts, not one: always EMIT it, and tolerate its
-// ABSENCE when decoding. A codec that merely has the field satisfies
-// neither — `Maybe<std::string>` would compile, omit the key on the wire,
-// and quietly break every 2026-07-28 client.
+// 所以这是两份合同,不是一份,总是 EMIT 并容忍它,
+// ABSENCE 解码时,一个只满足了字段的解码器。
+// `Maybe<std::string>` 将 编译 键,省略 传输 ,
+// 并悄悄打破每2026-07-28客户端.
 //
-// Worth a dedicated test because a missing required field is invisible
-// locally: our own client defaults it, so agentty-talking-to-agentty works
-// perfectly while a conformant third-party client rejects the response.
+// 值得专门测试,因为缺少一个需要的字段是本地看不见的: 我们自己的
+// 客户端默认它,所以 agentty-talking-to-agentty
+// 完美地工作,同时符合第三 -party 客户端拒绝响应。
 
 #include <mcp/methods.hpp>
 
@@ -27,7 +27,7 @@
 using namespace mcp;
 
 namespace {
-// Every result type the spec marks `required: [..., "resultType", ...]`.
+// 每个结果都打入了谱号`required: [..., "resultType", ...]`.
 template <class T>
 void check_emits_result_type(const char* what) {
     T v{};
@@ -40,17 +40,17 @@ void check_emits_result_type(const char* what) {
 template <class T>
 void check_absent_decodes_complete(const char* what, Json minimal) {
     INFO(what);
-    // A pre-2026-07-28 server omits the field entirely.
+    // 2026-07-28前服务器完全省略了字段.
     CHECK(!minimal.contains("resultType"));
     const T v = codec<T>().decode(minimal);
     CHECK(v.resultType == "complete");
 }
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("mcp: every result emits resultType") {
-    // A default-constructed result must already carry it — call sites do not
-    // have to remember, which is the only way this stays true as new ones
-    // are added.
+    // 默认 -constructed 结果必须已经携带—— 调
+    // 用 网站不必记住,这是随着新网站的添加而保持真实的
+    // 唯一方法。
     check_emits_result_type<CallToolResult>("CallToolResult");
     check_emits_result_type<ListToolsResult>("ListToolsResult");
     check_emits_result_type<ListPromptsResult>("ListPromptsResult");
@@ -62,10 +62,10 @@ TEST_CASE("mcp: every result emits resultType") {
 }
 
 TEST_CASE("mcp: an absent resultType decodes as complete") {
-    // The spec's backward-compat rule, verbatim. An older server sends no
-    // such field and the client MUST read it as "complete" rather than
-    // empty — an empty string here would make a valid response look like an
-    // unknown result type.
+    // 光谱的落后 -compat 规则, paltic。
+    // 一个较老的服务器发送的字段和客户端 必须 读为 "complete"
+    // 而不是空的 —— 这里的空字符串会让一个有效的响应看起来像
+    // 一个未知的结果类型.
     check_absent_decodes_complete<CallToolResult>(
         "CallToolResult", Json{{"content", Json::array()}});
     check_absent_decodes_complete<ListToolsResult>(
@@ -76,13 +76,13 @@ TEST_CASE("mcp: an absent resultType decodes as complete") {
 }
 
 TEST_CASE("mcp: a server-sent resultType survives the round trip") {
-    // "input_required" is the other value the spec names — the server needs
-    // more from the user before it can finish. Decoding it as "complete"
-    // would make the client stop waiting and treat a half-answer as final.
+    // "input_required" 是一个字符串名称的其他值 —
+    // — 服务器需要用户更多的信息才能完成。 "complete"
+    // 能让客户停止等待 治疗一半 -answer 成为最终的。
     Json j{{"content", Json::array()}, {"resultType", "input_required"}};
     const auto v = codec<CallToolResult>().decode(j);
     CHECK(v.resultType == "input_required");
-    // And it survives re-encoding, so a proxy that decodes and forwards
-    // doesn't silently downgrade it.
+    // 而它能存活到re-encoding,所以一个解码和前进
+    // 的代理不会默默地将其降级.
     CHECK(codec<CallToolResult>().encode(v)["resultType"] == "input_required");
 }

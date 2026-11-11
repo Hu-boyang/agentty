@@ -1,22 +1,22 @@
-// config_inventory_test — the inventory is the ONLY declaration.
+// config_inventory_test - 库存是 仅。 声明。
 //
-// THE RULE
+// 该 RULE
 // ========
-// Every scope::Layout and dirs::Spec in agentty is declared in
-// include/agentty/config/inventory.hpp, and every consumer reads it from
-// there. No file builds its own.
+// 每一个 scope::Layout 财务报告和已审计财务报表 dirs::Spec 输入
+// agentty 已声明为 include/agentty/config/inventory.hpp ,
+// 每个消费者都从那里读出来。没有文件可以建立自己的文件。
 //
-// This matters because `agentty config` exists to tell a user where their
-// config comes from. A tool that describes the program is worthless if it
-// can drift from the program — a WRONG explanation is worse than none,
-// because now you believe it. The only way to make drift impossible is to
-// have one declaration, so the command and the feature cannot disagree.
+// 这很重要,因为 `agentty config`
+// 存在可以告诉用户其配置来自何处。如果程序可以漂移,
+// 描述程序的工具就毫无价值。 WRONG 解释比
+// 没有更糟糕,因为现在你相信了。 唯一使漂移不可能
+// 的方法就是有一个声明,所以命令和特征不能有分歧。
 //
-// It is the same lesson as the dialect fix: that bug was two decision sites
-// for one decision (plan() emitted six sources, a downstream filter read
-// three), and the fix was to delete the second site, not document it.
+// 与方言修补相同: 错误是决定一个的两处决定地点(
+// plan() 排放了6个源,a 下游 过滤器读为3),
+// 而修补的就是删除第二个站点,而不是记录.
 //
-// So it is checked mechanically, against the source, on every build.
+// 所以每个建筑都用机械方式 对照源头进行检查
 
 #include "agtest.hpp"
 
@@ -30,21 +30,21 @@
 #include <string>
 #include <vector>
 
-#include <unistd.h>   // geteuid — root can read anything, so skip there
+#include <unistd.h>   // 根可以读任何东西,所以跳过那里
 
 namespace fs = std::filesystem;
 namespace cfg = agentty::config;
 
 namespace {
 
-// The ONE file allowed to declare a Layout or a Spec.
+// 允许声明布局或 Spec 的 一个 文件。
 const std::vector<std::string> kAllowed = {
     "include/agentty/config/inventory.hpp",
 };
 
-// Tests legitimately fabricate Layouts to exercise the pure algebra with a
-// synthetic Env — that is the whole point of scope's purity contract, and
-// those are not real storage locations.
+// 测试用合成信封进行纯代数的布局是合法地
+// 编织出来的——这是范围纯度合同的全点,
+// 这些不是真正的存储位置.
 [[nodiscard]] bool is_test(const std::string& rel) {
     return rel.rfind("tests/", 0) == 0;
 }
@@ -57,7 +57,7 @@ const std::vector<std::string> kAllowed = {
 }
 
 [[nodiscard]] fs::path repo_root() {
-    // Walk up from the cwd to the checkout, same marker rule dirs uses.
+    // 从cwd上到检查台, 同样的标记规则 dirs 使用。
     std::error_code ec;
     for (fs::path p = fs::current_path(ec); !p.empty(); p = p.parent_path()) {
         if (fs::exists(p / "cmake" / "AgenttySources.cmake", ec)) return p;
@@ -66,15 +66,15 @@ const std::vector<std::string> kAllowed = {
     return {};
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("every Layout and Spec is declared in the inventory") {
     const fs::path root = repo_root();
     REQUIRE(!root.empty(), "found the checkout root");
 
-    // A brace-init of either type anywhere outside the inventory is a second
-    // declaration. `= config::kFoo` aliases are fine — they name the one
-    // declaration rather than copying it — so the pattern requires a brace.
+    // 保险套 -init 清单以外的任何类型都是第二个申报。
+    // `= config::kFoo` 化名是好的——它们只点
+    // 出一个声明的名字,而不是复制它——所以这个模式需要一个支架。
     const std::regex decl(R"((scope::Layout|dirs::Spec)\s+\w+\s*\{)");
 
     std::vector<std::string> offenders;
@@ -104,10 +104,10 @@ TEST_CASE("every Layout and Spec is declared in the inventory") {
           "every Layout/Spec is declared in config/inventory.hpp");
 }
 
-// The inventory must agree with the accessors that shipped first. If
-// kThreadsSpec resolved somewhere other than user_threads_dir(), `agentty
-// config threads` would confidently print the wrong path — the exact
-// failure this whole design is built to prevent.
+// 存货必须与首先发运的存取器商定。如果 kThreadsSpec 解决
+// 了除此之外的其他问题,则将使用。 user_threads_dir(),
+// `agentty config threads` 将自信地打印出错误
+// 的路径——这个整个设计所建的精确的失败,以预防.
 TEST_CASE("write specs resolve where the real accessors do") {
     struct Pair { const char* name; fs::path actual; };
     const Pair pairs[] = {
@@ -128,16 +128,16 @@ TEST_CASE("write specs resolve where the real accessors do") {
 }
 
 TEST_CASE("the read ladder is exactly what plan emits") {
-    // No filtering happens between plan() and the report — that invariant is
-    // what makes the printed ladder the real one. Native concerns get two
-    // sources, portable ones six (project×3 ▷ user×3).
+    // 之间没有过滤 plan() 报告——即: 不变量
+    // 本地关注得到两个来源, 即便携式六号(
+    // projectx3 QQ userx3)。
     const cfg::Entry* mcp = cfg::find("mcp");
     REQUIRE(mcp != nullptr, "mcp is in the inventory");
     const cfg::Report rm = cfg::describe(*mcp);
     for (const auto& row : rm.reads)
         CHECK(row.dialect == agentty::scope::Dialect::Agentty,
               "mcp reads only the native dialect");
-    // And it reports the two it skips, derived from the same field.
+    // 报告它跳过的两个, 来源于同一个领域。
     CHECK(rm.skipped.size() == 2, "mcp names .agents and .claude as not read");
 
     const cfg::Entry* sk = cfg::find("skills");
@@ -147,8 +147,8 @@ TEST_CASE("the read ladder is exactly what plan emits") {
 }
 
 TEST_CASE("anchors are derived, and honest") {
-    // Two roots, one anchor each. The anchor is a function of the Root, so a
-    // new category cannot accidentally advertise itself as one.
+    // 两个根,每个主播一个,主播是根的功能,
+    // 所以一个新的类别不能不小心把自己作为一个来广告.
     CHECK(cfg::anchor_env(agentty::dirs::Root::User) == "AGENTTY_HOME");
     CHECK(cfg::anchor_env(agentty::dirs::Root::Project) == "AGENTTY_PROJECT_DIR");
 
@@ -158,8 +158,8 @@ TEST_CASE("anchors are derived, and honest") {
               "no Spec's own variable relocates a whole root");
     }
 
-    // rag and feedback share the project root but not a leaf: one is
-    // rebuildable and swept, the other accumulates and never is.
+    // 抹布和反馈共享项目根但并非一叶:一个可以
+    // 重建并被扫荡,另一个会积累,永远不会.
     const cfg::Entry* rag = cfg::find("rag");
     const cfg::Entry* fb  = cfg::find("feedback");
     REQUIRE(rag != nullptr, "rag is in the inventory");
@@ -173,18 +173,18 @@ TEST_CASE("anchors are derived, and honest") {
 }
 
 TEST_CASE("only executable concerns report trust") {
-    // The column exists because MCP's gate is now scope::trust_of's — the
-    // report calls the same function the spawn path calls. Nothing else in
-    // the inventory executes, so nothing else may claim a trust state;
-    // printing "trusted" next to a skills directory would be meaningless
-    // ceremony that erodes the word where it matters.
+    // 该列的存在是因为 MCP 门是现在 scope::trust_of
+    // 报告 调用 产卵路径的相同函数 调用。清单中没有任何
+    // 其他内容执行,因此,其他内容都不得声称存在信任状态;
+    // "trusted" 旁边的是一个技能目录 将是毫无
+    // 意义的仪式 侵蚀了这个词的重要性。
     for (const cfg::Entry& e : cfg::inventory()) {
         if (!e.read) continue;
         const cfg::Report r = cfg::describe(e);
         for (const auto& row : r.reads) {
             if (cfg::executable(e.name)) {
-                // Present executable config always gets a verdict; a missing
-                // file has no bytes to bind an approval to.
+                // 当前的可执行配置总是得到判决;
+                // 缺失的文件没有字节来约束批准.
                 CHECK(row.exists == !row.trust.empty(),
                       "executable: a verdict exactly when the file exists");
             } else {
@@ -199,8 +199,8 @@ TEST_CASE("only executable concerns report trust") {
 }
 
 TEST_CASE("user and explicit sources are trusted by placement") {
-    // scope::trust_of's rule, surfaced: a human put ~/.agentty/mcp.json
-    // there, so it needs no vouching. Only Project/Local rode in on a clone.
+    // scope::trust_of 规则,浮出水面: 人的地方 ~/.agentty/mcp.json
+    // 在那里,所以它不需要担保。 Project/Local 骑着克隆人进来的
     const cfg::Entry* mcp = cfg::find("mcp");
     REQUIRE(mcp != nullptr, "mcp is in the inventory");
     for (const auto& row : cfg::describe(*mcp).reads) {
@@ -213,16 +213,16 @@ TEST_CASE("user and explicit sources are trusted by placement") {
 }
 
 TEST_CASE("sizes are measured once, never double-counted") {
-    // The size column is what #58 actually needed: "store all
-    // non-configuration data on a different path" is a decision nobody can
-    // make without seeing which categories are big. Settings are KB and
-    // threads can be GB, and until this existed the only way to find out was
+    // 58号的列是实际需要的:
+    // 把所有非配置数据存放到另一条路径。
+    // 是一个没有人能做出的决定, 而不看到哪些类别是大。 设置是 KB 财务
+    // 报告和已审计财务报表 线程 可能是这样 GB ,直到存在 唯一的办法发现是
     // `du`.
     //
-    // The trap is specs that SHARE a resolved directory -- rag and feedback
-    // both land on <project>/.agentty. If each measured the tree, the column
-    // would sum to double the real disk, and a total that overstates by 2x is
-    // worse than no total at all.
+    // 陷阱是光谱 SHARE 已解决目录 -- -- 覆盖和
+    // 反馈两个土地 <project>/.agentty 如果
+    // 每个测量 源码树 ,该栏将相加到真实磁盘的两倍,
+    // 超过2x的总数比没有总数还差。
     std::map<std::string, int> measured_per_path;
     for (const cfg::Entry& e : cfg::inventory()) {
         if (!e.write) continue;
@@ -230,8 +230,8 @@ TEST_CASE("sizes are measured once, never double-counted") {
         REQUIRE(r.write.has_value(), "a write spec yields a write row");
         if (!r.write->error.empty()) continue;
 
-        // measured and shared_dir are mutually exclusive by construction:
-        // either this row owns the number or it defers to a sibling.
+        // 计量和计量 shared_dir 建筑是相互排斥的:
+        // 要么这行拥有号码 要么就交给兄弟会
         CHECK(!(r.write->measured && r.write->shared_dir),
               "a row either owns its size or defers, never both");
         if (r.write->measured) ++measured_per_path[r.write->path];
@@ -244,8 +244,8 @@ TEST_CASE("sizes are measured once, never double-counted") {
 }
 
 TEST_CASE("a concern that writes nothing claims no disk") {
-    // Read-only concerns (mcp, skills, memory...) resolve through scope, not
-    // dirs. Reporting a size for them would invent a number.
+    // 读取 -only 关注事项(mcp、技能、
+    // 内存 以范围而不是用底盘来解决。报告大小将创造数字。
     for (const cfg::Entry& e : cfg::inventory()) {
         if (e.write) continue;
         CHECK(!cfg::describe(e).write.has_value(),
@@ -254,15 +254,15 @@ TEST_CASE("a concern that writes nothing claims no disk") {
 }
 
 TEST_CASE("an unreadable subtree is flagged, not silently dropped") {
-    // skip_permission_denied makes a chmod-000 directory vanish SILENTLY --
-    // no error_code, nothing inside it ever appears. A 2 MB subdir reported
-    // as "0 B" with no hint anything was missed, which is the same confident
-    // lie the rest of this file exists to prevent. Partial is fine; silent
-    // is not.
+    // skip_permission_denied 使 chmod-000
+    // 目录消失 SILENTLY - 没有 error_code 里面没有东西出现,
+    // 一二 MB 子目录报告为 "0 B" 没有任何提示, 其它文件是用来防止的,
+    // 但却没有遗漏任何东西, 这也是同样自信的谎言。 部分是好的;
+    // 沉默不是。
     //
-    // Root can read anything, so this would pass vacuously there. Windows
-    // can't express "unlistable" through fs::permissions at all (it only
-    // toggles the read-only attribute), so the precondition can't be built.
+    // 根能读到任何东西,所以它会 空虚地通过那里。 Windows 无法
+    // 表达 "unlistable" 结束 fs::permissions
+    // 完全没有(仅指 切换 读取 -only 属性),所以先决条件不能被构建.
 #if defined(_WIN32)
     return;
 #else
@@ -285,7 +285,7 @@ TEST_CASE("an unreadable subtree is flagged, not silently dropped") {
     const cfg::Entry* threads = cfg::find("threads");
     REQUIRE(threads != nullptr, "threads is in the inventory");
 
-    // Readable: the bytes are counted and nothing is flagged.
+    // 可读: 字节 被计算,没有标记。
     {
         const cfg::Report r = cfg::describe(*threads);
         REQUIRE(r.write.has_value(), "write row");
@@ -293,7 +293,7 @@ TEST_CASE("an unreadable subtree is flagged, not silently dropped") {
         CHECK(!r.write->partial, "nothing was unreadable");
     }
 
-    // Unreadable: the count drops to 0, and that MUST be announced.
+    // 无法读取:计数降至0,并宣布MUST.
     fs::permissions(locked, fs::perms::none);
     {
         const cfg::Report r = cfg::describe(*threads);
@@ -309,8 +309,8 @@ TEST_CASE("an unreadable subtree is flagged, not silently dropped") {
 }
 
 TEST_CASE("a symlink loop in a measured tree terminates") {
-    // Sizes must never follow symlinks: a link into someone else's tree
-    // would report their disk as ours, and a cycle would hang the command.
+    // 大小绝不能跟随符号链接: a 链接 进入别人的
+    // 源码树 将他们的磁盘作为我们的, 循环会挂起命令。
     const fs::path base = fs::temp_directory_path() / "agentty_cfg_loop";
     fs::remove_all(base);
     const fs::path home = base / "home";
@@ -326,7 +326,7 @@ TEST_CASE("a symlink loop in a measured tree terminates") {
 
     const cfg::Entry* threads = cfg::find("threads");
     REQUIRE(threads != nullptr, "threads is in the inventory");
-    const cfg::Report r = cfg::describe(*threads);   // must return at all
+    const cfg::Report r = cfg::describe(*threads);   // 绝对必须返回
     REQUIRE(r.write.has_value(), "write row");
     CHECK(r.write->bytes == 5, "counts the file once, does not follow the loop");
 
@@ -336,8 +336,8 @@ TEST_CASE("a symlink loop in a measured tree terminates") {
 }
 
 TEST_CASE("every concern has a name and a description") {
-    // The table is the first thing a confused user sees; a blank cell there
-    // is a worse bug than a missing feature.
+    // 该表是混淆的用户所看到的第一件事;空白的存储单元有
+    // 一个比缺失的功能更糟糕的bug.
     for (const cfg::Entry& e : cfg::inventory()) {
         CHECK(!e.name.empty(), "concern has a name");
         CHECK(!e.what.empty(), "concern has a description");

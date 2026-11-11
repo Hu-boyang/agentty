@@ -1,28 +1,28 @@
 #pragma once
-// agtest::fx — run and inspect the effects a reducer returned.
+// agtest::fx 运行和检查 副作用 a 状态更新函数 返回时,
 //
-// A reducer describes its effects instead of performing them:
+// A 状态更新函数 说明其 副作用 而不是履行这些职责:
 //
-//     Cmd cmd = save_record(m);          // a VALUE saying "save the record"
+//     Cmd cmd= 数据来源: save_record(m);          // a 值 说 "save the record"
 //
-// which is what makes a reducer testable without a store. Two things a test
-// wants from that value:
+// 这使得一个没有商店的 状态更新函数
+// 测试可以进行。
 //
-//   1. ASSERT on it — "this arm saves exactly once".
+//   1. ASSERT 上面写着... "this arm saves exactly once".
 //
-//        CHECK(agtest::fx::count<save_settings>(cmd) == 1);
+//        CHECK(agtest::fx::count<save_settings>(cmd)  ⁇  1);  ⁇   ⁇ ;  ⁇  ;  ⁇ .
 //        auto* e = agtest::fx::find<SaveSettings>(cmd);
 //        REQUIRE(e); CHECK(e->settings.show_changes_strip);
 //
-//   2. RUN it — for tests that assert on the store afterwards, which is how
-//      most of the suite was written when saving happened inside the
-//      reducer. `run(cmd, store)` walks the Cmd and performs the
-//      persistence effects against a plain Settings/thread sink, so those
-//      tests keep asserting what they always did.
+//   2. 二十万二十(RUN)——用于事后在商店上坚持的测试,这就是如何
+//      大部分套房都是在 保存时写出来的 状态更新函数.
+//      `run(cmd, store)` 走路,
+//      走着 Cmd 并履行 持久化 副作用 对抗平原 Settings/thread
+//      继续坚持他们一直以来所做的
 //
-// Only the store effects are handled. Terminal effects (clipboard, scrollback)
-// are the host's and mean nothing here; tasks and timers are the kernel's, and
-// a test that wants those should drive maya::headless instead.
+// 只有店铺 副作用 处理。 终端 副作用 (剪贴板, 回滚缓冲区
+// )是宿主的,在这里毫无意义;任务和计时器是内核的,一个测试想要
+// 这些应该驱动的 maya::headless 换成是的
 #ifndef AGENTTY_TESTS_AGTEST_FX_HPP
 #define AGENTTY_TESTS_AGTEST_FX_HPP
 
@@ -33,7 +33,7 @@
 
 #include <maya/runtime.hpp>   // run_tasks_inline
 
-#include "agtest_cap.hpp"          // agtest::cap()
+#include "agtest_cap.hpp"          // agtest::cap( ) (中文( ) ).
 
 #include "agentty/provider/selection.hpp"
 #include "agentty/auth/accounts.hpp"
@@ -49,7 +49,7 @@
 
 namespace agtest::fx {
 
-// Walk every leaf of a Cmd (batches flattened), in order.
+// 每一片叶子都行走 Cmd (炮头扁平),依序.
 template <class F>
 void for_each(const agentty::Cmd& c, F&& f) {
     std::visit([&]<class X>(const X& x) {
@@ -57,14 +57,14 @@ void for_each(const agentty::Cmd& c, F&& f) {
         if constexpr (std::same_as<U, typename agentty::Cmd::Batch>) {
             for (const auto& inner : x.cmds) for_each(inner, f);
         } else if constexpr (std::same_as<U, typename agentty::Cmd::None>) {
-            // nothing
+            // 无
         } else {
             f(x);
         }
     }, c.inner);
 }
 
-/// The first payload of type `P` in the Cmd, or nullptr.
+/// 第一个 载荷 类型 `P` 输入 Cmd ,或 ,或 nullptr.
 template <class P>
 [[nodiscard]] const P* find(const agentty::Cmd& c) {
     const P* hit = nullptr;
@@ -75,7 +75,7 @@ template <class P>
     return hit;
 }
 
-/// How many payloads of type `P` the Cmd carries.
+/// 有多少个 载荷 类型 `P` 编号 Cmd 载着
 template <class P>
 [[nodiscard]] int count(const agentty::Cmd& c) {
     int n = 0;
@@ -85,7 +85,7 @@ template <class P>
     return n;
 }
 
-/// A stand-in for the store, so a test can assert on "what reached disk".
+/// 一个站立 -in 店里,所以测试可以断言 "what reached disk".
 struct Store {
     agentty::store::Settings          settings;
     std::vector<agentty::Thread>      saved_threads;
@@ -94,20 +94,20 @@ struct Store {
     std::vector<std::pair<std::string, std::string>> written_files;
 };
 
-/// Perform the persistence effects in `c` against `s`, plus the publish
-/// effects (tests read the globals the way off-loop code does).
+/// 执行 持久化 副作用 输入 `c` 反对 `s` ,加上出版量
+/// 副作用 (测试读取了全球的路程) -loop 代码是的。
 ///
-/// This is what the HOST does in production (runtime/app/host.hpp); doing it
-/// here keeps a test that asserts on the store honest about the fact that a
-/// save only happens if the reducer actually returned the effect.
+/// 这就是... HOST 生产( runtime/app/host.hpp
+/// )在这里做这个测试,在店里诚实地断言一个 保存 只有发生,
+/// 如果 状态更新函数 实际返回 副作用.
 inline void run(const agentty::Cmd& c, Store& s) {
     for_each(c, [&](const auto& e) {
         using U = std::remove_cvref_t<decltype(e)>;
         if constexpr (std::same_as<U, agentty::SaveSettings>)
             s.settings = e.settings;
         else if constexpr (std::same_as<U, agentty::SaveThread>) {
-            // Apply the delta onto the last save of the same thread, so a test
-            // still sees the whole thread that reached the store.
+            // 将三角洲应用到同一座的线程的最后一个保存上,
+            // 所以一个测试仍然可以看到整个线程到达商店.
             agentty::Thread t = e.delta.header;
             for (auto it = s.saved_threads.rbegin(); it != s.saved_threads.rend(); ++it)
                 if (it->id == t.id) {
@@ -134,8 +134,8 @@ inline void run(const agentty::Cmd& c, Store& s) {
         else if constexpr (std::same_as<U, agentty::PublishToolLoading>)
             agentty::tools::tool_loading::install(agentty::tools::plan::loading_from(e.mode));
         else if constexpr (std::same_as<U, agentty::InstallAuth>) {
-            // Only the clear is played here: resolving would read the
-            // developer's real credential files.
+            // 这里只播放清晰: 解析会读取
+            // 开发商真实的凭据文件.
             if (e.clear) agentty::app::update_auth(::agentty::IoAccess::grant(), agentty::auth::AuthHeader{});
         }
         else if constexpr (std::same_as<U, agentty::PublishSubagent>) {
@@ -148,9 +148,9 @@ inline void run(const agentty::Cmd& c, Store& s) {
     });
 }
 
-/// Run the credential effects (AccountOp, SaveCredentials) against the real
-/// credential layer, the way the host does. For tests that point
-/// AGENTTY_HOME at a temp dir and assert on the stores afterwards.
+/// 运行 凭据 副作用 (AccountOp,
+/// SaveCredentials )与真实的 凭据 层,
+/// 主机的操作方式。用于测试该点 AGENTTY_HOME 之后在商店里坚持
 inline void run_credentials(const agentty::Cmd& c) {
     namespace cr  = agentty::provider::credentials;
     namespace acc = agentty::auth::accounts;
@@ -172,11 +172,11 @@ inline void run_credentials(const agentty::Cmd& c) {
     });
 }
 
-/// Run every TASK in `c` inline, the way the kernel would on a worker, and
-/// return the messages they sent, in order. Store effects and timers are not
-/// touched (see run() / run_credentials()). For reducers that hand their IO to
-/// Cmd::task / Cmd::task_isolated and fold the answer back as a Msg: a test
-/// feeds what this returns into update(), and asserts on the result.
+/// 运行一次 TASK 输入 `c` 内核的内核 工作线程 ,并按顺序返回他们发来的讯息。
+/// Store 副作用 而不触动计时器(见 run() / run_credentials
+/// (()) 用于 状态更新函数 手,他们 IO 改为 Cmd::task /
+/// Cmd::task_isolated 财务报告和已审计财务报表 归并 答案为
+/// Msg : 测试输入返回的内容 update() ,并坚持这一结果。
 [[nodiscard]] inline std::vector<agentty::Msg> run_tasks(agentty::Cmd c) {
     return maya::run_tasks_inline(std::move(c));
 }

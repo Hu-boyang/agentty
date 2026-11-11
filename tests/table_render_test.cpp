@@ -1,9 +1,9 @@
-// table_render_test — verify maya's streaming markdown classifies a
-// well-formed GFM table as Table, and a malformed one (prose before the
-// header pipe, the shape the model produced) as Paragraph. This is the
-// exact failure the user saw: the renderer is spec-correct, so the fix
-// lives in the system prompt, not here. This test pins the renderer
-// behaviour so we know which shape renders as a grid.
+// table_render_test ——核查. maya's
+// 流式传输 标记下划井 -formed GFM 表格为表格,
+// 且表格格式不正确(在表格之前提交) 头文件 管道,模型的形状)作为段落。
+// 这是用户看到的准确失败: 渲染器 属于 spec -correct ,
+// 所以修复 生活系统 提示词 这儿不行,这个测试针 渲染
+// 器 行为让我们知道哪个形状 渲染 成为网格。
 #include <string>
 
 #include "agtest.hpp"
@@ -31,7 +31,7 @@ static bool has_table(const std::string& src) {
     md.finish();
     bool found = false;
     std::printf("  source:\n");
-    // echo source indented
+    // 回声源缩进
     {
         std::string line;
         for (char c : src) {
@@ -52,8 +52,8 @@ static bool has_table(const std::string& src) {
 
 TEST_CASE("table render") {
     
-    // ── 1. WELL-FORMED table: header line starts at '|', blank line
-    //    before it. Must classify as Table.
+    // 1. 格式正确的表格：表头行以 | 开始，并有空行
+    //    之前,必须分类为表。
     std::printf("[well-formed table]\n");
     const std::string good =
         "Source layout (src/):\n"
@@ -64,9 +64,9 @@ TEST_CASE("table render") {
         "| diff/ | Diff rendering for edits |\n";
     CHECK_MESSAGE(has_table(good), "expected a Table block, got none");
 
-    // ── 2. MALFORMED (the model's shape): lead-in prose on the SAME line
-    //    as the header. GFM rejects it → Paragraph (wall of pipes). This
-    //    is what the user saw; the renderer is correct.
+    // 2. 模型产生的畸形表格：说明文字与表头位于同一行，
+    //    作为 头文件. GFM 拒绝 ~ 段落( 管道的墙)。
+    //    这是用户看到的。 渲染器 说对了
     std::printf("\n[malformed: prose before header pipe]\n");
     const std::string bad =
         "Source layout (src/): | Dir | Likely role | airgap/ | SSH airgap |\n"

@@ -1,8 +1,8 @@
-// How expensive is catalog_block() now that it resolves trust?
+// 这么贵 catalog_block (现在它解决了信任?)
 //
-// It runs on EVERY turn (provider::system_prompt_for → default_system_prompt),
-// and the trust gate added a file read plus a SHA-256 over every skill body
-// to that path. This measures it rather than assuming.
+// 继续运行 每个 转弯( E) provider::system_prompt_for →
+// default_system_prompt ),信任门则添加了文件读作+a SHA - 256 超越一切技能 -
+// 255 over every skill 正文 这条路是用来衡量的,而不是假设的。
 
 #include "agentty/tool/skills.hpp"
 
@@ -22,7 +22,7 @@ int main() {
     const auto home = base / "home";
     const auto root = home / ".agentty" / "skills";
 
-    // 40 skills with realistic bodies (~4 KB each — a real SKILL.md).
+    // 40个有现实主义技能的 正文 (~4 KB 每一个——一个真实的 SKILL.md).
     const std::string body(4096, 'x');
     for (int i = 0; i < 40; ++i) {
         const auto d = root / ("skill" + std::to_string(i));
@@ -36,7 +36,7 @@ int main() {
     ::setenv("HOME", home.c_str(), 1);
     ::setenv("AGENTTY_HOME", (home / ".agentty").c_str(), 1);
 
-    // Warm the skills cache so we measure the catalog, not discovery.
+    // 暖和技能 缓存 故我们测量 目录 而不是发现。
     (void)catalog_block(::agentty::IoAccess::grant());
 
     constexpr int kRuns = 200;
@@ -51,20 +51,20 @@ int main() {
                 per, kRuns);
     (void)sink;
 
-    // A BUDGET, not just a number. catalog_block() runs on every turn, on
-    // the path between the user pressing enter and the request going out.
-    // It was 3400 us/call when all() re-parsed every SKILL.md per call and
-    // threw the parse away; the stat-only signature pass took it to ~500.
+    // A BUDGET 不只是一个数字。 catalog_block
+    // ()运行在每一个转弯,运行在用户按下输入和请求外出之间的路径.
+    // 是3400块 us/call 何时 all() 内容 -parsed 每隔一段时间
+    // SKILL.md 百分比 调用 扔了那个 解析 远离; 统计 -only 签名证上写着:
     //
-    // 1500 is deliberately loose — this is a debug build on shared CI, and
-    // a flaky perf test gets deleted rather than fixed. It catches the
-    // REGRESSION SHAPE (re-parsing the library per turn), not jitter.
+    // 1500是故意松开的,这是在共享的基础上建立的调试器 CI ,
+    // 然后删除而非修改。 REGRESSION SHAPE
+    // (净) -parsing 编号 库 转弯时,不要紧张。
     //
-    // Windows: the stat-only pass is ~80 path lookups (40 skill dirs + their
-    // SKILL.md), and an NTFS metadata query is ~30-40 us against ~3 us on
-    // Linux, so the same healthy pass measures ~3 ms there. The re-parse
-    // regression this guards against costs several times that again (every
-    // SKILL.md opened, read and hashed), so the shape still shows.
+    // Windows : 数据 -only 传球为~80路面(40个技能
+    // 迪尔+他们的) SKILL.md ),并设置一个 NTFS 元
+    // 数据查询是 ~30 - 40 我们对~3 我们上 Linux
+    // 健康通过量等于3毫秒 -parse 将警卫的伤亡率再降低几倍(每一
+    // 次) SKILL.md 打开、阅读和散列,所以形状仍然显示。
 #if defined(_WIN32)
     constexpr long long kBudgetUs = 6000;
 #else

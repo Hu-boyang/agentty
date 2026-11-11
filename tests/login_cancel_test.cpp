@@ -1,21 +1,21 @@
-// Cancelling a login must actually stop the worker.
+// 取消登录必须实际停止工作线程.
 //
-// History, because the shape of this bug is easy to reintroduce:
+// 历史,因为这个bug的形状很容易被重新引入:
 //
-//   Originally the worker was a Cmd::task holding a shared_ptr<atomic_bool>,
-//   and Esc tripped the flag. The jaal migration (f643ec58) switched the
-//   body to the task's stop_token and stopped reading the flag — on the
-//   reasoning that jaal trips the token "on shutdown AND when the
-//   subscription that started the work goes away". That second half is only
-//   true of a SOURCE. A one-shot Cmd::task has no subscription to drop, so
-//   its token fires at kernel shutdown and nowhere else. Meanwhile the
-//   reducers went on setting a flag nobody read, and Esc left the worker
-//   block-polling the provider for the rest of its 900 s budget.
+//   原为 工作线程 是个 Cmd::task 持有 shared_ptr
+//   <atomic_bool> ,和 Esc 绊倒 标志。该词 jaal 迁移
+//   (f643ec58) 正文 任务 stop_token 并停止阅读 标志
+//   ——以推理为理由: jaal 移动符号
+//   关闭程序或启动该工作的订阅消失时，都必须取消。
+//   下半部分只是对一个 SOURCE。一个 -shot Cmd::task
+//   没有 事件订阅 内核关闭时的信号火力 和别的地方 状态更新函数
+//   继续设置 标志 没有人读,和 Esc 离开 工作线程 块
+//   -polling 提供900个预算的其余部分。
 //
-// The fix is the shape jaal wants: the worker is a keyed Sub::stream, and
-// HOLDING THE WAITING STATE is what runs it. So "close the modal" and
-// "cancel the worker" stop being two things that can drift apart — they are
-// the same act, and these tests pin exactly that.
+// 修补就是形状 jaal 想要: 需要一个 工作线程 已键入 Sub::stream ,
+// 和 HOLDING 该 WAITING STATE 运行它。 "close the modal"
+// 财务报告和已审计财务报表 "cancel the worker" 停止做两个可以分开的东西,
+// 它们都是一样的行为, 这些测试正好就是这个原因。
 #include "agtest.hpp"
 
 #include "agentty/runtime/app/subscribe.hpp"
@@ -27,20 +27,20 @@ using namespace agentty;
 
 namespace {
 
-// How many leaf subscriptions this model asks for.
+// 几叶 事件订阅 这个模型需要。
 [[nodiscard]] int leaves(const Sub& s) {
     int n = 0;
     s.for_each([&](const auto&) { ++n; });
     return n;
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("login: the worker runs only while the modal is waiting") {
     Model m;
     const int idle = leaves(app::subscribe(m));
 
-    // Entering the waiting state asks for one more source: the poll loop.
+    // 进入等待状态时,要求再有一个来源:民意调查环路.
     m.ui.login = ui::login::DeviceWaiting{
         .provider = "copilot", .provider_label = "GitHub Copilot",
         .attempt_id = 1,
@@ -48,7 +48,7 @@ TEST_CASE("login: the worker runs only while the modal is waiting") {
     CHECK_MESSAGE(leaves(app::subscribe(m)) == idle + 1,
                   "a waiting device login must subscribe its worker");
 
-    // Esc drops it — which is what fires the body's stop_token.
+    // Esc 放弃它,这就是火 正文's stop_token.
     auto [m2, _] = app::update(std::move(m), Msg{CloseLogin{}});
     CHECK(std::holds_alternative<ui::login::Closed>(m2.ui.login));
     CHECK_MESSAGE(leaves(app::subscribe(m2)) == idle,
@@ -67,9 +67,9 @@ TEST_CASE("login: ChatGPT waiting subscribes its own worker") {
     CHECK(leaves(app::subscribe(m2)) == idle);
 }
 
-// The key is what gives the source its identity. A new attempt must produce
-// a DIFFERENT key, or jaal would keep the old worker running and the new
-// attempt would never start.
+// 关键在于何者为源其身份。新的尝试必须产生 不同 键,
+// 或 jaal 就能保持旧的 工作线程 运行中,
+// 新的尝试永远不会开始。
 TEST_CASE("login: each attempt is a distinct subscription") {
     Model m;
     m.ui.login = ui::login::DeviceWaiting{
@@ -86,9 +86,9 @@ TEST_CASE("login: each attempt is a distinct subscription") {
                   "a newer attempt must replace the running worker");
 }
 
-// A login can be open while a turn animates. subscribe() returns early on
-// that path to add the Tick timer, and the login source has to survive it —
-// dropping it there would silently cancel a sign-in mid-flight.
+// 登录可以在转动动画时打开. subscribe() 返回路径的
+// 早期添加 Tick 计时器, 而登录源必须幸存它 —— 将它悄悄地
+// 丢在那里。 取消 标志 -in 中点 -flight.
 TEST_CASE("login: the worker survives an animating turn") {
     Model m;
     m.ui.login = ui::login::DeviceWaiting{
@@ -98,18 +98,18 @@ TEST_CASE("login: the worker survives an animating turn") {
     const int quiet = leaves(app::subscribe(m));
 
     m.s.phase = phase::Streaming{phase::Active{}};
-    REQUIRE(app::animation_demand(m));          // the early-return path
-    CHECK_MESSAGE(leaves(app::subscribe(m)) == quiet + 1,   // +1 = the Tick
+    REQUIRE(app::animation_demand(m));          // 早期的-return路径
+    CHECK_MESSAGE(leaves(app::subscribe(m)) == quiet + 1,   // +1 = 勾选
                   "the login worker must still be subscribed while streaming");
 }
 
-// The guard that keeps a late worker from corrupting a newer login. Worth
-// pinning independently of how cancellation is delivered.
+// 守门人,迟到的 工作线程 不再损坏新登录。
+// 值得不考虑如何锁定 取消 已经交付。
 TEST_CASE("login: a stale attempt's result is ignored") {
     Model m;
     m.ui.login = ui::login::DeviceWaiting{
         .provider = "copilot", .provider_label = "GitHub Copilot",
-        .attempt_id = 2,                        // the CURRENT attempt
+        .attempt_id = 2,                        // 编号 当前 尝试
     };
 
     auto [m2, _] = app::update(std::move(m),

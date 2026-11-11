@@ -1,41 +1,41 @@
 #pragma once
-// agentty::persistence — the one way agentty writes a file another agentty
-// may also be writing.
+// agentty::persistence——agentty写入文件的一种方式，
+// 另一个agentty也可能正在写入。
 //
-// jaal owns the primitives: maya::guarded for threads and
-// maya::platform::native_file_lock for processes. Which files are shared,
-// what to do when a lock can't be had, and how bytes reach the disk are
-// agentty's policy, and they live here. Nothing else in agentty calls the
-// file lock or renames a temp over a file (tests/lint/disk_writes.py).
+// jaal拥有原语：用于线程的maya::
+// guarded和用于进程的maya::platform::native_file_lock。
+// 共享哪些文件、无法获取 锁 时该怎么办以及 字节 如何到达磁盘，这些都是 agentty
+// 的策略，它们就存在于此。 agentty 调用 文件 锁 中没有其他内容，
+// 也没有重命名文件 (tests/lint/disk_writes.py) 上的临时文件。
 //
-// BOTH LOCKS, ALWAYS
+// 两者 LOCKS，始终
 //
-// A guarded is invisible to another process, and a POSIX record lock is
-// invisible to another thread of the same process (jaal conformance check
-// 13). So a section takes the file's in-process Lane, then the file lock.
+// 受保护的进程对于另一个进程不可见，并且POSIX记录锁
+// 对于同一进程的另一个线程不可见(jaal一致性检查13)。
+// 所以一个节取文件的in-process里，然后是文件锁。
 //
-// LOCK ORDER IS A TYPE
+// LOCK ORDER IS TYPE
 //
-// Every Lane has a rank (lock_levels). A section is entered with a
-// capability proving the thread holds only lower ranks, so two sections can
-// only nest in rank order, and every process takes their file locks in that
-// same order. The cross-process order is the in-process order, and the
-// compiler checks it.
+// 每个泳道都有一个等级(lock_levels)。
+// 输入的节具有证明 线程 仅具有较低等级的能力，因此两个节只能
+// 按等级顺序嵌套，并且每个进程都以相同的顺序获取其文件 锁。
+// cross-process订单是in-process订单，
+// 编译器检查它。
 //
-// BOUNDED, AND NEVER FATAL
+// BOUNDED、和 绝不 FATAL
 //
-// The file lock waits at most kSharedFileWait (jaal acquire_within, a kernel
-// wait that is legal inside a lock body). Past that, or on a filesystem that
-// can't lock, the body runs holding the lane alone and Held::cross_process
-// is false, logged once per file. A lost update is a bad day; an agentty
-// frozen behind a peer stopped with ^Z is worse.
+// 文件锁最多等待kSharedFileWait(jaal acquire_within，
+// 锁 正文内合法的内核等待)。除此之外，或者在无法 锁 的文件系统上，
+// 正文 单独保持通道运行，而 Held::cross_process 为
+// false，每个文件记录一次。丢失更新是糟糕的一天； agentty
+// 冻结在 对端 后面，并以 ^Z 停止，情况更糟。
 //
 // FAST BY DEFAULT
 //
-// The uncontended cost is one open + one fcntl on the sidecar, and the lane
-// is a mutex. write_atomic fsyncs only what must survive a power cut
-// (Durability), and creates its temp with the final mode, so no chmod
-// window and no extra syscall.
+// 无竞争成本是边车上的1个open+1个fcntl，并且车道是互斥量。
+// write_atomic 仅 fsyncs 必须在断电后存活的
+// 内容（持久性），并使用最终模式创建其温度，因此没有 chmod 窗口，
+// 也没有额外的系统调用。
 
 #include <chrono>
 #include <cstdint>
@@ -54,37 +54,37 @@
 
 namespace agentty::persistence {
 
-/// How long a section waits for another process before going on without it.
-/// A read-modify-write of one of these files takes well under a millisecond,
-/// so a holder past this is stopped, not busy.
+/// 一个部分在没有另一个进程的情况下继续进行之前等待另一个进程多长时间。
+/// 这些文件之一的读取-modify-write花费的时间远低于一毫秒，
+/// 因此超过此时间的持有者被停止，而不是忙碌。
 inline constexpr std::chrono::milliseconds kSharedFileWait{5000};
 
-/// The in-process half of one shared file: a static the owner keeps next to
-/// the file's path. Rank R places it in lock_levels; files whose sections
-/// nest need distinct ranks, outer first.
+/// 一个共享文件的 in-process 一半：所有者在文件路径
+/// 旁边保留的静态。等级R将其置于lock_levels；
+/// 其节嵌套的文件需要不同的等级，外部优先。
 struct FileLane {};
 template <class R = lock_levels::file_lane>
 using LaneOf = maya::guarded<FileLane, R>;
 using Lane   = LaneOf<lock_levels::file_lane>;
 
-/// What the body of a section sees.
+/// 区段的正文所看到的。
 struct Held {
-    /// Did we get the cross-process guarantee, or only the in-process one?
-    /// False means another instance can still interleave with us.
+    /// 我们得到了cross-process保证，还是只有in-process保证？
+    /// False意味着另一个实例仍然可以与我们交织。
     bool cross_process = false;
 };
 
 namespace detail {
-/// The file lock for `target`, waited for at most kSharedFileWait. nullopt
-/// (logged once per file) when it can't be had.
+/// 文件锁为`target`，最多等待kSharedFileWait。
+/// 当无法拥有它时，nullopt（每个文件记录一次）。
 std::optional<maya::platform::native_file_lock> acquire_cross(const std::string& target);
 }  // namespace detail
 
-/// Enter the section for `target`: its lane, then its file lock. Runs
-/// `body(const held<R>&, Held, args...)` and leaves. Same rules as
-/// guarded<T>::with: body is captureless, args are moved in, and the result
-/// must be Sendable. The held<R> lets the body take state ranked above R,
-/// including a higher-ranked section.
+/// Enter为`target`的部分：其通道，然后其文件锁。
+/// 运行 `body(const held<R>&, Held, args...)`
+/// 并离开。与 Guarded<T>::with 相同的规则：正文 是无捕获的，
+/// 参数被移入，并且结果必须是可发送的。持有的<R>让正文处于R以上的状态，
+/// 包括更高的-ranked部分。
 template <class R, class F, class... Args>
 auto with_shared_file(const std::type_identity_t<maya::below<R>>& cap, LaneOf<R>& lane,
                       const std::filesystem::path& target, F body, Args... args) {
@@ -95,11 +95,11 @@ auto with_shared_file(const std::type_identity_t<maya::below<R>>& cap, LaneOf<R>
     }, target.string(), std::move(args)...);
 }
 
-/// The file locks for several files, for a lane body that rewrites more
-/// than one (memory's user + project scope). Taken in sorted path order,
-/// the same order in every process, so two can't each hold one and wait
-/// for the other. Bounded and best-effort like a section: cross_process()
-/// says whether all of them were had. Only inside the owning lane's body.
+/// 文件锁为多个文件，对于重写多个文件的通道正文(内存的用户+项目范围)。
+/// 按照排序的路径顺序，每个进程中的顺序相同，因此两个进程不能
+/// 各自持有一个进程并等待另一个进程。 Bounded 和
+/// best-effort 就像一个部分：cross_process
+/// () 表示是否所有这些都已拥有。仅在所属车道的 正文 内。
 class FileLocks {
 public:
     explicit FileLocks(std::vector<std::filesystem::path> files);
@@ -111,91 +111,91 @@ private:
     bool all_ = true;
 };
 
-// ── Writing bytes ────────────────────────────────────────────────────
+// ── 写入 字节 ────────────────────────────────────────────────────
 
-/// What a write must survive.
+/// 什么写必须生存。
 enum class Durability {
-    /// A power cut may lose the write but never tears the file: temp,
-    /// rename. For caches and anything rebuilt from elsewhere.
+    /// 断电可能会丢失写入但不会撕毁文件：临时、重命名。
+    /// 对于 缓存 以及从其他地方重建的任何东西。
     Atomic,
-    /// Survives a power cut: fsync the data before the rename and the
-    /// directory after. For anything the user would lose.
+    /// 断电后仍能幸存：fsync重命名之前的数据和之后的目录。
+    /// 对于用户可能会失去的任何东西。
     Durable,
 };
 
 struct WriteOptions {
     Durability durability = Durability::Durable;
-    /// POSIX mode the file is created with (umask still applies to the
-    /// default). 0600 for secrets: the temp is born private, so there is no
-    /// window where it's readable. Ignored on Windows.
+    /// 创建文件时使用的 POSIX 模式（umask 仍适用于默认值）。
+    /// 0600 表示秘密：临时变量天生就是私有的，因此没有可读的窗口。
+    /// 在 Windows 上被忽略。
     unsigned mode = 0644;
-    /// Keep the target's existing mode if it has one (user files).
+    /// 如果目标有模式（用户文件），则保留目标的现有模式。
     bool keep_mode = false;
 };
 
-/// Atomically replace `target` with `bytes`: a temp in the same directory
-/// with a name unique to this process and call, then rename. Readers see
-/// the old file or the new one, never a mix. Creates the parent directory.
-/// Returns false (temp removed) on any failure.
+/// 将 `target` 原子地替换为 `bytes`：同一
+/// 目录中具有该进程唯一的名称的临时文件和 调用，然后重命名。
+/// 读者会看到旧文件或新文件，而不是混合的。创建父目录。
+/// 任何失败时返回假（临时被移除）。
 [[nodiscard]] bool write_atomic(Io, const std::filesystem::path& target,
                                 std::string_view bytes, WriteOptions = {});
 
-/// Append `bytes` in ONE write(2) with O_APPEND, so concurrent appenders
-/// (threads or processes) never interleave inside a record. `bytes` should
-/// be whole records ending in '\n'. Durable fsyncs before returning.
+/// 在 一个 write(2) 中将 `bytes` 附加到 O_APPEND，
+/// 因此并发附加器（线程 或进程）永远不会在记录内交错。 `bytes`
+/// 应该是以 '\n' 结尾的整个记录​​。返回之前的持久 fsync。
 [[nodiscard]] bool append_atomic(Io, const std::filesystem::path& target,
                                  std::string_view bytes,
                                  Durability = Durability::Atomic,
                                  unsigned mode = 0644);
 
-/// append_atomic, plus the byte offset the record landed at, read from the
-/// same descriptor after the write (O_APPEND puts it at the end the kernel
-/// saw, not the end this process last saw). nullopt on failure. Only valid
-/// as an offset while the caller is the file's only writer, which a
-/// section guarantees.
+/// append_atomic，加上记录着陆处的字节偏移量，
+/// 在写入后从同一描述符读取（O_APPEND将其放在内核看到的末尾，
+/// 而不是该进程最后看到的末尾）。失败时无效选择。
+/// 仅当调用者是文件的唯一写入者时才作为偏移量有效，
+/// 这是节所保证的。
 [[nodiscard]] std::optional<std::uint64_t> append_record(Io, const std::filesystem::path& target,
                                                          std::string_view bytes,
                                                          Durability = Durability::Atomic);
 
-/// Create `target` holding `bytes` only if it doesn't exist yet. Readers
-/// never see it partly written: it's written to a temp, then hard-linked
-/// into place, which fails if the name is taken. True if we created it.
+/// 创造`target`保持`bytes`仅当它尚不存在时。
+/// 读者永远不会看到它的部分写入：它是写给临时的，然后是硬的-linked到位，
+/// 如果名称被占用，则失败。如果我们创造了它，那就对了。
 [[nodiscard]] bool create_exclusive(Io, const std::filesystem::path& target,
                                     std::string_view bytes, unsigned mode = 0644);
 
-/// The lane for one credential file, shared by everything that writes it
-/// (its provider's refresh, an account switch). Ranked cred_file: entered
-/// from inside a provider's refresh lane. Lanes are keyed by file name, a
-/// small fixed table, so two providers' refreshes rarely share one.
+/// 一个 凭据 文件的通道，由写入该文件的所有内容共享（其
+/// 提供者的刷新、帐户切换）。排名 cred_file：从
+/// 提供商的刷新通道内进入。通道由文件名（一个小型​​固定
+/// 表）作为键控，因此两个提供者的刷新很少共享一个。
 LaneOf<lock_levels::cred_file>& cred_lane(const std::filesystem::path& file);
 
-/// The whole file, or nullopt when it can't be opened. Errors other than
-/// "missing" are logged.
+/// 整个文件，或者当无法打开时为 nullopt。记录除 "missing"
+/// 之外的错误。
 [[nodiscard]] std::optional<std::string> read_file(Io, const std::filesystem::path& p);
 
-/// A whole read-modify-write of one small shared file, for files nobody
-/// nests with another: read the bytes inside the section, hand them to
-/// `edit` (nullopt when absent), and atomically write back what it returns.
-/// `edit` returns nullopt to leave the file alone. One process-wide lane
-/// (ranked file_lane) serves every such file; the file lock is per path.
+/// 一个小共享文件的整个 read-modify-write，
+/// 对于没有人与另一个嵌套的文件：读取该部分内的 字节，将它们交给
+/// `edit` (当不存在时为 nullopt)，并原子地写回它返回的内容。
+/// `edit` 返回 nullopt 以保留该文件。一个进程-wide通道（
+/// 排名file_lane）为每个这样的文件提供服务；文件 锁 是每个路径的。
 ///
-///     update_shared(io, cap, path, opts, [](std::optional<std::string> old, Args...)
-///                                            -> std::optional<std::string> {...}, args...);
+///     update_shared(I/O，上限，路径，选项，[](std::optional<std::string> old, Args...) ->
+///                                            std::optional<std::string> {...}，args...);
 enum class Update { Unchanged, Written, Failed };
 
 Lane& small_files_lane();
 
 namespace detail {
-// IO from inside a section body: guarded can't carry the caller's Io in.
+// IO来自正文段内：受保护不能携带呼叫者的I/O进来。
 bool write_in_section(const std::string& target, const std::string& bytes, WriteOptions o);
 bool append_in_section(const std::string& target, const std::string& bytes, Durability d,
                        unsigned mode);
 bool create_in_section(const std::string& target, const std::string& bytes, unsigned mode);
 }  // namespace detail
 
-/// A plain read of a small agentty-owned file (config, trust store) that
-/// needs no Io: it changes nothing, and its callers include lock bodies
-/// and pure checks. Same result as read_file.
+/// 不需要I/O的小agentty-owned文件（配置、
+/// 信任存储）的普通读取：它不改变任何内容，并且其调用者包括锁 正文和纯检查。
+/// 与 read_file 相同的结果。
 [[nodiscard]] std::optional<std::string> peek_file(const std::filesystem::path& p);
 
 template <class F, class... Args>

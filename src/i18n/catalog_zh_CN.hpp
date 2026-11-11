@@ -1,42 +1,42 @@
-// agentty::i18n — the Simplified Chinese catalog.
+// agentty::i18n—简体中文目录。
 //
-// The opposite extreme from German, and that is why it is third. Chinese is
+// 与德语相反的极端，这就是为什么它是第三。中文是
 // the DOUBLE-WIDTH case: 系统调用过滤 is six codepoints and twelve columns, so
-// every width calculation that counts characters instead of columns is wrong
-// by a factor of two here -- and wrong in the dangerous direction, because it
-// UNDER-measures and lets an overflowing row through.
+// 每个计算字符而不是列的宽度计算在这里都是错误的两倍
+// ——并且在危险的方向上是错误的，因为它UNDER
+// -measures并且让溢出的行通过。
 //
-// That is why the lint's width budget (gate 4) exempts zh/ja/ko: CMake cannot
-// measure display width, and a codepoint budget would fire on every correct
-// translation while missing the real overflows. Their widths go through the
-// render test instead, which measures with maya::string_width.
+// 这就是为什么 lint 的宽度预算（门 4) 免除
+// zh/ja/ko:CMake 无法测量显示宽度，并且代码点预算将在每
+// 个正确的翻译上触发，同时错过真正的溢出。它们的宽度改为通过 渲染 测试，
+// 使用 maya::string_width 进行测量。
 //
-// Net effect on layout: Chinese is SHORTER than English in columns -- around
-// 0.6x on labels -- so it relieves the pane rather than stressing it. The
-// pressure it applies is on the measurement code, not on the frame.
+// 布局上的网络副作用：中文在列中比英文SHORTER——
+// 在标签上大约0.6倍——因此它减轻了面板而不是强调它。
+// 它施加的压力是在测量代码上，而不是在 帧 上。
 //
 // TRANSLATION NOTES:
 //
 //   * "Sandbox" is 沙盒, which is the established term in Chinese technical
-//     writing (not a transliteration).
+//     文字（不是音译）。
 //
-//   * Technical nouns that Chinese keeps in Latin stay in Latin: ports are
+//   * 中文保留拉丁文的技术名词保留拉丁文：ports are
 //     written as 端口 but the protocol names (https, http, git-ssh, dns) and
-//     paths do not get translated. Same rule the English help lines follow
-//     for `stat()` and `services/*/.env`.
+//     路径不被翻译。 `stat()` 和 `services/* /.env`
+//     的英文帮助热线遵循相同的规则。
 //
-//   * No spaces between Chinese characters, and the "·" separator keeps the
-//     spaces around it -- that is the convention in zh-Hans UI text and it is
-//     what keeps the help lines scannable.
+//   * 汉字之间无空格，"·"分隔符保留
+//     其周围有空格——这是 zh-Hans UI 文本中的约定，
+//     它使帮助行保持可扫描性。
 //
-//   * Chinese has NO plural forms (CLDR category `other` for every n), so no
-//     entry here carries one/few/many. The lint rejects a `few` key on a
-//     zh catalog for exactly that reason: it would be a translator
-//     misunderstanding the schema, and the runtime would never read it.
+//   * 中文有NO复数形式（每n有CLDR类别`other`），所以没有
+//     这里的条目携带one/few/many.。
+//     lint拒绝zh 目录上的`few`键正是出于这个
+//     原因：这将是翻译者误解模式定义，并且运行时永远不会读取它。
 //
-// Complete against en.json as of this commit, which is what makes it a
-// useful double-width test -- a partial catalog falls back to English and
-// hides the very thing we are measuring.
+// 截至本次提交，已针对 en.json 完成，这使得它成为
+// 有用的 double-width 测试——部分 目录 回落到
+// 英语并隐藏了我们正在测量的东西。
 
 #include <string_view>
 

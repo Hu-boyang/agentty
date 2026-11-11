@@ -1,22 +1,22 @@
-// agentty::i18n — Spanish.
+// agentty::i18n——西班牙语。
 //
-// The first of the "ordinary" Latin catalogs: two plural forms, single-width
-// script, ~1.2x English. Nothing structurally new, which is the point --
-// German and Chinese established the extremes, and these five are the ones
-// that confirm the middle is uneventful.
+// "ordinary"拉丁语目录的第一个：两个复数形式，
+// 单-width脚本，～1.2x英语。结构上没有什么新的东西，
+// 这就是重点——德国人和中国人建立了极端，而这五个人则
+// 证实了中间的情况是平静的。
 //
 // TRANSLATION NOTES:
 //
-//   * "Sandbox" stays. Spanish technical writing borrows it; "caja de arena"
-//     is a literal translation nobody uses for this.
+//   * "Sandbox" 保留。西班牙语技术写作借用了它； "caja de arena"
+//     是没有人为此使用的直译。
 //
-//   * tú, not usted. agentty is a developer tool and the register in
-//     Spanish-language dev documentation is informal -- "usted" would read
-//     as a bank.
+//   * tú，未使用。 agentty是开发者工具，注册在
+//     Spanish-language开发文档是非正式的——"usted"将
+//     读作银行。
 //
-//   * Toggle values are sí/no rather than activado/desactivado: the row is
-//     four columns wide and the long form does not fit. The budget in
-//     startup.cpp says so (common.on, width_hint 2).
+//   * 切换值是sí/no而不是activado/desactivado：该行是
+//     四列宽且长的表格不适合。 startup.cpp 的预算是这样说的（
+//     common.on，width_hint 2）。
 
 #include <string_view>
 

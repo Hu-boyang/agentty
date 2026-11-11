@@ -1,5 +1,5 @@
 #include "agentty/runtime/view/thread/activity_indicator.hpp"
-#include <maya/core/anim_clock.hpp>   // anim_now: the frame clock
+#include <maya/core/anim_clock.hpp>   // anim_now : 数据 帧 时钟
 
 #include <algorithm>
 #include <cctype>
@@ -18,18 +18,18 @@ namespace agentty::ui {
 
 namespace {
 
-// Lower-case the phase verb for the activity row. The status-bar
-// PhaseChip wants Title-Case ("Streaming") because it lives in a
-// chrome strip surrounded by other Title-Cased chips; the in-thread
-// activity row wants a softer typographic register since it sits
-// directly under the assistant turn body. "streaming\u2026" reads as
-// ambient "still working" chrome; "Streaming\u2026" reads as a
-// section header.
+// 下调 -case 状态 -bar PhaseChip 想要标题
+// -Case ("Streaming" 因为它住在一个环绕着
+// 其他标题的铬带里 -Cased 标签 ; 输入 -thread
+// 活动行需要一个更软的打印记录,因为它直接坐在助手转弯处 正文.
+// "streaming\u2026" 读作环境 "still working" 铬;
+// "Streaming\u2026" 读作一节
+// 头文件.
 //
-// We special-case "Streaming" to the friendlier verb "thinking" —
-// during the SSE stream the model is generally still composing the
-// reply (tool decisions, prose), and "thinking" matches the user's
-// mental model better than the protocol-level word "streaming".
+// 我们很特别 -case "Streaming" 切换到最友好的
+// 动词 "thinking" ——在 SSE 数据流 模型一般仍在
+// 形成答复(工具决定、传言), "thinking" 匹配用户的
+// 精神模型比协议更好 -level 单词 "streaming".
 std::string soft_verb(std::string_view raw) {
     if (raw == "Streaming") return "thinking";
     std::string out;
@@ -41,7 +41,7 @@ std::string soft_verb(std::string_view raw) {
     return out;
 }
 
-} // namespace
+} // 命名空间结束。
 
 const std::vector<std::string_view>& activity_indicator_words() {
     static const std::vector<std::string_view> pool = [] {
@@ -65,13 +65,13 @@ activity_indicator_config(const Model& m) {
                        [](const auto& tc){ return !tc.is_terminal(); });
     if (tl_visible) return std::nullopt;
 
-    // Edge colour comes from the model-name SSOT, not a local family branch.
-    // This site used to carry its OWN is_opus/is_sonnet/is_haiku chain, and
-    // it disagreed with every other surface: Opus was `accent` (plain
-    // magenta) where the turn header and badge use bright_magenta, and Haiku
-    // was `success` — GREEN, the status-ok hue, which is precisely the
-    // collision proofs::no_family_uses_a_status_hue() now forbids at compile
-    // time. One decode, one table. See domain/model_name.hpp.
+    // 边框颜色来自模型 -name SSOT 而不是本地家庭的分支。
+    // 这个网站曾经载着它的 自身 is_opus/is_sonnet/is_haiku 链条,
+    // 它与其它表面都不同: `accent` (方 红衣) 转弯 头文件 和
+    // 徽章使用情况 bright_magenta 和海库是 `success` —
+    // GREEN 状态 -ok 哼,这恰恰是碰撞
+    // proofs::no_family_uses_a_status_hue ()现在禁止: 编译 时间,
+    // 一个解码,一个表,看 domain/model_name.hpp.
     const maya::Color edge = model_name::decode(m.d.model_id.value).color;
     maya::ActivityIndicator::Config cfg;
     cfg.edge_color    = edge;
@@ -79,11 +79,11 @@ activity_indicator_config(const Model& m) {
     cfg.label         = soft_verb(phase_verb(m.s.phase));
     cfg.words         = activity_indicator_words();
 
-    // Elapsed seconds since the active phase started — same source the
-    // status-bar PhaseChip reads. Shown as a muted "· 3.4s" tail so the
-    // user gets a sense of how long the model has been working without
-    // having to glance up at the status bar. Skipped when the phase
-    // just started (< 1s) to avoid "0.0s" flicker on the first frame.
+    // 活动阶段开始后的秒数——状态来源相同 -bar
+    // PhaseChip 读取。显示为哑巴 "· 3.4s"
+    // 末尾 因此用户会意识到模型工作了多长时间而
+    // 不需浏览状态栏。当阶段刚刚开始( < 1s)
+    // 时跳过以避免 "0.0s" 闪烁在第一 帧.
     if (const auto* a = active_ctx(m.s.phase);
         a && a->started.time_since_epoch().count() != 0) {
         auto now = maya::anim_now();
@@ -91,8 +91,8 @@ activity_indicator_config(const Model& m) {
                        now - a->started).count();
         if (ms >= 1000) {
             float secs = static_cast<float>(ms) / 1000.0f;
-            // Trim format_elapsed_5's leading padding — here we want a
-            // tight variable-width string ("3.4s", "42s", "2m 10s").
+            // 调理 format_elapsed_5 领先的垫子——这里我们想要一个紧凑的变量
+            // -width 字符串( 键盘) "3.4s", "42s", "2m 10s").
             std::string e = format_elapsed_5(secs);
             std::size_t i = e.find_first_not_of(' ');
             if (i != std::string::npos) e.erase(0, i);

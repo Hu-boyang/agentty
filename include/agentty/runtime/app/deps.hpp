@@ -1,15 +1,15 @@
 #pragma once
-// agentty::app::Deps — type-erased handle to the runtime's seams.
+// agentty::app::Deps — 运行时 的 接口边界 的类型 -erased 句柄。
 //
-// AgenttyApp's static methods need access to the Provider, Store, and
-// credentials that main() wired up. Rather than templating AgenttyApp on three
-// type parameters (which forces every translation unit to know the concrete
-// types), we use a tiny vtable-style struct that the per-domain update code
-// calls into.
+// AgenttyApp的静态方法需要访问与main()连线的Provider、
+// Store和凭据。我们没有在三个类型参数上模板化 AgenttyApp
+// （这迫使每个 编译单元 知道具体类型），而是使用一个微小的
+// vtable-style 结构，每个 -domain 将代码 调用 更新
+// 到该结构中。
 //
-// The concrete deps are stored once at startup via install_deps().  Anything
-// satisfying the relevant concept can be installed; the concrete type stays
-// hidden behind std::function-style erasure.
+// 具体依赖在启动时通过install_deps()存储一次。
+// 任何满足相关概念的都可以安装；具体类型隐藏在 std::function
+// -style 擦除之后。
 
 #include <functional>
 #include <optional>
@@ -28,98 +28,98 @@
 namespace agentty::app {
 
 struct Deps {
-    // ── Provider seam ────────────────────────────────────────────────────
-    // Called by the turn worker (a cmd::io_task body), which holds no lock;
-    // it passes its `unlocked` down to the provider.
+    // ── Provider 接口边界 国 务 院 ────────────────────────────────────────────────────
+    // 由轮到工作线程（cmd::io_task 正文)调用，其不持有锁；
+    // 它将其 `unlocked` 传递给提供者。
     std::function<void(const maya::unlocked&, provider::Request, provider::EventSink)> stream;
 
-    // ── Store seam (just the calls update.cpp actually makes) ────────────
+    // ── Store 接口边界(仅是调用 update.cpp实际制作) 互联网档案馆的存檔,存档日期2013-09-02. ────────────
     std::function<void(const Thread&)>          save_thread;
     std::function<void(const ThreadId&)>        delete_thread;
-    // Returns thread *metadata* (empty messages) for the picker. Full
-    // bodies are fetched on demand via load_thread.
+    // 返回 选择面板 的 线程 *元数据*（空消息）。完整的 正文
+    // 通过 load_thread 按需获取。
     std::function<std::vector<Thread>()>        load_threads;
     std::function<std::optional<Thread>(const ThreadId&)> load_thread;
-    // Picker summaries for old threads, filled and indexed (off the UI
-    // thread). Unset in tests that don't need it.
+    // 旧线程的选择面板摘要，已填充并编入索引（在UI 线程之外）。
+    // 在不需要它的测试中取消设置。
     std::function<std::vector<Thread>(const std::vector<ThreadId>&)> backfill_summaries;
     std::function<store::Settings()>            load_settings;
-    // WRITE-BEHIND. Returns immediately: the value is published to an
-    // in-memory cache that `load_settings` reads, and the actual
-    // load-modify-fsync-rename happens on a background worker.
+    // WRITE-BEHIND。立即返回：该值被发布到 `load_settings`
+    // 读取的 in-memory 缓存 中，而实际的 加载
+    // -modify-fsync-rename 发生在后台 工作线程 上。
     //
-    // Why this is a SEAM concern and not each caller's problem: settings are
-    // written from ~8 reducers (profile cycle, Smart Mode toggle, slot clear,
-    // provider switch, model select, quit, RAG commit …). A reducer is a pure
-    // function on the UI thread; a synchronous disk round-trip inside one
-    // stalls the render loop, which is what made toggling Smart Mode hitch
-    // mid-animation. Fixing that per call site is eight chances to forget —
-    // and every new settings write would be a ninth. Fixing it HERE means no
-    // reducer can block on settings IO even if it tries.
+    // 为什么这是 SEAM 问题而不是每个调用者的问题：设置是从 ~8
+    // 状态更新函数 写入的（配置文件周期、智能模式 切换、插槽清除、
+    // 提供商切换、模型选择、退出、RAG 提交……）。 状态更新函数 是
+    // UI 线程 上的纯函数；其中一个同步磁盘 round-trip
+    // 停止了 渲染 循环，这就是切换智能模式在 -animation 中
+    // 发生故障的原因。对于每个 调用 站点来说，修复这个问题有八次机会被
+    // 忘记——而每写入一个新设置，就有九次机会被忘记。修复 此处 意味着
+    // 状态更新函数 无法阻止设置 IO，即使它尝试了。
     //
-    // Ordering: writes are applied in submission order on a single worker, so
-    // a later save cannot land before an earlier one. Reads see the newest
-    // submitted value immediately, so a save-then-load in the same reducer
-    // observes what it just wrote.
+    // 排序：写入按提交顺序应用于单个 工作线程，因此较晚的
+    // 保存 不能先于较早的。读取会立即看到最新提交的值，
+    // 因此同一个 状态更新函数 中的 保存-then-load 会
+    // 观察到它刚刚写入的内容。
     std::function<void(const store::Settings&)> save_settings;
     std::function<ThreadId()>                    new_thread_id;
     std::function<std::string(std::string_view)> title_from;
-    // Persist a reviewed file's decided contents to disk. Used by diff-review
-    // when the user rejects hunks: the file is rewritten with only the
-    // ACCEPTED hunks kept (rejected ones reverted). (path, contents) — a
-    // small, user-initiated write, so it runs synchronously in the reducer.
+    // 将审阅的文件的决定内容保留到磁盘。当用户拒绝 差异块 时，
+    // 由 diff-review 使用：重写文件，仅保留 ACCEPTED
+    // 差异块（已拒绝的已恢复）。 （路径，内容）——一个小的，
+    // user-initiated写入，所以它在状态更新函数中同步运行。
     std::function<void(const std::string&, const std::string&)> write_file;
 
-    // The auth header to start with. install_deps() moves it into the live
-    // store below; read it with live_auth(), replace it with update_auth().
+    // auth 头文件 开始。 install_deps() 将其移动到下面的实时存储中；
+    // 用 live_auth() 读取它，用 update_auth() 替换它。
     auth::AuthHeader auth;
 };
 
-// The seams do IO (stream, threads, settings), so reaching them takes an Io.
+// 接口边界执行IO(数据流、线程、设置)，因此到达它们需要I/O。
 [[nodiscard]] const Deps& deps(Io);
 void install_deps(Deps d);
 
-// Resolve the credential for the ACTIVE provider, as a value.
+// 将 凭据 解析为 活动 提供者的值。
 //
-// Call this on the UI thread and hand the result to whatever needs it. It
-// used to be called FROM worker bodies (the catalog fetch, the window
-// probe), which is why it takes the lock at all: a worker reading the auth
-// cache races the UI thread's swap mid provider-switch. Those bodies now
-// take the header as an argument — jaal's rule that everything a task
-// needs is an argument — so the remaining callers are all on the UI
-// thread and the lock guards only the login flow's live replace.
+// 调用这个在UI 线程上并将结果交给任何需要它的人。
+// 它曾经被称为 FROM 工作线程 正文（目录 获取，
+// 窗口探测），这就是为什么它完全需要 锁：工作线程 读取身份
+// 验证 缓存 竞态 UI 线程 的交换中间提供程序-switch。
+// 那些 正文 现在将 头文件 作为参数 - jaal 的
+// 规则是任务需要的所有内容都是参数 - 因此其余调用者都在
+// UI 线程 上，而 锁 仅保护登录流程的实时替换。
 //
-// It resolves through provider::credentials rather than reading the cache
-// directly, so the credential can never drift from the provider it is for —
-// the class of bug behind an Anthropic OAuth token being sent to Mistral.
+// 它通过 provider::credentials 进行解析，
+// 而不是直接读取 缓存，因此 凭据 永远不会偏离它所针对的提供者 — 发送到
+// Mistral 的 Anthropic OAuth 令牌背后的错误类别。
 //
-// Inside a fold, pass the MODEL's selection (m.d.selection): the process
-// global is only published after the fold, so mid-switch it still names the
-// provider being left. The no-argument form is for code off the loop, which
-// has no Model and reads the published copy.
+// 在归并内，传递MODEL的选择（m.d.selection)：
+// 进程全局仅在归并之后发布，因此mid-switch它仍然命名留下的提供者。
+// no-argument 形式用于脱离循环的代码，
+// 它没有 Model 并读取已发布的副本。
 [[nodiscard]] auth::AuthHeader auth_snapshot(Io, const provider::Selection& sel);
 [[nodiscard]] auth::AuthHeader auth_snapshot(Io);
 
-// The live auth header: installed by install_deps(), replaced by the host's
-// InstallAuth effect. Safe from any thread (a maya::guarded value); a copy
-// comes out, so a stream holds its own header for its whole life.
+// live auth 头文件:由install_deps()安装，
+// 由主机的InstallAuth 副作用代替。不受任何 线程（maya::guarded
+// 值）的影响；副本问世，因此 数据流 终生拥有自己的 头文件。
 [[nodiscard]] auth::AuthHeader live_auth();
 void update_auth(Io, auth::AuthHeader auth);
 
-// Convenience: bind a Provider + Store satisfying the concepts.
+// 方便：绑定Provider+Store满足上述概念。
 template <provider::Provider P, store::Store S>
 void install(P& p, S& s, auth::AuthHeader auth) {
-    // Settings IO goes through the write-behind cache. Wrapping HERE — the one
-    // place a Deps is built — is what makes "a reducer never blocks on
-    // settings IO" a property of the framework rather than a rule eight call
-    // sites have to remember. See runtime/app/settings_cache.hpp.
+    // 设置IO经过写入-behind 缓存。包装 此处（构建 Deps 的地方）使得
+    // 状态更新函数绝不能因设置文件 I/O 而阻塞。
+    // 成为框架的属性，而不是 8 个 调用 站点必须记住的规则。
+    // 参见runtime/app/settings_cache.hpp.
     //
-    // Lock order: Deps is an EFFECT seam. Its functions are called only by
-    // the effect host and by init(), on the loop thread between steps, where
-    // no lock is held (update() and view() cannot take locks). So the seam
-    // re-states that as a capability root, in this one reviewed place (lint:
-    // cap_roots), and everything behind it is checked. The disk save is the
-    // store's QUIET save, so the cache's own write doesn't invalidate it.
+    // 锁订单：Deps是EFFECT 接口边界。它的函数仅由 副作用
+    // 主机和 init() 在步骤之间的循环 线程 上调用，其中不保留 锁
+    // （update() 和 view() 不能采用 锁）。
+    // 所以 接口边界 re-states 作为一个能力根，在这个审查的地方（lint：
+    // cap_roots)，并且检查其后面的所有内容。
+    // 磁盘保存是存储的QUIET 保存，因此缓存自己的写入不会使其无效。
     auto seam = maya::thread_root([&](const maya::unlocked& cap) {
         return settings_cache::wrap(cap,
             [&s] { return s.load_settings(); },

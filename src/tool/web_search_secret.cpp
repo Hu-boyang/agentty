@@ -1,4 +1,4 @@
-// web_search_secret.cpp — API keys for web_search services. See the header.
+// web_search_secret.cpp — API 键 web_search 服务。 头文件.
 
 #include "agentty/tool/web_search_secret.hpp"
 
@@ -23,16 +23,16 @@ namespace {
 
 namespace fs = std::filesystem;
 
-// service -> key as last read from the keystore or sealed file.
+// 服务 - > 键作为上次从密钥托尔或密封文件读取的键。
 using KeyCache = std::unordered_map<std::string, std::string>;
-// A snapshot, not a guarded map: tiny, read per search, written rarely, and
-// load()/store() are called from tool bodies that should not need a capability.
+// A 快照 ,而不是一个有守护的地图:微小,每个搜索读,写得很少,
+// 以及 load()/store() 从工具调用 正文 不需要能力。
 maya::snapshot<KeyCache>& key_cache() {
     static maya::snapshot<KeyCache> c;
     return c;
 }
 void forget(std::string_view service) {
-    // Every store's entry for this service: cheap, and never stale.
+    // 每家店都为这项服务进账:便宜,而且永远不卖过期.
     (void)key_cache().update([](const KeyCache& old, std::string s) {
         KeyCache c = old;
         const std::string tail = '\n' + s;
@@ -42,7 +42,7 @@ void forget(std::string_view service) {
     }, std::string{service});
 }
 
-// One file for every service's key, sealed as a unit.
+// 每个服务钥匙一个文件,封为单位.
 [[nodiscard]] fs::path secrets_path() {
     return auth::config_dir() / "web_search_keys.json";
 }
@@ -51,16 +51,16 @@ void forget(std::string_view service) {
     return "agentty:web_search:" + std::string{service};
 }
 
-// The sealed file, opened. nullopt when a file IS there but cannot be read
-// back -- corrupt, truncated, or sealed on another machine. That is not the
-// same as "no keys": a store() that went ahead would rewrite the file with one
-// key and silently destroy every other service's. So callers refuse to write.
+// 已封存的文件, 打开。 当文件 IS 无法读回时无效。
+// 损坏、 截断或封存到另一个机器上。 这与 "no keys"
+// 不同 : 前进的 store() 将重写文件, 用一个键,
+// 并悄悄地摧毁其他服务。 因此, 呼叫者拒绝写入。
 [[nodiscard]] std::optional<nlohmann::json> parse_all(const std::optional<std::string>& file) {
-    if (!file || file->empty()) return nlohmann::json::object();   // no keys yet
+    if (!file || file->empty()) return nlohmann::json::object();   // 尚未有密钥
     const std::string& raw = *file;
-    // Only a sealed envelope is accepted. Unlike embed_keys.json there is no
-    // legacy plaintext form to read, so a hand-written plaintext file is not
-    // trusted as a key store.
+    // 只接受密封信封。 embed_keys.json 没有留下的
+    // 简单文字表可以读,所以一只手 -written 纯文本文件不
+    // 作为密钥存储处被信任。
     if (auto opened = auth::crypt::unseal(raw)) {
         try {
             auto j = nlohmann::json::parse(*opened);
@@ -74,10 +74,10 @@ void forget(std::string_view service) {
     return parse_all(persistence::peek_file(secrets_path()));
 }
 
-// Set (empty key: drop) one service's key, as one read-modify-write in the
-// file's shared-file section so two windows saving different services both
-// keep theirs. Sealed, 0600, atomic. Refuses to touch an unreadable file
-// (it would destroy the other services' keys) or to write plain.
+// 设置( 空密钥: 滴) 一个服务的关键, 如一个读
+// -modify-write 共享文件 -file 区域中,
+// 保存不同服务的窗口都保留它们的。 封存, 0600, 原子。
+// 拒绝触摸无法读取的文件( 将破坏其它服务的密钥) 或写平原。
 persistence::Update update_key(Io io, const lock_levels::below_file_lane& cap,
                                const std::string& service, const std::string& key) {
     return persistence::update_shared(io, cap, secrets_path(),
@@ -112,7 +112,7 @@ persistence::Update update_key(Io io, const lock_levels::below_file_lane& cap,
     return {};
 }
 
-} // namespace
+} // 命名空间结束。
 
 std::string env_name(std::string_view service) {
     std::string out = "AGENTTY_WEB_SEARCH_KEY_";
@@ -125,17 +125,17 @@ std::string env_name(std::string_view service) {
 std::string load(std::string_view service) {
     if (service.empty()) return {};
     if (auto e = from_env(service); !e.empty()) return e;
-    // A search reads up to three keys per call, and a store read may spawn
-    // secret-tool. Keep what we read, per secrets file (a different
-    // AGENTTY_HOME is a different store); store()/erase() drop the entry.
+    // 搜索可读到每个键数最多3个 调用 ,而商店读会 产生秘密 -tool
+    // 保留我们所读的,每个机密文件(不同 AGENTTY_HOME
+    // 是一个不同的商店; store()/erase() 放下那个条目。
     const std::string ck = secrets_path().string() + '\n' + std::string{service};
     {
         const auto c = key_cache().load();
         if (auto it = c->find(ck); it != c->end()) return it->second;
     }
     std::string got = from_store(service);
-    // Only a found key is kept: "none" must not hide one stored by another
-    // agentty window later.
+    // 仅保存一个找到的密钥 : "none" 不得隐藏一个存储在另一个
+    // agentty 窗口。
     if (!got.empty())
         (void)key_cache().update([](const KeyCache& old, std::string s, std::string k) {
             KeyCache c = old;
@@ -173,15 +173,15 @@ bool store(Io io, const lock_levels::below_file_lane& cap, std::string_view serv
     if (auth::keystore::available()
         && auth::keystore::store(keystore_key(service), std::string{key})
                == auth::keystore::Status::Ok) {
-        // One home for the secret: drop any stale sealed copy.
+        // 一个家的秘密: 放下任何 过期 封存副本。
         (void)update_key(io, cap, std::string{service}, {});
         return true;
     }
     if (update_key(io, cap, std::string{service}, std::string{key})
         != persistence::Update::Written)
         return false;
-    // The keystore is enabled but refused the write: an OLDER copy there would
-    // still win over the file (load() asks the keystore first), so drop it.
+    // 键盘已启用, 但拒绝写入: an OLDER 复制到那里仍然
+    // 能赢得文件( Q) load() 问键盘先,所以放下它。
     if (auth::keystore::available())
         (void)auth::keystore::remove(keystore_key(service));
     return true;

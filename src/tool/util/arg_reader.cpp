@@ -12,27 +12,27 @@ namespace agentty::tools::util {
 using nlohmann::json;
 
 namespace {
-// Accept the common aliases the model emits when its tool-use schema gets
-// cross-trained with Anthropic's built-in text_editor (`file_path`), or
-// when it abbreviates. Lookup is case-sensitive for speed; aliases are the
-// escape hatch. Keep this table tiny — every miss pays the walk cost.
+// 当模型的工具发出时, 接受其通用的别名 -use 模式定义 过关
+// -trained 与 Anthropic 已经建成 -in text_editor
+// (`file_path` ),或缩写。查找就是例 -sensitive 速度;
+// 假名是逃生舱。 保持这个桌子很小, 每个失事者都支付步行费用。
 constexpr std::string_view kAliasesPath[]       = {"file_path", "filepath", "filename"};
 constexpr std::string_view kAliasesFilePath[]   = {"path",      "filepath", "filename"};
 constexpr std::string_view kAliasesOldString[]  = {"old_str",   "oldStr"};
 constexpr std::string_view kAliasesNewString[]  = {"new_str",   "newStr"};
-// Anthropic's built-in text_editor tool uses `file_text` for create-command
-// content. Models heavily cross-trained on that spec emit file_text even when
-// our schema says "content" — without this alias the file lands empty.
+// Anthropic 已经建成 -in text_editor 工具使用 `file_text`
+// 用于创建 -command 内容。 模式交叉 -trained 说到这个 file_text
+// 即便我们 模式定义 说 "content" - 没有这个化名文件会空地降落。
 constexpr std::string_view kAliasesContent[]    = {"file_text", "text",
                                                     "file_content", "contents",
                                                     "body", "data"};
-// Zed's read_file_tool uses `start_line` / `end_line` rather than
-// offset / limit. We accept either so a model trained on Zed's surface
-// doesn't page-fault on us.
+// 赛德的 read_file_tool 使用 `start_line`
+// / `end_line` 我们接受一个在Zed表面训练的模型,
+// 不会页面 -fault 对我们来说。
 constexpr std::string_view kAliasesOffset[]     = {"start_line", "start", "from_line"};
 constexpr std::string_view kAliasesLimit[]      = {"end_line",   "num_lines", "max_lines",
                                                     "count",      "line_count"};
-// Terminal/shell — `cd` / `cwd` / `workdir` / `working_directory` all show up.
+// Terminal/shell — `cd` / `cwd` / `workdir` / `working_directory` 都来了
 constexpr std::string_view kAliasesCd[]         = {"cwd", "workdir", "working_directory",
                                                     "directory"};
 constexpr std::string_view kAliasesCommand[]    = {"cmd", "shell_command"};
@@ -49,7 +49,7 @@ std::span<const std::string_view> aliases_for(std::string_view key) noexcept {
     if (key == "command")    return {kAliasesCommand};
     return {};
 }
-} // namespace
+} // 命名空间结束。
 
 const json* ArgReader::raw(std::string_view key) const noexcept {
     if (!args_.is_object()) return nullptr;
@@ -80,8 +80,8 @@ std::string ArgReader::str(std::string_view key,
         if (note) *note = " (" + std::string{key} + " was an array — joined with newlines)";
         return out;
     }
-    // number / bool / object — surface a literal repr so the model can see
-    // what it sent and correct on retry.
+    // 数字 / bul / 对象 – 表面为字形的 repr,
+    // 这样模型就可以看到它发送到重试上并正确.
     std::string out = v->dump();
     if (note) *note = " (" + std::string{key} + " was not a string — coerced)";
     return out;
@@ -94,7 +94,7 @@ std::optional<std::string> ArgReader::require_str(std::string_view key) const {
         auto s = v->get<std::string>();
         return s.empty() ? std::nullopt : std::optional<std::string>{std::move(s)};
     }
-    // Numbers/bools coerced via dump() — still surface as "has a value".
+    // Numbers/bools 被胁迫通过 dump() - 表面仍为 "has a value".
     auto s = v->dump();
     return s.empty() ? std::nullopt : std::optional<std::string>{std::move(s)};
 }
@@ -103,15 +103,15 @@ int ArgReader::integer(std::string_view key, int def) const {
     const json* v = raw(key);
     if (!v || v->is_null()) return def;
     if (v->is_number_integer()) {
-        // Clamp out-of-range JSON integers to int bounds instead of letting
-        // get<int>() narrow/wrap (model-supplied; must never UB).
+        // 关机 -of-range JSON 整数到英寸边界,而不是让其得到 <int>()
+        // narrow/wrap (模型 -supplied 永远不要 UB).
         std::int64_t n = v->get<std::int64_t>();
         if (n > std::numeric_limits<int>::max()) return std::numeric_limits<int>::max();
         if (n < std::numeric_limits<int>::min()) return std::numeric_limits<int>::min();
         return static_cast<int>(n);
     }
     if (v->is_number_float()) {
-        // float -> int is UB when the value is outside int range; clamp first.
+        // floo - > 英寸值为 UB,当值值在英寸范围之外; 夹在先。
         double d = v->get<double>();
         if (d >= static_cast<double>(std::numeric_limits<int>::max()))
             return std::numeric_limits<int>::max();

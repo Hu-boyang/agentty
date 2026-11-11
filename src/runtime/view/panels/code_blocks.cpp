@@ -1,17 +1,17 @@
-// code_blocks.cpp — the ^G code-block picker + the run-result card.
+// code_blocks.cpp - 电话 ^G 代码 -block 选择面板 + 运行 -result 纸牌。
 //
-// Pure adapter: builds maya::Panel::Config from Model state; the widget
-// owns every chrome decision. Shared scaffolding: panels_prologue.hpp.
+// 纯适配器: 构建 maya::Panel::Config 发件人 Model 状态;
+// 部件拥有每个铬决定。 共享脚手架 : panels_prologue.hpp.
 
 #include "panels_prologue.hpp"
 
 namespace agentty::ui {
 
 
-// Ctrl+G — code blocks from the newest assistant reply. Row = ①-style
-// index + language tag + first-line preview + line count. The digit
-// shortcut in the key handler maps 1-based onto these rows, so the
-// leading number is the affordance that teaches the fast path.
+// Ctrl +G — 最新助手回复的代码块。 行= 1
+// -style 索引 + 语言标记 + 首 -line 预览
+// + 行数。 密钥中的位数快捷键 处理函数 地图 1 -based ,
+// 所以领先的数字是教授快速路径的支付能力。
 Element code_blocks_panel(const Model& m) {
     auto* o = m.ui.panel.get<pn::CodeBlocks>();
     if (!o) return nothing();
@@ -25,10 +25,10 @@ Element code_blocks_panel(const Model& m) {
     cfg.selected   = o->blocks.empty() ? -1 : o->index;
 
     cfg.items.reserve(o->blocks.size());
-    // First pass width: the badge column is padded to a common width so the
-    // preview text of every row starts at the same column (a ▶ run badge and
-    // a `python` tag badge would otherwise misalign). Mirrors the tool
-    // output viewer's badge alignment.
+    // 第一通道宽度:徽标列被加到一个通用宽度,所以每行的预
+    // 览文本都在同一列开始(一个QQ运行徽标和一个`python`
+    // 标记徽标否则会错配). Mirrors 工具
+    // 输出查看器的徽标对齐.
     int badge_w = 0;
     for (const auto& b : o->blocks) {
         const bool runnable = code_blocks::is_shell_language(b.language);
@@ -39,10 +39,10 @@ Element code_blocks_panel(const Model& m) {
     }
     for (int i = 0; i < static_cast<int>(o->blocks.size()); ++i) {
         const auto& b = o->blocks[static_cast<std::size_t>(i)];
-        // First non-blank line of the (cleaned) body as the preview — what
-        // the user visually matches against the reply on screen. Skipping
-        // leading blanks means a block that opens with a comment/newline
-        // still previews its first real command instead of an empty row.
+        // 20 正文 的第一个非-blank 线作为预览 —
+        // — 用户在屏幕上相对于回复的视觉匹配。
+        // 跳过前导空白意味着一个以 comment/newline
+        // 打开的块仍然预览它的第一个真实命令而不是空行。
         std::string_view body{b.body};
         while (!body.empty() && (body.front() == '\n' || body.front() == '\r'))
             body.remove_prefix(1);
@@ -54,10 +54,10 @@ Element code_blocks_panel(const Model& m) {
                                                     : b.language;
 
         Panel::Item row;
-        // Badge = the run affordance, a stable colour anchor (NOT dimmed on
-        // the selected row, so "which of these actually runs" reads at a
-        // glance): a ` ▶ ` play glyph in the success hue for a runnable
-        // block, or the language tag in muted for one we can only edit/copy.
+        // 徽章 = 跑钱,稳定彩色锚( 不 被选中的行上暗化,
+        // 所以 "which of these actually runs"
+        // 阅读一览:a ` ▶ ` 在成功区域中为可运行块播放格莱弗,
+        // 或者在哑音中只为一个我们可操作的语言标记 edit/copy.
         if (runnable) {
             row.badge       = " \xe2\x96\xb6 ";           // ▶
             row.badge_style = Style{}.with_fg(success).with_bold();
@@ -67,14 +67,14 @@ Element code_blocks_panel(const Model& m) {
         }
         if (int bw = string_width(row.badge); bw < badge_w)
             row.badge.append(static_cast<std::size_t>(badge_w - bw), ' ');
-        // Leading: the 1-9 fast-path number (the affordance that teaches the
-        // shortcut) + the first-line preview.
+        // 领先:1 -9快 -path 数字( 教快捷键的付价)
+        // + 第一个 -line 预览。
         row.leading = std::to_string(i + 1) + "  " + preview;
         row.leading_style  = runnable ? fg_of(fg) : fg_dim(muted);
-        // Trailing: language · line count. For a runnable block the language
-        // moved into meaning (the ▶ badge), so the tag here is just the
-        // dialect; for a non-runnable one the badge already carries it, so
-        // show only the size to avoid repeating the tag.
+        // 拖曳: 语言 \ 线数。 对于一个可运行的块,
+        // 语言会移动到意义( QQ徽章) , 因此这里的标记只是方言;
+        // 对于一个非-runnable 的标记已经携带它,
+        // 所以只显示大小, 以避免重复标记。
         row.trailing = (runnable ? lang + " \xc2\xb7 " : std::string{})
                      + std::to_string(b.line_count)
                      + (b.line_count == 1 ? " line" : " lines");
@@ -94,10 +94,10 @@ Element code_blocks_panel(const Model& m) {
     return Panel{std::move(cfg)}.build();
 }
 
-// Post-run result card. The user already watched the full output live
-// on the real terminal (and it remains in native scrollback above the
-// TUI); this card shows the summary — command, exit code, size — plus
-// the LAST few lines (errors live at the end) and the decision keys.
+// 员额 -run 结果卡。用户已经看到全部输出在真实
+// 中实时 终端 (而且它仍然留在原生的) 回滚缓冲区
+// 上方为 TUI );此卡显示摘要——命令,退出代码,
+// 大小——加 最后 少行(错误位于结尾)和决定键。
 Element code_block_result_panel(const Model& m) {
     auto* r = m.ui.panel.get<pn::CodeBlockResult>();
     if (!r) return nothing();
@@ -110,12 +110,12 @@ Element code_block_result_panel(const Model& m) {
     cfg.min_width  = kPanelWide;
     cfg.viewport_h = panel_viewport_h();
     cfg.scroll     = &m.ui.code_blocks_scroll;
-    cfg.selected   = -1;   // read-only — no cursor row
+    cfg.selected   = -1;   // 改为-only - 无光标行
 
-    // Header: "$ command" + status line.
+    // 头文件: "$ command" +状态线.
     {
         std::string cmd_line = r->command;
-        // First line only — a multi-line block reads badly in a header.
+        // 仅限一行——多行 -line 块读取差于 a 头文件.
         if (auto eol = cmd_line.find('\n'); eol != std::string::npos) {
             cmd_line.resize(eol);
             cmd_line += " \xe2\x80\xa6";   // …
@@ -136,26 +136,26 @@ Element code_block_result_panel(const Model& m) {
         cfg.header.push_back(sep);
     }
 
-    // Full capture, line-numbered like the tool output viewer: a right-
-    // aligned gutter + a status-hued │ pipe (red on a failed/timed-out run,
-    // muted otherwise), then the raw line. The numbers make it easy to say
-    // "line 42 is where it broke" and match the Ctrl+O viewer so the two
-    // output surfaces read the same.
+    // 完全捕获, 行 -numbered 类似工具输出查看器: 右
+    // 对齐的沟槽 + 一个状态 -hued ⁇ 管(红在一
+    // failed/timed-out 数字很容易说
+    // "line 42 is where it broke" 并匹配 Ctrl +
+    // O查看器,所以两个输出表面读取相同.
     //
-    // Manual windowing (same discipline as tool_output_viewer): the capture
-    // is capped at 2 MB — up to tens of thousands of lines — so building an
-    // Element per line into a scroll container that lays out ALL of them
-    // would hitch on every keypress. Instead materialise the rows ONCE into
-    // a static cache keyed by the output bytes, then feed only the visible
-    // [y, y+vh) slice to the picker (cfg.scroll = nullptr), so a frame costs
-    // O(viewport) regardless of capture size.
+    // 手动窗口( 纪律与 tool_output_viewer :
+    // 捕获封顶为2 MB ——多达数万行——将每行元素建在一个卷轴容器中,
+    // 以铺设 全部 每一个键盘都会被扣上 而不是被扣上 按需加
+    // 载 线条 一次 变成静态 缓存 由输出键入 字节 ,
+    // 然后只将可见的[y, y+vh]切片输入 选择面板 (
+    // cfg.scroll = nullptr ),所以一个 帧
+    // 费用 O( 可视区域 )无论捕获大小.
     struct ResultBodyCache {
         const void*          bytes_key = nullptr;
         std::size_t          bytes_len = 0;
         bool                 ok        = false;
         std::vector<Element> rows;
     };
-    static ResultBodyCache cache;   // UI thread only — same discipline as the pickers' statics
+    static ResultBodyCache cache;   // UI 线程 仅与选择面板的静态相同学科.
 
     const void* bytes_key = static_cast<const void*>(r->output.data());
     if (cache.bytes_key != bytes_key || cache.bytes_len != r->output.size()
@@ -204,8 +204,8 @@ Element code_block_result_panel(const Model& m) {
         }
     }
 
-    // Window the cached rows to the viewport; maintain scroll bounds here so
-    // the reducer's clamp stays correct, and feed only the visible slice.
+    // 窗口缓存行到 可视区域 ; 在此保持滚动边框,
+    // 因此 状态更新函数 夹子保持正确, 只输入可见的切片。
     const int total_rows = static_cast<int>(cache.rows.size());
     const int vh = std::max(1, cfg.viewport_h);
     auto& sc = m.ui.code_blocks_scroll;
@@ -218,9 +218,9 @@ Element code_block_result_panel(const Model& m) {
         cfg.prebuilt.push_back(cache.rows[static_cast<std::size_t>(i)]);
 
     cfg.footer.push_back(text(""));
-    // Scroll-position readout: which lines of the capture are on screen —
-    // the manual window has no scrollbar, so this is the affordance that
-    // there is more output above/below (same grammar as the tool viewer).
+    // 滚动 -position 读出: 屏幕上显示的是哪几行抓取
+    // —— 手动窗口没有滚动条, 所以这是显示输出量增加的支付率。
+    // above/below (语法与工具查看器相同).
     if (total_rows > vh) {
         cfg.footer.push_back(text(
             "  " + std::to_string(first + 1) + "\xe2\x80\x93"   // –
@@ -237,20 +237,20 @@ Element code_block_result_panel(const Model& m) {
     return Panel{std::move(cfg)}.build();
 }
 
-// Ctrl+O tool-output viewer. Two stages inside one Picker chrome:
+// Ctrl +O 工具 -output 观众,一个阶段内的两个阶段 选择面板 铬:
 //
-//   LIST  — one row per settled tool call (newest first): a category-
-//           coloured tool badge ("Read", "Bash", "Edit" — same hue as
-//           the transcript card), the detail line, and "ok · 1.2s ·
-//           48 KB" trailing. Enter opens the body.
-//   BODY  — the FULL stored output of the selected call in the
-//           scrollable region (the timeline card elides long bodies;
-//           this is where the elided middle lives). ←/→ hop straight
-//           to the previous/next output; Esc returns to the list.
+//   LIST ——每套结算工具一行 调用 (最新第一):分类彩色工具
+//           徽章( "Read", "Bash", "Edit" 和
+//           笔录卡一样 详细线 还有 "ok · 1.2s · 48 KB" 尾随。
+//           Enter 打开 正文.
+//   BODY - 电话 完整 所选的存储输出
+//           调用 时间卡 elides 长 正文
+//           直接跳到中间生活的地方 previous/next 产出;
+//           Esc 返回列表中。
 //
-// An overlay — not in-place card expansion — because the transcript's
-// committed rows are immutable native scrollback; growing a card there
-// would rewrite committed rows (HardReset corruption class). The overlay
-// paints strictly over the live viewport, same as every other picker.
+// 来,来,来 覆盖面板 - 不在,没有在 -place 扩展卡片—
+// —因为记录片的 承诺行不是可变 本地语言 回滚缓冲区 ;
+// 在那里种一张牌会重写承诺的行( ) HardReset 腐败阶级。
+// 覆盖面板 画画严格地在现场 可视区域 ,与其他所有类型相同 选择面板.
 
 } // namespace agentty::ui

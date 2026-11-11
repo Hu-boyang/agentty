@@ -1,13 +1,13 @@
-// tool_card_truth_test — every number a tool card shows must match what the
-// tool actually returned.
+// tool_card_truth_test——每个数字一个工具卡显示
+// 必须匹配工具实际返回的.
 //
-// A card has a header ("Grep  pat  in  path · 1 match") and a body rendered by
-// maya::ToolBodyPreview. Both are derived from the tool's text output, and
-// several of them used to count the wrong thing: rows of context counted as
-// matches ("… 23 more matches" under a 1-match grep), the file's total length
-// shown for a 5-line read ("349 lines"), and so on. These cases feed the real
-// output each tool produces through the real card code and check every count
-// and line number that reaches the screen.
+// 一张卡有头文件("Grep  pat  in  path · 1 match")和正文,
+// 由maya::ToolBodyPreview提供. 两者都来源
+// 于工具的文本输出,其中几条用来计算错误的东西:上下文行数为匹配
+// (-match grep下的"… 23 more matches"),
+// 文件的总长度显示为5-line("349 lines"),等等.
+// 这些案例为每个工具通过真实的卡码产生的真实输出提供了信息,
+// 并检查了到达屏幕的每个计数和行号.
 
 #include <string>
 
@@ -44,7 +44,7 @@ bool has(const std::string& s, std::string_view needle) {
     return s.find(needle) != std::string::npos;
 }
 
-// grep with context: ONE match, shown with 15 lines of context either side.
+// grep 带有上下文:ONE匹配,显示为15行上下文的任意一面.
 const std::string kGrepOneMatchWithContext = [] {
     std::string s = "Found 1 match across 1 file.\n\n"
                     "## Matches in /w/process.cpp\n\n"
@@ -55,7 +55,7 @@ const std::string kGrepOneMatchWithContext = [] {
     return s;
 }();
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("card truth: grep header counts matches, not rows") {
     auto tc = done("grep", {{"pattern", "proc-"}, {"path", "/w/process.cpp"}},
@@ -79,7 +79,7 @@ TEST_CASE("card truth: a grep body's elision counts lines, and says so") {
                    kGrepOneMatchWithContext);
     const auto body = body_text(tc);
     INFO("body:\n" << body);
-    // 31 rows of the block were returned; whatever is hidden is lines.
+    // 31行的区块被退回;无论隐藏什么都是线条.
     if (has(body, "more"))
         CHECK(has(body, "more line"));
 }
@@ -93,7 +93,7 @@ TEST_CASE("card truth: a ranged read's header names the range, not the file leng
                    out);
     const auto header = U::tool_timeline_detail(tc);
     INFO("header: " << header);
-    // Showing "349 lines" for a 5-line read reads as "this card is 349 lines".
+    // 将"349 lines"中的5-line改为"this card is 349 lines"。
     CHECK(has(header, "131"));
     CHECK(has(header, "135"));
 }
@@ -109,7 +109,7 @@ TEST_CASE("card truth: a ranged read's body gutter starts at the first line read
     INFO("body:\n" << body);
     CHECK(has(body, "131"));
     CHECK(has(body, "return a;"));
-    // The paging footer is the tool talking to the model, not file content.
+    // 呼号脚印是和模型说话的工具,而不是文件内容.
     CHECK_FALSE(has(body, "offset=136"));
 }
 
@@ -146,8 +146,8 @@ TEST_CASE("card truth: grep body shows the matched row, not leading context") {
     CHECK_FALSE(has(body, "line 170"));
 }
 
-// Most tools echo display_description as line 1 of their output. The card
-// already shows it as the title; it must not break counts or become body text.
+// 大部分工具回声 display_description 作为其输出
+// 的第1行。卡片已经显示为标题;它不得断开计数或成为 正文 文本中选择一个
 
 TEST_CASE("card truth: read_filter counts matching lines, not context rows") {
     auto tc = done("read_filter", {{"path", "src/a.cpp"}, {"pattern", "f1"}},

@@ -1,9 +1,9 @@
-// paste_settings.cpp — Settings → Paste: how Ctrl+V reads the clipboard.
+// paste_settings.cpp—设置→粘贴：Ctrl+V如何读取剪贴板。
 //
-// One form pane over the paste.* registry rows. A committed edit writes
-// m.d.persisted.paste, returns the save, and rebuilds the rows from the Model.
-// Telling the clipboard reader is publish_derived's job (PublishPasteConfig),
-// the same way Web Search's policy reaches the tool layer.
+// 粘贴一张表格面板。*注册表行。提交的编辑写入
+// m.d.persisted.paste，返回 保存，并从 Model 重建行。
+// 告诉剪贴板阅读器是publish_derived的工作(PublishPasteConfig)，
+// 与Web搜索的策略到达工具层的方式相同。
 
 #include "agentty/runtime/app/update/internal.hpp"
 #include "agentty/runtime/app/update.hpp"
@@ -28,8 +28,8 @@ form::Form paste_settings_form(const paste_cfg::Config& c, const reg::EnvSnapsho
     b.subtitle("how Ctrl+V reads the clipboard \xc2\xb7 `agentty paste doctor` shows the route it takes");
     bool first = true;
     auto last_group = reg::Group::PasteRoutes;
-    // Nine rows: show them all rather than hide the advanced ones.
-    reg::add_rows(b, c, env, reg::Owner::Paste, /*advanced=*/true, first, last_group);
+    // 九行：全部显示而不是隐藏高级的。
+    reg::add_rows(b, c, env, reg::Owner::Paste, /*高级=*/true, first, last_group);
     return b.build();
 }
 
@@ -43,7 +43,7 @@ void rebuild(const Model& m, pn::PasteSettings& o) {
     form::rebuild(o.form, paste_settings_form(m.d.persisted.paste, m.env.settings));
 }
 
-} // namespace
+} // 命名空间结束。
 
 Cmd paste_settings_update(Model& m, msg::PasteSettingsMsg pm) {
     return std::visit(overload{
@@ -69,7 +69,7 @@ Cmd paste_settings_update(Model& m, msg::PasteSettingsMsg pm) {
             const auto applied = form::keys::apply(o->form, e.action);
             if (applied.close)
                 return paste_settings_update(m, msg::PasteSettingsMsg{ClosePasteSettings{}});
-            // Mid-edit keystrokes must leave the form alone (see web_search.cpp).
+            // Mid-edit击键必须不影响表格（参见web_search.cpp)。
             if (applied.settled < 0) return Cmd::none();
 
             paste_cfg::Config cfg = m.d.persisted.paste;
@@ -81,7 +81,7 @@ Cmd paste_settings_update(Model& m, msg::PasteSettingsMsg pm) {
             m.d.persisted.paste = std::move(cfg);
             Cmd out = save_record(m);
             rebuild(m, *o);
-            o->form.dirty = false;   // just saved: don't say "unsaved"
+            o->form.dirty = false;   // 只是已保存:不要说"unsaved"
             return out;
         },
     }, pm);

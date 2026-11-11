@@ -1,5 +1,5 @@
-// Exhaustive data-level coverage for native tool timeline cards.
-// Every lifecycle state must render useful body text rather than a blank card.
+// 精通数据-level 覆盖本土工具时间表卡.
+// 每个生命周期状态都必须 渲染 有用 正文 文本而不是空白卡片。
 
 #include <array>
 #include <cstdint>
@@ -103,8 +103,8 @@ TEST_CASE("tool timeline adapter") {
               std::string{name} + " has a display name");
     }
 
-    // Future native and MCP tools inherit the same fallback without needing
-    // to be added to the dispatcher's name list.
+    // 未来土著和 MCP 工具继承相同的 回退 不需要
+    // 添加到 分派器 名字的单子
     auto external = make_tool("mcp__example__long_operation", A::ToolUse::Running{},
                               {{"display_description", "Long MCP operation"}});
     auto external_body = U::tool_body_preview_config(external);
@@ -147,14 +147,14 @@ TEST_CASE("tool timeline adapter") {
     check(!visible(ansi_failure),
           "ANSI-only failure stays header-only");
 
-    // Structured renderers still win when they have meaningful content.
+    // 结构化的渲染器在具有有意义的内容时仍然会获胜.
     auto read = make_tool("read", A::ToolUse::Done{{}, {}, "one\ntwo"},
                           {{"path", "sample.cpp"}});
     check(U::tool_body_preview_config(read).kind == Kind::FileRead,
           "read keeps structured file body");
 
-    // Real line numbers: the pagination footer is stripped from the body
-    // and mined for the TRUE first line (authoritative over the args echo).
+    // 真实行号: 页脚从 正文 地雷的地雷和
+    // 为 TRUE 第一行(授权于参数回声).
     {
         auto tc = make_tool("read",
             A::ToolUse::Done{{}, {},
@@ -167,8 +167,8 @@ TEST_CASE("tool timeline adapter") {
         check(body.text.find("[showing lines") == std::string::npos,
               "read footer stripped from numbered body");
     }
-    // Symbol reads: the SUCCESS header is stripped and its `(lines A\u2013B)`
-    // range anchors the gutter even though no offset arg exists.
+    // 符号 全文如下: SUCCESS 头文件 被剥离,
+    // 并剥离 `(lines A\u2013B)` 区域锁定沟渠,即使没有抵消的参数。
     {
         auto tc = make_tool("read",
             A::ToolUse::Done{{}, {},
@@ -184,9 +184,9 @@ TEST_CASE("tool timeline adapter") {
               "read header names the symbol read");
     }
 
-    // grep markdown is re-synthesized into path:line:text for the
-    // structured GrepMatches table, with line numbers derived from the
-    // `### L<s>-<e>` block tags.
+    // 将 grep 的 Markdown 重新组织为 path:line:text。
+    // for the structure GrepMatches table,其中的行号来源于
+    // `### L<s>-<e>`块标记.
     {
         auto tc = make_tool("grep",
             A::ToolUse::Done{{}, {},
@@ -206,7 +206,7 @@ TEST_CASE("tool timeline adapter") {
                   && body.text.find("Found 2") == std::string::npos,
               "grep headline/pagination chatter dropped from body");
     }
-    // Unparsable grep output (no fences) stays readable as a CodeBlock.
+    // 无法解析的grep输出(无栅栏)仍可读取为CodeBlock.
     {
         auto tc = make_tool("grep",
             A::ToolUse::Done{{}, {}, "No matches for 'zzz'. Try: loosen"},
@@ -215,8 +215,8 @@ TEST_CASE("tool timeline adapter") {
               "fenceless grep output falls back to code block");
     }
 
-    // process_* share bash's terminal-output body (tail window, structured
-    // extraction) instead of the generic head-anchored fallback.
+    // 进程 QQ 共享的 shash 终端-output 正文 (末尾 窗口,
+    // 结构提取),而不是通用头 -anchored 回退.
     {
         auto tc = make_tool("process_poll",
             A::ToolUse::Done{{}, {}, "server listening on :8080\n"});
@@ -224,7 +224,7 @@ TEST_CASE("tool timeline adapter") {
               "process_poll output renders as terminal output");
     }
 
-    // replace dry-run preview reshapes into a colored GitDiff card.
+    // 替换干燥 -run 预览重塑成彩色 GitDiff 纸牌。
     {
         auto tc = make_tool("replace",
             A::ToolUse::Done{{}, {},
@@ -243,7 +243,7 @@ TEST_CASE("tool timeline adapter") {
         check(body.text.find("DRY RUN") == std::string::npos,
               "replace summary line dropped from the diff body");
     }
-    // rewrite_structural preview: per-line L<n>: anchors become @@ L<n> @@.
+    // rewrite_structural 预览 : -line L<n> :主播成为QQ L <n> @@.
     {
         auto tc = make_tool("rewrite_structural",
             A::ToolUse::Done{{}, {},
@@ -261,7 +261,7 @@ TEST_CASE("tool timeline adapter") {
                   && body.text.find("+assertEqual(b, a)") != std::string::npos,
               "rewrite_structural -/+ lines are line-leading");
     }
-    // A 'no matches' replace message has no -/+ preview → stays a code block.
+    // A 'no matches' 替换信件无 -/+ 预览 – 保留一个代码块。
     {
         auto tc = make_tool("replace",
             A::ToolUse::Done{{}, {},
@@ -281,9 +281,9 @@ TEST_CASE("tool timeline adapter") {
     check(U::tool_body_preview_config(failed_todo).kind == Kind::Failure,
           "failed todo shows error instead of stale checklist");
 
-    // Representative detail mappings prove formerly anonymous tools explain
-    // their operation in the event header while the fallback body explains
-    // lifecycle state.
+    // 代表性细节绘图证明以前是匿名工具,
+    // 解释它们在事件 头文件的运作,而回退 正文则解释
+    // 生命周期状态.
     check(U::tool_timeline_detail(make_tool("move", A::ToolUse::Running{},
               {{"source", "a"}, {"destination", "b"}})).find("a") != std::string::npos,
           "move detail includes source");
@@ -307,10 +307,10 @@ TEST_CASE("tool timeline adapter") {
               {{"path", "file.cpp"}, {"start_line", "wrong type"}})).empty(),
           "malformed integer argument cannot break rendering");
 
-    // Failure summary: a Failed tool surfaces a concise reason in its header
-    // detail so it doesn't look identical to a success. Structured
-    // "[kind] detail" errors show the KIND; bash exit trailers show "exit
-    // code N"; a bare error shows its first line. Rejected tools stay plain.
+    // 失败摘要:一个失败的工具在其中显示出一个简单的原因 头文件 细节,
+    // 所以它看起来不像成功。 "[kind] detail"
+    // 错误显示 KIND ; 闪电车预告片 "exit code N" ;
+    // 赤裸的错误显示其第一行。拒绝的工具保持不变。
     check(U::tool_timeline_detail(make_tool("edit", A::ToolUse::Failed{{}, {},
               "[not found] old_text did not match"},
               {{"path", "x.cpp"}})).find("not found") != std::string::npos,
@@ -324,15 +324,15 @@ TEST_CASE("tool timeline adapter") {
               {{"path", "x"}})).find("permission denied") != std::string::npos,
           "failed read surfaces an unstructured reason");
     {
-        // A Failed tool with no output still gets a 'failed' marker rather
-        // than looking successful.
+        // 一个没有输出的失败工具仍然获得'failed'标记,
+        // 而不是看起来成功.
         const auto d = U::tool_timeline_detail(
             make_tool("grep", A::ToolUse::Failed{}, {{"pattern", "x"}}));
         check(d.find("failed") != std::string::npos,
               "failed tool with empty output still marked failed");
     }
     {
-        // A successful tool never gets a failure suffix.
+        // 一个成功的工具永远不会得到失败后缀.
         const auto d = U::tool_timeline_detail(make_tool("read",
             A::ToolUse::Done{{}, {}, "ok"}, {{"path", "x.cpp"}}));
         check(d.find("failed") == std::string::npos
@@ -343,12 +343,12 @@ TEST_CASE("tool timeline adapter") {
               {{"path", "x.cpp"}})).find("failed") == std::string::npos,
           "rejected tool is not labelled failed");
 
-    // Line/entry counts must reflect the FILE/DIR, not the decorated output.
-    // read: the authoritative count is the "of N" the tool reports in its
-    // "[showing lines A-B of N]" footer — not a re-count of output rows
-    // (which includes the display_description prepend + the footer itself).
+    // Line/entry 计数必须反映 FILE/DIR ,而不是装饰输出。
+    // 读取:权威计数是 "of N" 工具报告
+    // "[showing lines A-B of N]" 脚步——不是后
+    // -count 输出行(包括 display_description + 脚本身)。
     {
-        // A big-file read: 3 visible rows of body but the footer says 812.
+        // 这么大 -file 改为: 3 个可见行 正文 但脚印上写着812
         std::string out = "describe this\n1: line one\n2: line two\n3: line "
                           "three\n[showing lines 1-3 of 812; pass offset=4]";
         const auto d = U::tool_timeline_detail(make_tool("read",
@@ -360,7 +360,7 @@ TEST_CASE("tool timeline adapter") {
               "read does not count the description + footer rows");
     }
     {
-        // Outline fallback shape: "path — N definitions across M lines:".
+        // 大纲 回退 形状 : "path — N definitions across M lines:".
         std::string out = "map it\nfoo.cpp \xe2\x80\x94 4 definitions across "
                           "296 lines:\n\nL1 a\nL2 b";
         const auto d = U::tool_timeline_detail(make_tool("read",
@@ -369,7 +369,7 @@ TEST_CASE("tool timeline adapter") {
               "read outline reports the 'across N lines' count");
     }
     {
-        // Small file read whole (no footer): fall back to content lines.
+        // 小文件读全(无页脚):倒回内容行.
         std::string out = "a\nb\nc";
         const auto d = U::tool_timeline_detail(make_tool("read",
             A::ToolUse::Done{{}, {}, out}, {{"path", "tiny.txt"}}));
@@ -377,8 +377,8 @@ TEST_CASE("tool timeline adapter") {
               "small whole-file read falls back to a content line count");
     }
     {
-        // list_dir: description prepend + a truncation notice must NOT be
-        // counted as entries. 3 real rows here.
+        // list_dir : 说明预置+必须发出调试通知
+        // 不 算作条目。这里有三行正文。
         std::string out = "listing\nfile a.txt\ndir  sub/\nfile b.txt\n"
                           "[>1000 entries, truncated]";
         const auto d = U::tool_timeline_detail(make_tool("list_dir",
@@ -388,13 +388,13 @@ TEST_CASE("tool timeline adapter") {
               "list_dir counts real entries, excluding desc + notice lines");
     }
 
-    // Edited-file visibility: the filename must show DURING streaming, before
-    // the throttled args reparse catches up. A Pending edit whose parsed args
-    // are still empty but whose raw stream already carries "path" must render
-    // the path, not a bare "…".
+    // 编辑 -file 可见度: 文件名必须显示 DURING
+    // 流式传输 在节奏加速前 待处理 编辑其解析的参数仍然空,
+    // 但其原始 数据流 已载 "path" 必须 渲染 道路,
+    // 不是空的 "…".
     {
         auto tc = make_tool("edit", A::ToolUse::Pending{});
-        tc.args = nlohmann::json::object();   // parse hasn't caught up
+        tc.args = nlohmann::json::object();   // 解析 还没赶上呢
         tc.args_streaming =
             R"({"display_description":"fix","path":"src/foo.cpp","edits":[)";
         const auto d = U::tool_timeline_detail(tc);
@@ -403,14 +403,14 @@ TEST_CASE("tool timeline adapter") {
         check(d != "\xe2\x80\xa6", "edit is not a bare ellipsis while streaming");
     }
     {
-        // Truncated mid-path: show what streamed so far rather than nothing.
+        // 中点断线 -path :显示流经至今的事物而不是无.
         auto tc = make_tool("write", A::ToolUse::Pending{});
         tc.args_streaming = R"({"path":"src/partial)";
         check(U::tool_timeline_detail(tc).find("src/partial") != std::string::npos,
               "write shows a truncated streaming path");
     }
     {
-        // Parsed args win once present (authoritative), stream ignored.
+        // 解析的参数胜出一次出现(权威),数据流忽略.
         auto tc = make_tool("read", A::ToolUse::Done{{}, {}, "a\nb"},
                             {{"path", "real.cpp"}});
         tc.args_streaming = R"({"path":"stale.cpp"})";
@@ -418,7 +418,7 @@ TEST_CASE("tool timeline adapter") {
               "parsed path is authoritative over the streaming buffer");
     }
     {
-        // move: source/destination visible from the stream too.
+        // 移动 : source/destination 从“可看见的” 数据流 也一样。
         auto tc = make_tool("move", A::ToolUse::Pending{});
         tc.args_streaming = R"({"source":"a.txt","destination":"b.txt"})";
         const auto d = U::tool_timeline_detail(tc);
@@ -426,7 +426,7 @@ TEST_CASE("tool timeline adapter") {
                   && d.find("b.txt") != std::string::npos,
               "move shows streaming source and destination");
     }
-    // pick_streaming_string escape + key-vs-value handling.
+    // pick_streaming_string 逃脱 + 密钥 -vs-value 处理。
     check(U::pick_streaming_string(R"({"path":"a\/b\nc"})", "path") == "a/b\nc",
           "pick_streaming_string decodes escapes");
     check(U::pick_streaming_string(R"({"x":"path","path":"real"})", "path")
@@ -435,12 +435,12 @@ TEST_CASE("tool timeline adapter") {
     check(U::pick_streaming_string(R"({"other":"x"})", "path").empty(),
           "pick_streaming_string returns empty when key absent");
 
-    // Every tool's header arg is streaming-live, not just the file path: a
-    // command/pattern/query shows the moment its bytes arrive, before the
-    // parsed-args reparse. (Same mechanism, applied uniformly via safe().)
+    // 每一个工具 头文件 参数为 流式传输-live ,而不只是文件路径:
+    // a command/pattern/query 显示其时刻 字节 到了,
+    // 在解析之前 -args 复式(同一机制,通过 safe().)
     {
         auto tc = make_tool("shell", A::ToolUse::Pending{});
-        tc.args_streaming = R"({"command":"npm run build)";  // truncated
+        tc.args_streaming = R"({"command":"npm run build)";  // 切换
         check(U::tool_timeline_detail(tc).find("npm run build") != std::string::npos,
               "bash command shows while streaming");
     }
@@ -483,8 +483,8 @@ TEST_CASE("tool timeline adapter") {
     check(U::tool_body_preview_config(huge_read).start_line == 1,
           "out-of-range read offset safely uses default line");
 
-    // Exercise the real overlay adapter, not only the generic Picker. Its old
-    // 60-column floor overflowed phone/SSH terminals before flex could help.
+    // 练习真正的 覆盖面板 适配器,不仅指通用 选择面板 旧的60
+    // -column 楼层溢出 phone/SSH 终端 之前,弹性可以帮助。
     A::Model viewer_model;
     A::tool_output::Entry viewer_entry;
     viewer_entry.name = "shell";
@@ -591,9 +591,9 @@ TEST_CASE("tool timeline adapter") {
         }
     }
 
-    // Long bodies add a range-indicator footer at normal heights. Sweep short
-    // non-TTY terminals and ensure compact chrome keeps the complete border in
-    // bounds, including the old inherited four-row-floor failure at 10/11.
+    // 长 正文 添加范围 -indicator 正常高度时加脚,
+    // 扫描短小的非 -TTY 终端 并确保紧凑的铬保持完整的边界,
+    // 包括旧的继承的四条边界。 -row-floor 失败时间 10/11.
     const char* old_lines_raw = std::getenv("LINES");
     const std::string old_lines = old_lines_raw ? old_lines_raw : "";
     A::tool_output::Entry long_entry;
@@ -659,16 +659,16 @@ TEST_CASE("tool timeline adapter") {
 #endif
 }
 
-// A settled `edit` renders its ```diff fence as a GitDiff review card. Two
-// pathological cases must be handled so the card stays a clean review surface:
-//   1. The edit tool truncates its OUTPUT to the model's char budget and
-//      appends a "[... N chars elided — output exceeded tool's budget; refine
-//      your request ...]" marker. That marker addresses the MODEL; it must
-//      never render inside the user's diff card.
-//   2. A huge deletion/rewrite must not dump hundreds of red rows unbounded
-//      — it windows to the head with maya's elision (show_all=false).
+// 稳定后的 edit 将 ```diff 围栏渲染为 GitDiff 审查卡片。两种
+// 病理病例必须处理,所以卡片保持一个干净的审查表面:
+//   1. 编辑工具缩短其 OUTPUT 给模型的热预算和
+//      附录a "[... N chars elided — output exceeded tool's budget; refine your request ...]" 标记。
+//      标记地址是 MODEL 永远不要 渲染
+//      用户的diff卡内。
+//   2. 巨大的deletion/rewrite 不得倾倒数百条无捆绑的红线
+//      头部的窗户 maya 消化( 减除) show_all =虚伪).
 TEST_CASE("edit diff card strips model budget marker + caps huge diffs") {
-    // (1) Budget marker leaking into the fence must be stripped.
+    // (1) 渗入围栏的预算标志必须剥离。
     {
         std::string out;
         out += "```diff\n";
@@ -690,7 +690,7 @@ TEST_CASE("edit diff card strips model budget marker + caps huge diffs") {
               "the actual diff content is preserved");
     }
 
-    // (2) A normal small diff renders in full (show_all).
+    // (2) 普通小的 diff 渲染 整数(show_all).
     {
         std::string out = "```diff\n@@ -1 +1 @@\n-a\n+b\n```";
         auto tc = make_tool("edit", A::ToolUse::Done{{}, {}, out},
@@ -700,7 +700,7 @@ TEST_CASE("edit diff card strips model budget marker + caps huge diffs") {
               "a small diff still renders in full");
     }
 
-    // (3) A very tall diff is windowed to the head, not dumped whole.
+    // (3) 高个子的diff被遮住头部,而不是被整个抛出。
     {
         std::string out = "```diff\n@@ -1,400 +1,0 @@\n";
         for (int i = 0; i < 400; ++i)
@@ -719,14 +719,14 @@ TEST_CASE("edit diff card strips model budget marker + caps huge diffs") {
 
 TEST_CASE("tool_display_name always capitalises") {
     using agentty::ui::tool_display_name;
-    // Mapped built-ins keep their curated brand labels.
+    // Mapped build -ins 保留其配有的品牌标签.
     check(tool_display_name("shell") == "Shell", "shell -> Shell");
     check(tool_display_name("read")  == "Read",  "read -> Read");
     check(tool_display_name("git_diff") == "Git Diff", "git_diff -> Git Diff");
 
-    // UNMAPPED names (MCP tools, a raw model name) must still Title-Case — no
-    // card ever renders a bare lowercase token. This is the fix for `Bash` /
-    // any tool showing uncapitalised.
+    // UNMAPPED 名称( 4) MCP 工具,原始模型名称)必须仍然标
+    // 有标题 -Case - 从来没有卡片 渲染 小写符号。
+    // 这是修复 `Bash` / 显示无大写的工具。
     check(tool_display_name("bash") == "Bash", "bash -> Bash (fallback)");
     check(tool_display_name("Bash") == "Bash", "Bash stays Bash");
     check(tool_display_name("github_create_issue") == "Github Create Issue",
@@ -737,7 +737,7 @@ TEST_CASE("tool_display_name always capitalises") {
 }
 
 TEST_CASE("shell card shows the plain command") {
-    // No "Read ..." label: a shell detour must look like a shell call.
+    // 没有 "Read ..." 标签: 外壳绕行必须像外壳 调用.
     auto d = [](const char* cmd) {
         return U::tool_timeline_detail(make_tool("shell", A::ToolUse::Running{},
                                                  {{"command", cmd}}));
@@ -787,7 +787,7 @@ TEST_CASE("tool output viewer: find, Esc order, paging") {
     step(A::ToolOutputFind{Op::Commit});
     check(!o()->typing && o()->query == "NEEDL", "Enter keeps the query");
 
-    // The view resolves the match and scrolls to it.
+    // 景则解对比而卷之.
     setenv("LINES", "30", 1);
     setenv("COLUMNS", "100", 1);
     (void)U::tool_output_panel(m);
@@ -800,13 +800,13 @@ TEST_CASE("tool output viewer: find, Esc order, paging") {
     (void)U::tool_output_panel(m);
     check(m.ui.tool_viewer_scroll.y == y0, "N goes back");
 
-    // A page is the viewport, less one line.
+    // 页面为可视区域,减去1行.
     m.ui.tool_viewer_scroll.y = 0;
     step(A::ToolOutputMove{0, +1});
     check(m.ui.tool_viewer_scroll.y == m.ui.tool_viewer_scroll.viewport_bounds.h - 1,
           "PgDn moves a page");
 
-    // Esc clears the search first, then leaves the body, then the pane.
+    // Esc 清除搜索,然后离开 正文 ,然后是 面板.
     step(A::CloseToolOutput{});
     check(o() && o()->viewing && o()->query.empty(), "Esc clears the search");
     step(A::CloseToolOutput{});
@@ -832,7 +832,7 @@ TEST_CASE("tool output viewer: never taller than the terminal") {
                     setenv("LINES", std::to_string(rows).c_str(), 1);
                     setenv("COLUMNS", std::to_string(cols).c_str(), 1);
                     auto el = U::tool_output_panel(m);
-                    // The overlay sits 2 rows above the bottom, 4 columns in.
+                    // 电话 覆盖面板 坐在底部2行,4列内。
                     const auto sz = maya::measure_element(el, cols - 4);
                     check(sz.height.value <= std::max(3, rows - 2),
                           std::string{viewing ? "body" : "list"}
@@ -896,8 +896,8 @@ TEST_CASE("tool output viewer: long lines wrap inside the pane") {
         auto boxed = maya::dsl::vstack().width(maya::Dimension::fixed(cols))(el);
         const auto size = maya::measure_element(boxed, cols);
         check(size.width.value <= cols, "pane fits " + std::to_string(cols) + " cols");
-        // 500 x's plus a 200-char command take more rows than the viewport:
-        // they're wrapped into rows, not clipped at the right edge.
+        // 500 x 加上一个 200-char 命令比 可视区域 更需要排行:
+        // 被包裹成一排,而不是在右边缘被剪断。
         const int rows = m.ui.tool_viewer_scroll.max_y + 4;
         check(rows >= 500 / cols + 200 / cols + 2,
               "long lines wrap at " + std::to_string(cols) + " cols");

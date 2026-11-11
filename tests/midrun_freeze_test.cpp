@@ -1,19 +1,19 @@
-// midrun_freeze_test — correctness for the single-freeze discipline
-// (agent_session-style): the whole active run stays LIVE; it freezes
-// into m.ui.frozen exactly once, at settle (finalize_turn). The frozen
-// transcript and the live render must be VISUALLY SEAMLESS — one turn
-// reads as ONE turn:
+// midrun_freeze_test ——单曲正确性. -freeze 纪律(
+// agent_session-style : 整个活动运行会保留 LIVE ;
+// 将它冻结为 m.ui.frozen 一次,在结算时( finalize_turn 冷冻的
+// 文字记录和现场直播 渲染 一定是,我必须 VISUALLY SEAMLESS - 转
+// 一圈读作: 一个 转弯 :
 //
-//   • exactly ONE speaker header for the whole turn (the frozen prefix
-//     carries it; the live remainder is a continuation, header
-//     suppressed),
-//   • EVERY completed sub-turn's body renders in full (nothing hidden /
-//     elided),
-//   • the turn number is not duplicated or advanced mid-run,
-//   • frozen_through advances and exactly one sub-turn stays live.
+//   · 确切地说 一个 扬声器 头文件 整个转弯( 冷冻前缀)
+//     载着它吧!其余的,是续发的。 头文件 被
+//     压制),
+//   • 每个 完全完成了第-turn 号的正文 渲染号(没有隐藏) /
+//     以白昼为首;
+//   • 转弯号码不重复或中度提前 -run,
+//   • frozen_through 预付款, 确切的说是一个子 -turn 继续活着。
 //
-// Verified structurally: render the whole conversation (frozen list +
-// live tail) to a Canvas and read the cells back as text.
+// 结构验证 : 渲染 整个对话( 冻结列表 + 直播) 末尾
+// )到一个画像 并读到 存储单元 以文字形式返回。
 
 #include <algorithm>
 #include <string>
@@ -46,8 +46,8 @@ using agentty::ToolUse;
 using std::chrono::steady_clock;
 using std::chrono::milliseconds;
 
-// Render the whole conversation (frozen + live tail) and dump painted
-// rows as ASCII-folded text.
+// 渲染 整个对话(冻结+直播) 末尾 )和倾倒所绘的行作为 ASCII
+// -folded 文本中选择一个
 static std::string render_dump(const Model& m, int width = 100,
                                int height = 40000) {
     auto root = maya::AppLayout{{
@@ -108,10 +108,10 @@ static ToolUse settled_edit(const std::string& tag) {
     return t;
 }
 
-// Build an active auto-pilot run: User, then N assistant sub-turns each
-// with one settled edit, plus a streaming tail. Only the User is frozen
-// (submit-time freeze_through); the WHOLE active run stays live — the
-// agent_session discipline. The run freezes once, at settle.
+// 构建活动自动 -pilot 运行:用户,然后是 N 助理子 -turns 每一个
+// 都有一个固定的编辑,加一个 流式传输 末尾 中。仅冻结用户(提交) -time
+// freeze_through (b) 与《京都议定书》有关的 整个 活动运行保持
+// 直播—— agent_session 纪律,跑步会冻结一次,在和解时
 static Model active_run(int n) {
     Model m;
     m.d.current.id = agentty::ThreadId{"midrun"};
@@ -128,20 +128,20 @@ static Model active_run(int n) {
     m.s.phase = agentty::phase::Streaming{agentty::phase::Active{}};
 
     agentty::app::detail::clear_frozen(m);
-    agentty::app::detail::freeze_through(m, 1);          // User
+    agentty::app::detail::freeze_through(m, 1);          // 用户
     return m;
 }
 
-// 1. During an active run NOTHING beyond the User is frozen (the whole
-//    run is live, agent_session-style); at settle the run freezes whole.
+// 1. 在用户以外的活动运行中,NOTHING被冻结(整个运行中)
+//    运行是直播, agent_session-style ),在解决运行冻结整段.
 TEST_CASE("live bounded") {
     Model m = active_run(40);
     CHECK(m.ui.frozen_through == 1,
           "mid-run freeze fired during an active run — the single freeze "
           "site is settle (finalize_turn)");
-    // Settle: stream finished. finalize_turn drains streaming_text into
-    // text before the settle freeze; mirror that — the hardened
-    // run_is_freezable refuses any run with un-drained streaming bytes.
+    // 解决 : 数据流 完成。 finalize_turn 排水沟 streaming_text
+    // 将文本写入冻结前的文本; 镜像 : run_is_freezable
+    // 拒绝任何使用 Un 的运行 -drained 流式传输 字节.
     {
         auto& back = m.d.current.messages.back();
         back.text = std::move(back.streaming_text);
@@ -153,7 +153,7 @@ TEST_CASE("live bounded") {
           "settle freeze didn't freeze the whole run");
 }
 
-// 2. Every completed sub-turn renders in full (nothing hidden).
+// 2. 每一完成的第-turn 渲染分段全部(无任何隐藏)。
 TEST_CASE("all content present") {
     constexpr int N = 40;
     Model m = active_run(N);
@@ -167,27 +167,27 @@ TEST_CASE("all content present") {
           "an elision marker leaked into the render");
 }
 
-// 3. Exactly one speaker header for the turn (no duplicate from the
-//    frozen↔live continuation seam). The assistant label is the model
-//    badge; we count the meta "turn N" marker which only the HEADER row
-//    carries — a continuation suppresses it.
+// 3. 只有一个发言者 头文件 转弯(无重复)
+//    冻结的 Q 继续 接口边界。助理标签是模型徽章;
+//    我们计算元 "turn N" 标记,只显示 HEADER
+//    排行载体——一种延续抑制它.
 TEST_CASE("single turn header") {
     Model m = active_run(20);
     auto txt = render_dump(m);
-    // The turn meta carries "turn N". For one logical assistant turn it
-    // must appear exactly once across the frozen prefix + live tail.
+    // 转弯的元件 "turn N"。对于一个逻辑助手转弯,
+    // 它必须完全出现在一个被冻结的前缀+活字段 末尾.
     const int turn_markers = count_occurrences(txt, "turn 1");
     CHECK(turn_markers == 1,
           "turn number appears != once \u2014 continuation seam duplicated header");
 }
 
-// 4. Compare a SETTLED+frozen render of the run against the same
-//    messages rendered fully live: the freeze changes WHERE rows render
-//    (frozen vs live), never WHICH rows.
+// 4. 比较a SETTLED + 冻 渲染 与同一人对决
+//    消息已完全直播:冻结更改WHERE行渲染(冻对活),
+//    永不更改WHICH行.
 TEST_CASE("split preserves content") {
     constexpr int N = 15;
     Model split = active_run(N);
-    // Settle + freeze whole (production path).
+    // 解析+冻结整条(生产路径).
     split.s.phase = agentty::phase::Idle{};
     agentty::app::detail::freeze_through(split,
         split.d.current.messages.size());
@@ -206,11 +206,11 @@ TEST_CASE("split preserves content") {
     whole.d.current.messages.push_back(std::move(tail));
     whole.s.phase = agentty::phase::Streaming{agentty::phase::Active{}};
     agentty::app::detail::clear_frozen(whole);
-    agentty::app::detail::freeze_through(whole, 1);   // freeze User only
+    agentty::app::detail::freeze_through(whole, 1);   // 仅冻结用户
 
     auto a = render_dump(split);
     auto b = render_dump(whole);
-    // Every edit marker present in both.
+    // 两者中每个编辑标记都存在.
     int both = 0;
     for (int e = 0; e < N; ++e) {
         std::string needle = "src/s" + std::to_string(e) + ".cpp";
@@ -220,10 +220,10 @@ TEST_CASE("split preserves content") {
     CHECK(both == N, "split and whole renders disagree on content presence");
 }
 
-// 5. The freeze gate never freezes a non-terminal run: with a Running
-//    tool in the tail, freeze_through stops at the run start; once the
-//    run is fully terminal it freezes whole. (run_is_freezable — the
-//    only mid-run safety the single-freeze discipline still needs.)
+// 5. 冻结门从来不冻结一个非 -terminal 运行: 带有运行
+//    工具中的 末尾, freeze_through 运行开始时停止;
+//    一旦运行全部结束 终端 整个都冻僵了 run_is_freezable
+//    - 唯一的中场 -run 单人安全 -freeze 纪律需要。 )
 TEST_CASE("trailing tool batch freezes") {
     Model m;
     m.d.current.id = agentty::ThreadId{"trailing"};
@@ -237,13 +237,13 @@ TEST_CASE("trailing tool batch freezes") {
     m.s.phase = agentty::phase::Streaming{agentty::phase::Active{}};
 
     agentty::app::detail::clear_frozen(m);
-    // Even an (erroneous) whole-thread freeze attempt must stop at the
-    // non-terminal run — run_is_freezable is the gate.
+    // 甚至一个(不相干)整体 -thread 冻结尝试必须停止在非 -terminal
+    // 运行( R)... run_is_freezable 门是门。
     agentty::app::detail::freeze_through(m, m.d.current.messages.size());
     CHECK(m.ui.frozen_through == 1,
           "froze a run with a Running tool — spinner pinned in scrollback");
 
-    // The tool settles; the turn finishes; the settle freeze takes all.
+    // 工具会结算; 转弯结束; 冻结将全部收回。 Name
     agentty::app::detail::with_live_tool(
         m, ToolCallId{"edit_only"}, [](ToolUse& t) {
             auto now = steady_clock::now();
@@ -258,7 +258,7 @@ TEST_CASE("trailing tool batch freezes") {
           "frozen tool batch body vanished from the render");
 }
 
-// Return the first NON-BLANK rendered row, or "" if every row is blank.
+// 第一次还回去 NON-BLANK 已制成行,或 "" 如果每行都是空白的。
 static std::string first_nonblank_row(const Model& m) {
     auto txt = render_dump(m);
     std::size_t p = 0;
@@ -273,7 +273,7 @@ static std::string first_nonblank_row(const Model& m) {
     return {};
 }
 
-// How many leading rows are blank before the first content row.
+// 有多少首首首行在第一内容行前是空白的.
 static int leading_blank_rows(const Model& m) {
     auto txt = render_dump(m);
     int n = 0;
@@ -289,17 +289,17 @@ static int leading_blank_rows(const Model& m) {
     return n;
 }
 
-// 6. Saved-thread reload (rehydrate). A long IDLE thread whose final
-//    run is GIANT forces rehydrate_frozen's sub-turn cut. The rebuilt
-//    frozen prefix must NOT open with a blank gap or a header-less
-//    continuation — the top of the canvas must be a real turn header.
-//    (The reported bug: saved threads render with a blank hole / a
-//    turn whose header was cut off.)
+// 6. 已保存-thread 重新装入( 水合物)。 长 IDLE 线程 最终
+//    运行为 GIANT 部队 rehydrate_frozen 子
+//    目录 -turn 切。重建的冻伤前缀不得 空白或空空格打开
+//    头文件-less 继续——画布顶部必须是真正的转弯 头文件.
+//    (所报错误 : 已保存 线程 渲染 空洞/转弯
+//    头文件 ) 被切断.
 TEST_CASE("rehydrate top is header") {
     Model m;
     m.d.current.id = agentty::ThreadId{"saved"};
-    // Several complete user+assistant exchanges, then one GIANT final
-    // auto-pilot run (many big write/edit sub-turns) settled idle.
+    // 几个完整的用户+助手交换,然后一个 GIANT 最终自动 -pilot 运行
+    // ( 众多大型) write/edit 子目录 -turns () 闲置。
     for (int t = 0; t < 4; ++t) {
         Message u; u.role = Role::User;
         u.text = "request " + std::to_string(t);
@@ -308,9 +308,9 @@ TEST_CASE("rehydrate top is header") {
         a.text = "reply " + std::to_string(t);
         m.d.current.messages.push_back(std::move(a));
     }
-    // Giant final run: a user turn then 60 settled-edit sub-turns +
-    // a closing text sub-turn. ~60 fat cards >> the rehydrate budget,
-    // so the cut lands MID-RUN.
+    // 巨型终极运行:用户转弯后60个解析 -edit 子目录 -turns
+    // + 关闭文本子 -turn ~60脂肪卡 ~ 水合水预算,
+    // 所以割地 MID-RUN.
     Message gu; gu.role = Role::User; gu.text = "do a huge refactor";
     m.d.current.messages.push_back(std::move(gu));
     for (int e = 0; e < 60; ++e) {
@@ -324,20 +324,20 @@ TEST_CASE("rehydrate top is header") {
 
     agentty::app::detail::rehydrate_frozen(m);
 
-    // The whole transcript is idle, so nothing should be live.
+    // 整本记录都闲着,所以应该没有活的.
     CHECK(m.ui.frozen_through == m.d.current.messages.size(),
           "rehydrate left messages unfrozen on an idle thread");
-    // The canvas must not open with a HOLE. A single blank row is the
-    // Turn widget's own top margin (every turn has it); a real bug is a
-    // stranded multi-row gap (a leading separator entry) or a header-
-    // less continuation. Allow the 1-row intrinsic margin.
+    // 画布不能打开 HOLE。单空行是 Turn 部件的
+    // 上边( 每个回合都有它); 真正的错误是搁浅的多边
+    // -row 间隙(一个主要分隔符条目)或 头文件 - 少继续,
+    // 让1号 -row 内建函数 边距。
     CHECK(leading_blank_rows(m) <= 1,
           "rehydrated saved thread opens with a blank gap at the top");
-    // The first visible row must be a turn header (model badge / meta),
-    // not stray body content from a header-less continuation. The
-    // assistant badge is the model name; a user header is the prompt.
-    // Either way the first row should carry a speaker, not a bare edit
-    // diff line.
+    // 第一个可见的行必须是转弯 头文件 (型号徽章/元),
+    // 不流浪 正文 内容来自 a 头文件-less 继续。
+    // 助手徽章是模型名称; 一个用户 头文件 是那个 提示词.
+    // 无论哪种方式,第一行都应该携带扬声器,而不是赤裸的编辑
+    // diff线条.
     const std::string top = first_nonblank_row(m);
     CHECK(!top.empty(), "rehydrated thread rendered nothing");
     CHECK(top.find("src/big") == std::string::npos,
@@ -345,14 +345,14 @@ TEST_CASE("rehydrate top is header") {
           "— the run header was cut off");
 }
 
-// 7. Trim must never strand a leading blank gap row. After
-//    trim_frozen_if_oversized drops front entries, the new first frozen
-//    entry must be a turn, not the inter-turn gap_row that preceded it.
+// 7. 特里姆永远不能拉起一条领先的空白行。
+//    trim_frozen_if_oversized 放下前置条目,
+//    新的第一个冻结条目必须是转弯, 而不是中间 -turn gap_row 之前的这个
 TEST_CASE("trim no leading gap") {
     Model m;
     m.d.current.id = agentty::ThreadId{"trim"};
-    // Many complete idle exchanges so freeze pushes [turn][gap][turn]...
-    // and the row budget is exceeded, forcing a front trim.
+    // 许多完全闲置的交换,所以冻结推[转 [gap][转]. .
+    // 并且排行预算被超过, 迫使前修剪。
     for (int t = 0; t < 80; ++t) {
         Message u; u.role = Role::User;
         u.text = "q" + std::to_string(t);
@@ -375,27 +375,27 @@ TEST_CASE("trim no leading gap") {
           "but kept its body)");
 }
 
-// 8. The over-budget trim drops the oldest frozen entries from the MODEL
-//    (a top-DELETION of the frozen prefix) and MUST commit exactly the
-//    dropped rows to native scrollback via Cmd::commit_scrollback(N).
-//    This is NOT a bottom-shrink: maya's render-time shrink
-//    reconciliation cannot fix a top-deletion. After the drop the new
-//    canvas content shifts up, so canvas row 0 differs from prev_cells
-//    and scrollback_prefix_matches() returns false; maya's only
-//    prefix-mismatch recovery commits the NEW prefix into scrollback
-//    rows that PHYSICALLY hold OLD content, stranding a duplicate of the
-//    trimmed boundary one screen up. Returning none() TRIGGERS that bug,
-//    it does not avoid it. commit_scrollback(removed_rows) runs against
-//    the prior (old-content) frame, advancing prev_rows/prev_cells in
-//    lockstep so the next render aligns and the boundary lands once.
-//    CONTRACT: the trim mutates the model AND returns
-//    commit_scrollback(removed_rows).
+// 8. 结束 -budget 修剪将最古老的冻结条目从 MODEL
+//    (顶部) -DELETION 冻结前缀)和 必须 将原生的行完全投入
+//    回滚缓冲区 途经 Cmd::commit_scrollback(N).
+//    这不是 下层 -shrink: maya's 渲染-time
+//    缩进调节无法修正顶端 -deletion。在投放后,新的画布内容会向上移动,
+//    因此画布行0与 prev_cells 财务报告和已审计财务报表
+//    scrollback_prefix_matches (a) 假返回;
+//    maya 唯一的前缀 -mismatch 追回承诺 新 前缀为
+//    回滚缓冲区 横行 PHYSICALLY 抓好,别动 旧 内容,将一个复刻的
+//    边界线一个屏幕上。返回 none() TRIGGERS 那个虫子,它不会避免它。
+//    commit_scrollback(removed_rows 与前一个
+//    (旧)相对应 -content) 帧 ,
+//    推进 prev_rows/prev_cells 锁在锁上,所以下一个 渲染 坐标和边界就一次。
+//    CONTRACT : 修饰使模型变异 和 返回时 commit_scrollback
+//    (removed_rows).
 TEST_CASE("trim commits exact dropped rows") {
     Model m;
     m.d.current.id = agentty::ThreadId{"trimrows"};
-    // A handful of tall write turns, each well over a viewport, so the
-    // frozen prefix blows past frozen_row_budget() and the front trim
-    // fires — the exact shape of the reported repro (repeated big writes).
+    // 几根高的笔迹转动,每根井都翻过一个 可视区域 ,
+    // 所以冰冻的前缀吹过 frozen_row_budget
+    // ()和前修剪火——报道的重写(重写大写)的确切形状.
     for (int t = 0; t < 6; ++t) {
         Message u; u.role = Role::User;
         u.text = "write a file (" + std::to_string(t) + ")";
@@ -419,17 +419,17 @@ TEST_CASE("trim commits exact dropped rows") {
     agentty::app::detail::clear_frozen(m);
     agentty::app::detail::freeze_through(m, m.d.current.messages.size());
 
-    // Simulate one rendered frame: the ledger's provability gate only
-    // drops blocks whose height maya's paint has recorded, and this
-    // harness never runs the real paint pass. Stamp each block's policy
-    // height as its recorded height — exactly what the ledger-tagged
-    // paint does with the laid-out height in production.
+    // 模拟一个已实现 帧 : 分类账的可复制性门只会
+    // 掉下高度高的块 maya 油漆记录了,
+    // 而这种绳索从未运行过真正的油漆通道。每个街区的政策高度
+    // 作为记录的高度——就是分类账的准确高度。
+    // -tagged 油漆和铺设的 -out 生产高度。
     for (std::size_t k = 0; k < m.ui.frozen.size(); ++k)
         m.ui.frozen.record_paint(
             k, static_cast<int>(m.ui.frozen.block_rows(k)));
 
-    // Record the row totals before the trim so we can compute exactly
-    // how many rows the trim drops.
+    // 在修剪前记录行总数 这样我们就可以
+    // 计算 修剪时的行数
     const std::size_t rows_before = m.ui.frozen.row_total();
     const std::size_t entries_before = m.ui.frozen.size();
 
@@ -441,12 +441,12 @@ TEST_CASE("trim commits exact dropped rows") {
           "trim did not drop any entries despite an over-budget prefix");
     CHECK(dropped_rows > 0, "trim dropped entries but no rows");
 
-    // The returned Cmd MUST be commit_scrollback(N) where N is the exact
-    // count of rows the trim removed from the TOP of the frozen prefix.
-    // A top-deletion is invisible to maya's render-time reconciliation;
-    // the host must commit the dropped rows against the still-valid old
-    // frame so the next render's shorter canvas aligns. Returning none()
-    // (or commit_scrollback_overflow) strands a duplicate boundary.
+    // 返回的CmdXXMUST是commit_scrollback(N),
+    // 其中N是从冻结的前缀TOP中去掉的切线的确切数列.
+    // 顶部 -deletion 不可见 maya's 渲染-time 校正;
+    // 主机必须将空格对齐 -valid 旧 帧 所以下一个 渲染 较短的
+    // 画布坐标。 正在返回 none() (或 减 减 )
+    // commit_scrollback_overflow ) 线条为重复的边界。
     const auto* commit = std::get_if<maya::CommitScrollback>(&cmd.inner);
     CHECK(commit != nullptr,
           "trim must return commit_scrollback(N) for the top-deletion; "
@@ -461,33 +461,33 @@ TEST_CASE("trim commits exact dropped rows") {
     }
 }
 
-// 9. (deleted) trim_frozen_above_viewport was the mid-run-safe trim for
-//    the mid-run carve cadence. Both are gone: the single freeze site is
-//    settle (finalize_turn), so the only trim is trim_frozen_if_oversized
-//    — covered by test 8.
+// 9. (删除) trim_frozen_above_viewport 中场 -run-safe 修剪为
+//    中间 -run 两者都不见了:单一的冻结地点已经解决( finalize_turn ),
+//    所以唯一的修饰是 trim_frozen_if_oversized
+//    ——包含在试验8中.
 
-// 10. Output-elided tools (bash, read, grep, …) render a fixed head/tail
-//     budget, NOT their full output. The frozen_rows estimate must track
-//     the ELIDED render height, not the full output line count — an
-//     over-count trips the mid-run keep-loop into dropping an on-screen
-//     entry and stranding a committed-scrollback ghost band (the bash-card
-//     overlap bug). Assert the stored estimate stays close to the real
-//     rendered height for a bash card with a huge output.
+// 10. 产出 -elided 工具(bash, read, grep,...) 渲染 a 固定数额。 head/tail
+//     预算, 不 全部输出。 frozen_rows 估计必须跟踪
+//     ELIDED 渲染 高度,而不是输出行数——一个超
+//     -count 中间旅行 -run 保留 -loop 将一个
+//     -screen 进入和困住一个罪犯 -scrollback 鬼
+//     乐队(狂欢) -card 重複的bug。 将存储的估计数保留在
+//     与输出量巨大的shash卡真实渲染高度的近距离。
 TEST_CASE("rehydrate bounds a LATER oversized run") {
-    // The keep-loop walks newest-first and used to cut inside a run only
-    // when it was the FIRST one considered (`units == 0`). A big run
-    // reached second or later was therefore taken WHOLE, and the budget
-    // check fired only afterwards — by which point the rows were already
-    // in. One real thread ended up with 2247 frozen rows against a
-    // 180-row budget because run #2 was 2100 rows on its own.
+    // 保存的空间 -loop 走路最新鲜的 -first 并且
+    // 经常在跑步中切片 直到它被切掉的时候 首次 考虑过(
+    // `units == 0` 因此,进行了第二次或稍后的大规模运行。
+    // 整个 ,而预算检查只是在之后才开始——到那时,
+    // 这几行已经进入。 线程 最终以2247行冰冻的一排对
+    // 180 -row 预算因为2号跑是2100列单车.
     //
-    // It matters most on RESIZE: a width change invalidates every cached
-    // layout, so the whole frozen canvas re-lays-out. Measured on that
-    // thread, 4.44 ms per resize against 0.43 ms warm — and a drag emits
-    // one resize per column.
+    // 最重要的是,这很重要 RESIZE :宽度变化使每个缓存布局无效,
+    // 所以整个被冻结的画布重新 -lays-out。测量了这一点。
+    // 线程 ,每调整4.44 ms,而每栏0.43 ms为暖度,
+    // 拖动则每栏调整一个。
     //
-    // Shape: a SMALL newest run (so the first iteration does not trip the
-    // old cut), then a huge one behind it.
+    // 形状:一个SMALL最新运行(所以第一次重复不会绊倒旧的切口),
+    // 然后是巨大的一个后面.
     Model m;
     m.d.current.id = agentty::ThreadId{"laterbig"};
 
@@ -499,7 +499,7 @@ TEST_CASE("rehydrate bounds a LATER oversized run") {
         a.text = "reply " + std::to_string(t);
         m.d.current.messages.push_back(std::move(a));
     }
-    // The huge run — second-newest once the small one is appended.
+    // 巨大的跑步——第二 -newest 一旦小的被附着。
     Message gu; gu.role = Role::User; gu.text = "do a huge refactor";
     m.d.current.messages.push_back(std::move(gu));
     for (int e = 0; e < 60; ++e) {
@@ -507,7 +507,7 @@ TEST_CASE("rehydrate bounds a LATER oversized run") {
         a.tool_calls.push_back(settled_edit("big" + std::to_string(e)));
         m.d.current.messages.push_back(std::move(a));
     }
-    // A small NEWEST run in front of it.
+    // 一辆小的NEWEST在它前面跑.
     Message lu; lu.role = Role::User; lu.text = "thanks";
     m.d.current.messages.push_back(std::move(lu));
     Message la; la.role = Role::Assistant; la.text = "you're welcome";
@@ -516,32 +516,32 @@ TEST_CASE("rehydrate bounds a LATER oversized run") {
 
     agentty::app::detail::rehydrate_frozen(m);
 
-    // What this test is really about: the oversized run must not be taken
-    // WHOLE. It used to check `rows < 1000`, which worked only because
-    // rehydrate seeded the live budget (~3 viewports) — 1000 was "far
-    // above the legitimate bound, far below the 2247 bug".
+    // 测试到底是为了什么: 不应该采取超大小的运行 整个。
+    // 它曾经检查过 `rows < 1000` ——1000个是。
+    // 远高于合法上限，但远低于曾出现的 2247 行错误值。
     //
-    // Rehydrate now seeds a WIDER window on purpose, so the canvas can
-    // legitimately exceed 1000 rows before the post-paint trim runs. The
-    // row count stopped being the invariant; check the invariant itself.
     //
-    // Two ways the run is prevented from being one indivisible lump, and
-    // either is a pass: the keep-walk CUT it (so only part of it is
-    // present), or freeze_range SPLIT it into per-sub-turn blocks (so the
-    // trim can shed them one at a time). The bug this test exists for
-    // produced neither — one giant block, every row of it.
+    // 水合物现在种子 a WIDER 窗口,
+    // 因此画布在帖子前可以合法超过1000行 -paint
+    // 修剪运行。行数不再不是变量 ; 检查 不变量 自己来
+    //
+    // 跑步的两种方式是防止一个不可分割的块, 或者是通过:
+    // 保持 -walk CUT 或 freeze_range
+    // SPLIT 输入到每个 -sub-turn 块( 这样修剪
+    // 可以一次一次掉一个)。 这个测试对于生产出来的两个块都
+    // 存在错误。 – 一个巨大的块, 每排都存在。
     const std::size_t rows    = m.ui.frozen.row_total();
     const std::size_t entries = m.ui.frozen.size();
 
-    // The 60-tool run would be ONE block if taken whole. Splitting or
-    // cutting both leave many blocks, so entry count is the tell.
+    // 六十号 -tool 运行会是 一个 如果将块全部拆
+    // 分或切除,则会留下许多块,所以输入数就是结果。
     CHECK_MESSAGE(entries > 4,
                   "frozen canvas is " << entries << " entries / " << rows
                   << " rows — an oversized run behind the newest one was "
                   "taken whole instead of being cut or split");
 
-    // And no single block may dominate: that is what pins the canvas,
-    // because a block is the trim's atom (it drops whole blocks or none).
+    // 任何单一块都无法支配:这就是画布的钉子,
+    // 因为一个块是三分块的原子(它会掉下整块或没有).
     std::size_t tallest = 0;
     for (std::size_t k = 0; k < entries; ++k)
         tallest = std::max(tallest, m.ui.frozen.block_rows(k));
@@ -549,7 +549,7 @@ TEST_CASE("rehydrate bounds a LATER oversized run") {
                   "one block is " << tallest << " rows — the trim can only "
                   "drop whole blocks, so this pins the canvas forever");
 
-    // And the canvas must still be usable: bounding it must not empty it.
+    // 画布必须仍然可用: 绑定它不能空空它。
     CHECK_MESSAGE(rows > 0, "the bound must keep SOME history, not none");
     CHECK(m.ui.frozen.size() > 0);
 }
@@ -578,10 +578,10 @@ TEST_CASE("output elided tool row estimate matches render") {
     agentty::app::detail::clear_frozen(m);
     agentty::app::detail::freeze_through(m, m.d.current.messages.size());
 
-    // The bash card elides 200 output lines to ~4 tail rows. The stored
-    // frozen_row_total must be in the same ballpark as the REAL rendered
-    // height — a pre-fix estimate counted all 200 lines (~200+ rows),
-    // wildly above the ~15-row render.
+    // 击打卡 elides 200 输出线到 ~4 末尾 已存储的行
+    // frozen_row_total 一定是在同一个球场上 真实 使
+    // 高度——预 -fix 估计数 全部200行(~200+行),
+    // 狂野地高于~15 -row 渲染.
     auto txt = render_dump(m);
     int real_rows = 0;
     for (char c : txt) if (c == '\n') ++real_rows;
@@ -589,23 +589,23 @@ TEST_CASE("output elided tool row estimate matches render") {
     CHECK(m.ui.frozen.row_total() < static_cast<std::size_t>(real_rows) + 32,
           "bash output row estimate vastly over-counts the elided render "
           "(would trip the mid-run keep-loop into a ghost band)");
-    // Sanity: the body is still actually rendered (not dropped).
+    // Sanity:正文仍然实际被制备(没有投放).
     CHECK(txt.find("file199.cpp") != std::string::npos
           || txt.find("file19") != std::string::npos,
           "bash tail rows missing from the render");
 }
 
-// 10b. The same invariant for EVERY output-elided tool, not just bash.
-//      The case above pinned bash and passed for years while the estimator
-//      quietly disagreed with the renderer for other tools: frozen.cpp's
-//      cap was a hand-written list of names, and git_status/log/commit were
-//      on it while git_diff/show/blame/branch/stash/rebase/cherry_pick were
-//      not — so a long `git diff` was ESTIMATED at its full output height
-//      (~500 rows) and RENDERED elided (~7). That over-count is precisely
-//      what makes the keep-loop drop an entry that is still on screen.
+// 10b. 每个 输出-elided 工具的相同不变量,而不仅仅是击打.
+//      上面的案子被砸了好几年 被推想者悄悄地不同意 渲染器 用于其他工具:
+//      frozen.cpp 帽子是一只手,你用它来保护我 -written 姓名清单,
+//      以及 git_status/log/commit 那时还在查
+//      git_diff/show/blame/branch/stash/rebase/cherry_pick
+//      很久没见了 `git diff` 曾经是 ESTIMATED 其输出
+//      全高(~500行)和 RENDERED 滑动(~7),
+//      结束 -count 这正是我们所要保持的 -loop 将仍在屏幕上的条目删除。
 //
-//      Looping over the tools makes the coverage gap structural rather than
-//      a matter of remembering to add a case per tool.
+//      绕过工具,使得覆盖差距结构化,
+//      而不是记住每个工具都加一个案例的问题。
 TEST_CASE("output elided row estimate matches render for every such tool") {
     const char* kTools[] = {
         "shell", "diagnostics", "read", "find_definition",
@@ -639,7 +639,7 @@ TEST_CASE("output elided row estimate matches render for every such tool") {
         m.d.current.messages.push_back(std::move(a));
         m.s.phase = agentty::phase::Idle{};
 
-        // The REAL rendered height of the whole transcript at this width.
+        // REAL号机使整个记录的高度达到这个宽度。
         constexpr int kCols = 100;
         agentty::app::detail::clear_frozen(m);
         agentty::app::detail::freeze_through(m, m.d.current.messages.size());
@@ -647,17 +647,17 @@ TEST_CASE("output elided row estimate matches render for every such tool") {
         int real_rows = 0;
         for (char c : txt) if (c == '\n') ++real_rows;
 
-        // The PREDICTION the keep-loop actually consumes. row_total() is
-        // measured from the real render, so asserting on it can't catch an
-        // estimator bug — estimate_msg_rows is the function under test.
+        // 保存的-loop实际消耗的PREDICTION.
+        // row_total()是从真实的渲染测量的,所以断言它不能捕捉到
+        // 一个估计错误——estimate_msg_rows是测试中的函数.
         const std::size_t est =
             agentty::app::detail::estimate_msg_rows(
                 m.d.current.messages[1], kCols);
 
-        // One-sided: UNDER-counting only keeps more history (safe); an
-        // OVER-count makes the keep-loop stop early and silently drop
-        // history it believed it had covered. For an eliding renderer the
-        // gap is unbounded — 400 lines of output drawn as ~7 rows.
+        // 一个 -sided: UNDER-counting 只
+        // 保存更多历史(安全); a OVER-count 保持
+        // 原状 -loop 早点停下来,悄悄地放下它相信它所覆盖的历史
+        // 渲染器 空隙没有限制——400行输出以~7行绘制.
         CHECK(est <= static_cast<std::size_t>(real_rows),
               tool << ": estimate " << est << " exceeds the real render "
                    << real_rows << " rows — frozen.cpp counts this tool's "

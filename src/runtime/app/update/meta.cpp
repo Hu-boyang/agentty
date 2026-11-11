@@ -1,34 +1,34 @@
-// meta_update — reducer for `msg::MetaMsg`. Session-level events that
-// don't belong to any single domain: the Tick clock + stream-stall
-// watchdog + token-rate sampler, profile cycling, conversation
-// compaction kickoff, scroll/toggle, status-toast cleanup, and Quit.
+// meta_update — 状态更新函数 费用 `msg::MetaMsg`
+// 届会 -level 事件 不属于任何单个域: Tick clock +
+// 数据流-stall 看门狗 + 符号 -rate 取样机 剖面循环
+// 对话压缩启动 scroll/toggle 状态 -toast 清净戒戒.
 
 #include "agentty/runtime/app/update/internal.hpp"
 #include "agentty/runtime/app/update.hpp"
-#include "agentty/domain/smart_mode.hpp"   // kSmartModeRows
+#include "agentty/domain/smart_mode.hpp"   // kSmartModeRows 移动
 
 #include <algorithm>
 #include <chrono>
 #include <utility>
 
 #include <maya/core/overload.hpp>
-#include <maya/core/motion.hpp>   // anim::keep_animating — frame requests
+#include <maya/core/motion.hpp>   // anim::keep_animating — 帧 请求
 
 #include "agentty/runtime/app/cmd_factory.hpp"
 #include "agentty/util/update.hpp"   // self_update_possible
 #include "agentty/runtime/app/deps.hpp"
-#include "agentty/provider/selection.hpp"   // provider::active (stall watchdog)
+#include "agentty/provider/selection.hpp"   // provider::active (上钩) 看门狗)
 #include "agentty/provider/ollama/transport.hpp"  // effective_num_ctx
 #include "agentty/provider/openai/transport.hpp"  // endpoint_speaks_native_cached
 #include "agentty/runtime/composer_attachment.hpp"
 #include "agentty/runtime/mem.hpp"
-#include "agentty/runtime/panel/settings/items.hpp"      // ascend(): revalidate a restored list
-#include "agentty/runtime/settings_registry.hpp"   // tuning row write-back
+#include "agentty/runtime/panel/settings/items.hpp"      // ascend(): 重新验证已恢复的列表
+#include "agentty/runtime/settings_registry.hpp"   // 调制行写入-back
 #include "agentty/runtime/view/helpers.hpp"   // ui::profile_label
 #include "agentty/runtime/view/palette.hpp"   // ui::palette_context
 #include "agentty/store/store.hpp"
-#include "agentty/tool/subagent.hpp"   // set_smart: the task router's own copy
-#include "agentty/tool/tool_plan.hpp"  // CycleToolLoading (#98)
+#include "agentty/tool/subagent.hpp"   // set_smart:任务路由器本身的复制件
+#include "agentty/tool/tool_plan.hpp"  // CycleToolLoading(#98) 页面存档备份,存于互联网档案馆,2009年7月1日.
 #include "agentty/workspace/checkpoint.hpp"
 #include "agentty/runtime/panel/smart_form.hpp"
 #include "agentty/runtime/app/settings_cache.hpp"
@@ -40,15 +40,15 @@ namespace agentty::app::detail {
 
 using maya::overload;
 
-// Resolve the three role slots for DISPLAY and build the pane.
+// 解决三个角色档次 DISPLAY 建造 面板.
 //
-// Resolution is provider-scoped like the wire path, so a pin made under
-// another provider shows the auto-fill that will really serve the turn rather
-// than a model this endpoint cannot stream. That lookup needs the catalogue,
-// which is why it lives here and not in smart_form.cpp — that file stays pure.
+// 分辨率为提供者 -scoped 喜欢 传输 路径,
+// 所以在另一个提供者下制作的针头显示自动 -fill 最终点
+// 无法成为的模型 数据流。这个检查需要目录, 这就是为什么它
+// 住在这里而不是在 smart_form.cpp - 档案是纯的
 //
-// Shared with picker.cpp, which reopens the pane after a slot assignment: one
-// builder means the reopened pane cannot differ from the original.
+// 与 picker.cpp ,该程序重新打开 面板 指定槽
+// 后:一个建构者表示重新打开 面板 与原样没有区别。
 form::Form build_smart_form(const Model& m, bool advanced) {
     const auto& sm = m.d.smart;
     const std::string parent = m.d.model_id.value;
@@ -66,17 +66,17 @@ form::Form build_smart_form(const Model& m, bool advanced) {
 
     smart_form::Inputs in;
     in.enabled = sm.enabled;
-    // An env pin is a LOCK, not a late refusal: the row renders read-only and
-    // names the variable, instead of looking live and toasting on Enter.
+    // 内线是 LOCK ,而不是迟到的拒绝:行 渲染 读 -only
+    // 并命名变量,而不是 寻找现场和敬酒 Enter.
     if (m.env.settings.smart_enabled)
         in.enabled_lock = "env: AGENTTY_SMART_MODE";
     in.strategic      = slot(smart::ModelRole::Strategic);
     in.implementation = slot(smart::ModelRole::Implementation);
     in.utility        = slot(smart::ModelRole::Utility);
 
-    // The advanced rows are projected straight from the persisted config by
-    // the settings registry — value, range, label, help, env lock and
-    // provenance all come from the row. Nothing to mirror here.
+    // 高级行从设置的持久配置直接预测
+    // 注册表 ——值,范围,标签,帮助,
+    // 内存 锁 和来源都来自排。
     in.advanced = advanced;
     in.smart = m.d.smart;
     in.env = m.env.settings;
@@ -84,9 +84,9 @@ form::Form build_smart_form(const Model& m, bool advanced) {
 }
 
 int resolved_context_max(const Model& m, std::string_view provider_id) {
-    // The window the provider advertised for THIS model, if the catalog
-    // carries one. 0 means nothing was reported — a probe never ran, or the
-    // gateway's /v1/models row said nothing about size.
+    // 如果目录携带一个,供应商为THIS模型广告的窗口。
+    // 0意味着没有报告任何情况——一个探测器从未运行过,
+    // 或者网关的/v1/models行没有说出大小。
     int advertised = 0;
     for (const auto& mi : m.d.available_models) {
         if (mi.id == m.d.model_id) { advertised = mi.context_window; break; }
@@ -96,25 +96,25 @@ int resolved_context_max(const Model& m, std::string_view provider_id) {
                                    advertised, m.d.persisted,
                                    m.env.max_context_tokens);
 
-    // Ollama does not serve what the weights claim. It allocates a KV cache
-    // to match, so agentty clamps num_ctx to a ceiling that will actually
-    // load on a laptop instead of OOMing the server mid-request.
+    // Ollama 其分配的重量为: KV 缓存 来匹配,
+    // 所以 agentty 夹子 num_ctx 最高额,实际上 加载 电脑上,
+    // 而不是OOMing服务器中间 -request.
     //
-    // The GAUGE has to agree with that clamp. It did not: the wire sent
-    // num_ctx=32768 while this returned the model's unclamped 131072, so
-    // the context bar read a quarter of true usage and auto-compaction
-    // waited for four times the thread it should have. The model silently
-    // truncated its own prompt long before agentty thought to compact —
-    // "local models forget everything", invisible from inside because
-    // every layer was individually correct.
+    // 电话 GAUGE 不得不同意这个夹子。 传输 发送 num_ctx
+    // =32768 当这个返回模型的未解密的131072,
+    // 所以上下文栏读取了四分之一的真实使用和自动 -compaction
+    // 等了四遍了 等了四个月 线程 模特儿悄悄地切开自己的车 提示词
+    // 很久以前,我一直想着 agentty 认为要紧凑...
+    // "local models forget everything"
+    // 内在的无形,因为每个层都单独正确
     //
-    // One function answers it for both.
+    // 一种功能既能回答两个问题。
     //
-    // Only when the host really speaks Ollama's protocol, though. llama.cpp
-    // can serve on 11434 under the "ollama" row (#73); then requests go to
-    // /v1, no num_ctx is sent, and the window is whatever the server was
-    // started with. Clamping that to 32k showed a 131k server as 32k. A host
-    // not asked yet counts as Ollama, matching dispatch.
+    // 不过，只有当主机真正讲 Ollama 的协议时。 llama.cpp
+    // 可以在 11434 的 "ollama" 行（#73）下服务；
+    // 然后请求转到 /v1，不会发送 num_ctx，并且窗口是服务器
+    // 启动时使用的窗口。将其限制为 32k 将 131k 服务器显示为 32k。
+    // 尚未询问的主机计为 Ollama，与 分派 匹配。
     if (provider_id == "ollama"
         && provider::openai::endpoint_speaks_native_cached(
                m.d.selection.openai_endpoint).value_or(true))
@@ -125,33 +125,33 @@ int resolved_context_max(const Model& m, std::string_view provider_id) {
 Cmd meta_update(Model& m, msg::MetaMsg mm) {
     return std::visit(overload{
         [&](CompactContext) -> Cmd {
-            // Refuse if a turn is already in flight or compaction is
-            // already running — the next CompactContext lands cleanly
-            // on Idle. Refuse on an empty thread (nothing to compact).
-            // Toast in both cases: a manual compaction that silently does
-            // nothing reads as a broken keybind.
+            // 如果转弯已经在飞行中或者压实已经在运行，
+            // 则拒绝——下一个 CompactContext
+            // 干净地降落在空闲状态。拒绝空的 线程（无需压缩）。
+            // 在这两种情况下的Toast：不执行任何操作的手
+            // 动压缩读取为损坏的键绑定。
             if (!m.s.is_idle() || m.s.compacting)
                 return set_status_toast(m,
                             "cannot compact while the agent is working");
             if (m.d.current.messages.empty())
                 return set_status_toast(m, "nothing to compact yet");
 
-            // Compaction is wire-only: we never mutate the transcript.
-            // The summarisation prompt is built and trimmed on the fly
-            // by `cmd_factory::wire_messages_for_compaction` (which
-            // consults `m.s.context_max` and drops oldest turns until
-            // the request fits ~65% of the window). The streamed reply
-            // lands in `m.s.compaction_buffer`, not in `messages`.
-            // The user keeps seeing every turn they ever had — the
-            // status banner is the only UI signal that compaction is
-            // happening.
+            // 压缩是传输-only：我们从不改变转录本。
+            // 总结提示词是由`cmd_factory::wire_messages_for_compaction`
+            // 动态构建和修剪的（其咨询`m.s.context_max`
+            // 并丢弃最旧的回合，直到请求适合窗口的~65%）。
+            // 流式回复落在 `m.s.compaction_buffer`，
+            // 而不是 `messages`。
+            // 用户不断地看到他们曾经经历过的每一个回
+            // 合——状态横幅是正在发生压缩的唯一 UI
+            // 信号。
             //
-            // `compaction_target_index` is the boundary the resulting
-            // CompactionRecord will cover: "replace [0, this) with the
-            // summary on future wire payloads." Captured at kickoff so
-            // turns submitted by the user during compaction (queued
-            // via the queue-on-compact path) don't get retroactively
-            // folded into a summary they weren't part of.
+            // `compaction_target_index`是结果
+            // CompactionRecord将覆盖的边界：
+            // 后续请求载荷中，用摘要替换 [0, this) 范围。
+            // 在启动时捕获，因此用户在压缩期间提交的轮次（
+            // 通过queue-on-compact路径排队）
+            // 不会被追溯地折叠到它们不属于的摘要中。
             m.s.compaction_target_index = m.d.current.messages.size();
             m.s.compaction_buffer.clear();
 
@@ -162,13 +162,13 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
             m.s.phase     = phase::Streaming{std::move(ctx)};
             m.s.compacting = true;
             m.s.status      = "compacting context\xe2\x80\xa6";   // …
-            m.s.status_until = {};   // sticky until compaction completes
+            m.s.status_until = {};   // 粘性直至压实完成
             return cmd::launch_stream(m);
         },
 
         [&](ToggleChangesStrip) -> Cmd {
             m.d.show_changes_strip = !m.d.show_changes_strip;
-            // Persist so it survives restarts.
+            // 坚持下去，以便它在重新启动后仍然存在。
             m.d.persisted.show_changes_strip = m.d.show_changes_strip;
             auto save = save_record(m);
             auto cmd = set_status_toast(m, m.d.show_changes_strip
@@ -197,14 +197,14 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
             }(tp::loading_from(m.d.persisted.tool_loading));
             m.d.persisted.tool_loading = std::string{tp::to_string(next)};
             auto save = save_record(m);
-            // publish_derived sees the record move and tells the tool layer.
+            // publish_derived看到记录移动并告诉工具层。
             auto toast = set_status_toast(m,
                 next == tp::Loading::All      ? "MCP tools: load all (up to the provider's limit)"
               : next == tp::Loading::OnDemand ? "MCP tools: load on demand, the model searches"
                                               : "MCP tools: auto, load what fits");
-            // The Plugins pane counts depend on the mode.
+            // 插件面板计数取决于模式。
             return Cmd::batch(std::move(save), std::move(toast),
-                              agentty::app::cmd::load_plugins_async(/*reconnect=*/false));
+                              agentty::app::cmd::load_plugins_async(/*重新连接=*/false));
         },
 
         [&](ToggleAutoCompact) -> Cmd {
@@ -220,25 +220,25 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
             m.d.profile = m.d.profile == Profile::Write   ? Profile::Ask
                       : m.d.profile == Profile::Ask     ? Profile::Minimal
                                                        : Profile::Write;
-            // A profile switch re-establishes the trust baseline; drop
-            // session "always allow" grants so tightening to Minimal
-            // actually re-arms the prompts the user expects. Clear the
-            // PERSISTED grants too — otherwise they resurrect at next
-            // launch (init re-seeds session_grants from settings) and the
-            // re-arm silently un-does itself. This is also the ONLY
-            // user-facing way to revoke a stale always-allow.
+            // 配置文件切换re-establishes信任基线；
+            // 删除会话 "always allow" 授权，因此收紧到
+            // Minimal 实际上是 re-arms 用户期望的 提示词。
+            // 也清除 PERSISTED 授权 - 否则它们会在下次启动时复活
+            // （从设置中初始化 re-seeds session_grants），
+            // 并且 re-arm 会默默地 un-does 本身。
+            // 这也是ONLY用户-facing撤销过期总是-allow的方法。
             const bool had_grants = !m.d.session_grants.empty();
             m.d.session_grants.clear();
-            m.d.grant_def_hash.clear();   // the hashes belong to those grants
+            m.d.grant_def_hash.clear();   // 哈希值属于那些授权
             m.d.persisted.always_allow_tools.clear();
-            // One save, not two: persist_settings writes the whole record,
-            // so clearing the grants on it above is enough. Saving them
-            // separately first (as this did) only created a window for the
-            // save below to write a record that still had them.
+            // 一个保存，而不是两个：persist_settings
+            // 写入了整个记录，因此清除上面的授权就足够了。
+            // 首先单独保存它们（就像这样做的）只会为下面的 保存
+            // 创建一个窗口来写入仍然包含它们的记录。
             auto profile_save = persist_settings(m);
-            // Confirm the switch — a profile change is invisible otherwise
-            // (the composer chip updates, but a keyboard-driven cycle needs a
-            // beat of feedback naming the new mode + what it does).
+            // 确认切换——否则配置文件改变是不可见的（
+            // 作曲家标签更新，但是键盘-driven循环需要命名新模式
+            // +它的作用的反馈节拍）。
             const char* gist =
                   m.d.profile == Profile::Write   ? "auto-approves every tool"
                 : m.d.profile == Profile::Ask     ? "asks before writes & commands"
@@ -251,16 +251,16 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
             return toast;
         },
         [&](RestoreCheckpoint& e) -> Cmd {
-            // Rewind = destructive double restore: worktree files AND the
-            // transcript both return to the instant before the checkpointed
-            // user turn was submitted (Zed's "restore checkpoint"). Only
-            // from Idle — a running turn holds tool workers that write
-            // files; racing them against checkout-index would interleave
-            // snapshot bytes with fresh tool output.
+            // 倒带=破坏性双重恢复：工作树文件AND和记录都返回
+            // 到提交检查点用户轮次之前的瞬间（Zed的
+            // "restore checkpoint"）。
+            // 仅从空闲状态 - 运行回合持有写入文件的工具 工作线程；
+            // 将它们与 checkout-index 进行竞赛会将
+            // 快照 字节 与新的工具输出交织在一起。
             if (!m.s.is_idle() || m.s.compacting || m.s.thread_loading)
                 return set_status_toast(m, "cannot rewind while the agent is working");
-            // The checkpointed message must still exist (compaction never
-            // deletes messages, so this only fails on a stale id).
+            // 检查点消息必须仍然存在（压缩永远不会删除消息，
+            // 因此这仅在 过期 id 上失败）。
             const auto& msgs = m.d.current.messages;
             const bool found = std::any_of(msgs.begin(), msgs.end(),
                 [&](const Message& msg) {
@@ -268,15 +268,15 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
                 });
             if (!found)
                 return set_status_toast(m, "checkpoint not found in this thread");
-            // thread_loading doubles as the "transcript is about to be
-            // rewritten" guard: submit_message queues instead of firing,
-            // so no message can land between the index computed at
-            // CheckpointRestored time and the truncation.
+            // thread_loading兼作
+            // "transcript is about to be rewritten"防护：
+            // submit_message排队而不是触发，因此没有消息可以到达在
+            // CheckpointRestored时间计算的索引和截断之间。
             m.s.thread_loading = true;
             m.s.status         = "rewinding to checkpoint\xe2\x80\xa6";
             m.s.status_until   = {};
-            // Isolated worker: git checkout-index on a large snapshot can
-            // block for seconds; never on the shared BG pool.
+            // 隔离工作线程：大快照上的git checkout-index可以阻塞几秒；
+            // 永远不会在共享的 BG 池 上。
             auto cmd = Cmd::task_isolated(
                 [](maya::Sink<Msg> out, std::stop_token, CheckpointId id) {
                     CheckpointRestored done;
@@ -295,23 +295,23 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
                 return set_status_toast(m, "rewind failed: " + e.error,
                                          std::chrono::seconds{6});
             }
-            // Files are already byte-identical to the snapshot; now cut the
-            // transcript back to just before the checkpointed user turn and
-            // hand its text back to the composer for editing + resubmit.
+            // 文件已经是字节-identical到快照;
+            // 现在将抄本切回到检查点用户转弯之前，
+            // 并将其文本交还给作曲家进行编辑+重新提交。
             auto& msgs = m.d.current.messages;
             auto it = std::find_if(msgs.begin(), msgs.end(),
                 [&](const Message& msg) {
                     return msg.checkpoint_id && *msg.checkpoint_id == e.id;
                 });
             if (it == msgs.end()) {
-                // Restored the files but the message vanished (shouldn't
-                // happen — dispatch is gated on Idle + thread_loading).
+                // 恢复了文件，但消息消失了（不应该发生——分派在
+                // 空闲+thread_loading上被门控）。
                 return set_status_toast(m, "files rewound (turn already gone)");
             }
-            // Composer refill: plain-text render of the old prompt — chip
-            // placeholders become their visible labels. Raw placeholders
-            // can't be resurrected safely (image bodies were drained onto
-            // Message.images at submit; a dangling chip 400s the request).
+            // Composer 补充：旧的 提示词 —标签 的普通
+            // -text 渲染 占位符成为它们的可见标签。
+            // 原始占位符无法安全地复活（图像 正文 在提交时被耗尽到
+            // Message.images；悬空的 标签 请求 400 秒）。
             std::string refill;
             refill.reserve(it->text.size());
             for (std::size_t i = 0; i < it->text.size(); ) {
@@ -332,8 +332,8 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
             }
             const auto cut = static_cast<std::size_t>(it - msgs.begin());
             msgs.erase(msgs.begin() + static_cast<std::ptrdiff_t>(cut), msgs.end());
-            // Compaction records covering now-deleted messages are
-            // meaningless (up_to_index points past the end) — drop them.
+            // 覆盖 now-deleted 消息的压缩记录是没有
+            // 意义的（up_to_index 点超过了末尾）——丢弃它们。
             std::erase_if(m.d.current.compactions,
                           [&](const Thread::CompactionRecord& r) {
                               return r.up_to_index > cut;
@@ -347,17 +347,17 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
             if (m.ui.composer.text.find('\n') != std::string::npos)
                 m.ui.composer.expanded = true;
 
-            // Wholesale content swap into a SHORTER transcript — same
-            // recovery as ThreadLoaded/NewThread: rebuild the frozen
-            // prefix and reset the inline region (the truncated turns'
-            // rows live in native scrollback and only reset_inline can
-            // clear them; the user explicitly asked for the rewind).
+            // 批发内容交换到 SHORTER 转录本 — 与
+            // ThreadLoaded/NewThread
+            // 恢复相同：重建冻结前缀并重置内联区域（截断的转弯
+            // 行位于本机 回滚缓冲区 中，
+            // 只有 reset_inline 可以清除它们；用户明确要求倒带）。
             //
-            // Drop the whole render cache too: the truncated tail's
-            // messages are gone (their entries would never freeze again
-            // — the only per-entry drop), and the surviving prefix is
-            // about to be rebuilt into the frozen ledger. Both repopulate
-            // lazily on the next render.
+            // 也删除整个 渲染 缓存：被截断的 末尾 的
+            // 消息消失了（它们的条目永远不会再次冻结——唯一
+            // 的 per-entry 删除），并且幸存的前
+            // 缀即将被重建到冻结的分类帐中。两者都会在下一个
+            // 渲染 上延迟重新填充。
             m.ui.view_cache.clear();
             rehydrate_frozen(m);
             m.ui.needs_warmup_render = !m.ui.frozen.empty();
@@ -373,29 +373,29 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
             return Cmd::none();
         },
         [&](TerminalResized& e) -> Cmd {
-            // A width change mid-turn: maya replays history now, but the
-            // running turn's rows that already scrolled off stay at the old
-            // width. Replay once more after it settles (meta Tick).
+            // 宽度改变mid-turn:maya现在
+            // 重播历史，但是已经滚动的运行回合的行保持
+            // 旧的宽度。稳定后再次重播（元勾选）。
             if (e.cols > 0 && m.ui.term_cols > 0 && e.cols != m.ui.term_cols
                 && !m.s.is_idle())
                 m.ui.replay_after_settle = true;
-            // A transient 0 from a detached tty keeps the last good value.
+            // 来自分离tty的瞬态0保持最后的好值。
             if (e.cols > 0) m.ui.term_cols = e.cols;
             if (e.rows > 0) m.ui.term_rows = e.rows;
             return Cmd::none();
         },
         [&](ToggleRetrievedExpanded& e) -> Cmd {
-            // Flip the addressed retrieved-context card between its compact
-            // snippet form and full-passage expansion. Frozen-prefix gate,
-            // same frozen-prefix gate as every id-addressed mutation: a card
-            // into m.ui.frozen has its expanded state baked into the
-            // snapshotted Element (hash_id stamped at freeze, never
-            // recomputed), so mutating proactive_expanded there would change
-            // model state without reaching the canvas. Only toggle a LIVE
-            // (not-yet-frozen) card; on scrollback it no-ops, matching
-            // "scrollback is archaeology". The full-passage viewer for a
-            // frozen card is the Ctrl+O overlay, which never touches the
-            // canvas.
+            // 在其紧凑片段形式和完整-passage扩展之间翻转寻址的检索-context卡。
+            // Frozen-prefix 门，与每个 id-addressed
+            // 突变相同的 freeze-prefix 门：进入 m.ui.frozen
+            // 的卡将其扩展状态烘焙到快照元素中（hash_id 在冻结时标记，
+            // 从未重新计算），因此在那里突变
+            // proactive_expanded 会更改模型状态，而不会到达画布。
+            // 只有切换一张LIVE（不是-yet-frozen）卡；
+            // 在 回滚缓冲区 上，它没有 -ops，
+            // 匹配 "scrollback is archaeology"。
+            // 冻结卡的完整 -passage 查看器是 Ctrl+O 覆盖面板，
+            // 它从不接触画布。
             auto& msgs = m.d.current.messages;
             for (std::size_t i = m.ui.frozen_through; i < msgs.size(); ++i) {
                 if (msgs[i].id == e.id && msgs[i].proactive) {
@@ -407,64 +407,64 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
         },
         [&](Tick) -> Cmd {
             auto now = m.now;
-            // Wall-clock gap since the previous Tick — kept for the
-            // suspend-recovery rebase below (last_event_at += tick_gap).
-            // NOTE: no animation dt is derived here any more. Every
-            // Tick-era animation (spinner, tok/s smoothing) is now
-            // clock-driven inside maya's animation framework: the spinner
-            // reads its frame off the shared animation clock, and the
-            // disp_rate Motion self-ticks on the view-loop frame clock.
-            // The old hand-fed dt — and the subtle bug class where the
-            // two clocks disagreed ("spinner crawls when view() consumed
-            // the frame gap first") — is gone with it.
+            // 自上一个刻度以来的 Wall-clock 间隙 — 保留用于下面的挂起
+            // -recovery 变基 (last_event_at += tick_gap)。
+            // NOTE:这里不再导出动画dt。现在，每个 Tick
+            // -era 动画（加载动画、tok/s 平滑）都是
+            // maya 动画框架内的 Clock-driven：加载动画 从
+            // 共享动画时钟读取其 帧，而 disp_rate 运动
+            // self-ticks 在 vi​​ew-loop 帧 时钟上。
+            // 老手-fed dt——以及两个时钟不一致的微妙错误类（
+            // view() 先消耗了帧间隔，导致加载动画缓慢。
+            // ——也随之消失了。
             if (m.s.last_tick.time_since_epoch().count() == 0) m.s.last_tick = now;
             const auto tick_gap = now - m.s.last_tick;
             m.s.last_tick = now;
 
-            // ── Periodic release check ────────────────────────
-            // The check used to run ONCE, at startup. A session that stays
-            // open for a day — the normal case here — therefore never
-            // learned about a release cut while it was running, and there
-            // was no in-app way to ask: the "Update agentty" palette entry
-            // is gated on a check having already succeeded, so a launch
-            // with no network left you with no path at all short of
-            // quitting and running `agentty update`.
+            // ── 定期检查释放情况 ────────────────────────
+            // 该检查用于在启动时运行ONCE。因此，
+            // 保持开放一天的会话（这里的正常情况）因此在运行
+            // 时从未了解过版本削减，并且没有 in-app 方式
+            // 询问："Update agentty" 调色板条目
+            // 是在已经成功的检查上门控的，因此没有网络的启动
+            // 让您除了退出和运行 `agentty update`
+            // 之外根本没有任何路径。
             //
-            // Hourly, like Zed. The check itself is 24h-cached on disk, so
-            // the overwhelming majority of these are one small file read on
-            // a worker thread and dispatch nothing.
+            // 每小时一次，如 Zed。检查本身是磁盘上的 24h-cached，
+            // 因此其中绝大多数都是在 工作线程、线程 和 分派 上
+            // 读取的一个小文件，什么也没有。
             constexpr auto kUpdatePollInterval = std::chrono::hours{1};
             if (!m.s.update_in_flight
                 && m.s.update_pending_restart.empty()
                 && m.s.update_latest.empty()
                 && !m.env.no_update_check) {
                 if (m.s.last_update_poll.time_since_epoch().count() == 0)
-                    m.s.last_update_poll = now;   // startup check just ran
+                    m.s.last_update_poll = now;   // 启动检查刚刚运行
                 else if (now - m.s.last_update_poll >= kUpdatePollInterval) {
                     m.s.last_update_poll = now;
                     return cmd::check_for_update();
                 }
             }
 
-            // ── LOOP resume ───────────────────────────────────────
-            // A failed iteration parked the loop behind a backoff deadline.
-            // finalize_turn is the normal re-send site, but it only runs when
-            // a turn ENDS — a sleeping loop has no turn to end, so the Tick
-            // (kept armed by animation_demand while a wait is pending) is what
-            // brings it back. Fire the moment the deadline passes and the
-            // session is genuinely idle.
+            // ── LOOP 恢复 ───────────────────────────────────────
+            // 失败的迭代使循环停在退避最后期限之后。
+            // finalize_turn是正常的re-send站点，
+            // 但它仅在转弯ENDS时运行——睡眠循环没有转弯结束，
+            // 因此Tick（在等待待处理时由animation_demand
+            // 保持武装）将其带回来。在截止日期过后并且
+            // 会话真正空闲时触发。
             if (m.ui.composer.loop_wait_until_ms > 0 && m.s.is_idle()) {
                 const auto now_ms = maya::anim::default_clock().now_ms();
                 if (m.ui.composer.loop_ready(now_ms)) {
-                    m.ui.composer.loop_note_success();   // clears the deadline
+                    m.ui.composer.loop_note_success();   // 明确期限
                     ++m.ui.composer.loop_iterations;
                     m.ui.composer.text        = m.ui.composer.loop_text;
                     m.ui.composer.attachments = m.ui.composer.loop_attachments;
                     m.ui.composer.cursor =
                         static_cast<int>(m.ui.composer.text.size());
                     auto sub_cmd = detail::submit_message(m);
-                    // Keep the prompt on screen (the box is read-only while
-                    // looping) — same restore finalize_turn does.
+                    // 将提示词保留在屏幕上（循环时该框被读取-only）—
+                    // —与finalize_turn的恢复相同。
                     auto& sc = m.ui.composer;
                     sc.text        = sc.loop_text;
                     sc.attachments = sc.loop_attachments;
@@ -473,11 +473,11 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
                 }
             }
 
-            // Glide the BIG tok/s readout. Retarget the smoothing Motion at
-            // the same raw instantaneous rate the status bar would show. The
-            // VIEW reads disp_rate.get(), which self-ticks on the shared
-            // frame clock and keeps frames armed while gliding — no dt here.
-            // When nothing is in flight, pull it to rest at 0.
+            // 滑动 BIG tok/s 读数。以状态栏显示的相同原始
+            // 瞬时速率重新定位平滑运动。 VIEW 读取 disp_rate.get()，
+            // 该 -ticks 在共享 帧 时钟上，
+            // 并在滑行时保持 帧 处于武装状态 — 这里没有 dt。
+            // 当没有任何物体在飞行时，将其拉至0处静止。
             {
                 double raw_target = 0.0;
                 if (auto* ra = active_ctx(m.s.phase);
@@ -489,29 +489,29 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
                         double sec = std::max(0.001, static_cast<double>(ms) / 1000.0);
                         raw_target = (static_cast<double>(ra->live_delta_bytes) / 4.0) / sec;
                     } else {
-                        raw_target = m.s.disp_rate.target();  // hold during warm-up
+                        raw_target = m.s.disp_rate.target();  // 保温期间保持-up
                     }
                 }
                 if (raw_target != m.s.disp_rate.target())
                     m.s.disp_rate.spring_to(raw_target);
             }
 
-            // Post-freeze settling window countdown. Keeps the tick
-            // subscription armed (subscribe.cpp gates on it) for a few
-            // frames after the settle-freeze so maya's renderer fully
-            // reconciles the live-tail→frozen collapse before the clock
-            // stops. Decrement here so each rendered frame burns one.
+            // -freeze后结算窗口倒计时。在解决-freeze之后，
+            // 保持蜱事件订阅武装（subscribe.cpp门在其上）几个帧，
+            // 以便maya的渲染器在时钟停止之前完全
+            // 协调live-tail→冻结崩溃。此处递减，
+            // 以便每个渲染的 帧 都会燃烧一个。
             if (m.ui.settle_cooldown_ticks > 0) --m.ui.settle_cooldown_ticks;
 
-            // ── Deferred post-rehydrate trim ──────────────────────
-            // Armed by ThreadLoaded. The rehydrate budget walk ran on
-            // ESTIMATED heights; once the first paint has stamped every
-            // sealed block's REAL laid-out height (record_paint), re-run
-            // the trim so the frozen window is bounded by ground truth,
-            // not by estimate drift (tool-heavy threads under-estimate
-            // several-fold). Fires once; waits until every block has a
-            // recorded height so the drop provability gate in drop_front
-            // can actually release rows.
+            // ── 推迟员额-rehydrate ──────────────────────
+            // 由 ThreadLoaded 武装。补水预算步行在
+            // ESTIMATED 高度进行；一旦第一个油漆印记了每
+            // 个密封块的REAL铺设-out高度（record_paint），
+            // 重新-run修剪，以便冻结的窗户受地面实况限制，
+            // 而不是估计漂移（工具-heavy 线程在
+            // -estimate几个-fold下）。触发一次；
+            // 等待每个块都有记录的高度，以便 drop_front 中的
+            // 掉落证明门实际上可以释放行。
             Cmd rehydrate_trim = Cmd::none();
             if (m.ui.pending_rehydrate_trim) {
                 bool all_recorded = !m.ui.frozen.empty();
@@ -521,47 +521,47 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
                     m.ui.pending_rehydrate_trim = false;
                     rehydrate_trim = trim_frozen_if_oversized(m);
                 } else if (m.ui.frozen.empty()) {
-                    m.ui.pending_rehydrate_trim = false;   // nothing to trim
+                    m.ui.pending_rehydrate_trim = false;   // 没有什么可修剪的
                 }
-                // Else: not painted yet — the Tick subscription stays armed
-                // on pending_rehydrate_trim (subscribe.cpp) until it is.
+                // 否则：尚未涂漆——Tick 事件订阅 在 pending_rehydrate_trim
+                // (subscribe.cpp) 上保持武装状态，直到涂漆。
             }
 
-            // ── Deferred settle-freeze (post-stream redraw fix) ──────
-            // finalize_turn settled the just-finished assistant message
-            // (finish() on its StreamingMarkdown) but deferred the freeze
-            // to AVOID the post-settle redraw: finish() changes the md
-            // widget's build shape + prefix generation, so freezing in
-            // the same tick would diff a post-finish frozen tree against
-            // the last pre-finish live frame still in maya's prev_cells
-            // (cache miss = re-emit the whole turn from the top). By now
-            // one view() has painted the settled (post-finish) message
-            // via the live tail, so prev_cells holds the post-finish
-            // hash. Freezing the byte-and-hash-identical tree HERE is a
-            // cache hit (no re-emit). Trim in the same step, exactly as
-            // the old inline path did.
-            // ── Deferred settle-freeze (post-stream redraw fix) ──────
-            // finalize_turn armed the reveal finalize ramp on the
-            // just-finished assistant message(s) and set
-            // pending_settle_freeze WITHOUT calling finish(). We hold the
-            // freeze until the reveal has FULLY drained
-            // (live_tail_reveal_settled): the typewriter cursor reached
-            // the live edge, the finalize ramp completed, the widget
-            // flipped live_ off ON ITS OWN, and the live tail has painted
-            // the settled (post-finish-shape) tree into maya's prev_cells
-            // at least once. Only THEN do we run settle_message_md (a
-            // now-shape-neutral finish() that just stamps the cache
-            // fast-path) and freeze. Because the snapshot equals the
-            // on-screen frame byte-for-byte, the live-tail→frozen handoff
-            // is a maya component-cache HIT — zero re-emit, zero
-            // scrollback duplication. This is the agent_session guarantee
-            // (live height == settled height at the freeze instant) with
-            // the reveal animation fully intact.
+            // ── 递延结算 -freeze (员额) -stream 重绘 固定) ──────
+            // finalize_turn 解决了 just-finished
+            // 辅助消息（finish() 在其 StreamingMarkdown 上），
+            // 但将冻结推迟到 AVOID post-settle 重绘：
+            // finish() 更改了 md 小部件的构建形状 + 前缀生成，
+            // 因此在同一个刻度中冻结将使 post-finish 冻结的 源码树
+            // 与最后的 pre-finish 存在差异帧还在maya的
+            // prev_cells（缓存错过=重新-emit从上面全翻）。现在，
+            // 一个 view() 已经通过实时 末尾 绘制了已结算的（post
+            // -finish）消息，因此 prev_cells 持有 post
+            // -finish 哈希值。冻结 字节-and-hash-identical
+            // 源码树 此处 是 缓存 命中（无 re-emit）。在同一步骤中进行修剪，
+            // 与旧的内联路径完全相同。
+            // ── 递延结算 -freeze (员额) -stream 重绘 固定) ──────
+            // finalize_turn武装了逐步显示，
+            // 最终确定了
+            // -finished辅助消息上的斜坡并且设置pending_settle_freeze
+            // WITHOUT呼叫finish()。我们保持冻结，
+            // 直到 逐步显示 耗尽 FULLY（live_tail_reveal_settled）：
+            // 打字机光标到达活动边缘，最终完成斜坡完成，小部件翻转 live_
+            // off ON ITS 自身，并且活动 末尾 已将固定（后
+            // -finish-shape）源码树 绘制到 maya 的
+            // prev_cells 中至少一次。只有 THEN 我们才运行
+            // settle_message_md（一个 now
+            // -shape-neutral finish()，它只是标记了 缓存
+            // fast-path）并冻结。因为 快照 等于 on-screen 帧 字
+            // 节-for-byte，所以 live-tail→冻结切换是
+            // maya 组件 -cache HIT — 零 re-emit，
+            // 零 回滚缓冲区 重复。这是 agent_session 保证（实时高度 ==
+            // 冻结瞬间的固定高度），逐步显示 动画完好无损。
             //
-            // While the reveal is still animating we keep the flag set
-            // and arm an animation frame so the typewriter keeps gliding
-            // and the gate is re-checked next frame — it never looks
-            // stuck and the freeze never fires early.
+            // 当 逐步显示 仍在动画时，我们保持 标志 设置并
+            // 设置动画 帧，以便打字机保持滑行，并且门在下一个 帧
+            // 上重新出现在 -checked 上 — 它看起来
+            // 永远不会卡住，并且冻结也不会提前触发。
             Cmd settle_freeze_trim = Cmd::none();
             if (m.ui.pending_settle_freeze && m.s.is_idle()) {
                 if (live_tail_reveal_settled(m)) {
@@ -574,79 +574,79 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
                         settle_message_md(m, mm);
                     }
                     freeze_through(m, m.d.current.messages.size());
-                    // Drop oldest frozen entries past the budget. The
-                    // live-tail collapse and the front-trim are TWO
-                    // distinct shrinks with OPPOSITE wire requirements,
-                    // so they must not be lumped under one none():
+                    // 丢弃超过预算的最旧的冻结条目。 live-tail
+                    // 折叠和 front-trim 是 两个 不同的收缩，
+                    // 具有 OPPOSITE 传输 要求，
+                    // 因此它们不能集中在一个 none() 下：
                     //
-                    //  • The collapse (live tail folds into the frozen
-                    //    prefix) is a BOTTOM-shrink with an unchanged
-                    //    overflowed prefix. maya's scrollback_prefix_
-                    //    matches branch falls through to the append-only
-                    //    per-row diff — corruption-free, NO host commit.
+                    //  ·崩溃(活末尾 归并进入冻结
+                    //    前缀）是 BOTTOM-shrink，具有未更改的溢出前缀。
+                    //    maya 的 scrollback_prefix_
+                    //    匹配分支下降到append-only per-row
+                    //    diff — 损坏-free、NO 主机提交。
                     //
-                    //  • The trim drops entries from the TOP of the
-                    //    frozen prefix — a top-DELETION maya cannot
-                    //    reconcile at render time (the shifted-up canvas
-                    //    fails the prefix memcmp and maya commits the NEW
-                    //    prefix over PHYSICAL old rows, stranding a
-                    //    duplicate). It MUST host-commit exactly the
-                    //    dropped rows. trim_frozen_if_oversized returns
-                    //    that commit_scrollback(N) when (and only when)
-                    //    it actually trimmed; none() when it didn't.
+                    //  • 修剪从 TOP 的条目中删除条目。
+                    //    冻结前缀 — top-DELETION maya
+                    //    无法在 渲染 时间协调（移位的 -up 画布未能
+                    //    通过前缀 memcmp，并且 maya 在
+                    //    PHYSICAL 旧行上提交 新 前缀，搁浅重复项）。
+                    //    它 必须 主机-commit 正是删除的行。
+                    //    当（且仅当）实际修剪时，
+                    //    trim_frozen_if_oversized 返回
+                    //    commit_scrollback(N)； none() 当它没有时。
                     //
-                    // Forward the trim's Cmd verbatim: none() on the
-                    // common collapse-only Tick, commit_scrollback(N) on
-                    // the rarer Tick that also trims the front.
+                    // 逐字转发装饰件的Cmd：常见折叠
+                    // -only勾上的none()，也装饰前部的罕见勾上的
+                    // commit_scrollback(N)。
                     settle_freeze_trim = trim_frozen_if_oversized(m);
-                    // Resized during this turn: its scrolled-off rows were
-                    // printed at the old width. Now that it's frozen, a
-                    // replay rewraps everything (the trim's commit is moot
-                    // under the reset, which redraws from scratch).
+                    // 在本轮期间调整大小：其滚动的-off行以旧宽度打印。
+                    // 现在它已被冻结，重播会重新包装
+                    // 所有内容（在重置下修剪的提交没有实际意义，
+                    // 重置会从头开始重新绘制）。
                     if (m.ui.replay_after_settle) {
                         m.ui.replay_after_settle = false;
                         settle_freeze_trim = cmd::reset_inline();
                     }
 
-                    // Keep the clock alive for a few frames so maya's
-                    // shrink reconciliation (its own diff-path collapse)
-                    // completes at fps=0, mirroring agent_session's
-                    // always-on clock.
+                    // 使时钟保持活动状态几个帧，以便maya的缩减协调
+                    // （其自身的diff-path崩溃）在FPS=0时完成，
+                    // 镜像agent_session的always
+                    // -on时钟。
                     m.ui.settle_cooldown_ticks = 6;
                     ::maya::anim::keep_animating();
                 } else {
-                    // Reveal still draining — keep the frame armed so the
-                    // typewriter animates and we re-test the gate next
-                    // tick. Never freeze a still-animating turn.
+                    // 逐步显示仍在耗尽——保持帧武装，以便打字机动画
+                    // 并且我们在下一个滴答声中重新-test门。
+                    // 切勿冻结静止 -animating 转弯。
                     ::maya::anim::keep_animating();
                 }
             } else if (m.ui.pending_settle_freeze) {
-                // Armed to freeze, but the FSM is not yet Idle (a trailing
-                // sub-turn teardown, a retry ctx still parked in the phase,
-                // or the off-thread markdown parse finishing a hair before
-                // the phase reaches Idle). The freeze body above is gated on
-                // is_idle(), so it did NOT run this tick — and it did NOT
-                // re-arm a frame either. On an fps=0 event-driven screen the
-                // periodic Tick can be coalesced away, so if nothing else
-                // schedules a frame the reveal settles silently off-thread
-                // and pending_settle_freeze strands set: the just-finished
-                // markdown sits in the live tail until the next keystroke,
-                // which then diffs against stale prev_cells (cache miss →
-                // duplicated / late-committed turn). Self-perpetuate a frame
-                // as long as the flag is pending so the gate is always
-                // re-tested on a real frame once is_idle() flips true.
+                // 已准备好冻结，但 FSM 尚未空闲（尾随的 sub-turn 拆解、
+                // 重试 ctx 仍停在该阶段中，或者 off-thread
+                // 降价 解析 在阶段达到空闲之前完成了一根头发）。
+                // 上面的冻结 正文 是在 is_idle() 上门控的，
+                // 所以它确实 不 运行了这个刻度 - 并且它也做了 不 re
+                // -arm a 帧。在 FPS=0 事件-driven 屏幕上，
+                // 周期性的 Tick 可以被合并，所以如果没有其他安排 帧，
+                // 逐步显示 会默默地关闭 -thread 和
+                // pending_settle_freeze 链集：just
+                // -finished 降价位于实时 末尾 中，直到下一次击键，
+                // 然后与 过期 prev_cells 进行比较（缓存 错过 →
+                // 重复/迟到 -committed 转）。只要 标志 是 待处理，
+                // Self-perpetuate 就是 帧，因此一旦 is_idle
+                // () 翻转为真，门始终会在真正的 帧 上重新-tested。
                 ::maya::anim::keep_animating();
             }
 
             // ── pending_stream → streaming_text ──────────────────────
-            // Move buffered wire bytes into streaming_text every tick.
-            // No host-side pacing: agentty does NOT animate the stream.
-            // The view feeds text + streaming_text + pending_stream in
-            // full to the StreamingMarkdown widget, and maya's reveal_fx
-            // owns the live-edge animation. It is a plain append; the
-            // old rate / backlog / burst-flush / wire-quiet smoother was
-            // a second pacing clock that beat against the widget's and
-            // produced the "stuck then burst" stutter — removed.
+            // 每个刻度将缓冲的 传输 字节 移动到 streaming_text 中。
+            // 无主机-side节奏：agentty使NOT动画化数据流。
+            // 该视图将文本+streaming_text+pending_stream
+            // 完整地馈送到StreamingMarkdown小部件，
+            // 并且maya的reveal_fx拥有live-edge动画。
+            // 这是一个简单的附加；旧的速率/积压/突发-flush / 传输
+            // -quiet更平滑的是第二个节奏时钟，它与小部件的节拍并产生
+            // "stuck then burst"口吃 - 已删除。
             if (!m.d.current.messages.empty()
                 && m.d.current.messages.back().role == Role::Assistant)
             {
@@ -657,28 +657,28 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
                 }
             }
 
-            // No mid-stream freeze or trim on Tick. The single freeze
-            // site is finalize_turn (via pending_settle_freeze, the
-            // agent_session MessageStop analog). Carving during streaming
-            // was the documented source of "redraws from top + scrollback
-            // corruption": each mid-stream freeze stamped a frozen Turn
-            // whose hash_id maya's component cache had not seen on the
-            // previous live-tail frame, so the cache missed and re-emitted
-            // those rows — sometimes over committed scrollback. The
-            // claimed per-frame cost it was meant to bound ("5k-line
-            // prose reply re-lays-out every frame") is in fact handled
-            // by maya's component cache on a STABLE live-tail hash; the
-            // mid-stream carves were the ones invalidating that cache.
-            // agent_session never carves mid-stream and shows zero
-            // corruption / zero slowdown on long runs.
+            // 勾选上没有 mid-stream 冻结或修剪。单个冻结位点是
+            // finalize_turn（通过 pending_settle_freeze、
+            // agent_session MessageStop 类似物）。
+            // 流式传输 期间的雕刻是 "redraws from top + scrollback corruption"
+            // 的记录来源：每个 -stream 中期冻结都会标记一个冻结转弯，
+            // 其 hash_id maya 的组件 缓存 在之前的 live
+            // -tail 帧 上没有看到，因此 缓存 错过并重新-emitted
+            // 这些行 - 有时过度承诺 回滚缓冲区。声称的 per
+            // -frame 成本（
+            // 五千行文字回复每一帧都重新布局。
+            // 实际上是由 maya 的组件 缓存 在 STABLE live-tail
+            // 哈希上处理的； mid-stream 雕刻是使 缓存 无效的雕刻。
+            // agent_session从不雕刻mid-stream并且在长时间运行中显示出零损坏/零减速。
+            //
             Cmd midrun_trim = Cmd::none();
 
             // ── Stream-stall watchdog ──────────────────────────────────
-            // 120 s of total silence is overwhelmingly likely to be a
-            // wedged transport rather than legitimate model behaviour.
-            // Clock-skew guard: if a render pass took > 2 s we rebase
-            // last_event_at forward so one slow frame can't synthesize
-            // a spurious stream-stalled error.
+            // 120秒的完全沉默极有可能是楔
+            // 入的传输层而不是合法的模型行为。
+            // Clock-skew守卫：如果渲染传递花费了>2秒，
+            // 我们将last_event_at向前变基，因此一个缓慢的帧不能
+            // 合成虚假的数据流-stalled错误。
             constexpr auto kTickRebaseThreshold = std::chrono::seconds(2);
             if (auto* a = active_ctx(m.s.phase);
                 a && tick_gap >= kTickRebaseThreshold
@@ -686,12 +686,12 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
                 a->last_event_at += tick_gap;
             }
             constexpr auto kStallSecs = std::chrono::seconds(120);
-            // LOCAL providers process the prompt in silence — no SSE bytes,
-            // no keepalives — and a 20-30B model on consumer hardware can
-            // grind for minutes on a long prompt before its first token.
-            // 120 s would cut it mid-processing and the retry would start
-            // the same grind over (another face of the local dead loop).
-            // Match the transport's local idle allowance; Esc still cancels.
+            // LOCAL提供者默默地处理提示词——没有SSE 字节，
+            // 没有保活——并且消费者硬件上的20-30B模型
+            // 可以在其第一个令牌之前在长提示词上磨练几分钟。
+            // 120秒将在-processing中切断它并且重试将开始相同的研磨
+            // （局部死循环的另一面）。
+            // 匹配传输层本地闲置补贴； Esc 仍然取消。
             const bool local_provider = [&] {
                 const auto& sel = m.d.selection;
                 return sel.kind == provider::Kind::OpenAI
@@ -711,47 +711,47 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
                 std::string msg = "stream stalled — no events for "
                                 + std::to_string(since) + "s";
                 StreamError err{std::move(msg)};
-                err.from_stall = true;   // carry stall intent on the message
+                err.from_stall = true;   // 消息上携带停止意图
                 return Cmd::after(
                     std::chrono::milliseconds(0),
                     Msg{std::move(err)});
             }
 
-            // ── ExecutingTool wedge watchdog ───────────────────────────
-            // The stream-stall watchdog above never covers ExecutingTool
-            // (is_streaming() is false there) and no SSE events flow once
-            // a tool runs, so a turn that strands in this phase has no
-            // recovery — it just dies silently (spinner stops, no error,
-            // only a new submit revives the app). Two distinct wedges:
+            // ── ExecutingTool 楔形 看门狗 ───────────────────────────
+            // 上面的 数据流-stall 看门狗 永远不会覆盖 ExecutingTool
+            // (is_streaming() 在那里为 false)，
+            // 并且一旦工具运行，就不会出现 SSE 事件 流，
+            // 因此在这个阶段搁浅的转弯无法恢复——它只是静静地死去 (加载动画 停止，
+            // 没有错误，只有新的提交才能恢复应用程序)。两个不同的楔子：
             //
-            //   (a) NO tool is actually is_running() on the back message,
-            //       yet the phase is ExecutingTool. Nothing in flight will
-            //       ever dispatch a terminal ToolExecOutput, so the FSM is
-            //       permanently stuck. This is a true logic wedge — recover
-            //       after a short grace measured from last_event_at (the
-            //       phase clock, untouched during ExecutingTool).
+            //   (a)NO工具实际上是返回消息上的is_running()，
+            //       但相位是ExecutingTool。飞行中的任何物体都
+            //       不会 分派 a 终端 ToolExecOutput，
+            //       因此 FSM 会永久卡住。这是一个真正的逻辑楔形 — 在从
+            //       last_event_at（相位时钟，
+            //       在 ExecutingTool 期间未受影响）测量的短暂宽限后恢复。
             //
-            //   (b) A tool IS running but its worker is hung in a blocking
-            //       syscall (dead NFS/FUSE mount, frozen network). This is
-            //       indistinguishable from a legitimately slow tool by time
-            //       alone, so the net is intentionally LONG (kToolWedge) and
-            //       measured from the tool's own started_at — never the
-            //       stale last_event_at. It is a last-resort safety valve,
-            //       NOT the per-tool timeout that was removed at user
-            //       request; normal builds / `gh run watch` finish well
-            //       under it.
+            //   (b)工具IS正在运行，但其工作线程挂在阻塞系统调用中（
+            //       死NFS/FUSE挂载，冻结网络）。仅从时间上看，
+            //       这与合法的慢速工具无法区分，因此网络故意为 LONG
+            //       (kToolWedge)，并根据工具自己的
+            //       started_at 进行测量，而不是 过期
+            //       last_event_at。这是最后一个-resort安全阀，
+            //       NOT是根据用户要求拆除的per-tool 超时；
+            //       正常构建/`gh run watch` 在其下完成
+            //       得很好。
             //
-            // Recovery in both cases: fail the offending running tool(s)
-            // (or, for (a), just re-fire the scheduler) and call
-            // kick_pending_tools, which either continues the turn
-            // (post-tool sub-turn) or drops cleanly to Idle.
+            // 两种情况下的恢复：使有问题的运行工具失败（或者，对于（a)，
+            // 仅重新-fire调度器）和调用 kick_pending_tools，
+            // 其要么继续轮流（post-tool sub
+            // -turn），要么干净地下降到空闲。
             //
-            // kToolWedge is kept just ABOVE bash's own max self-timeout
-            // (300s, the `timeout` arg ceiling in mcp-cpp shell.cpp) so a
-            // legitimately long user-set bash command finishes on its own
-            // terms before this last-resort net ever trips. The real fix for
-            // a SPINNING weak-model loop is the doom-loop breaker in
-            // kick_pending_tools, not this hung-syscall net.
+            // kToolWedge 仅保留 上方 bash 自己的最大 self-timeout
+            // （300 秒，mcp-cpp shell.cpp 中的 `timeout`
+            // arg 上限），因此合法长的 user-set bash 命令会在最后的
+            // -resort 网络发生故障之前按照自己的方式完成。 SPINNING 弱-model
+            // 循环的真正修复是kick_pending_tools 中的doom
+            // -loop 断路器，而不是这个hung-syscall 网络。
             constexpr auto kNoRunningGrace = std::chrono::seconds(30);
             constexpr auto kToolWedge      = std::chrono::seconds(330);
             if (m.s.is_executing_tool()
@@ -764,33 +764,33 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
                     if (!tc.is_running()) continue;
                     any_running = true;
                     auto started = tc.started_at();
-                    // Liveness reference: the LATER of EXECUTION START and
-                    // the most recent progress snapshot — ToolUse::Running
-                    // owns that rule as liveness_origin(), so display time
-                    // and liveness time cannot drift apart again.
+                    // 活跃度参考：EXECUTION
+                    // START的LATER和最新进展快照_ToolUse::Running拥有该规则为liveness_origin()，
+                    // 因此显示时间和活跃
+                    // 时间不能再次偏离。
                     //
-                    // Execution start, not card birth: a tool awaiting the
-                    // user's approval is not running, and billing the human's
-                    // think-time against the tool's budget meant approving
-                    // after a long pause failed the command instantly, before
-                    // it had executed a single instruction (issue #40).
+                    // 执行开始，而不是卡诞生：等待用户批准
+                    // 的工具没有运行，并且根据工具的预算对
+                    // 人类的 think-time 进行计费
+                    // 意味着在长时间暂停后批准命令立即失败，
+                    // 在它执行单个指令之前（问题#40）。
                     //
-                    // A healthy long-runner (a subagent working through tool
-                    // calls, a streaming build) keeps bumping
-                    // last_progress_at, so the wedge cap resets with every
-                    // sign of life and never guillotines it at a flat 330 s.
-                    // A tool truly hung on a blocking syscall emits no
-                    // progress, so the origin stays put and the net trips
-                    // exactly as before.
+                    // 健康的 long-runner (通过工具 调用 工作的子代理，
+                    // 流式传输 构建）不断碰撞
+                    // last_progress_at，因此楔形帽会随着每个
+                    // 生命迹象而重置，并且永远不会在平坦的 330 秒处将其切断。
+                    // 真正挂在阻塞系统调用上的工具不会
+                    // 发出任何进展，因此源保持不变并且网络与
+                    // 以前完全相同。
                     auto liveness = started;
                     if (const auto* r = std::get_if<ToolUse::Running>(&tc.status))
                         liveness = r->liveness_origin();
                     if (started.time_since_epoch().count() != 0
                         && now - liveness >= kToolWedge) {
-                        // Report the time SPENT EXECUTING. Reporting card age
-                        // here is how the old message came to claim a tool
-                        // "ran 400s" when it had been waiting on a human for
-                        // most of that.
+                        // 报告时间SPENT EXECUTING。
+                        // 这里的报告卡年龄是旧消息如何声明工具
+                        // "ran 400s" 的，当时它大部分时间
+                        // 都在等待人类。
                         auto exec_from = liveness;
                         if (const auto* r = std::get_if<ToolUse::Running>(&tc.status);
                             r && r->executing_since.time_since_epoch().count() != 0)
@@ -799,11 +799,11 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
                                         now - exec_from).count();
                         auto quiet = std::chrono::duration_cast<std::chrono::seconds>(
                                         now - liveness).count();
-                        // The MESSAGE may use exec_from, which falls back to
-                        // liveness for a stamp-less Running -- a display needs
-                        // some number. The STORED window must not: that is an
-                        // accounting fact, and settle_failed records only a
-                        // real dispatch stamp (see ToolUse::settle_failed).
+                        // MESSAGE可以使用exec_from，
+                        // 其回退到邮票-less运行的活性——显示器需要一些数字。
+                        // STORED 窗口不能：这是一个会计事实，
+                        // 而 settle_failed 只记录真实的 分派 印记
+                        // （参见 ToolUse::settle_failed）。
                         tc.settle_failed(now,
                             "tool ran " + std::to_string(secs) + "s ("
                             + std::to_string(quiet) + "s with no progress) "
@@ -819,7 +819,7 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
                     auto* a = active_ctx(m.s.phase);
                     if (a && a->last_event_at.time_since_epoch().count() != 0
                         && now - a->last_event_at >= kNoRunningGrace) {
-                        wedged = true;   // FSM stranded with nothing in flight
+                        wedged = true;   // FSM 飞行中空无一物滞留
                     }
                 }
                 if (wedged) {
@@ -828,8 +828,8 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
                 }
             }
 
-            // Sample tok/s into the sparkline ring every ~500 ms while
-            // the stream is actively producing bytes.
+            // 当 数据流 正在主动产生 字节 时，每隔约 500
+            // ms 将 tok/s 采样到迷你图环中。
             if (auto* a = active_ctx(m.s.phase);
                 a && m.s.is_streaming()
                 && a->first_delta_at.time_since_epoch().count() != 0) {
@@ -869,15 +869,15 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
                     return Cmd::batch(std::move(trims));
             }
 
-            // ── Idle cache-lapse pre-compaction ───────────────────────────
-            // Deep-ride (95 %) is cheap only while the prompt cache holds the
-            // prefix. If we've sat idle long enough that the cache is about
-            // to lapse AND the prefix is large, the user's NEXT message would
-            // re-price the whole thing at full input rate. Pre-empt it: fire
-            // a compaction NOW while the prefix is still a warm cache hit, so
-            // they come back to a small warm context. This is the ONLY
-            // proactive early-compaction path; it is bounded to genuinely
-            // large + near-TTL-idle states so ordinary pauses never trip it.
+            // ── 闲置 缓存-lapse 预览 -compaction ───────────────────────────
+            // 仅当 提示词缓存 保留前缀时，Deep-ride (95
+            // %)才便宜。如果我们闲置的时间足够长，以至于 缓存 即将失效，
+            // 和 前缀很大，那么用户的 下一个 消息将以全输入速率
+            // 重新 -price 整个事情。 Pre-empt：在前
+            // 缀仍然是温暖的 缓存 的情况下发射压缩 当前，
+            // 因此它们回到了一个小的温暖上下文。这就是ONLY主动
+            // 早期-compaction路径；它被限制在真正大的+
+            // near-TTL-idle状态，所以普通的暂停永远不会绊倒它。
             if (m.s.is_idle()
                 && !m.s.compacting
                 && !m.s.autocompact_disabled
@@ -886,9 +886,9 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
                 const int est = static_cast<int>(
                     cmd::estimate_wire_tokens(m.d.current) * m.s.est_calibration);
                 if (m.s.should_compact_on_idle(now, est)) {
-                    // Clear last_wire_at so we don't re-fire every Tick while
-                    // the compaction request is being dispatched; StreamStarted
-                    // re-stamps it when the summary request actually goes out.
+                    // 清除last_wire_at，这样我们在分派压缩请求时就
+                    // 不会在每个Tick 都重新-fire；当摘要请求实际发出时，
+                    // StreamStarted re-stamps 它。
                     m.s.last_wire_at = {};
                     auto compact_cmd = Cmd::task(
                         [](maya::Sink<Msg> out, std::stop_token) {
@@ -900,95 +900,95 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
             return Cmd::none();
         },
         [&](Quit) -> Cmd {
-            // Trip the active turn's cancel token FIRST. If a stream (or a tool)
-            // is in flight — exactly when the spinner/typewriter is animating —
-            // its worker is blocked in the HTTP poll/SSL_read. Nothing else
-            // signals it on Quit, so without this the loop exits but
-            // ~BackgroundQueue's join waits for that worker to notice
-            // cancellation the slow way (the next server byte or the idle
-            // timeout) — the 4–10 s "^C doesn't quit during an animation" hang.
-            // Esc/CancelStream already does this; Quit must too. The token is
-            // atomic and the worker's poll loop checks it every ~200 ms, so the
-            // join returns promptly.
+            // 使活动回合的取消令牌FIRST跳闸。如果 数据流 （或工具）正在飞行 -
+            // 恰好当 spinner/typewriter 正在动画时 - 它的 工作线程
+            // 被阻止在 HTTP poll/SSL_read. 中，没有其他信号通知它退出，
+            // 所以如果没有这个循环退出，但 ~BackgroundQueue
+            // 的加入等待 工作线程 注意到 取消 缓慢的方式（下一个服务
+            // 器 字节 或空闲） 超时) — 4-10 秒
+            // "^C doesn't quit during an animation" 挂起。
+            // Esc/CancelStream已经这样做了；也必须戒掉。
+            // 该令牌是原子的，工作线程 的轮询循环每约 200 毫秒检查一次，
+            // 因此连接会立即返回。
             if (auto* a = active_ctx(m.s.phase); a && a->cancel) a->cancel->cancel();
 
             Cmd save = m.d.current.messages.empty()
                          ? Cmd::none() : save_current_whole(m);
-            // Always file the model the user is CURRENTLY on under the active
-            // provider before exit, so a relaunch (or a later switch back to
-            // this backend) restores exactly this model instead of the
-            // built-in default. Without this, a session where the user never
-            // opened the model picker nor switched provider recorded no
-            // per-provider recall at all — the "it forgets the model I was
-            // using" complaint. persist_settings is load-modify-save, so it
-            // preserves every other backend's recall + keys.
+            // 在退出之前，始终将用户在活动提供者下的CURRENTLY的模型归档，
+            // 因此重新启动（或稍后切换回该后端）精确地恢复该模型，
+            // 而不是内置的-in默认值。如果没有这个，用户从未打开
+            // 型号 选择面板 或切换提供商的会话根本不会记录任何 per
+            // -provider 召回 -
+            // "it forgets the model I was using" 投诉。
+            // persist_settings 是 加载-modify-save，
+            // 因此它保留了所有其他后端的调用 + 键。
             auto quit_save = persist_settings(m);
-            // ORDER, and it is load-bearing twice over.
+            // ORDER，是加载-bearing的两倍。
             //
-            // 1. The settings save is an EFFECT now, so it reaches the store
-            //    when the host runs the Cmd — after this reducer returns.
-            //    Draining the write-behind queue here would drain it BEFORE
-            //    the save was queued. So the drain moves to the host side:
-            //    main() calls settings_cache::flush() during teardown, after
-            //    the loop has run this Cmd.
-            // 2. Within the Cmd, the save must come BEFORE quit — the
-            //    interpreter stops dispatching the moment it sees a quit
-            //    (kernel.hpp `if (exit_) return`), so anything batched after
-            //    it is silently dropped.
+            // 1.设置保存现在是EFFECT，因此到达商店
+            //    当主机运行Cmd时——在该状态更新函数返回之后。
+            //    此处清空 write-behind 队列将清空
+            //    之前（保存 已排队）。所以排水管移动到主机端：
+            //    main() 调用 settings_cache::flush()在拆卸期间，
+            //    在循环运行完该Cmd之后。
+            // 2.在Cmd内，保存必须从BEFORE退出——
+            //    解释器在看到退出 (kernel.hpp
+            //    `if (exit_) return`) 后立即停止调度，
+            //    因此在静默删除后批处理的任何内容。
             return Cmd::batch(std::move(quit_save), std::move(save),
                               Cmd::quit());
         },
         [&](NoOp) -> Cmd { return Cmd::none(); },
         [&](RedrawScreen) -> Cmd {
-            // Ctrl-L → viewport-only soft redraw.
+            // Ctrl-L→可视区域-only软重绘。
             //
-            // Drops maya's renderer cell cache (force_redraw zeroes
-            // prev_rows on the active InlineFrameState) and on the
-            // next compose triggers serialize.cpp's case-(B) path:
-            // cursor_up + re-serialize the last `term_h` rows +
-            // \x1b[J. Net effect: every cell inside the live viewport
-            // is rewritten from the canvas, wiping any ghost glyphs
-            // a half-written frame or stray subprocess output left
-            // behind. Cheap; preserves scrollback; preserves cursor
-            // position relative to the viewport (no "composer jumps
-            // to the bottom" jolt).
+            // 丢弃 maya 的 渲染器 存储单元 缓存 (force_redraw
+            // 将活动 InlineFrameState 上的 prev_rows 归
+            // 零)并且在下一个组合触发 serialize.cpp 的情况-(B)路径：
+            // cursor_up + re-serialize 最后
+            // `term_h` 行 + \x1b[J. Net 副作用：
+            // 活动 可视区域 中的每个 存储单元 都会从画布上重写，
+            // 擦除半 -written 帧 中的任何幽灵字形或留下的杂散子进程输出。
+            // 便宜的;保留 回滚缓冲区；保留相对于 可视区域 的光标
+            // 位置（无 "composer jumps to the bottom"
+            // 震动）。
             //
             // ── SCOPE ─────────────────────────────────────────────────
             //
-            // This hotkey fixes viewport corruption ONLY. Scrollback
-            // rows that have already overflowed the terminal viewport
-            // are owned by the terminal emulator and cannot be
-            // repainted by an inline-mode application without also
-            // overwriting any non-agentty content above the frame.
-            // The hard contract lives at
-            // third_party/maya/src/render/serialize.cpp’s case-(B) emit — see
-            // the SCOPE CONTRACT comment there for the full rationale.
+            // 该热键修复了 可视区域 损坏 仅。
+            // 已经溢出 终端 可视区域 的 回滚缓冲区 行
+            // 归 终端 模拟器所有，并且不能由内联
+            // -mode 应用程序重新绘制，
+            // 除非覆盖 帧 之上的任何非 -agentty 内容。
+            // 硬合约存在于
+            // third_party/maya/src/render/serialize.cpp 的 case-
+            // (B) 发出中 — 请参阅那里的 SCOPE CONTRACT 评论以了解完整的理由。
             //
-            // If the user's scrollback is mangled (a stray subprocess
-            // wrote past agentty, a tmux pane swap got confused,
-            // bytes were dropped during a resize), Ctrl-L will not
-            // help. The right recoveries in that situation are:
-            //   • The terminal emulator's own redraw hotkey — most
-            //     terminals bind their Ctrl-L to a full repaint of
-            //     the emulator's local cell grid, which IS able to
-            //     reach scrollback rows.
-            //   • Resizing the terminal window — maya treats a WIDTH
-            //     change as a coherence-collapse, routing the next
-            //     render through HardReset which emits
-            //     \x1b[2J\x1b[3J\x1b[H (every row's wrap points
-            //     shift, prev_cells is byte-invalid, no other
-            //     recovery is coherent). That sequence wipes host
-            //     scrollback too — destructive but structurally
-            //     unavoidable on a width change. A HEIGHT-only
-            //     resize stays soft (case-(B), no scrollback wipe).
-            //     Either way it's a passive consequence of the
-            //     resize event, not bound to a keystroke.
+            // 如果用户的回滚缓冲区被损坏（杂散子进程写入了
+            // agentty，tmux 面板交换变得混乱，
+            // 字节在调整大小期间被丢弃），
+            // Ctrl-L将无济于事。在这种情况下正确的恢复是：
+            //   ·终端仿真器自己的重绘热键——大多数
+            //     终端将它们的Ctrl-L绑定到模拟器的本地存储单元网格的完整重绘，
+            //     其中IS能够到达
+            //     回滚缓冲区行。
+            //   ·调整终端窗口的大小——maya对待WIDTH
+            //     改变为连贯性-collapse，将下一个渲染路由到
+            //     发出\x1b[2J\x1b[3J。
+            //     x1b[H]的HardReset（每行的换行点移位，
+            //     prev_cells是字节-invalid，
+            //     没有其他恢复是一致的）。该序列也擦除了主机
+            //     回滚缓冲区——具有破坏性，但在宽度变化时结构上
+            //     是不可避免的。 HEIGHT-only 调整
+            //     大小保持柔软（情况-(B)，无 回滚缓冲区 擦除）。
+            //     无论哪种方式，它都是调整事件
+            //     大小的被动结果，不限于击键。
             return cmd::force_redraw();
         },
         [&](ClearStatus& e) -> Cmd {
-            // No-op if the user (or another handler) wrote a newer
-            // status since this cleaner was scheduled — stamps won't
-            // match, so the current banner stays.
+            // No-op，如果用户（或另一个处理函数)
+            // 自安排该清洁程序以来写了更新的状态——标记
+            // 将不匹配，因此当前横幅保留。
             if (m.s.status_until == e.stamp) {
                 m.s.status.clear();
                 m.s.status_until = {};
@@ -996,52 +996,52 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
             return Cmd::none();
         },
         [&](UpdateCheckDone& e) -> Cmd {
-            // Background release check landed.
+            // 后台发布检查落地。
             if (e.update_available && !e.latest.empty()) {
                 m.s.update_latest = std::move(e.latest);
                 m.s.update_url    = std::move(e.url);
 
-                // START THE DOWNLOAD — don't wait to be asked.
+                // START 该 DOWNLOAD — 不要等待被询问。
                 //
-                // This used to stop at the chip: the user had to notice it,
-                // open the palette and run "Update agentty". Most never did,
-                // so people ran old binaries for weeks and reported bugs
-                // that were already fixed. Zed's model is better and it is
-                // the one users already expect — an update is something that
-                // happens TO you, and by the time you're told, the only step
-                // left is the restart.
+                // 这曾经在标签处停止：用户必须注意到它，
+                // 打开调色板并运行"Update agentty"。
+                // 大多数人从未这样做过，因此人们运行旧的 二
+                // 进制程序 数周并报告了已经修复的错误。
+                // Zed 的模型更好，它是用户已经期望的模型 -
+                // 更新是 TO 发生的事情，当你被告知时，
+                // 剩下的唯一一步就是重新启动。
                 //
-                // Gated on m.env.self_update_ok, answered once at launch by
-                // self_update_possible(), which refuses the cases where
-                // replacing the binary is not ours to do: package-manager
-                // installs under /usr, nix, Windows. There the chip stays
-                // exactly as before — a signal to go run pacman/apt/brew —
-                // and nothing is touched.
+                // 在 m.env.self_update_ok 上门控，在启动时由
+                // self_update_possible() 回答一次，
+                // 它拒绝替换 二进制程序 不是我们要做的情况：package
+                // -manager 安装在 /usr、nix、Windows 下。
+                // 标签 与之前一模一样 - 一个运行 pacman/apt/brew 的
+                // 信号 - 没有任何东西被触及。
                 //
-                // AGENTTY_NO_AUTO_UPDATE=1 keeps the old behaviour (notify
-                // only, install on request). Replacing someone's binary
-                // without asking needs an off switch that does not also
-                // turn off the notice — AGENTTY_NO_UPDATE_CHECK is the
-                // bigger hammer that disables checking entirely.
+                // AGENTTY_NO_AUTO_UPDATE=1保持旧
+                // 行为（仅通知，根据请求安装）。在不询问的情况下更换
+                // 某人的 二进制程序 需要一个关闭开关，该开关也不会
+                // 关闭通知 - AGENTTY_NO_UPDATE_CHECK
+                // 是更大的锤子，可以完全禁用检查。
                 if (!m.s.update_in_flight
                     && m.s.update_pending_restart.empty()
                     && !m.env.no_auto_update
                     && m.env.self_update_ok) {
                     m.s.update_in_flight = true;
                     std::string v = m.s.update_latest;
-                    // Quiet: the download is incidental to whatever the user
-                    // is actually doing. The status line reports progress
-                    // (see UpdateProgress) and the chip reports the outcome;
-                    // neither steals focus.
+                    // 安静：无论用户实际在做什么，下载都是附带的。
+                    // 状态行报告进度（参见 UpdateProgress），
+                    // 标签 报告结果；
+                    // 两者都不会抢走焦点。
                     return cmd::perform_self_update(std::move(v));
                 }
             }
             return Cmd::none();
         },
         [&](UpdateProgress& e) -> Cmd {
-            // A stale progress line after the download finished would be
-            // worse than none — ignore anything arriving once we are no
-            // longer updating.
+            // 下载完成后的 过期 进度线比没有更
+            // 糟糕——一旦我们不再更新，就忽略到达的
+            // 任何内容。
             if (!m.s.update_in_flight) return Cmd::none();
             const auto mib = [](std::size_t b) {
                 char buf[32];
@@ -1054,8 +1054,8 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
                            + mib(e.got) + " / " + mib(e.total) + " MiB ("
                            + std::to_string(pct) + "%)";
             } else {
-                // No Content-Length: show what we have rather than a
-                // percentage we would have to invent.
+                // 无内容-Length：显示我们拥有什么而不
+                // ​​是我们必须发明的百分比。
                 m.s.status = "\xe2\xac\x86 downloading agentty "
                            + mib(e.got) + " MiB";
             }
@@ -1065,15 +1065,15 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
         [&](UpdateApplied& e) -> Cmd {
             m.s.update_in_flight = false;
             if (e.ok) {
-                // Updated on disk; the running process is the old image.
-                // The chip switches from "⬆ available" to "↺ restart" — a
-                // persistent marker, because the status line below scrolls
-                // away and the restart is the one step still outstanding.
+                // 在磁盘上更新；正在运行的进程是旧映像。
+                // 标签从"⬆ available"切换到
+                // "↺ restart"——持久化标记，
+                // 因为下面的状态行滚动离开并且重新启动是仍然未完成的一步。
                 m.s.update_latest.clear();
                 m.s.update_pending_restart = e.detail;
                 m.s.status = "✓ updated to v" + e.detail +
                              " — restart agentty to use it";
-                m.s.status_until = {};       // sticky until overwritten
+                m.s.status_until = {};       // 粘性直至被覆盖
                 return Cmd::none();
             }
             auto toast = set_status_toast(
@@ -1084,15 +1084,15 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
         },
 
         [&](GitSignalsRefreshed) -> Cmd {
-            // The background `git status` finished. Clearing the latch is the
-            // whole arm — the refreshed map itself lives in the workspace
-            // cache the `@` picker reads directly, so there is nothing to
-            // copy into the Model.
+            // 背景`git status`完成。清除闩锁是整个手臂的
+            // 事情——刷新的地图本身位于 工作区 缓存 中，
+            // `@` 选择面板 直接读取，因此没有任何内容可以复制到
+            // Model 中。
             //
-            // This is the half that makes the refresh single-flight: while
-            // the flag is set, the composer's `@` handler emits no further
-            // refresh Cmd, so holding the key coalesces instead of spawning
-            // a thread per keystroke.
+            // 这是使刷新为单一-flight的一半：当
+            // 设置了标志时，作曲家的`@` 处理函数
+            // 不再发出刷新Cmd，因此按住键合并而不是
+            // 每次击键产生线程。
             m.ui.git_refresh_inflight = false;
             return Cmd::none();
         },
@@ -1100,24 +1100,24 @@ Cmd meta_update(Model& m, msg::MetaMsg mm) {
 }
 
 void ascend(Model& m) {
-    if (!m.ui.panel.ascend()) {   // no parent → opened over the thread
+    if (!m.ui.panel.ascend()) {   // 无父 → 开过 线程
         m.ui.panel.close_all();
         return;
     }
-    // Revalidate: the restored snapshot is as old as the descent, and the
-    // model may have moved. Only state that indexes a LIVE list needs work —
-    // free text (queries) cannot go stale.
+    // 重新验证：恢复的快照与下降一样古老，并且模型可能已经移动。
+    // 仅声明索引 LIVE 列表需要工作 — 自由文本
+    // （查询）不能转到 过期。
     if (auto* p = m.ui.panel.get<pn::Palette>()) {
-        // The filtered list is model-dependent (gated rows appear/vanish);
-        // clamp the cursor into today's list rather than yesterday's.
+        // 过滤后的列表为model-dependent(门控行appear/vanish)；
+        // 将光标固定在今天的列表而不是昨天的列表中。
         const int sz = static_cast<int>(
             filtered_commands(p->query, ui::palette_context(m)).size());
         p->index = sz <= 0 ? 0 : std::clamp(p->index, 0, sz - 1);
     } else if (auto* s = m.ui.panel.get<pn::SettingsList>()) {
-        // Rows derive from live model state (a plugin may have connected or
-        // been removed while the child pane was open); clamp the restored
-        // cursor into today's list. The search index is rebuilt so a value
-        // just changed in a pane shows its new value here.
+        // 行源自实时模型状态（当子面板打开时插件可能
+        // 已连接或被删除）；将恢复的光标夹到今天的列表中。
+        // 搜索索引已重建，因此 面板 中刚刚
+        // 更改的值会在此处显示其新值。
         int rows = 0;
         if (s->concern == settings::Category::General)
             s->index_rows = settings_search_index(m);
@@ -1127,10 +1127,10 @@ void ascend(Model& m) {
             rows = static_cast<int>(settings::items_for(m, s->concern).size());
         s->index = rows <= 0 ? 0 : std::clamp(s->index, 0, rows - 1);
     } else if (auto* sm = m.ui.panel.get<pn::SmartMode>()) {
-        // The form snapshot may predate a config change made in the child
-        // (a fused-picker slot assignment writes smart config). Rebuild from
-        // the live model — the same builder every (re)open uses — keeping
-        // only view state: the cursor and the advanced toggle.
+        // 形式快照可以早于在子项中进行的配置改变（fused
+        // -picker槽分配写入智能配置）。
+        // 从实时模型重建 - 每次（重新）打开使用相同的构建
+        // 器 - 仅保留视图状态：光标和高级 切换。
         const int cur = sm->form.cursor;
         auto f = build_smart_form(m, sm->advanced);
         f.cursor = std::clamp(cur, 0,
@@ -1140,27 +1140,27 @@ void ascend(Model& m) {
 }
 
 [[nodiscard]] Cmd apply_smart(Model& m, smart::RoleConfig cfg) {
-    // Env overrides win over anything a pane or a config file can say, and
-    // they win HERE so every holder below sees the same resolved value —
-    // rather than each one re-reading the environment and possibly disagreeing.
+    // Env 覆盖了 面板 或配置文件可以说的任何内容，
+    // 并且他们赢得了 此处，因此下面的每个持有者都看到相同的解析
+    // 值——而不是每个人都 re-reading 环境并且可能不同意。
     settings::registry::apply_env(cfg, m.env.settings);
 
-    // 1. The UI thread's copy — what the classifier and the effort scaler
-    //    read on the next turn.
+    // 1. UI 线程的副本——什么是分类器和工作量缩放器
+    //    下一回合继续阅读。
     m.d.smart = std::move(cfg);
 
-    // 2. Persist. Onto the RECORD, not a fresh load-modify-save: the old
-    //    comment here claimed load-modify-save avoided clobbering, but it is
-    //    what CAUSED clobbering. It wrote the store while leaving
-    //    `m.d.persisted` stale, so the next whole-record save put the old
-    //    smart config straight back.
+    // 2.坚持。进入 RECORD，不是新鲜的 加载-modify-save：旧的
+    //    这里的评论声称加载-modify-save避免了重击，
+    //    但它却是CAUSED重击。它在留下 `m.d.persisted`
+    //    过期 的同时写入了商店，因此下一个整个 -record 保存
+    //    将旧的智能配置直接放回去。
     m.d.persisted.smart = m.d.smart;
     auto smart_save = save_record(m);
 
-    // 3. The subagent router's copy. `task` runs on a worker with no Model, so
-    //    it needs its own snapshot — but no reducer pushes it any more. The
-    //    dispatch seam (update.cpp, publish_derived) sees m.d.smart change
-    //    and publishes it after this fold.
+    // 3.子代理路由器的副本。 `task` 在 工作线程 上运行，没有 Model，所以
+    //    它需要自己的快照——但是不再有状态更新函数推动它。 分派 接口边界（
+    //    update.cpp、publish_derived）看到 m.d.smart
+    //    发生变化，并在 归并 之后发布它。
     return smart_save;
 }
 

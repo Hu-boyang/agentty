@@ -1,10 +1,10 @@
-// form_edit_nav_test — arrows NAVIGATE out of an editing field.
+// form_edit_nav_test 箭头 NAVIGATE 退出编辑字段。
 //
-// Regression for the "panel froze" report: Enter on a text-like row (Model,
-// Host, Port…) starts editing, and the editing key table used to swallow
-// ↑/↓ — the only exits were Enter/Esc, which nothing on screen advertised.
-// Drives the REAL reducers (update) and the real view (render), with a
-// watchdog so any genuine hang fails with exit 42 instead of wedging ctest.
+// 退后,换成 "panel froze" 报告: Enter 文本上的内容
+// -like 行数( Model, Host , Port...)开始编辑,
+// 编辑键表用于吞进QQ/QQ——唯一出口是 Enter/Esc 屏幕上没有广告
+// 驱动REAL 状态更新函数(更新)和真景(渲染),
+// 使用看门狗,因此任何真悬挂都会以42号出口而不是楔形测试失败.
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -43,9 +43,9 @@ static void render_once(const Model& m, const char* what) {
 }
 
 int main() {
-    // Watchdog: any hang -> exit 42. A detached thread rather than
-    // alarm()/SIGALRM so it works on Windows too; it dies with the process
-    // when main returns normally.
+    // 看门狗 : 任何吊 - > 出口 42. 离子 线程 而不是说
+    // alarm()/SIGALRM 所以它的工作在 Windows ;
+    // 当主返回时, 它随进程而死亡。
     std::thread([] {
         std::this_thread::sleep_for(std::chrono::seconds(10));
         std::fprintf(stderr, "HANG DETECTED (watchdog fired)\n");
@@ -69,7 +69,7 @@ int main() {
     m = step(std::move(m), Msg{OpenSmartMode{}}, "open smart mode");
     render_once(m, "smart mode open");
 
-    // Enter on the focused field (the master toggle row).
+    // Enter 以焦点字段为主 切换 ) (中文(简体) ).
     auto* o = m.ui.panel.get<pn::SmartMode>();
     if (!o) { std::fprintf(stderr, "no smart pane!\n"); return 1; }
     using K = maya::SpecialKey;
@@ -77,7 +77,7 @@ int main() {
         m = step(std::move(m), Msg{SmartModeKey{*act}}, "enter on focused field");
     render_once(m, "after enter");
 
-    // Walk every row, pressing Enter on each, rendering after each.
+    // 逐行走动,按 Enter 每个人, 渲染 各随后.
     for (int i = 0; i < 12; ++i) {
         auto* s = m.ui.panel.get<pn::SmartMode>();
         if (!s) break;
@@ -90,15 +90,15 @@ int main() {
         render_once(m, "after enter walk");
     }
 
-    // ── Rag pane: Enter opens the mode dropdown / edits text fields ───
+    // ── rag 面板: Enter 打开模式下拉/编辑文本字段 ───
     m = step(std::move(m), Msg{OpenRag{}}, "open rag");
     render_once(m, "rag open");
-    // ── The screenshot case: Enter on the Choice row opens the dropdown,
-    // then Up/Down must move the menu highlight. ───────────────────
+    // 截图场景：在 Choice 行按 Enter 打开下拉框，
+    // 然后,Up/Down必须移动菜单突出显示。
     {
         auto* r = m.ui.panel.get<pn::Rag>();
         if (!r) { std::fprintf(stderr, "no rag pane for dropdown test\n"); return 1; }
-        // Cursor is on row 0 (Proactive, a Choice). Enter -> dropdown.
+        // 光标位于第0行( 主动, a Choice )。 Enter - > 滴水。
         if (auto enter = form::keys::translate(r->embed.form, maya::KeyEvent{K::Enter}))
             m = step(std::move(m), Msg{RagEmbedKey{*enter}}, "dropdown: enter");
         r = m.ui.panel.get<pn::Rag>();
@@ -127,17 +127,17 @@ int main() {
             return 1;
         }
         render_once(m, "dropdown after down");
-        // Close it again for the walk below.
+        // 关上它,再走下去。
         if (auto esc = form::keys::translate(r->embed.form, maya::KeyEvent{K::Escape}))
             m = step(std::move(m), Msg{RagEmbedKey{*esc}}, "dropdown: esc");
     }
 
     // ── THE reported freeze: Enter on a text field starts editing; ↑/↓
-    // must still navigate (leave the field + move), not go dead. ─────
+    // 仍然必须导航( 离开字段+移动) , 而不是去死。 @ @ info: status
     {
         auto* r = m.ui.panel.get<pn::Rag>();
         if (!r) { std::fprintf(stderr, "no rag pane for edit test\n"); return 1; }
-        // Walk down to the Model row (a Text field).
+        // 下行到Model行(一个文本字段).
         for (int i = 0; i < 2; ++i)
             if (auto down = form::keys::translate(r->embed.form, maya::KeyEvent{K::Down})) {
                 m = step(std::move(m), Msg{RagEmbedKey{*down}}, "to text row");
@@ -148,7 +148,7 @@ int main() {
             m = step(std::move(m), Msg{RagEmbedKey{*enter}}, "enter on text row");
         r = m.ui.panel.get<pn::Rag>();
         std::fprintf(stderr, "editing=%d at=%d\n", r->embed.form.editing() ? 1 : 0, at);
-        // Now the screenshot keystroke: Down, while editing.
+        // 现在的截图键盘:在编辑时下,
         if (auto down = form::keys::translate(r->embed.form, maya::KeyEvent{K::Down}))
             m = step(std::move(m), Msg{RagEmbedKey{*down}}, "down while editing");
         else
@@ -171,7 +171,7 @@ int main() {
         render_once(m, "rag after enter");
         r = m.ui.panel.get<pn::Rag>();
         if (!r) break;
-        // Esc out of any edit/dropdown Enter started, then move on.
+        // Esc 任何一项 edit/dropdown Enter 开始,然后继续前进。
         if (auto esc = form::keys::translate(r->embed.form, maya::KeyEvent{K::Escape}))
             m = step(std::move(m), Msg{RagEmbedKey{*esc}}, "rag esc");
         r = m.ui.panel.get<pn::Rag>();
@@ -181,16 +181,16 @@ int main() {
         render_once(m, "rag after down");
     }
 
-    // ── Stale-snapshot batch: subscribe.cpp translates a whole input
-    // batch (a paste) against ONE FormFocus snapshot. Simulate the tail
-    // of "x\nzz": the Enter leaves the field, but the following chars
-    // still arrive as Insert intents. They must NOT mutate the row. ──
+    // 过期快照批次：subscribe.cpp 会翻译整批输入，
+    // 批(一面糊)对 一个 FormFocus 快照。
+    // 模拟 末尾 备注 "x\nzz" : 数据 Enter 离开字段,
+    // 但以下字符仍然作为“插入”的意向到达。它们不得 变异行。
     {
         auto* r = m.ui.panel.get<pn::Rag>();
         if (!r) { std::fprintf(stderr, "no rag pane for race test\n"); return 1; }
-        // Walk until the cursor is on a text-like row (previous sections
-        // left it wherever their walk ended — possibly a Toggle, whose
-        // Enter would FLIP it instead of editing).
+        // 步行到光标在文本上 -like 排行(以前各段不管
+        // 他们走完哪里都留下了) 切换 ,其名称为 Enter
+        // 将 FLIP 而不是编辑).
         for (int i = 0; i < 20; ++i) {
             const auto* fr = r->embed.form.focused();
             if (fr && fr->is_text_like() && !fr->locked) break;
@@ -199,11 +199,11 @@ int main() {
                 r = m.ui.panel.get<pn::Rag>();
             }
         }
-        // Start editing the focused text row, insert 'x', then Enter (leave).
+        // 开始编辑焦点化的文本行, 插入 'x' ,则 Enter (释).
         if (auto enter = form::keys::translate(r->embed.form, maya::KeyEvent{K::Enter}))
             m = step(std::move(m), Msg{RagEmbedKey{*enter}}, "race: start edit");
         r = m.ui.panel.get<pn::Rag>();
-        // Snapshot taken HERE (editing=true) — like subscribe.cpp's capture.
+        // 快照 已经取用 此处 (编辑=真实)——像 subscribe.cpp 被俘虏了
         const bool snap_editing  = r->embed.form.editing();
         const bool snap_choosing = r->embed.form.choosing();
         auto tr = [&](maya::KeyEvent ev) {
@@ -221,17 +221,17 @@ int main() {
             m = step(std::move(m), Msg{RagEmbedKey{*a}}, "race: insert x");
         if (auto a = tr(maya::KeyEvent{K::Enter}))
             m = step(std::move(m), Msg{RagEmbedKey{*a}}, "race: enter (leaves)");
-        // Value AFTER the edit ended:
+        // 编辑结束值 之后:
         r = m.ui.panel.get<pn::Rag>();
         const auto val_after_leave = text_of(r->embed.form.focused());
-        // Sanity: the in-edit insert must have LANDED, or this test is
-        // checking nothing. (Catches the probe reading the wrong variant.)
+        // 卫生: 内 -edit 插入必须 LANDED ,
+        // 否则测试中检查的不是它。 (批判探测器读错了) 变体.)
         if (val_after_leave.find('x') == std::string::npos) {
             std::fprintf(stderr, "FAIL: setup insert never landed (val='%s')\n",
                          val_after_leave.c_str());
             return 1;
         }
-        // The paste tail: still translated with the STALE snapshot.
+        // 贴面 末尾 : 仍与 STALE 快照.
         if (auto a = tr(maya::KeyEvent{maya::CharKey{U'z'}}))
             m = step(std::move(m), Msg{RagEmbedKey{*a}}, "race: stale insert z");
         r = m.ui.panel.get<pn::Rag>();
@@ -245,7 +245,7 @@ int main() {
         }
     }
 
-    // ── Home/End/PgDn: jump keys work while browsing, and clamp. ────
+    // ── Home/End/PgDn:在浏览时跳动键工作,并夹住. ────
     {
         auto* r = m.ui.panel.get<pn::Rag>();
         if (!r) { std::fprintf(stderr, "no rag pane for jump test\n"); return 1; }
@@ -257,14 +257,14 @@ int main() {
         };
         key(K::End);
         const int at_end = r->embed.form.cursor;
-        key(K::Down);   // wrap-guard: End then Down wraps to top by move();
-        key(K::End);    // back to the end
+        key(K::Down);   // 关闭 -guard: End 然后将包装下至顶端 move();
+        key(K::End);    // 回到结尾
         if (r->embed.form.cursor != at_end) {
             std::fprintf(stderr, "FAIL: End not idempotent (%d vs %d)\n",
                          r->embed.form.cursor, at_end);
             return 1;
         }
-        key(K::PageDown);   // at the end: must CLAMP, not wrap
+        key(K::PageDown);   // 结尾:必须CLAMP,不能包扎
         if (r->embed.form.cursor != at_end) {
             std::fprintf(stderr, "FAIL: PgDn at the end wrapped (%d vs %d)\n",
                          r->embed.form.cursor, at_end);
@@ -280,9 +280,9 @@ int main() {
         std::fprintf(stderr, "jumps: home=%d end=%d ok\n", at_home, at_end);
     }
 
-    // ── The adopt chain: palette → (a command's panel) → Esc must restore
-    // the palette with its typed query intact. ThreadList: opens even with
-    // zero threads (renders its empty state), so the chain always runs. ─
+    // 返回链：命令面板 → 命令对应的面板 → Esc，必须恢复
+    // 调色板及其 带类型的 查询完好无损。 ThreadList
+    // : 打开时即使为零 线程 (渲染 —— —— 链条总是运行。
     {
         Model m2;
         m2 = step(std::move(m2), Msg{OpenPalette{}}, "chain: open palette");
@@ -306,8 +306,8 @@ int main() {
             return 1;
         }
         std::fprintf(stderr, "chain: palette restored with query='threads'\n");
-        // And Esc AGAIN closes to the thread — the chain has exactly the
-        // depth the user built, no phantom levels.
+        // 而EscXXAGAIN关闭于线程——链条完全具有
+        // 用户所构建的深度,没有幽灵级.
         m2 = step(std::move(m2), Msg{ClosePalette{}}, "chain: esc 2");
         if (!m2.ui.panel.is<pn::None>()) {
             std::fprintf(stderr, "FAIL: second Esc did not reach the thread\n");
@@ -317,14 +317,14 @@ int main() {
     }
 
     // ── Async-probe race: Test launches a worker; the user EDITS the
-    // config before the completion lands. The stale TestDone must NOT
-    // stamp Ok/dim onto a config the probe never saw. ─────────────
+    // 完成前的配置。 过期 TestDone 不得
+    // 印花图案 Ok/dim 探测器从未见过的配置。
     {
         auto* r = m.ui.panel.get<pn::Rag>();
         if (!r) { std::fprintf(stderr, "no rag pane for probe race\n"); return 1; }
-        // Walk to an editable text row — the previous section left the
-        // cursor at End (an Action/locked row where Insert no-ops, which
-        // would make this test assert nothing).
+        // 步行到可编辑的文本行——上一节将光标留在 End (
+        // 单位:千美元) Action/locked 插入无 -ops ,
+        // 这会使这个测试站不住脚。
         for (int i = 0; i < 24; ++i) {
             const auto* fr = r->embed.form.focused();
             if (fr && fr->is_text_like() && !fr->locked) break;
@@ -333,14 +333,14 @@ int main() {
                 r = m.ui.panel.get<pn::Rag>();
             }
         }
-        const auto gen_at_launch = ++r->embed.probe_gen;   // simulate launch
+        const auto gen_at_launch = ++r->embed.probe_gen;   // 模拟发射
         r->embed.probe = agentty::rag_settings::EmbedForm::Testing{};
-        // The user edits a field → invalidate_probe bumps the generation.
+        // 用户编辑一个字段 ^ invalidate_probe 碰碰生成。
         if (auto enter = form::keys::translate(r->embed.form, maya::KeyEvent{K::Enter}))
             m = step(std::move(m), Msg{RagEmbedKey{*enter}}, "probe race: edit");
         if (auto a = form::keys::translate(true, false, maya::KeyEvent{maya::CharKey{U'x'}}))
             m = step(std::move(m), Msg{RagEmbedKey{*a}}, "probe race: type");
-        // The worker's answer arrives, stamped with the OLD generation.
+        // 电话 工作线程 答案来了,印在 旧 生成。
         m = step(std::move(m),
                  Msg{RagEmbedTestDone{true, 768, 42, "", gen_at_launch}},
                  "probe race: stale done");
@@ -350,7 +350,7 @@ int main() {
                          "FAIL: stale probe completion verified an edited config\n");
             return 1;
         }
-        // And a CURRENT-generation completion still lands.
+        // 还有 当前-generation 完成工作仍然在进行。
         const auto gen_now = ++r->embed.probe_gen;
         r->embed.probe = agentty::rag_settings::EmbedForm::Testing{};
         m = step(std::move(m),
@@ -364,9 +364,9 @@ int main() {
         std::fprintf(stderr, "probe race: stale dropped, fresh landed\n");
     }
 
-    // ── Filter paste: with the palette open, a pasted string lands in the
-    // QUERY (replayed as typed input — same filtering semantics), not in
-    // the composer behind it. Control chars are stripped. ───────────
+    // 过滤器粘贴：命令面板打开时，粘贴文本进入
+    // QUERY (重播为 带类型的 输入——相同的过滤语义学,
+    // 不在后面的作曲中. Control 字符被剥光。
     {
         Model m2;
         m2 = step(std::move(m2), Msg{OpenPalette{}}, "fpaste: open");

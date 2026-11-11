@@ -1,11 +1,11 @@
-// hooks_gate_test.cpp — the lifecycle-hooks CONSENT GATE. The security
-// property this pins is the whole design: a hooks file that has not been
-// explicitly approved NEVER executes, and any byte change to an approved
-// file re-gates it. Also covers the pre_tool block semantics and the
-// post_tool fire-and-forget contract.
+// hooks_gate_test.cpp ——生命周期 -hooks
+// CONSENT GATE。这个针头的安全属性是整个设计:一个尚未明确
+// 批准的钩子文件 绝不 执行,以及任何 字节 更改为已核准文件 -gates
+// 也覆盖了 pre_tool 块语义和 post_tool 开火
+// -and-forget 合同。
 //
-// Runs in a temp sandbox CWD + HOME (approvals live under $HOME). Hook
-// commands write marker files so execution (or its absence) is observable.
+// 在 沙箱 CWD + HOME 临时运行( 批准在 $HOME 下有效)。
+// Hook 命令写入标记文件, 执行( 或缺失) 是可以观察到的。
 
 #include "agtest_cap.hpp"
 #include "agentty/tool/hooks.hpp"
@@ -47,8 +47,8 @@ void write_file(const fs::path& p, const std::string& body) {
     return s;
 }
 
-// A hook command that creates `marker`. cmd.exe (the Windows hook shell) has
-// no `touch`; `type nul >` is its spelling.
+// 一个创建`marker`的钩位指令 cmd.exe(Windows钩位壳)没有`touch`;
+// `type nul >`是它的拼写.
 [[nodiscard]] std::string touch_cmd(const fs::path& marker) {
 #ifdef _WIN32
     return "type nul > \"" + marker.string() + "\"";
@@ -57,8 +57,8 @@ void write_file(const fs::path& p, const std::string& body) {
 #endif
 }
 
-// Approve the CURRENT bytes of the hooks file by writing the approval map
-// directly (the interactive `agentty hooks approve` does the same store).
+// 核准 当前 字节 直接写入批准地图(交互式)
+// `agentty hooks approve` 做同一个商店。
 void approve_current(const fs::path& hooks_file, const fs::path& home) {
     std::string raw = read_all(hooks_file);
     std::error_code ec;
@@ -88,8 +88,8 @@ void unapproved_never_runs(const fs::path& sandbox) {
 void approved_runs_and_blocks(const fs::path& sandbox, const fs::path& home) {
     std::println("--- approved_runs_and_blocks ---");
     const fs::path marker = sandbox / "post_ran.marker";
-    // pre_tool guard: block any bash whose args mention "rm -rf".
-    // post_tool: drop a marker (observability for fire-and-forget).
+    // pre_tool 警戒:阻止任何有动静的殴打 "rm -rf".
+    // post_tool : 降下标记(可观察火力) -and-forget).
     write_file(sandbox / ".agentty" / "hooks.json",
                nlohmann::json{
                    {"pre_tool",
@@ -111,19 +111,19 @@ void approved_runs_and_blocks(const fs::path& sandbox, const fs::path& home) {
     approve_current(sandbox / ".agentty" / "hooks.json", home);
     check(!hooks::pending_approval(::agentty::IoAccess::grant()), "approved file no longer pending");
 
-    // Benign call: allowed, post fires.
+    // 宾语 调用 :允许,在火灾后。
     auto ok = hooks::run_pre_tool("shell", R"({"command":"ls -la"})");
     check(!ok.blocked, "benign bash allowed");
     hooks::run_post_tool("shell", R"({"command":"ls"})", "listing…");
     check(fs::exists(marker), "post_tool hook executed for approved file");
 
-    // Dangerous call: blocked with the hook's stdout as reason.
+    // 危险调用:用钩子的尖端挡住作为理由.
     auto bad = hooks::run_pre_tool("shell", R"({"command":"rm -rf /tmp/x"})");
     check(bad.blocked, "matching pre_tool guard blocks");
     check(bad.reason.find("dangerous command blocked") != std::string::npos,
           "hook stdout becomes the block reason (got '" + bad.reason + "')");
 
-    // Non-matching tool: guard does not fire.
+    // 农用-matching工具:护卫不开火.
     auto other = hooks::run_pre_tool("read", R"({"path":"rm -rf"})");
     check(!other.blocked, "match=bash guard ignores the read tool");
     std::println("PASS\n");
@@ -132,7 +132,7 @@ void approved_runs_and_blocks(const fs::path& sandbox, const fs::path& home) {
 void byte_change_regates(const fs::path& sandbox) {
     std::println("--- byte_change_regates ---");
     const fs::path marker = sandbox / "regate.marker";
-    // Mutate the approved file (append a space — ANY byte change).
+    // 更改已核准文件( 添加空格 ) - 任意 字节 页:1
     const fs::path hf = sandbox / ".agentty" / "hooks.json";
     write_file(hf, nlohmann::json{
                        {"pre_tool", {{{"match", ""},
@@ -163,25 +163,25 @@ void kill_switch(const fs::path& sandbox, const fs::path& home) {
     (void)hooks::run_pre_tool("shell", "{}");
     check(!fs::exists(marker), "AGENTTY_NO_HOOKS=1 disables approved hooks");
 #ifdef _WIN32
-    _putenv_s("AGENTTY_NO_HOOKS", "");   // empty value removes it
+    _putenv_s("AGENTTY_NO_HOOKS", "");   // 空值删除
 #else
     ::unsetenv("AGENTTY_NO_HOOKS");
 #endif
     std::println("PASS\n");
 }
 
-// An oversized hooks.json must not read as "no hooks file".
+// 超大个头 hooks.json 不可读作 "no hooks file".
 //
-// read_all returned empty for "past the cap" exactly as it did for
-// "missing", so `agentty hooks` printed "no hooks file" while the user's
-// file sat right there -- a PreToolUse hook written to BLOCK something was
-// silently inert and nothing said so. Of all the caps in this tree this is
-// the one that matters most: it gates command execution, and the failure is
-// a user believing a guard is armed when it is not.
+// read_all 返回空的为 "past the cap"
+// 完全如它所为 "missing" ,所以,
+// 我说 `agentty hooks` 打印 "no hooks file"
+// 用户文件坐在那里时 -- a PreToolUse 写给 BLOCK
+// 没有什么是默默无闻的,没有说 源码树 这是最重要的一个: 它打开
+// 了命令执行,失败是用户相信一个警卫没有武器。
 void oversized_file_is_reported(const fs::path& sandbox) {
     std::println("--- oversized_file_is_reported ---");
     const fs::path cfg = sandbox / ".agentty" / "hooks.json";
-    // A real, valid hook -- padded past the 64 KiB cap.
+    // 真实有效的钩子——通过64KiB盖加码.
     nlohmann::json j{
         {"pre_tool", {{{"match", ""}, {"run", "exit 2"}}}},
         {"pad", std::string(70u * 1024u, 'x')},
@@ -189,18 +189,18 @@ void oversized_file_is_reported(const fs::path& sandbox) {
     write_file(cfg, j.dump());
     check(fs::file_size(cfg) > 64u * 1024u, "fixture is past the cap");
 
-    // The hook does NOT run -- that part was always true and stays true.
+    // 钩子是NOT运行的—— 这部分总是真实的,并且始终是真实的。
     check(!hooks::pending_approval(::agentty::IoAccess::grant()),
           "an unloadable file offers nothing to approve");
 
-    // `agentty hooks` must SAY the file was too big rather than claim there
-    // is none. Exit 1 so CI notices.
+    // `agentty hooks` 必须 SAY 文件太大, 而不是声称没有。
+    // 退出 1。 CI 通知 通知 已经通知了
     const int rc = hooks::cli(::agentty::IoAccess::grant(), agtest::cap(), "list");
     check(rc == 1, "hooks list exits non-zero for an oversized file");
     std::println("PASS\n");
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("hooks_gate") {
     const fs::path sandbox =
@@ -209,19 +209,19 @@ TEST_CASE("hooks_gate") {
     const fs::path home = sandbox / "home";
     fs::create_directories(home);
     fs::current_path(sandbox);
-    // User-scope config resolves via util::user_root() ($AGENTTY_HOME, else
-    // home_dir()/.agentty, where home_dir() is $HOME then $USERPROFILE) —
-    // point ALL of them at this test's home so the files written under
-    // home/.agentty are the ones the loader reads. Setting only USERPROFILE
-    // on Windows lost to an inherited $HOME (MSYS2, Git Bash shells).
+    // 用户 -scope 配置解析通过 util::user_root() ($AGENTTY_HOME ,
+    // 其他则 home_dir()/.agentty ,在其中 home_dir ( ) 系 ,
+    // ( ) $HOME 那样 $USERPROFILE )——点 全部 测试室的
+    // 档案 home/.agentty 装填器读的。只设置 USERPROFILE 打开
+    // Windows 输给继承人 $HOME (MSYS2, Git 贝什弹).
     ::setenv("HOME", home.string().c_str(), 1);
 #ifdef _WIN32
     _putenv_s("USERPROFILE", home.string().c_str());
 #endif
-    ::unsetenv("AGENTTY_HOME");   // fall back to home_dir()/.agentty
-    // Hooks run through the sandbox, whose mode and workspace are process-wide
-    // and may be left set by an earlier test case (with a workspace that is
-    // not this temp dir). This test is about the consent gate, not the walls.
+    ::unsetenv("AGENTTY_HOME");   // 倒车 home_dir()/.agentty
+    // 钩子从这里穿过 沙箱 ,其模式和 工作区
+    // 正在处理 -wide 并可能由较早的试验例
+    // (有: 工作区 测试对象不是墙壁 而是同意门
     (void)agentty::tools::util::sandbox::init(agentty::tools::util::sandbox::Mode::Off);
 
     std::println("=== hooks_gate_test ===");

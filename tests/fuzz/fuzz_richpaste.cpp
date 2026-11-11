@@ -1,8 +1,8 @@
-// fuzz_richpaste.cpp — libFuzzer harness for richpaste's parsers. Every one
-// of them reads bytes someone else controls: the clipboard (BMP/DIB images,
-// file URI lists), the ssh agent socket (wire protocol), the terminal
-// (OSC 5522 replies, also with their ESC bytes stripped), and pasted text
-// (armor). Build and run: tests/fuzz/run.sh
+// fuzz_richpaste.cpp — libFuzzer 调制解析器
+// richpaste's 解析器 每本书都读到 字节 其它控件:剪贴板( 3) BMP/DIB 图像,
+// 文件 URI 列表),该 ssh 代理套接字( 传输 议定书),
+// 终端 (OSC 5522份答复,也附有 ESC 字节 ,并粘贴文字(armor)。
+// 构建和运行 : tests/fuzz/run.sh
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -25,7 +25,7 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
     const rp::ByteView bytes{reinterpret_cast<const std::byte*>(data) + 1, size - 1};
 
     switch (which % 8) {
-    case 0: {   // images off the clipboard, and the PNG we turn them into
+    case 0: {   // 剪贴板上的图像,以及 PNG 我们把他们变成
         for (auto img : {rp::image::decode_bmp(bytes), rp::image::decode_dib(bytes)})
             if (img) {
                 CHECK(img->pixels.size() == std::size_t{img->width} * img->height * 4);
@@ -34,16 +34,16 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
             }
         break;
     }
-    case 1: {   // the agent socket protocol
+    case 1: {   // 代理套接字协议
         (void)rp::wire::decode_request(bytes);
         if (auto items = rp::wire::decode_response(bytes)) {
-            // A decoded response must re-encode and decode to the same count.
+            // 解码后的反应必须重新编-encode,并解码到同一个计数.
             const auto again = rp::wire::decode_response(rp::wire::encode_items(*items));
             CHECK(again && again->size() == items->size());
         }
         break;
     }
-    case 2: {   // OSC 5522 packets from the terminal
+    case 2: {   // OSC 共5522包,从 终端
         if (auto p = rp::inband::parse_5522(text)) {
             rp::inband::ReadReply r;
             (void)r.add(*p, 1u << 20);
@@ -52,41 +52,41 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
         }
         break;
     }
-    case 3: {   // a 5522 reply that lost its ESC bytes, typed in as text
+    case 3: {   // a/ 丢失了5522份答复。 ESC 字节, 带类型的 作为文本
         (void)rp::inband::stripped_reply(text);
         (void)rp::inband::decode_stripped_reply(text, 1u << 20);
         break;
     }
-    case 4: {   // armored files and images in pasted text
+    case 4: {   // 粘贴文本中装有装甲的文件和图像
         (void)rp::armor::contains(text);
         (void)rp::armor::progress(text);
         auto s = rp::armor::split(text);
         for (const auto& part : s.parts)
             if (const auto* it = std::get_if<rp::Item>(&part)) {
-                // Anything split() accepts must survive its own round trip.
+                // 随便 split() 接受必须活下来 自己的往返。
                 const auto back = rp::armor::split(rp::armor::encode(*it));
                 CHECK(back.errors.empty() && back.parts.size() == 1);
             }
         break;
     }
-    case 5: {   // core text types
+    case 5: {   // 核心文本类型
         CHECK(rp::valid_utf8(rp::repair_utf8(text)));
         CHECK(rp::valid_utf8(rp::latin1_to_utf8(text)));
         (void)rp::Mime::parse(text);
         (void)rp::FileName::parse(text);
-        // Decoding is lenient about the unused low bits of a padded group
-        // ("Aue=" and "Auc=" both give the same bytes), so only check that
-        // a decode re-encodes to something that decodes the same.
+        // 解码对一个加码组的未使用的低位("Aue="和
+        // "Auc="都给出相同的字节)是宽大的,所以只检查一个
+        // 解码器重-encodes到一个解码相同的东西.
         if (auto d = rp::base64_decode(text)) {
             const auto again = rp::base64_decode(rp::base64_encode(*d));
             CHECK(again && *again == *d);
         }
         break;
     }
-    case 6:     // file:// URI lists
+    case 6:     // 存档: URI 列表
         (void)rp::parse_uri_list(text);
         break;
-    case 7: {   // mime picking off a listing
+    case 7: {   // MIME 取消一个列表
         std::vector<std::string> offered;
         std::size_t at = 0;
         while (at <= text.size()) {

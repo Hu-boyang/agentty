@@ -1,71 +1,71 @@
 #pragma once
-// agentty::auth::crypt — at-rest encryption for the credentials file.
+// agentty::auth::crypt-凭据文件的at-rest加密。
 //
-// SECURITY_AUDIT.md finding #1 (MEDIUM): OAuth/API tokens were stored as
-// plaintext JSON in ~/.config/agentty/credentials.json (0600). A backup,
-// a synced dotfiles repo, a shoulder-surf of the file, or any process that
-// can read the user's home dir then walks away with a live token.
+// SECURITY_AUDIT.md发现#1(MEDIUM):
+// OAuth/API令牌作为明文JSON存储在~/.config/agentty/credentials.json
+// (0600)中。备份、同步的点文件 仓库、文件的肩部 -surf
+// 或任何可以读取用户主目录的进程，然后带着实时令牌离开。
 //
-// This module wraps the JSON payload in an authenticated-encryption
-// envelope so the on-disk bytes are opaque. It is DELIBERATELY not a
-// substitute for an OS keystore (libsecret/Keychain/DPAPI — the audit's
-// long-term recommendation): the key is DERIVED from machine-stable
-// material, not stored in a hardware/OS vault, so a determined attacker
-// who can also run code as the same user on the same machine can
-// re-derive it. What it DOES defend against, at zero new dependency and
-// zero UX cost, is the far more common exposure: the file leaving the
-// machine (backup, cloud-sync, screenshot, `cat`) still readable.
+// 该模块将JSON 载荷包装在经过验证的-encryption信封中，
+// 因此on-disk 字节是不透明的。它是 DELIBERATELY
+// 不能替代 OS 密钥库（libsecret/Keychain/DPAPI
+// - 审计的 long-term 建议）：密钥是来自机器
+// -stable 材料的 派生，未存储在 hardware/OS
+// 保管库中，因此也可以在同一台计算机上以同一用户身份运行代码
+// 的坚定攻击者可以重新-derive 它。 执行 在零新依赖性和零
+// UX 成本的情况下防御的是更常见的暴露：离开机器的文件（备份、
+// cloud-sync、屏幕截图、`cat`）仍然可读。
 //
-// Envelope (JSON):
-//   { "v":1, "enc":"aes-256-gcm",
-//     "salt":<b64>, "nonce":<b64>, "ct":<b64>, "tag":<b64> }
+// 信封 (JSON):
+//   { "v":1、"enc":"aes-256-gcm"、
+//     "salt":<b64>、"nonce":<b64>、"ct":<b64>、"tag":<b64> }
 //
-// Crypto: AES-256-GCM (OpenSSL EVP — already linked). The 256-bit key is
-// HKDF-SHA256(machine_seed, salt) where machine_seed mixes a per-machine
-// id (/etc/machine-id, hostname, …), the numeric user id, and a fixed
-// app-specific context string. A fresh random 128-bit salt + 96-bit nonce
-// are generated on every save, so re-encrypting identical plaintext never
-// produces identical ciphertext.
+// 加密：AES-256-GCM (OpenSSL EVP —已链接)。 256-bit 密钥是
+// HKDF-SHA256(machine_seed, salt)，其中 machine_seed
+// 混合了 per-machine id（/etc/machine-id，主机名，...）、
+// 数字用户 id 和固定的 app-specific 上下文字符串。每个 保存 都会生成一个
+// 新的随机 128-bit salt + 96-bit nonce，因此 re-encrypting
+// 相同的明文永远不会产生相同的密文。
 //
-// ── Optional passphrase mode (SECURITY_AUDIT hardening) ──────────────────
-// The machine-only key above does NOT protect against a local attacker who
-// can run code as the SAME user (they re-derive the same seed). Set a
-// passphrase to close that gap: the key then also folds in a memory-hard
-// scrypt(passphrase, salt) factor, so the file can't be decrypted without
-// BOTH the machine AND the secret the user holds in their head.
+// ── 选择密码句模式( SECURITY_AUDIT 硬化) ──────────────────
+// 上面的machine-only密钥确实NOT能够防止能够以SAME用户身份运行代码的本地攻击者
+// （他们re-derive相同的种子）。设置一个密码来弥补
+// 这个差距：密钥也包含在 内存-hard scrypt(passphrase,
+// salt) 因子中的 归并，因此如果没有 两者 机器
+// 和 用户在头脑中保存的秘密，则无法解密该文件。
 //
-// Enable by either:
-//   • exporting AGENTTY_PASSPHRASE=… (non-interactive / CI), or
-//   • exporting AGENTTY_ENCRYPT_PASSPHRASE=1 to be prompted once on /dev/tty.
-// When neither is set, behaviour is exactly the machine-only path (v1) and
-// existing files keep working. Passphrase envelopes are v2 and carry the
-// scrypt params so unseal can reproduce the derivation.
+// 通过以下任一方式启用：
+//   ·导出AGENTTY_PASSPHRASE=…(非-interactive/CI)，或者
+//   • 导出 AGENTTY_ENCRYPT_PASSPHRASE=1 在 /dev/tty. 上提示一次
+// 当两者均未设置时，行为正是机器-only路径(v1)
+// 并且现有文件继续工作。密码信封是 v2 并携带
+// scrypt 参数，因此解封可以重现推导。
 
 #include <optional>
 #include <string>
 
 namespace agentty::auth::crypt {
 
-// True iff a passphrase has been configured for this process (env var set,
-// or an interactive prompt has been answered). Cheap; used by callers that
-// want to tell the user their vault is passphrase-protected.
+// 真，当且仅当已为此进程配置了密码（环境变量设置，
+// 或已回答交互式 提示词）。便宜的;由想要告诉用户他们的保管
+// 库密码为 -protected 的调用者使用。
 bool passphrase_active();
 
-// Encrypt `plaintext` into the JSON envelope described above. Returns
-// std::nullopt only on a hard OpenSSL failure (out of memory / broken
-// build) — callers treat that as "couldn't secure the file" and fall
-// back to refusing to persist rather than writing plaintext.
+// 将`plaintext`加密到上述JSON信封中。
+// 仅在 OpenSSL 硬故障（出于 内存 / 损坏的构建）时返回
+// std::nullopt - 调用者将其视为
+// "couldn't secure the file" 并回退到拒绝持久而不是写入纯文本。
 std::optional<std::string> seal(const std::string& plaintext);
 
-// Decrypt a JSON envelope produced by seal(). Returns std::nullopt if the
-// input isn't a v1 envelope (e.g. a legacy plaintext credentials.json —
-// the caller then tries to parse it directly and re-encrypts on next
-// save), or if authentication fails (tampered / wrong machine / corrupt).
+// 解密由seal()产生的JSON信封。如果输入不是 v1 信封（e.g。
+// 传统明文 credentials.json - 调用者然后尝试直接对其进行
+// 解析 并在下一个 保存 上重新进行 -encrypts），
+// 或者如果身份验证失败（被篡改/错误的机器/损坏），则返回 std::nullopt。
 std::optional<std::string> unseal(const std::string& envelope);
 
-// True iff `s` looks like a sealed envelope (starts a JSON object with a
-// "v"/"enc" marker). Cheap structural probe used to branch load between
-// the encrypted path and the legacy-plaintext migration path.
+// 正确当且仅当`s`看起来像密封信封（以"v"/"enc"
+// 标记开始JSON对象）。用于在加密路径和旧版
+// -plaintext迁移路径之间分支加载的廉价结构探针。
 bool looks_sealed(const std::string& s) noexcept;
 
 } // namespace agentty::auth::crypt

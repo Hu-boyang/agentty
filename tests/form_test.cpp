@@ -1,15 +1,15 @@
-// Tests for the form component layer: the shared state model, the one key
-// map, and the pure projection onto maya::Panel::Config.
+// 形式组件层的测试:共享状态模型,一个关键映射,
+// 纯投影到maya::Panel::Config.
 //
-// The properties worth pinning are the ones that were bugs in the five
-// hand-rolled pickers this replaces:
+// 值得打针的属性是五手里那些虫子的属性 -rolled
+// 选择面板 此选项取代:
 //
-//   * exactly one mode owns the keyboard (a keystroke can never leak from a
-//     text field into global navigation),
-//   * Esc from a dropdown is a true CANCEL (the value is untouched until
-//     commit),
-//   * a Secret's plaintext never reaches the rendering layer at all — not
-//     "is masked", but structurally absent from what maya is handed.
+//   * 键盘完全由一个模式拥有(键盘绝对不能从一个键盘中漏出)
+//     文本字段为全局导航),
+//   * Esc 从滴滴滴滴下来,是真实的 CANCEL (该值未受影响,直到
+//     承诺,
+//   * 一个秘密的简单文字从未到达 渲染 层层- 完全没有
+//     "is masked" ,但结构上 缺失什么 maya 交给你
 
 #include <doctest/doctest.h>
 
@@ -49,14 +49,14 @@ Form demo() {
         .build();
 }
 
-// Drive one key through the router + reducer, as the pane does.
+// 驱动一个键通过路由器+ 状态更新函数 ,作为 面板 已经。
 keys::Applied press(Form& f, const maya::KeyEvent& ev) {
     auto a = keys::translate(f, ev);
     if (!a) return {};
     return keys::apply(f, *a);
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("form: builder produces addressable rows") {
     auto f = demo();
@@ -64,7 +64,7 @@ TEST_CASE("form: builder produces addressable rows") {
     REQUIRE(f.find("host") != nullptr);
     CHECK(f.find("host")->label == "Host");
     CHECK(f.find("nope") == nullptr);
-    // Choice selects by stored id, not display label.
+    // 选择由存储的 id 选择,而不是显示标签。
     CHECK(std::get<field::Choice>(f.find("backend")->value).id() == "auto");
 }
 
@@ -72,25 +72,25 @@ TEST_CASE("form: exactly one mode owns the keyboard") {
     auto f = demo();
     CHECK(std::holds_alternative<focus::Browsing>(f.focus));
 
-    // Enter on a text row engages editing.
+    // 文本行上的Enter进行编辑。
     f.cursor = 1;
     press(f, key(maya::SpecialKey::Enter));
     CHECK(f.editing());
     CHECK_FALSE(f.choosing());
 
-    // While editing, 'j' is a character — NOT a move. This is the leak the
-    // hand-rolled inputs kept springing.
+    // 编辑时 'j' 是一个字符—— 不 动作,这是手漏气
+    // -rolled 投入不断涌现。
     const int before = f.cursor;
     press(f, chr(U'j'));
     CHECK(f.cursor == before);
     CHECK(std::get<field::Text>(f.find("host")->value).value.find('j') != std::string::npos);
 
-    // Esc leaves the field but not the form.
+    // Esc 离开球场,但不是形式。
     auto r = press(f, key(maya::SpecialKey::Escape));
     CHECK_FALSE(r.close);
     CHECK_FALSE(f.editing());
 
-    // Esc again closes.
+    // Esc 关闭。
     r = press(f, key(maya::SpecialKey::Escape));
     CHECK(r.close);
 }
@@ -101,19 +101,19 @@ TEST_CASE("form: dropdown opens, commits, and cancels non-destructively") {
 
     press(f, key(maya::SpecialKey::Enter));
     CHECK(f.choosing());
-    // Opening must not touch the value.
+    // 打开时不能触及价值。
     CHECK(std::get<field::Choice>(f.find("backend")->value).id() == "auto");
 
     press(f, key(maya::SpecialKey::Down));
-    // Still untouched — the highlight moved, not the field.
+    // 仍未触及——亮点移动,而不是田野.
     CHECK(std::get<field::Choice>(f.find("backend")->value).id() == "auto");
 
-    // Esc is a TRUE cancel.
+    // Esc 是一个 TRUE 取消.
     press(f, key(maya::SpecialKey::Escape));
     CHECK_FALSE(f.choosing());
     CHECK(std::get<field::Choice>(f.find("backend")->value).id() == "auto");
 
-    // Reopen, move, commit.
+    // 重新打开,移动,承诺。
     press(f, key(maya::SpecialKey::Enter));
     press(f, key(maya::SpecialKey::Down));
     auto r = press(f, key(maya::SpecialKey::Enter));
@@ -129,7 +129,7 @@ TEST_CASE("form: an open dropdown swallows stray keys") {
     press(f, key(maya::SpecialKey::Enter));
     REQUIRE(f.choosing());
 
-    // A key the menu doesn't use must NOT fall through to the form beneath.
+    // 菜单不能使用的密钥 不 掉到下面的形状
     const int cursor_before = f.cursor;
     press(f, key(maya::SpecialKey::Right));
     CHECK(f.cursor == cursor_before);
@@ -137,9 +137,9 @@ TEST_CASE("form: an open dropdown swallows stray keys") {
 }
 
 TEST_CASE("form: a dropdown never filters — j/k always navigate") {
-    // The dropdown holds an ENUM. It deliberately has no query state, so j/k
-    // are unconditionally navigation and can never be swallowed as filter
-    // text. A candidate set big enough to need searching is a `Pick` row.
+    // 滴滴会保持 ENUM。它故意没有查询状态,
+    // 所以 j/k 无条件导航,并且永远不能被吞噬为过滤文本。
+    // 一个设置得足够大,需要搜索的候选人是 `Pick` 划线
     auto f = demo();
     f.cursor = 0;
     press(f, key(maya::SpecialKey::Enter));
@@ -150,8 +150,8 @@ TEST_CASE("form: a dropdown never filters — j/k always navigate") {
     press(f, key(maya::SpecialKey::Up));
     CHECK(f.dropdown()->highlighted == 0);
 
-    // Even a long list navigates rather than filters — the option count does
-    // not change the interaction model.
+    // 甚至一个长列表导航而不是过滤——选项计数
+    // 不会改变交互模式.
     std::vector<std::string> many;
     for (int i = 0; i < 12; ++i) many.push_back("model-" + std::to_string(i));
     auto g = Builder{"Long"}.choice("m", "Model", many).build();
@@ -162,8 +162,8 @@ TEST_CASE("form: a dropdown never filters — j/k always navigate") {
 }
 
 TEST_CASE("form: a Pick row hands off instead of opening a dropdown") {
-    // The escape hatch that keeps Choice honest: large/dynamic candidate sets
-    // open a real picker, and the form never learns about them.
+    // 使选择保持诚实的逃生舱: large/dynamic 候选设置
+    // 打开一个真实 选择面板 ,表格中永远不会知道他们。
     auto f = Builder{"Hand-off"}
         .pick("model", "Model", "claude-opus-4-5")
         .build();
@@ -171,14 +171,14 @@ TEST_CASE("form: a Pick row hands off instead of opening a dropdown") {
 
     const auto r = press(f, key(maya::SpecialKey::Enter));
     CHECK(r.hand_off);
-    CHECK_FALSE(f.choosing());     // no inline list
-    CHECK_FALSE(f.editing());      // and not an edit either
+    CHECK_FALSE(f.choosing());     // 无内线列表
+    CHECK_FALSE(f.editing());      // 而不是编辑
     CHECK_FALSE(r.changed);
 }
 
 TEST_CASE("form: dropdown commit resolves through the same list the view shows") {
-    // The reducer and the view resolve options with the same function, so the
-    // highlighted row and the committed value cannot diverge.
+    // 状态更新函数和视图以相同的功能解决选项,
+    // 因此突出显示的行和承诺值不能有差异.
     std::vector<std::string> many;
     for (int i = 0; i < 12; ++i) many.push_back("model-" + std::to_string(i));
     auto f = Builder{"Long"}.choice("m", "Model", many).build();
@@ -192,33 +192,33 @@ TEST_CASE("form: dropdown commit resolves through the same list the view shows")
 }
 
 TEST_CASE("form: a letter on a number row is a true no-op") {
-    // Reported as "typing an alpha char misbehaves everywhere".
+    // 报告编号为"typing an alpha char misbehaves everywhere".
     //
-    // A Number row takes digits only, but type-to-edit entered the session
-    // ANYWAY: focus flipped to Editing, edit_dirty went true, and
-    // number_insert then dropped the character. The row was left live and
-    // "changed" with nothing on screen to show it -- so arrows started moving
-    // a caret instead of the row cursor, Esc committed an edit that never
-    // happened, and the pane read as having swallowed the key.
+    // 数字行只取数字,但类型-to-edit进入了第ANYWAY场次:
+    // 焦点翻转到编辑,edit_dirty变真,
+    // 然后number_insert放下了字符,
+    // 该行被留了活,"changed"没有屏幕显示——
+    // 因此箭头开始移动一个光标而不是行光标,
+    // Esc进行了从未发生的编辑,面板读作吞下了键.
     //
-    // A rejected character must leave EVERY axis untouched, which is what
-    // makes it a no-op rather than a half-entered session.
+    // 被拒绝的性格必须离开 每个 轴未动,这就是它为什么是没有
+    // -op 而不是半个 -entered 届会。
     auto f = demo();
-    f.cursor = 2;                               // port, a Number row
+    f.cursor = 2;                               // 端口,一个数字行
     const auto before = number_value(std::get<field::Number>(f.find("port")->value));
 
     press(f, chr(U'x'));
-    CHECK_FALSE(f.editing());                   // no session started
-    CHECK_FALSE(f.dirty);                       // nothing marked changed
+    CHECK_FALSE(f.editing());                   // 没有开始会话
+    CHECK_FALSE(f.dirty);                       // 无标记更改
     CHECK(number_value(std::get<field::Number>(f.find("port")->value)) == before);
 
-    // And a digit still works right after, so the guard did not wedge the row.
+    // 数字数字仍然在后面工作,所以警卫没有把排位楔子。
     press(f, chr(U'7'));
     CHECK(f.editing());
     CHECK(number_value(std::get<field::Number>(f.find("port")->value)) == 7);
 
-    // Mid-session too: a letter among digits is ignored rather than ending or
-    // corrupting the edit.
+    // 中间 -session 也:数字之间的一个字母会被忽略,
+    // 而不是结束或损坏编辑。
     press(f, chr(U'z'));
     CHECK(number_value(std::get<field::Number>(f.find("port")->value)) == 7);
     press(f, chr(U'9'));
@@ -226,27 +226,27 @@ TEST_CASE("form: a letter on a number row is a true no-op") {
 }
 
 TEST_CASE("form: the first digit typed REPLACES, it does not append") {
-    // Reported as "input doesn't work on all fields sometimes", and this is
-    // the mechanism.
+    // 报告为"input doesn't work on all fields sometimes",
+    // 这就是机制。
     //
-    // Appending made a Number row behave like no other settings field: the
-    // value on screen when you start typing is the SAVED one, so extending it
-    // is never what the keystroke meant. Typing 8 into a row showing 4096 gave
+    // 附加使数字行的行为与其他设置字段一样: 屏幕上开始
+    // 打字时的值是 SAVED , 所以扩展它绝不是键盘键的表示。
+    // 打入 8 键入行中, 显示 4096 给定
     // 40968.
     //
-    // On a SMALL range it was worse than surprising, it was dead input: a row
-    // with max 8 showing 3, type 5 -> 3*10+5 = 35 -> clamps to 8. The row is
-    // now at max, so every later digit also clamps to 8 and NOTHING the user
-    // types moves it. No caret, no error, no way to tell why.
+    // 在一个 SMALL 范围比出人意料的还要差,它就是死输入:最大 8
+    // 的一行显示 3, 类型 5 - > 3*10+5 = 35 - >
+    // 夹到 8. 该行现在最大,所以以后的每个数字也夹到 8 和 无内容。
+    // 没有 光标 没有任何错误,没有办法 来解释原因。
     auto f = demo();
-    f.cursor = 2;                               // port, 11434, range 1-65535
+    f.cursor = 2;                               // 11434号港口,射程1-65535
 
-    // Type-to-edit: the first printable starts the session.
+    // Type-to-edit:第一个可打印开始会话.
     press(f, chr(U'8'));
     CHECK(number_value(std::get<field::Number>(f.find("port")->value)) == 8);
 
-    // And the SECOND digit still appends -- 4-0-9-6 must type 4096, so this is
-    // a fresh-vs-continuing distinction rather than "replace always".
+    // 还有 第二 数字仍然附加 -- 4-0- 9-6 必须输入4096, 所以这是新鲜的
+    // -vs-continuing 区分而不是 "replace always".
     press(f, chr(U'0'));
     CHECK(number_value(std::get<field::Number>(f.find("port")->value)) == 80);
     press(f, chr(U'8'));
@@ -254,9 +254,9 @@ TEST_CASE("form: the first digit typed REPLACES, it does not append") {
 }
 
 TEST_CASE("form: Enter-then-type replaces too") {
-    // The other way into an edit session must behave identically, or the
-    // field's response depends on how you opened it -- which is its own kind
-    // of "sometimes input doesn't work".
+    // 另一条路进入编辑会话必须表现得相同,或者字段的响应取决于您是
+    // 如何打开的——这是它自己的类型
+    // "sometimes input doesn't work".
     auto f = demo();
     f.cursor = 2;
     press(f, key(maya::SpecialKey::Enter));
@@ -265,63 +265,63 @@ TEST_CASE("form: Enter-then-type replaces too") {
 }
 
 TEST_CASE("form: a Number row cleared with Backspace takes any number (#97)") {
-    // Port, range 1-65535. Backspace to empty, then type 8080. The value was
-    // an int clamped on every key, so "empty" became 1 (the minimum) and
-    // every digit appended to that 1.
+    // 左舷,射程1 -65535 Backspace 键,然后输入 8080。
+    // 该值是每个键的插入键,所以 "empty" 成为1(最小),
+    // 并随同该1的每个数字。
     auto f = demo();
-    f.cursor = 2;                               // port, 11434
+    f.cursor = 2;                               // 港口,11434
     press(f, key(maya::SpecialKey::Enter));
     for (int i = 0; i < 6; ++i) press(f, key(maya::SpecialKey::Backspace));
     for (char32_t c : std::u32string{U"8080"}) press(f, chr(c));
     press(f, key(maya::SpecialKey::Enter));
     CHECK(number_value(std::get<field::Number>(f.find("port")->value)) == 8080);
 
-    // Same after ^U, and when the number typed starts below the minimum.
+    // 之后相同 ^U ,当数字 带类型的 启动于最小值以下。
     press(f, key(maya::SpecialKey::Enter));
-    press(f, chr(U'u', /*ctrl=*/true));
+    press(f, chr(U'u', /*ctrl= (帮助)*/true));
     for (char32_t c : std::u32string{U"0443"}) press(f, chr(c));
     press(f, key(maya::SpecialKey::Enter));
     CHECK(number_value(std::get<field::Number>(f.find("port")->value)) == 443);
 }
 
 TEST_CASE("form: a number edit clamps once, when it ends") {
-    // Above max clamps to max; an emptied field keeps its saved value; and
-    // mid-edit the row shows exactly what was typed, empty included.
+    // 最大夹口以上; 空的字段保留其 已保存 值;
+    // 和 中点 -edit 显示什么是 带类型的 ,包含空。
     auto f = demo();
-    f.cursor = 2;                               // port 11434, 1-65535
+    f.cursor = 2;                               // 11434, 1-65535)号港口
     press(f, key(maya::SpecialKey::Enter));
     for (int i = 0; i < 6; ++i) press(f, key(maya::SpecialKey::Backspace));
     const auto& n = std::get<field::Number>(f.find("port")->value);
-    CHECK(number_text(n).empty());              // cleared shows empty, not "1"
+    CHECK(number_text(n).empty());              // 清除显示为空, 而非 "1"
     press(f, key(maya::SpecialKey::Enter));
-    CHECK(n.value == 11434);                    // nothing typed: unchanged
+    CHECK(n.value == 11434);                    // 无 带类型的: 无变化
 
     press(f, key(maya::SpecialKey::Enter));
     for (char32_t c : std::u32string{U"999999"}) press(f, chr(c));
-    CHECK(number_text(n) == "999999");          // typed as-is, not clamped per key
+    CHECK(number_text(n) == "999999");          // 带类型的 以 -is ,不按键夹
     press(f, key(maya::SpecialKey::Enter));
-    CHECK(n.value == 65535);                    // clamped once, on commit
+    CHECK(n.value == 65535);                    // 一次被夹住,一次被夹死
 }
 
 TEST_CASE("form: a small-range number row never goes deaf to typing") {
-    // The exact shape of the reported bug, on the row that showed it: the
-    // sandbox pane's "Secret scan depth" is 0-8 and ships at 3.
+    // 所报虫的准确形状,在显示它的行上:沙箱XX面板的
+    // "Secret scan depth"是0-8,船只是3.
     //
-    // Every value in range must be reachable by typing it. Under the old
-    // append rule the row latched at max after one keystroke and stayed there.
+    // 输入值必须能够达到范围中的每个值。 在旧附件中,
+    // 键盘键入后, 键入后按最大键键排列, 并停留在那里。
     auto f = Builder{"Depth"}.number("depth", "Secret scan depth", 3, 0, 8).build();
     f.cursor = 0;
 
     press(f, chr(U'5'));
     CHECK(number_value(std::get<field::Number>(f.find("depth")->value)) == 5);
 
-    // Leave and come back, then type a different digit. The row must answer
-    // again rather than being stuck at whatever it latched to.
+    // 离开后再打一个不同的数字。行必须再次回答,
+    // 而不是被卡在它所要的上。
     press(f, key(maya::SpecialKey::Escape));
     press(f, chr(U'2'));
     CHECK(number_value(std::get<field::Number>(f.find("depth")->value)) == 2);
 
-    // Including 0, which append could never produce from a non-zero start.
+    // 包括 0,该附件永远无法从非生产 -zero 开始
     press(f, key(maya::SpecialKey::Escape));
     press(f, chr(U'0'));
     CHECK(number_value(std::get<field::Number>(f.find("depth")->value)) == 0);
@@ -329,13 +329,13 @@ TEST_CASE("form: a small-range number row never goes deaf to typing") {
 
 TEST_CASE("form: number and slider clamp on every mutation") {
     auto f = demo();
-    f.cursor = 2;                               // port
+    f.cursor = 2;                               // 端口
     press(f, key(maya::SpecialKey::Enter));
     for (char32_t c : {U'9', U'9', U'9', U'9', U'9', U'9'}) press(f, chr(c));
     CHECK(number_value(std::get<field::Number>(f.find("port")->value)) == 65535);
 
     press(f, key(maya::SpecialKey::Escape));
-    f.cursor = 3;                               // weight slider
+    f.cursor = 3;                               // 重量滑动器
     for (int i = 0; i < 20; ++i) press(f, key(maya::SpecialKey::Right));
     CHECK(std::get<field::Slider>(f.find("weight")->value).value == doctest::Approx(1.0));
     for (int i = 0; i < 40; ++i) press(f, key(maya::SpecialKey::Left));
@@ -343,7 +343,7 @@ TEST_CASE("form: number and slider clamp on every mutation") {
 }
 
 TEST_CASE("form: slider steps stay on the grid") {
-    // Repeated ±step must not accumulate float drift into 0.6500000000000001.
+    // 重复的 ± 步不得累积浮力漂移到 0.6500000000000001。
     auto f = demo();
     f.cursor = 3;
     for (int i = 0; i < 5; ++i) press(f, key(maya::SpecialKey::Right));
@@ -358,7 +358,7 @@ TEST_CASE("form: locked rows refuse edits") {
         .build();
     f.cursor = 0;
     press(f, key(maya::SpecialKey::Enter));
-    CHECK_FALSE(f.editing());                   // never engages
+    CHECK_FALSE(f.editing());                   // 永远不要参与
     press(f, key(maya::SpecialKey::Right));
     CHECK(std::get<field::Text>(f.find("host")->value).value == "127.0.0.1");
     CHECK_FALSE(f.dirty);
@@ -375,18 +375,18 @@ TEST_CASE("form: an action row reports rather than mutating") {
 
 TEST_CASE("form: no save chord — Esc commits; ^C stays ambient") {
     auto f = demo();
-    // ^S is NOT a form key: leaving a field commits it, and Esc leaves.
-    // A second key for the same act is a second thing to keep in sync.
-    CHECK_FALSE(keys::translate(f, chr(U's', /*ctrl=*/true)).has_value());
-    // ^C must NOT be claimed — the app quits from anywhere.
+    // ^S 谓 不 窗体键: 留下一个字段, 并 Esc 叶子
+    // 同一行为第二个关键是保持同步的第二个问题.
+    CHECK_FALSE(keys::translate(f, chr(U's', /*ctrl= (帮助)*/true)).has_value());
+    // ^C 不得 被声称——应用程序从任何地方退出.
     CHECK_FALSE(keys::translate(f, chr(U'c', true)).has_value());
 }
 
-// ── The projection ───────────────────────────────────────────────────────
+// ── 预测 ───────────────────────────────────────────────────────
 
 TEST_CASE("form view: a Secret's plaintext never reaches the widget") {
-    // Not "is masked" — structurally absent. maya::panel::Secret has no field
-    // that could hold it, so no present or future render path can leak it.
+    // 没有 "is masked" ——结构缺失. maya::panel::Secret
+    // 没有任何领域可以支撑它, 所以没有现在或未来 渲染 路径可以泄露。
     auto f = demo();
     const auto cfg = agentty::ui::form_config(f, maya::Color::blue());
 
@@ -396,7 +396,7 @@ TEST_CASE("form view: a Secret's plaintext never reaches the widget") {
             saw_secret = true;
             CHECK(s->filled == 15);             // "sk-super-secret"
         }
-        // No control anywhere carries the plaintext.
+        // 任何控制都无法携带简洁的文字。
         if (const auto* t = std::get_if<maya::panel::Text>(&row.control))
             CHECK(t->value.find("sk-") == std::string::npos);
     }
@@ -417,8 +417,8 @@ TEST_CASE("form view: menu is present only while choosing") {
 }
 
 TEST_CASE("form view: the widget renders every control kind") {
-    // A smoke test that the maya widget builds without throwing for each
-    // control, including with an open menu (the z-stacked float path).
+    // 烟雾测试 maya 部件不为每个控件投掷而构建,
+    // 包括使用打开的菜单(z) -stacked 浮点路径).
     auto f = demo();
     f.cursor = 0;
     press(f, key(maya::SpecialKey::Enter));
@@ -426,18 +426,18 @@ TEST_CASE("form view: the widget renders every control kind") {
     cfg.items[1].origin = "settings.json";
     cfg.items[2].error  = "port must be 1-65535";
     maya::Element el = maya::Panel{std::move(cfg)}.build();
-    CHECK(true);   // built without throwing
+    CHECK(true);   // 建造时不扔
 }
 
 TEST_CASE("form view: one setting is one row") {
-    // Regression: every row with `help` painted a second, dim sub-line, so a
-    // pane's height was 2x its setting count. The RAG pane has 22 settings
-    // across 5 group headers -- over 50 rows in a 14-row viewport, which
-    // turned a settings list into a wall of prose you had to scroll to reach
-    // a single toggle.
+    // 递归: 每行 `help` 画了第二副暗号 -line ,所以一个 面板 高度
+    // 是 2x 的设置数。 RAG 面板 共有 5 组的 22 个设置 头文件
+    // 14排50多列 14排 14排 50 3排 14 4排 14列 14 14
+    // 3排 -row 可视区域 ,它将设置列表变成一个流言蜚语的墙壁,你必须滚动才能
+    // 到达一个单 切换.
     //
-    // Help belongs to the row the cursor is ON: that is the only row it can
-    // be describing, and it costs one line instead of N.
+    // 帮助属于行,光标是ON:这是它所能描述的唯一一行,
+    // 它花费的是一条线而不是N.
     auto f = Builder{"Helpy"}
         .toggle("a", "Alpha", true,  "the first thing")
         .toggle("b", "Beta",  false, "the second thing")
@@ -446,7 +446,7 @@ TEST_CASE("form view: one setting is one row") {
 
     const auto height = [&](const Form& form) {
         auto cfg = agentty::ui::form_config(form, maya::Color::blue());
-        cfg.viewport_h = 100;            // no clamping: measure the content
+        cfg.viewport_h = 100;            // 无夹: 测量内容
         const auto out = maya::render_to_string(
             maya::Panel{std::move(cfg)}.build(), 80);
         int n = 0;
@@ -459,11 +459,11 @@ TEST_CASE("form view: one setting is one row") {
     f.cursor = 1;
     const int h1 = height(f);
 
-    // Moving the cursor must not change the pane's height: exactly one help
-    // line exists either way. Before the fix all three were always painted.
+    // 移动光标时不能改变 面板 的高度: 无论是哪种方式都
+    // 存在一条帮助线。 在修复之前, 全部三个都画好了。
     CHECK(h0 == h1);
 
-    // And the help shown is the one under the cursor, not all of them.
+    // 显示的帮助是光标下的帮助,而不是全部.
     const auto text_at = [&](int cursor) {
         f.cursor = cursor;
         auto cfg = agentty::ui::form_config(f, maya::Color::blue());
@@ -479,15 +479,15 @@ TEST_CASE("form view: one setting is one row") {
 }
 
 TEST_CASE("form view: headers cost one row, not two") {
-    // Regression: every section header emitted a blank spacer line above
-    // itself. At one per group that was 5 wasted rows of a 14-row viewport in
-    // the Retrieval pane -- in a list you scroll, a row that says nothing is
-    // a row that hides one that does. A header is already distinct (bold,
-    // dim, no value column), so the blank bought nothing.
+    // 退步: 每个区 头文件 发射空空格线,
+    // 上面是每组5行14个废格 -row 可视区域 检索
+    // 中 面板 ——在一张你滚动的列表中,一行说无是一行
+    // 是隐藏有是的. 头文件 已经是不同的(粗体、淡体、
+    // 无值栏),所以空白的买不到任何东西。
     //
-    // Headers render UPPER-CASE with a trailing rule, so they cannot be
-    // mistaken for a locked row (which is what "Endpoint  auto-detected"
-    // looked like when both were merely dim).
+    // 头文件 渲染 UPPER-CASE 以一条循规蹈矩,故不能误以为是
+    // 一条锁线(这是什么)。 "Endpoint  auto-detected"
+    // 看上去就像两个都只是阴暗的时候
     auto f = Builder{"Grouped"}
         .header("Sources")
         .toggle("a", "Alpha", true)
@@ -500,7 +500,7 @@ TEST_CASE("form view: headers cost one row, not two") {
     const auto out = maya::render_to_string(
         maya::Panel{std::move(cfg)}.build(), 80);
 
-    // No blank line directly above either header.
+    // 也没有直接上方的空行 头文件.
     const auto no_blank_before = [&](const std::string& label) {
         const auto at = out.find(label);
         REQUIRE(at != std::string::npos);
@@ -509,29 +509,29 @@ TEST_CASE("form view: headers cost one row, not two") {
         const auto prev_start = out.rfind('\n', line_start - 1);
         const std::string prev = out.substr(
             prev_start + 1, line_start - prev_start - 1);
-        // The previous line must carry content, not just frame + spaces.
+        // 上行必须携带内容,而不只是帧+空格.
         return prev.find_first_not_of(" \u2502") != std::string::npos;
     };
     CHECK(no_blank_before("PIPELINE"));
-    // And the header is visually a header: caps plus a rule to the edge.
+    // 还有 头文件 视像化为 头文件 :盖子加一条到边的规矩.
     CHECK(out.find("SOURCES") != std::string::npos);
     CHECK(out.find("\xe2\x94\x80\xe2\x94\x80") != std::string::npos);
 }
 
 TEST_CASE("form view: the current row is tinted, the others are not") {
-    // With help gone from unfocused rows, a single accent cell at the far
-    // left was the only focus signal -- easy to lose when your eye is on the
-    // value column at the far right. The current row now carries a subtle
-    // wash across its whole span.
+    // 帮助从无重点的行走, 单一的口音 存储单元
+    // 左侧是唯一的焦点信号, 当你的眼睛在极右的值栏上时,
+    // 很容易丢失。现在的行在整个过程中都有
+    // 一个细微的洗涤。
     //
-    // The wash must be a real colour, not ANSI `black`: black IS the
-    // terminal background on most dark themes, so the first attempt at this
-    // was invisible by construction.
+    // 洗洗的一定是真颜色,不是 ANSI `black` :
+    // 黑色 IS 编号 终端 大部分黑暗主题的背景, 所以第一次尝试
+    // 这一点是无法被构建所见的。
     //
-    // It is a theme SLOT now (panel::Theme::row_bg = Surface), so pin a
-    // known theme rather than a literal. Under `native` there would be no
-    // wash to assert at all, and correctly so: native states no surface
-    // colour, because inventing one punches a hole in someone's terminal.
+    // 主题 SLOT 现在( N) panel::Theme::row_bg
+    // = Surface),所以将一个已知的主题而不是字面标注在下面.
+    // `native` 根本就没有洗刷的,正确无误: 原住民
+    // 国家没有表面颜色,因为发明一拳就能打出一个人的洞 终端.
     static const maya::Theme kProbe = [] {
         maya::Theme t = maya::theme::native;
         t.surface = maya::Color::rgb(35, 38, 52);
@@ -566,28 +566,28 @@ TEST_CASE("form view: the current row is tinted, the others are not") {
 }
 
 TEST_CASE("form view: the panel is FRAMED like every other picker") {
-    // Regression: Form::build() originally returned a bare vstack with no
-    // border, padding or min-width. A frameless overlay paints transparently
-    // over the thread, which on screen reads as "the key did nothing" / "the
-    // picker closed" — the pane was open and invisible. A form is a
-    // picker-family overlay and must sit in the same frame.
+    // 退转 : Form::build () 原先返回的空地无边、
+    // 无垫或无垫 -width。无帧 覆盖面板 涂料透明地覆盖 线程 ,
+    // 屏幕上读作 "the key did nothing" /
+    // "the picker closed" - 电话 面板 形式是
+    // 选择面板-family 覆盖面板 并必须坐在同一 帧.
     auto f = demo();
     const auto out = maya::render_to_string(
         maya::Panel{agentty::ui::form_config(f, maya::Color::blue())}.build(), 80);
 
-    // Rounded border corners, exactly as Picker draws them.
+    // 圆形的边角,完全就是 选择面板 画他们。
     CHECK(out.find("\xe2\x95\xad") != std::string::npos);   // ╭
     CHECK(out.find("\xe2\x95\xb0") != std::string::npos);   // ╰
-    // The title rides the top border.
+    // 衔骑上界.
     CHECK(out.find("Demo") != std::string::npos);
-    // And the rows are actually painted.
+    // 而行则实际上被画.
     CHECK(out.find("Backend") != std::string::npos);
     CHECK(out.find("Host")    != std::string::npos);
 }
 
 TEST_CASE("form view: an open dropdown paints its options over the panel") {
-    // The float must actually reach the screen — a menu that is state-only
-    // but never painted is the same invisible-overlay failure one level down.
+    // 浮点数必须实际到达屏幕——一个状态菜单 -only 但从
+    // 不画画 也是一样的无形 -overlay 失败 一级下降。
     auto f = demo();
     f.cursor = 0;
     press(f, key(maya::SpecialKey::Enter));
@@ -595,18 +595,18 @@ TEST_CASE("form view: an open dropdown paints its options over the panel") {
 
     const auto out = maya::render_to_string(
         maya::Panel{agentty::ui::form_config(f, maya::Color::blue())}.build(), 80);
-    // Every backend option is on screen, including ones that are not the
-    // current selection (i.e. this is the list, not the closed control).
+    // 每个后端选项都在屏幕上,包括不属于当前选择的
+    // 选项(i.e. 这是列表,不是关闭控制).
     CHECK(out.find("Ollama") != std::string::npos);
     CHECK(out.find("Custom") != std::string::npos);
 }
 
 TEST_CASE("form view: the option list is INLINE, inside the panel") {
-    // The list was once a z-stacked float, which had to invent an opaque
-    // background, a width, a flip and a clamp — and every one of those was a
-    // bug (bleed-through, overflow, a theme-coloured slab). It now expands in
-    // the panel's own flow, so the only thing to assert is that each option
-    // line stays INSIDE the panel border.
+    // 名单曾经是z -stacked 浮点,它必须发明一个
+    // 不透明的背景,宽度,翻转和夹子——每个都是一个错误(
+    // buged) -through ,溢出,主题 -coloured。
+    // 它现在在面板的自身流中扩张,所以唯一可以断言的是,
+    // 每个选项行都保留 内部 面板边框。
     auto f = demo();
     f.cursor = 0;
     press(f, key(maya::SpecialKey::Enter));
@@ -620,13 +620,13 @@ TEST_CASE("form view: the option list is INLINE, inside the panel") {
     while (start <= out.size()) {
         const std::size_t nl = out.find('\n', start);
         const std::string line = out.substr(start, nl - start);
-        // These strings only ever appear as option rows (the closed control
-        // shows "Custom endpoint", and while open it shows only the chevron).
+        // 这些字符串仅作为选项行出现(闭合控制显示"Custom endpoint",
+        // 而打开时只显示chevron).
         if (line.find("Ollama") != std::string::npos
             || line.find("llama.cpp server") != std::string::npos) {
-            // Exactly two vertical bars: the panel's left and right border.
-            // A third would mean a box crept back in; fewer would mean the
-            // line escaped the frame.
+            // 完全有两个垂直的条:面板的左右边框.
+            // 第三个意味着一个盒子 回到里面;
+            // 更少意味着线逃过了 帧.
             int bars = 0;
             for (std::size_t i = 0;
                  (i = line.find("\xe2\x94\x82", i)) != std::string::npos; i += 3)
@@ -637,35 +637,35 @@ TEST_CASE("form view: the option list is INLINE, inside the panel") {
         if (nl == std::string::npos) break;
         start = nl + 1;
     }
-    CHECK(checked > 0);   // we actually inspected a row
+    CHECK(checked > 0);   // 我们确实检查了一排
 }
 
 TEST_CASE("form view: a Secret is never painted in the clear") {
-    // The end-to-end version of the type-level guarantee: render the whole
-    // widget and confirm the plaintext appears nowhere in the output.
+    // 结束 -to-end 类型版本 -level 保证:
+    // 渲染 整个部件,确认该平话文本在输出中无一出现。
     auto f = demo();
     const auto out = maya::render_to_string(
         maya::Panel{agentty::ui::form_config(f, maya::Color::blue())}.build(), 80);
     CHECK(out.find("sk-super-secret") == std::string::npos);
     CHECK(out.find("sk-")             == std::string::npos);
-    CHECK(out.find("*")               != std::string::npos);   // masked instead
+    CHECK(out.find("*")               != std::string::npos);   // 换成蒙面
 }
 
 TEST_CASE("form: a Secret's placeholder is shown only while it is empty") {
-    // The placeholder is not secret: it is the one string a Secret may hand
-    // the widget, and it reports a key held elsewhere ("key saved").
+    // 占位符不是秘密的:这是机密可能交给部件的字符串,
+    // 它报告的是别处持有的密钥("key saved")。
     auto f = Builder{"Keys"}
         .secret("key", "API key", "").placeholder("held elsewhere")
-        .text("host", "Host", "x").placeholder("ignored")    // not a Secret: no-op
+        .text("host", "Host", "x").placeholder("ignored")    // 无法保存 : no-op
         .build();
     CHECK(std::get<field::Secret>(f.find("key")->value).placeholder == "held elsewhere");
-    f.cursor = 1;   // off the Secret: it is drawn unfocused
+    f.cursor = 1;   // 关闭秘密:它被引出无重点
     auto out = maya::render_to_string(
         maya::Panel{agentty::ui::form_config(f, maya::Color::blue())}.build(), 80);
     CHECK(out.find("held elsewhere") != std::string::npos);
     CHECK(out.find("not set")        == std::string::npos);
 
-    // A typed value wins: the row shows the mask, never the placeholder.
+    // 一个带类型的值获胜:行显示面具,从不显示占位符.
     std::get<field::Secret>(f.find("key")->value).value = "sk-typed-value";
     out = maya::render_to_string(
         maya::Panel{agentty::ui::form_config(f, maya::Color::blue())}.build(), 80);
@@ -674,18 +674,18 @@ TEST_CASE("form: a Secret's placeholder is shown only while it is empty") {
 }
 
 TEST_CASE("form: paste_into_focused pastes the way typing types") {
-    // Browsing a text-like row: the paste opens the edit and lands.
+    // 浏览文本-like行:贴面打开编辑和土地.
     {
         auto f = demo();
-        f.cursor = 4;   // the Secret
+        f.cursor = 4;   // 密钥
         REQUIRE(!f.editing());
         CHECK(paste_into_focused(f, "sk-NEW"));
         CHECK(f.editing());
-        CHECK(f.edit_dirty);   // leaving the field commits it
+        CHECK(f.edit_dirty);   // 离开球场 承诺
         CHECK(std::get<field::Secret>(f.find("key")->value).value
-              == "sk-super-secretsk-NEW");   // at the caret, as typing would
+              == "sk-super-secretsk-NEW");   // 现场 光标 ,如打字时
     }
-    // Already editing: exactly paste_into.
+    // 已经编辑: paste_into。
     {
         auto f = demo();
         f.cursor = 1;   // Host
@@ -694,7 +694,7 @@ TEST_CASE("form: paste_into_focused pastes the way typing types") {
         CHECK(paste_into_focused(f, ".lan"));
         CHECK(std::get<field::Text>(f.find("host")->value).value == "127.0.0.1.lan");
     }
-    // Nothing lands, and NO edit session is opened, on: a locked row...
+    // 无任何 Lands, 和NO 编辑会话打开, 打开: 锁定的行...
     {
         auto f = demo();
         f.cursor = 1;
@@ -703,14 +703,14 @@ TEST_CASE("form: paste_into_focused pastes the way typing types") {
         CHECK_FALSE(f.editing());
         CHECK(std::get<field::Text>(f.find("host")->value).value == "127.0.0.1");
     }
-    // ...a row that is not text (a Choice, an Action)...
+    // ... 一条不是文本( 选择, 动作)...
     for (int row : {0, 5}) {
         auto f = demo();
         f.cursor = row;
         CHECK_FALSE(paste_into_focused(f, "x"));
         CHECK_FALSE(f.editing());
     }
-    // ...an open dropdown (the menu owns the keys)...
+    // ...打开下拉(菜单拥有密钥)...
     {
         auto f = demo();
         f.cursor = 0;
@@ -719,11 +719,11 @@ TEST_CASE("form: paste_into_focused pastes the way typing types") {
         CHECK_FALSE(paste_into_focused(f, "x"));
         CHECK(f.choosing());
     }
-    // ...and a paste the row takes none of: letters on a Number, a bare
-    // newline anywhere. The half-state type-to-edit refuses for a letter.
+    // ... 并且粘贴一行, 将不取任何字母: 数字上的信,
+    // 任何地方都有一个赤裸的新线。 半-state 型的-to-edit 拒绝信件。
     {
         auto f = demo();
-        f.cursor = 2;   // Port
+        f.cursor = 2;   // 端口( T)
         CHECK_FALSE(paste_into_focused(f, "abc"));
         CHECK_FALSE(f.editing());
         CHECK(number_value(std::get<field::Number>(f.find("port")->value)) == 11434);
@@ -731,7 +731,7 @@ TEST_CASE("form: paste_into_focused pastes the way typing types") {
         CHECK_FALSE(paste_into_focused(f, "\n"));
         CHECK_FALSE(f.editing());
     }
-    // A Number takes a pasted number whole, as typed digits would.
+    // 数字需要一个贴上的数字整体,正如带类型的数字那样。
     {
         auto f = demo();
         f.cursor = 2;
@@ -741,20 +741,20 @@ TEST_CASE("form: paste_into_focused pastes the way typing types") {
 }
 
 TEST_CASE("form: an open pane ALWAYS answers Esc") {
-    // Regression (the "input stops getting through" freeze): the Retrieval
-    // overlay was created holding no form, filled in by a deferred Cmd. For at
-    // least one frame the pane owned the keyboard and could act on nothing —
-    // every key, INCLUDING the Esc that would have escaped it, was swallowed.
+    // 退位("input stops getting through"
+    // 冻结): 退位的覆盖面板是没有表格的,由推迟的Cmd填充.
+    // 至少一个帧拥有了面板,可以不采取行动——每把钥匙,
+    // INCLUDING,本来可以逃脱的Esc都被吞噬.
     //
-    // The structural fix is that the form is built at construction and is not
-    // optional, so "open but inert" is unrepresentable. This pins the
-    // behavioural half: from every focus mode, Esc must eventually close.
+    // 结构修补是形式是在建筑中建造的,不是可选的,
+    // 所以 "open but inert" 无法表达。
+    // 这将行为的一半固定:从每个焦点模式, Esc 最终必须关闭。
     auto f = demo();
 
-    // Browsing → closes immediately.
+    // 浏览 —— 立即关闭.
     CHECK(press(f, key(maya::SpecialKey::Escape)).close);
 
-    // Editing → first Esc leaves the field, second closes.
+    // 编辑 → 第Esc次离开字段,第二关.
     f = demo();
     f.cursor = 1;
     press(f, key(maya::SpecialKey::Enter));
@@ -762,7 +762,7 @@ TEST_CASE("form: an open pane ALWAYS answers Esc") {
     CHECK_FALSE(press(f, key(maya::SpecialKey::Escape)).close);
     CHECK(press(f, key(maya::SpecialKey::Escape)).close);
 
-    // Choosing → first Esc cancels the list, second closes.
+    // 选择 ^ 第Esc次取消列表,第二结束.
     f = demo();
     f.cursor = 0;
     press(f, key(maya::SpecialKey::Enter));
@@ -772,8 +772,8 @@ TEST_CASE("form: an open pane ALWAYS answers Esc") {
 }
 
 TEST_CASE("form: an empty form still answers Esc") {
-    // The degenerate case the freeze actually hit: a form with no rows must
-    // not become a keyboard black hole.
+    // 冷冻实际击中的堕落的个案:一个没有行的表
+    // 单不能成为键盘黑洞.
     Form empty;
     auto a = keys::translate(empty, key(maya::SpecialKey::Escape));
     REQUIRE(a.has_value());
@@ -781,38 +781,38 @@ TEST_CASE("form: an empty form still answers Esc") {
 }
 
 TEST_CASE("form: the key router depends only on focus, not on the rows") {
-    // The flags overload is the contract: TWO bools decide the whole key
-    // map (editing, choosing: focus-shaped facts, not rows). A router that
-    // peeked at the row once went stale mid-batch and dropped keys.
+    // 电话 标志 超载是合同 : 两个 布尔决定整个密钥
+    // 映射( 编辑, 选择: 焦点) -shaped 偷看过行
+    // 的路由器 过期 中点 -batch 并放下了钥匙。
     const auto esc = key(maya::SpecialKey::Escape);
     const auto j   = chr(U'j');
 
-    // Browsing: a printable is always TypeToEdit — the ROUTER stays
-    // cursor-independent (its founding contract: two bools, no rows), and
-    // apply() drops the intent when the focused row isn't text-like. A
-    // router that peeked at the row went stale mid-batch and silently ate
-    // keystrokes (↓ then a letter in one read).
+    // 浏览: 打印器总是 TypeToEdit - 电话
+    // ROUTER 保留光标 -independent (其创始合同:两桶,
+    // 无排),和 apply() 当焦点行不是文本时,
+    // 将意图降低 -like 偷看行的路由器走 过期 中点 -batch
+    // 并默默地吃键盘(然后读一个字母).
     {
-        auto a = keys::translate(/*editing=*/false, /*choosing=*/false, j);
+        auto a = keys::translate(/*编辑=*/false, /*选择=*/false, j);
         REQUIRE(a.has_value());
         CHECK(a->intent == keys::Intent::TypeToEdit);
         CHECK(a->ch == U'j');
     }
-    // Editing: the same key is text, never navigation.
+    // 编辑:相同的密钥是文本,从不导航.
     {
-        auto a = keys::translate(/*editing=*/true, /*choosing=*/false, j);
+        auto a = keys::translate(/*编辑=*/true, /*选择=*/false, j);
         REQUIRE(a.has_value());
         CHECK(a->intent == keys::Intent::Insert);
         CHECK(a->ch == U'j');
     }
-    // Choosing: an open dropdown swallows printables (an enum list has no
-    // filter; leaking the key to the form under it would be a mis-target).
+    // 选择: 开放的滴水滴水吞下可打印的(a) 枚举 列表没有过滤器;
+    // 向窗体下漏出密钥将是一个错误 -target).
     {
-        auto a = keys::translate(/*editing=*/false, /*choosing=*/true, j);
+        auto a = keys::translate(/*编辑=*/false, /*选择=*/true, j);
         REQUIRE(a.has_value());
         CHECK(a->intent == keys::Intent::None);
     }
-    // And every mode answers Esc — the escape guarantee, at the router level.
+    // 而每个模式都回答Esc——在路由器级别上,逃生保证.
     for (auto [e, c] : {std::pair{false, false}, {true, false}, {false, true}}) {
         auto a = keys::translate(e, c, esc);
         REQUIRE(a.has_value());
@@ -821,7 +821,7 @@ TEST_CASE("form: the key router depends only on focus, not on the rows") {
 }
 
 TEST_CASE("form: caret offset lands after multi-byte text") {
-    // maya splices the caret by byte offset. A character index here put the
+    // maya 连结 光标 由 字节 字符索引中,将
     // caret between é and 漢 instead of after 漢.
     auto f = Builder{"UTF"}.text("t", "T", "").build();
     f.cursor = 0;

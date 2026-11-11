@@ -69,9 +69,9 @@ std::string sanitize_utf8(std::string_view in) {
 }
 
 #ifdef _WIN32
-// Transcode from a Windows code page (OEM console output / CP1252 / etc.)
-// to UTF-8 via the wide-char pivot. Returns empty on any API failure so
-// callers can fall back to the raw bytes + scrub path.
+// 转码自 a Windows 密码页( Q) OEM 控制台输出 / CP1252
+// / 等)改为 UTF -8号从宽处 -char 键。 返回空的任意 API 失败,
+// 所以呼叫者可以返回原始 字节 + 擦拭路径。
 static std::string windows_cp_to_utf8(std::string_view s, UINT cp) {
     if (s.empty()) return {};
     int wlen = ::MultiByteToWideChar(cp, 0, s.data(), (int)s.size(), nullptr, 0);
@@ -88,15 +88,15 @@ static std::string windows_cp_to_utf8(std::string_view s, UINT cp) {
 
 std::size_t safe_utf8_cut(std::string_view s, std::size_t max_bytes) noexcept {
     if (s.size() <= max_bytes) return s.size();
-    // We want the largest `cut <= max_bytes` such that s[0, cut) ends on a
-    // UTF-8 code-point boundary. That means s[cut] (the first excluded byte)
-    // must NOT be a continuation byte — if it were, the lead for its sequence
-    // would live in [0, cut) and we'd be splitting it.
+    // 我们要最大的 `cut <= max_bytes` 以 s[0,
+    // 切]结尾 UTF -8码 -point 边界。这意味着 s[切
+    // (第一个被排除) 字节 )不得 继续 字节 如果是这样,
+    // 它的序列的领先者会活在[0,切],我们就会把它分开.
     //
-    // Start at max_bytes and walk back while we're *on* a continuation byte
-    // (0x80..0xBF — top bits 10xxxxxx). In valid UTF-8 at most 3 steps back
-    // (4-byte sequences are the widest). After the loop, s[cut] is either
-    // past-the-end, a lead byte, or ASCII — all safe cut points.
+    // 开始于 max_bytes 继续走回去,而我们是续作 字节 (0x80.0xBF
+    // ——上位数 10xxxx×). 以有效方式 UTF -8,最多3个后退(4
+    // 个) -byte 序列最宽。循环后, s[cut] 要么已经过去 -the-end ,
+    // 线索 字节 ,或 ,或 ASCII - 所有安全切点
     std::size_t cut = max_bytes;
     while (cut > 0 && cut < s.size() && ((unsigned char)s[cut] & 0xC0) == 0x80)
         --cut;
@@ -121,24 +121,24 @@ std::string to_valid_utf8(std::string s) {
 std::string strip_terminal_controls(std::string_view in) {
     std::string out;
     out.reserve(in.size());
-    // Byte offset in `out` where the CURRENT (unterminated) line starts.
-    // \r rewinds to it; \n advances it past the newline just written.
+    // 字节 减 减: `out` 中标 当前 (未终止) 线路开始。
+    // \r 倒转到它;\ n 将它通过刚刚写的新线。
     std::size_t line_start = 0;
 
     for (std::size_t i = 0; i < in.size(); ) {
         const unsigned char b = static_cast<unsigned char>(in[i]);
 
-        if (b == 0x1b) {                               // ESC — classify
-            if (i + 1 >= in.size()) break;             // dangling ESC at end: drop
+        if (b == 0x1b) {                               // ESC——分类
+            if (i + 1 >= in.size()) break;             // 端端拖动 ESC: 滴
             const unsigned char next = static_cast<unsigned char>(in[i + 1]);
-            if (next == '[') {                         // CSI … final 0x40–0x7E
+            if (next == '[') {                         // CSI... 最终 0x40-0x7E
                 std::size_t j = i + 2;
                 bool complete = false;
                 while (j < in.size()) {
                     const unsigned char c = static_cast<unsigned char>(in[j++]);
                     if (c >= 0x40 && c <= 0x7e) { complete = true; break; }
                 }
-                if (!complete) break;                  // cut mid-CSI: drop tail
+                if (!complete) break;                  // 切换中间 -CSI : 丢弃 末尾
                 i = j;
                 continue;
             }
@@ -146,8 +146,8 @@ std::string strip_terminal_controls(std::string_view in) {
                 || next == '_' || next == 'X') {       // OSC/DCS/PM/APC/SOS
                 std::size_t j = i + 2;
                 bool complete = false;
-                // Cap the scan so a garbage buffer full of binary can't
-                // make one unterminated OSC swallow megabytes.
+                // 扫描后就把垃圾都给盖上 缓冲区 满 二进制程序
+                // 无法使一个未终止 OSC 吞下兆字节。
                 const std::size_t cap = std::min(in.size(), j + 8192);
                 while (j < cap) {
                     const unsigned char c = static_cast<unsigned char>(in[j]);
@@ -157,23 +157,23 @@ std::string strip_terminal_controls(std::string_view in) {
                     }
                     ++j;
                 }
-                if (!complete && j >= in.size()) break; // cut mid-string: drop tail
-                i = j;                                  // complete, or cap hit
+                if (!complete && j >= in.size()) break; // 切换中间 -string : 丢弃 末尾
+                i = j;                                  // 完成,或盖盖击打
                 continue;
             }
-            i += 2;                                    // two-byte ESC pair
+            i += 2;                                    // 双 -byte ESC 双对
             continue;
         }
 
-        if (b == '\r') {                               // CR: overwrite semantics
+        if (b == '\r') {                               // CR:覆盖语义
             if (i + 1 < in.size() && in[i + 1] == '\n') {
                 out.push_back('\n');                   // \r\n → \n
                 line_start = out.size();
                 i += 2;
                 continue;
             }
-            if (i + 1 >= in.size()) { ++i; continue; } // trailing \r: no-op
-            out.resize(line_start);                    // progress-bar rewind
+            if (i + 1 >= in.size()) { ++i; continue; } // 尾端\r: no-op
+            out.resize(line_start);                    // 进程-bar 倒转
             ++i;
             continue;
         }
@@ -185,18 +185,18 @@ std::string strip_terminal_controls(std::string_view in) {
             continue;
         }
 
-        if (b == '\b') {                               // BS: erase prev codepoint
+        if (b == '\b') {                               // BS: 擦除前置代码点
             std::size_t p = out.size();
             while (p > line_start
                    && (static_cast<unsigned char>(out[p - 1]) & 0xC0) == 0x80)
-                --p;                                   // skip continuations
-            if (p > line_start) --p;                   // the lead / ASCII byte
+                --p;                                   // 跳过续作
+            if (p > line_start) --p;                   // /ASCII 字节 / 领导者
             out.resize(p);
             ++i;
             continue;
         }
 
-        if (b < 0x20 && b != '\t') { ++i; continue; }  // other C0: drop
+        if (b < 0x20 && b != '\t') { ++i; continue; }  // 其它 C0: 下降
         if (b == 0x7f) { ++i; continue; }              // DEL: drop
 
         out.push_back(in[i]);

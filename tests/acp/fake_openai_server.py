@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Fake OpenAI-compatible chat server for ACP end-to-end tests.
+"""供 ACP 端到端测试使用的模拟 OpenAI 兼容聊天服务器。
 
-Streams one scripted reply per request, chosen by the last user message:
-  contains "write"  -> a tool call to `write` (path out.txt)
-  contains "think"  -> reasoning deltas then text
-  otherwise         -> plain text "hello from fake"
-After a tool result is sent back, replies "done".
+每个请求返回一条脚本化流式回复，由最后一条用户消息决定：
+  包含 "write" -> 调用 `write` 工具，路径为 out.txt。
+  包含 "think" -> 先返回推理增量，再返回文本。
+  其他情况 -> 返回纯文本 "hello from fake"。
+工具结果回传后回复 "done"。
 
-usage: fake_openai_server.py <port>
+用法：fake_openai_server.py <port>
 """
 import json
 import os
@@ -19,9 +19,9 @@ PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 0
 MODELS = {"object": "list", "data": [
     {"id": "fake-small", "object": "model", "owned_by": "fake", "context_length": 32768},
     {"id": "fake-large", "object": "model", "owned_by": "fake", "context_length": 131072},
-    # Named so agentty's catalog infers it can reason (effort ladder).
+    # 名称为 agentty's 目录 推断它能说明原因(努力的梯子).
     {"id": "o4-mini", "object": "model", "owned_by": "fake", "context_length": 200000},
-    # A small local model, like a llama.cpp server started with -c 25000.
+    # 一个小型的本地模型,如llama.cpp服务器,始于-c 25000.
     {"id": "small-ctx", "object": "model", "owned_by": "fake", "context_length": 25000},
 ]}
 
@@ -70,17 +70,17 @@ class H(BaseHTTPRequestHandler):
         if not isinstance(first_user, str):
             first_user = json.dumps(first_user)
         if "CTX400" in first_user:
-            # llama.cpp when the prompt alone is bigger than n_ctx.
+            # llama.cpp 当 提示词 一个人比一个人大 n_ctx.
             return self._json({"error": {"code": 400, "type": "exceed_context_size_error",
                                "message": "the request exceeds the available context size, try increasing it",
                                "n_prompt_tokens": 26000, "n_ctx": 25000}}, 400)
         elif "CTXLEN" in first_user:
-            # llama.cpp when generation runs into n_ctx: the reply is cut and
-            # prompt + reply add up to the 25k window.
+            # llama.cpp 当世代相遇时 n_ctx : 答复被剪断,
+            # 提示词 +回复加起来为25k窗口.
             events = [chunk({"role": "assistant", "content": "I was about to"}), chunk({}, "length")]
             usage_override = {"prompt_tokens": 24500, "completion_tokens": 500, "total_tokens": 25000}
         elif "LOOP" in first_user:
-            # Never finishes: a fresh harmless tool call every turn.
+            # 永远不完成:每转一圈都有一个新的无害工具调用.
             n = sum(1 for m in msgs if m.get("role") == "tool")
             args = json.dumps({"command": f"echo loop{n}"})
             events = [chunk({"role": "assistant", "content": ""}),
@@ -90,7 +90,7 @@ class H(BaseHTTPRequestHandler):
         elif last.get("role") == "tool":
             events = [chunk({"role": "assistant", "content": "done"}), chunk({}, "stop")]
         elif (text or "").startswith("CALL "):
-            # "CALL <tool> <raw json args>": a scripted model call, args sent as-is.
+            # "CALL <tool> <raw json args>" : 脚本模型 调用 ,以 -is.
             _, name, raw = text.split(" ", 2)
             events = [chunk({"role": "assistant", "content": ""}),
                       chunk({"tool_calls": [{"index": 0, "id": "call_raw", "type": "function",

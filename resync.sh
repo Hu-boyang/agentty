@@ -1,26 +1,26 @@
 #!/usr/bin/env sh
-# resync.sh — pull every in-tree submodule to its tracking branch, then rebuild.
+# resync.sh-将每个in-tree 子模块拉到其跟踪分支，然后重建。
 #
-# Normal builds deliberately DO NOT touch the submodules (so an unchanged
-# third_party/maya / mcp-cpp / rag-cpp / acp-cpp never triggers a needless
-# recompile of the ~64 TUs that include their headers). Run THIS when you
-# actually want the latest submodule code:
+# 正常构建故意使 DO 不 接触 子模块 (因此未更改的 third_party/maya
+# / mcp-cpp / rag-cpp / acp-cpp 永远不会
+# 触发包含其 头文件 的 ~64 编译单元 的不必要的重新编译)。
+# 当您确实需要最新的 子模块 代码时，运行 此：
 #
-#   ./resync.sh              # sync all submodules + incremental rebuild
-#   ./resync.sh -B build-rel # use a specific build dir (default: build)
+#   ./resync.sh # 同步所有 子模块 + 增量重建 ./resync.sh
+#   -B build-rel # 使用特定的构建目录（默认：构建）
 #
-# It is a thin wrapper over two CMake targets:
-#   submodules_sync   — fast-forwards every submodule (skips any with local work)
-#   all               — the normal incremental build; only TUs whose headers
-#                       actually changed are recompiled.
+# 它是两个 CMake 目标的薄包装：
+#   submodules_sync — fast-forwards 每 子模
+#   块 (跳过任何本地工作) all — 正常增量构建；仅重新编译其
+#                       头文件 实际更改的 编译单元。
 set -eu
 
 BUILD_DIR=build
 JOBS=${JOBS:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)}
 
-# Use the repo-tuned ccache config (content-hashed, path-relative) so a rebuild
-# after a submodule sync hits the cache instead of recompiling every
-# header-dependent TU. No-op if ccache isn't installed.
+# 使用仓库-tuned ccache配置(内容-hashed，路径-relative)，
+# 以便在子模块同步命中缓存之后进行重建，而不是重新编译每个头文件-dependent TU。
+# 如果未安装 ccache，则为 No-op。
 REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 if command -v ccache >/dev/null 2>&1; then
   export CCACHE_CONFIGPATH="$REPO_ROOT/.ccache.conf"

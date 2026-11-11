@@ -1,21 +1,21 @@
-// TERM and the terminal's own colours — issue #37.
+// TERM 编辑 终端 自己的颜色——第37期.
 //
-// The report was "horrible look and feel in non-black terminals, almost
-// unusable", from a user with a light-grey background and black text, plus
-// three quieter complaints in the same breath: TERM is not respected, there
-// is no black-and-white option, and agentty assumes a gnome-terminal-ish
-// emulator.
+// 报告是 "horrible look and feel in non-black terminals, almost unusable" ,
+// 从带有灯光的用户中 -grey 加上三个安静的抱怨: TERM
+// 不受尊重,没有黑人 -and-white 选项,
+// 以及 agentty 假设一个小精灵 -terminal-ish
+// 模拟器。
 //
-// The colour half is answered by theme::native being the DEFAULT — it states
-// no literal colours at all, so a fresh install paints with SGR 39/49 (the
-// terminal's own ink and background) and the sixteen NAMED ansi slots, which
-// are indices into the palette the USER configured. Nothing maya picked.
+// 颜色半部分由 theme::native 成为 DEFAULT
+// ——它表示完全没有文字颜色,所以新装的涂料带有: SGR
+// 39/49 (无) 终端 墨水和背景)和16个 NAMED ansi 插槽,
+// 是调色板中的索引 USER 配置。 无 maya 选了
 //
-// The TERM half needed a real fix: `TERM=dumb` was honoured by the colour
-// tier and nowhere else, so agentty went monochrome and then wrapped every
-// frame in DEC private mode 2026 anyway. "Unknown private modes are no-ops"
-// is true of a terminal with a DEC parser; a dumb terminal has none, so the
-// bytes land as literal garbage.
+// 电话 TERM 一半需要真正的修复: `TERM=dumb` 被颜色等级所
+// 尊崇 而在别的地方,所以 agentty 单色的,然后包起来 帧 输入 DEC
+// 私人模式2026 反正。 "Unknown private modes are no-ops"
+// 真实的,一个 终端 带 DEC 解析器 ; 一个哑巴 终端 没有,
+// 所以 字节 土地是垃圾
 
 #include "agtest.hpp"
 
@@ -32,7 +32,7 @@
 
 namespace {
 
-// Scoped setenv/unsetenv, so a case cannot leak into the next.
+// 范围为setenv/unsetenv,因此一个案件不能漏入下一个案件.
 struct ScopedEnv {
     std::string key;
     bool had_old = false;
@@ -47,24 +47,24 @@ struct ScopedEnv {
     }
 };
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("issue 37: the default theme states no colours of its own") {
-    // The heart of it. Every slot must resolve to either the terminal's
-    // default (SGR 39/49) or a NAMED ansi index — never a literal RGB that
-    // was authored against somebody else's background.
+    // 核心,每个位置都必须决心 终端 默认值( N) SGR
+    // 39/49 或 或 a 或 类型 NAMED ansi指数
+    // ——从不字面 RGB 作者是别人的背景。
     //
-    // A single hardcoded hue here is the whole bug: pick #565F89 for muted
-    // text and it reads on black and vanishes on light grey, which is
-    // precisely the screenshot on the issue.
+    // 单硬码的胡伊是整个bug: 选择#565F89的
+    // 哑音文本, 它在黑色上读,在浅灰色上消失,
+    // 这恰恰是这个问题上的截图。
     int rgb_slots = 0;
     int checked = 0;
     for (std::uint8_t i = 0; i <= static_cast<std::uint8_t>(maya::ThemeSlot::Overlay); ++i) {
         const auto slot = static_cast<maya::ThemeSlot>(i);
         const maya::LitColor c =
             maya::theme::native.resolve(maya::Color::slot(slot));
-        // Named and Default are both "the user's own palette". Rgb/Indexed
-        // would be maya imposing a colour.
+        // 命名和默认均为 "the user's own palette".
+        // Rgb/Indexed 这将是 maya 强制颜色。
         if (c.kind() == maya::ColorKind::Rgb || c.kind() == maya::ColorKind::Indexed)
             ++rgb_slots;
         ++checked;
@@ -74,14 +74,14 @@ TEST_CASE("issue 37: the default theme states no colours of its own") {
 }
 
 TEST_CASE("issue 37: native paints no background, so a light terminal stays light") {
-    // owns_canvas is the predicate a host uses to decide whether to fill the
-    // viewport. native must answer NO — filling it is what turns a light
-    // terminal into a dark rectangle with unreadable text on it.
+    // owns_canvas 是一个主机用于决定是否填充
+    // 可视区域。当地人必须回答 NO 填充它就是灯光
+    // 终端 变成一个暗的矩形,上面有无法读取的文字。
     CHECK(!maya::theme::owns_canvas(maya::theme::native));
     CHECK(maya::theme::native.background.kind() == maya::ColorKind::Default);
 
-    // A scheme the user PICKED is allowed to own the canvas: they asked for
-    // it, and it states a matching foreground. The distinction is consent.
+    // 允许用户 PICKED 拥有画布的图案: 他们要求它,
+    // 它会说明一个匹配的前景。 区别是同意。
     const maya::Theme* dracula = nullptr;
     for (const auto& s : maya::theme::schemes)
         if (std::string_view{s.name} == "Dracula") dracula = s.theme;
@@ -90,24 +90,24 @@ TEST_CASE("issue 37: native paints no background, so a light terminal stays ligh
 }
 
 TEST_CASE("issue 37: TERM=dumb means no escape sequences, not just no colour") {
-    // This is what "doesn't respect TERM" meant in practice. The colour tier
-    // honoured dumb; nothing else did.
+    // 就是这样 "doesn't respect TERM" 颜色等级
+    // 被尊崇的哑巴,其他的都一样。
     {
         ScopedEnv term{"TERM", "dumb"};
         CHECK(maya::theme::terminal_is_dumb());
         CHECK(maya::theme::detect_tier(/*tty=*/true) == maya::theme::ColorTier::Mono);
-        // A dumb terminal cannot support a DEC private mode, whatever the
-        // rest of the environment claims.
+        // 哑巴 终端 无法支持 DEC 私人模式,
+        // 不管其他环境说法如何。
         CHECK(!maya::ansi::env_supports_synchronized_output());
     }
-    // ...and a stale force flag must not resurrect escape output for a user
-    // who explicitly asked for plain text.
+    // ..还有一个 过期 部队 标志 不得为明确要求纯
+    // 文本的用户复活逃避输出。
     {
         ScopedEnv term{"TERM", "dumb"};
         ScopedEnv force{"MAYA_FORCE_SYNC", "1"};
         CHECK(!maya::ansi::env_supports_synchronized_output());
     }
-    // A normal terminal is unaffected by any of this.
+    // 正常的终端不受任何这种情况的影响。
     {
         ScopedEnv term{"TERM", "xterm-256color"};
         CHECK(!maya::theme::terminal_is_dumb());
@@ -115,9 +115,9 @@ TEST_CASE("issue 37: TERM=dumb means no escape sequences, not just no colour") {
 }
 
 TEST_CASE("issue 37: a black-and-white terminal is a supported request") {
-    // "What if I need or want black&white terminal?" — three ways to ask,
-    // all of which must reach Mono, because the answer cannot depend on
-    // which spelling the user knows.
+    // 如果需要黑白终端怎么办？
+    // ——问法有三种,所有的方法都必须到达莫诺,因为答案不能
+    // 取决于用户知道哪一个拼写.
     {
         ScopedEnv term{"TERM", "dumb"};
         CHECK(maya::theme::detect_tier(true) == maya::theme::ColorTier::Mono);
@@ -132,15 +132,15 @@ TEST_CASE("issue 37: a black-and-white terminal is a supported request") {
         ScopedEnv forced{"MAYA_COLOR", "none"};
         CHECK(maya::theme::detect_tier(true) == maya::theme::ColorTier::Mono);
     }
-    // Piping to a file is the fourth: a redirected log should be text, not
-    // escape soup.
+    // 管道到文件是第四个:重定向日志应该是文字,
+    // 而不是逃生汤.
     {
         ScopedEnv term{"TERM", "xterm-256color"};
         ScopedEnv no_color{"NO_COLOR", nullptr};
         ScopedEnv forced{"MAYA_COLOR", nullptr};
-        // A self-identified host (Windows Terminal sets WT_SESSION for every
-        // child) deliberately outranks the handle probe; this case is about
-        // a plain redirect, so take the host's name out of the picture.
+        // 自我的爱 -identified 东道主( 5) Windows
+        // 终端 套装 WT_SESSION 故意超过手柄探测器的分数
+        // 这件案子是直接重定向的 所以把宿主的名字从画面中取出来
         ScopedEnv wt{"WT_SESSION", nullptr};
         ScopedEnv conemu{"ConEmuANSI", nullptr};
         ScopedEnv prog{"TERM_PROGRAM", nullptr};
@@ -150,45 +150,45 @@ TEST_CASE("issue 37: a black-and-white terminal is a supported request") {
 }
 
 TEST_CASE("issue 37: capability is inferred conservatively, never assumed richest") {
-    // "rxvt, different versions of xterm, gnome-terminals, konsole — all are
-    // distinct in minor details." maya cannot consult termcap, so the
-    // question is whether its inference is DEFENSIBLE per family, not
-    // whether it is uniformly pessimistic.
+    // rxvt、不同版本的 xterm、GNOME 终端和 Konsole 都存在细节差异。
+    // maya不能参考tercap,所以问题在于
+    // 其推断是否为每个家庭的DEFENSIBLE,
+    // 而不是是否一致的悲观.
     ScopedEnv ct{"COLORTERM", nullptr};
     ScopedEnv no_color{"NO_COLOR", nullptr};
     ScopedEnv forced{"MAYA_COLOR", nullptr};
     ScopedEnv prog{"TERM_PROGRAM", nullptr};
     ScopedEnv wt{"WT_SESSION", nullptr};
 
-    // A bare VT-era TERM gets the sixteen colours every terminal has had
-    // since the VT100's descendants — and NOTHING more. This is the case the
-    // reporter named explicitly ("setting TERM=vt100 usually solves
-    // problems"), so it must not escalate.
+    // 赤裸裸的 VT-era TERM 得到十六种颜色 终端 从那时起,我们一直以来
+    // VT100 其后代——和 无内容 更进一步。记者明确点名的情况就是这样(第1段)。
+    // "setting TERM=vt100 usually solves problems" 因此,
+    // 它不能升级。
     {
         ScopedEnv term{"TERM", "vt100"};
         CHECK(maya::theme::detect_tier(true) == maya::theme::ColorTier::Ansi16);
     }
-    // The xterm/screen/tmux/rxvt/linux family gets INDEXED colour, not
-    // truecolor. Indexed SGR is universally safe there, and quantising to
-    // sixteen would collapse tuned greys into primaries — but 38;2 would be
-    // a claim the family does not support.
+    // 电话 xterm/screen/tmux/rxvt/linux
+    // 家人会得到 INDEXED 颜色,而非正色。已索引 SGR 在那里,
+    // 普遍安全,将16人计算成灰人,他们就会崩溃,变成初选,但38人;
+    // 2 将是一个家庭不支持的说法。
     for (const char* t : {"rxvt", "xterm", "linux", "screen"}) {
         ScopedEnv term{"TERM", t};
         CHECK(maya::theme::detect_tier(true) == maya::theme::ColorTier::Ansi256);
     }
-    // A terminal that IS truecolor is believed on its name, because that is
-    // how the capability survives an ssh hop where COLORTERM does not.
+    // A 终端 说 IS 相信真彩色的名声 因为这样
+    // 的能力才能在 COLORTERM 才不会呢
     {
         ScopedEnv term{"TERM", "konsole"};
         CHECK(maya::theme::detect_tier(true) == maya::theme::ColorTier::TrueColor);
     }
-    // An explicit capability claim always wins — a claim beats a guess.
+    // 明确的能力主张总是胜诉——主张胜过猜测.
     {
         ScopedEnv term{"TERM", "xterm-256color"};
         ScopedEnv claim{"COLORTERM", "truecolor"};
         CHECK(maya::theme::detect_tier(true) == maya::theme::ColorTier::TrueColor);
     }
-    // And whatever the tier, the USER's override is above all of it.
+    // 不论等级, USER '超能力是最重要的, 全部。
     {
         ScopedEnv term{"TERM", "konsole"};
         ScopedEnv override_{"MAYA_COLOR", "16"};
@@ -197,10 +197,10 @@ TEST_CASE("issue 37: capability is inferred conservatively, never assumed riches
 }
 
 TEST_CASE("issue 37: a low colour tier falls back to native, not a bad approximation") {
-    // A named scheme states literal RGB including a background. Quantised to
-    // 16 colours that becomes mud — and mud with a background is exactly the
-    // unreadable screenshot. Below 256 colours the honest answer is the
-    // user's own palette.
+    // 一个命名的图案状态为 RGB , 包括背景。
+    // 量化为 16 种颜色, 成为泥土 —— 和背景泥土正是
+    // 无法读取的截图。 低于 256 种颜色的 诚实答案是
+    // 用户自己的调色板。
     agentty::ui_prefs::Prefs p;
     p.theme = "Dracula";
     p.tier  = agentty::ui_prefs::ColorTier::Ansi16;
@@ -209,19 +209,19 @@ TEST_CASE("issue 37: a low colour tier falls back to native, not a bad approxima
 }
 
 TEST_CASE("theming: every scheme in the picker is findable by name") {
-    // find_scheme() binary-searches schemes[], which is only correct while
-    // that table is sorted. If it ever is not, the search MISSES a scheme
-    // that is present — and the symptom is not a crash but "unknown scheme
-    // — using native" for a theme the user can see listed in front of them.
+    // find_scheme() 二进制程序-searches 方案[],
+    // 只有在表格排序时才正确。如果不是,则搜索 MISSES 一种
+    // 存在的办法——症状不是崩溃,
+    // 而是 "unknown scheme — using native" 对于用户可以在前面看到的主题。
     //
-    // schemes.hpp static_asserts the ordering, so this is the behavioural
-    // half: every name the picker can show must round-trip through the
-    // lookup the picker uses.
+    // schemes.hpp static_asserts 命令,
+    // 所以这是行为的一半: 选择面板 可以显示必须环绕 -trip 通过
+    // 搜索 选择面板 使用时。
     int checked = 0;
     for (const auto& s : maya::theme::schemes) {
         const maya::Theme* found = agentty::ui_prefs::find_scheme(s.name);
         if (found != s.theme) {
-            CHECK(std::string_view{s.name} == "<round-tripped>");  // names it
+            CHECK(std::string_view{s.name} == "<round-tripped>");  // 说吧
             break;
         }
         ++checked;
@@ -229,9 +229,9 @@ TEST_CASE("theming: every scheme in the picker is findable by name") {
     CHECK(checked == static_cast<int>(std::size(maya::theme::schemes)));
     CHECK(checked > 600);
 
-    // A name that is not there is a miss, not a neighbour. A sloppy binary
-    // search returns the insertion point's entry, which would silently hand
-    // back the alphabetically-adjacent theme.
+    // 名字没有错,没有邻居,草率 二进制程序 搜索
+    // 返回插入点的条目,该条目将默默地将字母顺序递回
+    // -adjacent 主题。
     CHECK(agentty::ui_prefs::find_scheme("Dracul")  == nullptr);
     CHECK(agentty::ui_prefs::find_scheme("Draculaa") == nullptr);
     CHECK(agentty::ui_prefs::find_scheme("")         == nullptr);
@@ -239,14 +239,14 @@ TEST_CASE("theming: every scheme in the picker is findable by name") {
 }
 
 TEST_CASE("theming: the Background preference actually does something") {
-    // It used to do nothing at all. Polarity was detected, resolved,
-    // persisted and displayed — a complete round trip — while no consumer
-    // read it, and the settings row's help claimed it was "consulted by
-    // schemes that have both", which no scheme is. A setting that changes
-    // nothing is worse than a missing one: the user concludes the thing
-    // they wanted is impossible.
+    // 它过去完全没有做任何事情。极性被检测、解决、
+    // 坚持和显示——一个完整的往返旅行——而没有任何消费者阅读,
+    // 设置行的帮助声称它是"consulted by schemes that have both",
+    // 而不是一个方案。一个改变什么的设置比一个
+    // 缺失的设置更糟糕:用户认为他们想要的
+    // 东西是不可能的。
     agentty::ui_prefs::Prefs p;
-    p.theme    = "Dracula";                        // a dark scheme
+    p.theme    = "Dracula";                        // 暗图
     p.tier     = agentty::ui_prefs::ColorTier::TrueColor;
     p.polarity = agentty::ui_prefs::Polarity::Light;
 
@@ -255,21 +255,21 @@ TEST_CASE("theming: the Background preference actually does something") {
     CHECK(agentty::ui_prefs::scheme_is_light(*r.theme) == std::optional{false});
     CHECK(!agentty::ui_prefs::theme_override_reason(p, r).empty());
 
-    // A NOTE, not an override: the user picked this scheme on this terminal
-    // and is allowed to mean it. Swapping their theme because a heuristic
-    // disagreed is the kind of guess this whole pane exists to avoid.
+    // A NOTE ,而不是一个覆盖:
+    // 用户选择了此操作 终端 并允许它被指。
+    // 面板 用于避免。
     CHECK(r.theme != &maya::theme::native);
 
-    // Matching polarity is unremarkable and says nothing.
+    // 匹配极性是无足轻重的,而且什么也说不出来.
     agentty::ui_prefs::Prefs q = p;
     q.polarity = agentty::ui_prefs::Polarity::Dark;
     const auto rq = agentty::ui_prefs::resolve(q, agentty::ui_prefs::detect(true));
     CHECK(agentty::ui_prefs::theme_override_reason(q, rq).empty());
 
-    // And a light scheme on a light terminal is equally quiet — the check
-    // is symmetric, not "dark is suspicious".
+    // 和光线上的光线计 终端 也一样安静——检查是对称的,
+    // 而不是 "dark is suspicious".
     agentty::ui_prefs::Prefs l;
-    l.theme    = "Catppuccin Latte";               // a light scheme
+    l.theme    = "Catppuccin Latte";               // 轻度计划
     l.tier     = agentty::ui_prefs::ColorTier::TrueColor;
     l.polarity = agentty::ui_prefs::Polarity::Light;
     const auto rl = agentty::ui_prefs::resolve(l, agentty::ui_prefs::detect(true));
@@ -278,19 +278,19 @@ TEST_CASE("theming: the Background preference actually does something") {
     CHECK(agentty::ui_prefs::theme_override_reason(l, rl).empty());
 }
 
-// native states a Default background — SGR 49, the terminal's own canvas.
-// It therefore has NO polarity of its own, and must not claim one: it used
-// to project Default through to_rgb(), get white, and report itself as a
-// light scheme with luminance 1.0. Any caller comparing that against a
-// detected polarity got a confident wrong answer on every dark terminal.
+// 原生状态 a 默认背景 —— SGR 4,第49页, 终端 自己的画布
+// 因此,它已经 NO 自身极性,且不得主张:它曾经通过
+// 默认投射 to_rgb (, 白化, 并报告自己为
+// 光亮1.0的光度方案。 任何将它与检测到的极性相比较
+// 的呼叫者, 都会在每暗处得到一个自信的错答。 终端.
 TEST_CASE("issue 37: native claims no polarity, because it paints no canvas") {
     CHECK(!agentty::ui_prefs::scheme_is_light(maya::theme::native).has_value());
 
-    // And so it never triggers the mismatch note, on either polarity.
+    // 所以它不会触发错配音符, 无论是极性。
     for (auto pol : {agentty::ui_prefs::Polarity::Light,
                      agentty::ui_prefs::Polarity::Dark}) {
         agentty::ui_prefs::Prefs p;
-        p.theme    = "";            // no scheme named => native
+        p.theme    = "";            // 没有名为 QQ 的本地方案
         p.tier     = agentty::ui_prefs::ColorTier::TrueColor;
         p.polarity = pol;
         const auto r = agentty::ui_prefs::resolve(p, agentty::ui_prefs::detect(true));

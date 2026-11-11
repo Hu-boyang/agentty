@@ -1,22 +1,22 @@
 #pragma once
-// agentty::catalog — THE single bundled model floor for every provider.
+// agentty::catalog —该 用于每个提供商的单一捆绑模型地板。
 //
-// Historically each provider's offline "floor" list lived in a different
-// place: seed_models() (init.cpp), the anthropic transport's inline fallback,
-// selection.cpp's bundled_models_for(), and per-provider bundled_models()
-// (chatgpt / copilot / kimi). Four+ hand-maintained lists that could (and did)
-// drift — a model listed in one but not another is exactly how a newly-shipped
-// flagship showed in one picker surface but not the fused one.
+// 历史上，每个提供商的离线"floor"列表位于不同的地方：seed_models
+// ()(init.cpp)、人类传输层的内联回退、selection.cpp的bundled_models_for()
+// 和per-provider bundled_models()(
+// chatgpt/copilot/kimi)。四个以上的 hand-maintained
+// 列表可以（并且确实）漂移 - 一个模型列出，但另一个模型没有列出，这正是新的
+// -shipped 旗舰在一个 选择面板 表面上显示的方式，而不是融合的表面。
 //
-// This is the SINGLE SOURCE for all of them. Every site that needs a floor
-// calls catalog::bundled(provider_id); the live /v1/models fetch still
-// supersedes it (the floor is the floor, not the ceiling). Capabilities stay
-// DERIVED from the id (ModelCapabilities::from_id) — this file only owns WHICH
-// ids exist offline, never what they can do.
+// 这是它们所有人的 唯一 SOURCE。每个需要楼层调用 catalog::bundled
+// (provider_id)的站点； live /v1/models
+// fetch 仍然取代它（地板是地板，而不是天花板）。功能与 id (
+// ModelCapabilities::from_id) 保持 派生 — 该文件仅拥有
+// 对应的 id，离线存在，永远无法执行任何操作。
 //
-// Newest-first: front() is the sensible default when the user gives no -m.
-// Providers whose real catalog is too large / user-defined to guess
-// (openrouter, custom hosts, locals) intentionally return empty.
+// Newest-first:当用户未给出-m时，front()是合理的默认值。
+// 真实目录太大/用户-defined无法猜测的提供商
+// （开放路由器、自定义主机、本地）故意返回空。
 
 #include <string>
 #include <string_view>
@@ -26,10 +26,10 @@
 
 namespace agentty::catalog {
 
-// Append the `[1m]` long-context companion for every suffix-capable model,
-// right after its base row. Shared by the bundled floor and the live-fetch
-// path so seed and catalog agree. Entitlement self-heals downstream
-// (context_1m_blocked strips the rows if the account can't stream 1M).
+// 为每个后缀 -capable 型号添加 `[1m]` long-context 同伴，
+// 就在其基行之后。由捆绑楼层和 live-fetch 路径共享，
+// 因此种子和 目录 一致。权利 self-heals 下游（如果帐户
+// 不能 数据流 1M，则 context_1m_blocked 会删除行）。
 inline void add_1m_variants(std::vector<ModelInfo>& v) {
     std::vector<ModelInfo> out;
     out.reserve(v.size() * 2);
@@ -50,8 +50,8 @@ inline void add_1m_variants(std::vector<ModelInfo>& v) {
     v = std::move(out);
 }
 
-// The offline floor for `provider_id` (== registry id / endpoint label),
-// newest-first. Empty when there is no sensible guess.
+// `provider_id`(==注册表 id/端点标签)的离线楼层，
+// 最新-first。当没有合理的猜测时就为空。
 [[nodiscard]] inline std::vector<ModelInfo> bundled(std::string_view provider_id) {
     auto mk = [&](const char* id, const char* name = nullptr,
                   int ctx = 200000, bool fav = false,
@@ -67,25 +67,25 @@ inline void add_1m_variants(std::vector<ModelInfo>& v) {
     std::vector<ModelInfo> v;
 
     if (provider_id == "anthropic") {
-        // Flagship lane (Fable/Mythos 5) sits above Opus; 4.5 line is the GA
-        // floor. add_1m_variants() below supplies the `[1m]` companions.
+        // 旗舰车道（Fable/Mythos 5)位于Opus上方； 4.5线是GA楼层。
+        // 下面的 add_1m_variants() 提供 `[1m]` 同伴。
         v = { mk("claude-fable-5",  "Claude Fable 5",  200000, true),
               mk("claude-opus-4-5",   "Claude Opus 4.5",   200000, true),
               mk("claude-sonnet-4-5", "Claude Sonnet 4.5", 200000, true),
               mk("claude-haiku-4-5",  "Claude Haiku 4.5",  200000, false) };
         add_1m_variants(v);
     } else if (provider_id == "chatgpt") {
-        // Only slugs a Codex-enabled ChatGPT account accepts on /responses.
+        // 仅在 /responses 上接受 Codex-enabled ChatGPT 帐户。
         v = { mk("gpt-5", "GPT-5", 272000, false, true) };
     } else if (provider_id == "copilot") {
         v = { mk("gpt-4o"), mk("gpt-4.1"), mk("o4-mini"),
               mk("claude-sonnet-4"), mk("gemini-2.5-pro") };
     } else if (provider_id == "kimi") {
-        // Kimi K2 ships a 256k window. Stated explicitly because Kimi's
-        // /models payload carries no context length, so nothing overwrites
-        // this later — leaving it on the 200k default silently under-reported
-        // the window by 56k and made the context gauge (and compaction
-        // threshold) fire early on every Kimi turn.
+        // Kimi K2 运送 256k 窗口。明确说明是因为
+        // Kimi 的 /models 载荷 没有上下文长度，
+        // 所以稍后不会覆盖它 - 将其保留在 200k 默认值上，
+        // 在 -reported 窗口下默默地保持 56k，并使上下文量规（
+        // 和压缩阈值）在每次 Kimi 回合时尽早触发。
         constexpr int k256 = 262144;
         v = { mk("kimi-k2-turbo-preview", nullptr, k256),
               mk("kimi-k2-0905-preview", nullptr, k256),
@@ -119,8 +119,8 @@ inline void add_1m_variants(std::vector<ModelInfo>& v) {
               mk("meta-llama/Llama-3.3-70B-Instruct-Turbo"),
               mk("Qwen/Qwen3-235B-A22B-Instruct-2507-tput") };
     }
-    // openrouter, custom hosts, and locals have no floor — too large /
-    // user-defined to guess; they stay empty until the live fetch lands.
+    // openrouter、自定义主机和本地没有底线——
+    // 太大/user-defined无法猜测；它们保持空状态，直到实时获取落地。
     return v;
 }
 

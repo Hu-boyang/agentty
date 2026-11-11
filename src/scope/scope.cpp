@@ -1,17 +1,17 @@
-// scope.cpp — the impure edge of agentty::scope.
+// scope.cpp ——不纯洁的边缘. agentty::scope.
 //
-// Everything that touches the filesystem or the environment lives HERE; the
-// header stays a pure, testable algebra (the two folds are inline templates
-// there). Three things need a translation unit:
-//   • plan()        — turn (Layout, Env) into the ordered Source list.
-//   • current_env() — read HOME / project_root / writability once, at the edge.
-//   • trust_of() + Approvals — the content-hash trust store (the MCPoison fix).
+// 任何触摸文件系统或环境的东西 此处 ;
+// 缩写 头文件 保持一个纯的、可测试的代数(两个)
+// 归并 3个需要一个 编译单元:
+//   • plan()——将(Layout,Env)变成命令的来源清单。
+//   • current_env () 改为: HOME / project_root / 写作能力一次,在边缘。
+//   • trust_of ()+批准——内容. -hash 信托商店(MCPoison固定)。
 
 #include "agentty/scope/scope.hpp"
 #include "agentty/util/home_dir.hpp"
 #include "agentty/util/user_root.hpp"
 
-#include "agentty/tool/util/fs_helpers.hpp"   // util::project_root()
+#include "agentty/tool/util/fs_helpers.hpp"   // util::project_root( ) (中文( ) ).
 
 #include <algorithm>
 #include <cstdlib>
@@ -26,17 +26,17 @@ namespace agentty::scope {
 
 namespace {
 
-// NOTE: the dialect list is no longer a global here. It moved onto
-// Layout::dialects (scope.hpp) so each feature declares its own breadth and
-// plan() emits exactly what will be read — see the note above dir_name().
+// NOTE : 方言列表在这里不再是一个全局。 它已移动到
+// Layout::dialects (scope.hpp ),因此每个功能都声明自己的
+// 宽度和 plan() 准确的表示将读到的内容——见上文注解。 dir_name().
 
-// Is `dir` a real directory we can create/write files in? Generalises the
-// probe memory does before offering Project scope. Non-throwing.
+// 已经 `dir` 一个真正的目录,我们可以 create/write 将
+// 探测器通用化 内存 提供项目范围之前已执行。 -throwing.
 [[nodiscard]] bool dir_writable(const fs::path& dir) noexcept {
     if (dir.empty()) return false;
     std::error_code ec;
-    // Walk up to the nearest existing ancestor — writing "<root>/.agentty/x"
-    // only needs <root> (or its first existing parent) to be writable.
+    // 步行到最近的现存祖先——写作 "<root>/.agentty/x"
+    // 仅需 <root> (或它的第一个存在的父母)可以写作.
     fs::path probe = dir;
     while (!probe.empty() && !fs::exists(probe, ec)) {
         auto parent = probe.parent_path();
@@ -45,7 +45,7 @@ namespace {
     }
     if (probe.empty() || !fs::is_directory(probe, ec)) return false;
 #if defined(_WIN32)
-    return true;  // no cheap W_OK; the write itself surfaces failure via Io
+    return true;  // 便宜的,不便宜的,你买的 W_OK ; 写入本身会通过 I/O
 #else
     return ::access(probe.c_str(), W_OK) == 0;
 #endif
@@ -55,21 +55,21 @@ namespace {
     return util::home_dir_or_empty();
 }
 
-// A Project/Local root only exists if project_root() is a real, non-root dir.
-// "/" is agentty's "unrestricted access boundary" sentinel, never a place to
-// scatter .agentty state — matching memory's guard exactly.
+// A Project/Local 仅当根 project_root () 真实的,非 -root 目录。
+// "/"是agentty的"unrestricted access boundary"的哨兵,
+// 从来没有分散的. agentty状态——与内存的卫兵完全匹配.
 [[nodiscard]] bool usable_project_root(const fs::path& p) noexcept {
     if (p.empty()) return false;
-    return p != p.root_path();   // reject "/" (and "C:\") as a project root
+    return p != p.root_path();   // 拒绝 "/" (和 "C:\" 作为项目根
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 std::vector<Source> plan(const Layout& layout, const Env& env) {
-    // The feature's OWN dialect list, not a global one. An empty span would
-    // silently emit no Project/User sources at all, which reads as "this
-    // feature has no config" rather than "somebody passed {}" — so treat it
-    // as the default instead of honouring a value nobody can have meant.
+    // 特写是 自身 方言列表, 不是全局列表。 空的跨度会默默地表示否
+    // Project/User 源的原文为
+    // "this feature has no config" 而不是说
+    // "somebody passed {}" - 所以把它当作默认,而不是尊重任何人不能达到的价值观。
     const std::span<const Dialect> dialects =
         layout.dialects.empty() ? std::span<const Dialect>{kNativeOnly}
                                 : layout.dialects;
@@ -77,21 +77,21 @@ std::vector<Source> plan(const Layout& layout, const Env& env) {
     std::vector<Source> out;
     out.reserve(1 + 2 * dialects.size());
 
-    // Explicit — an env-pointed file the user aimed at us. Highest precedence,
-    // dialect-agnostic (the user named the exact path). Its base is the file's
-    // PARENT so Source::base stays "the dir this config lives in".
+    // 明确——一个洞 -pointed 文档用户针对我们。最高优先级、方言 -agnostic
+    // (用户命名了精确路径). 它的底部是文件的 PARENT 这么说吧 Source::base
+    // 留下来 "the dir this config lives in".
     if (env.explicit_config && !env.explicit_config->empty()) {
         Source s;
         s.locus    = Locus::Explicit;
-        s.dialect  = Dialect::Agentty;         // convention; the leaf is explicit
+        s.dialect  = Dialect::Agentty;         // 常规;叶子是明显的
         s.base     = env.explicit_config->parent_path();
         s.writable = dir_writable(s.base);
         out.push_back(std::move(s));
     }
 
-    // Project — committed, shared. One Source per dialect dir, native first.
-    // (Locus::Local is deliberately NOT emitted yet — the value exists in the
-    // lattice, but no consumer opts in. See the header's migration note.)
+    // 项目——承诺、共享,每个方言目录一个来源,土语第一。
+    // (Locus::Local 故意的 故意的,故意的,是故意的,这是故意的 不
+    // 已排放的——值存在于窗体中,但没有消费者选择加入。 头文件 其迁注. )
     if (usable_project_root(env.project_root)) {
         for (Dialect d : dialects) {
             Source s;
@@ -103,9 +103,9 @@ std::vector<Source> plan(const Layout& layout, const Env& env) {
         }
     }
 
-    // User — global, across every workspace. One Source per dialect dir.
-    // The native dialect anchors at user_native_base (util::user_root():
-    // ~/.agentty or $AGENTTY_HOME); the interop dialects stay at ~.
+    // 用户——全球,跨越每个区域 工作区。每个方言目录一个来源。
+    // 当地方言锚点在 user_native_base (util::user_root():
+    // ~/.agentty 或 或 时 间 $AGENTTY_HOME ); 互交方言停留在~.
     if (!env.home.empty() || !env.user_native_base.empty()) {
         for (Dialect d : dialects) {
             Source s;
@@ -117,17 +117,17 @@ std::vector<Source> plan(const Layout& layout, const Env& env) {
                              : env.home / dir_name(d);
                 s.writable = dir_writable(s.base.parent_path());
             } else {
-                if (env.home.empty()) continue;   // interop needs a real ~
+                if (env.home.empty()) continue;   // 需要一个真正的~
                 s.base     = env.home / dir_name(d);
-                s.writable = false;               // interop dirs are read-only
+                s.writable = false;               // 中间的二角星为 -only
             }
             out.push_back(std::move(s));
         }
     }
 
-    // plan lays out ROOTS; the leaf is joined by the caller/loader. The
-    // DIALECT breadth above is the one part of the layout plan owns — see the
-    // note on Layout::dialects for why it moved off a global.
+    // 计划已经制定 ROOTS 叶子与叶子结合 caller/loader.
+    // 电话 DIALECT 上面的宽度是布局计划中的某一部分——见注:
+    // Layout::dialects 为何它从全球移动。
     return out;
 }
 
@@ -151,7 +151,7 @@ Env current_env(const Layout& layout) {
     return e;
 }
 
-// ── Trust ─────────────────────────────────────────────────────────────────
+// ── 信任( L) ─────────────────────────────────────────────────────────────────
 
 bool Approvals::approved(std::string_view content_sha) const noexcept {
     return std::find(shas.begin(), shas.end(), content_sha) != shas.end();
@@ -161,24 +161,24 @@ void Approvals::approve(std::string_view content_sha) {
     if (!approved(content_sha)) shas.emplace_back(content_sha);
 }
 
-// content_hash / load_approvals / save_approvals live in src/scope/trust.cpp
-// — they depend on auth (SHA-256) and nlohmann/json, which the lean scope
-// core (and the standalone scope/skills/commands tests that link only this
-// TU) must not pull in. trust_of() below stays here: it's pure.
+// content_hash / load_approvals / save_approvals 住在这里
+// src/scope/trust.cpp ——它们依赖认证(Auth) SHA 和(或)
+// nlohmann/json ,这是精细的瞄准镜核心(和独立的 scope/skills/commands
+// 测试 链接 只有这个 TU ) 不得拉动. trust_of ()以下留于此:其纯.
 
 
 Trust trust_of(const Source& src,
                std::string_view content_sha,
                const Approvals& approvals) noexcept {
-    // Explicit / User: the human placed this file themselves — implicitly
-    // trusted. (Both are outside a cloned repo's reach.)
+    // 明确 / 用户: 人类自己将这个文件放置在了暗中信任的处子
+    // ( 两者都在克隆的仓库 的接触范围之外 ).
     if (src.locus == Locus::Explicit || src.locus == Locus::User)
         return Trusted{};
 
-    // Project / Local: rode in on the workspace. Trusted ONLY when THIS exact
-    // content hash has been approved — swap the bytes and the approval is void
-    // (the MCPoison / CVE-2025-54136 fix, stated as behaviour). An empty hash
-    // means "nothing executable to vouch for" and is treated as approved.
+    // 项目/当地:参加 工作区。 信任的( ) 仅 何时 此 准确内容散
+    // 列已获批准——互换 字节 批准无效(MCPoison / CVE
+    // -2025-54136 固定,称为行为。
+    // "nothing executable to vouch for" 并按核准数处理。
     if (content_sha.empty() || approvals.approved(content_sha))
         return Trusted{};
     return Pending{std::string{content_sha}};

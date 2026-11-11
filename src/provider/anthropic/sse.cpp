@@ -1,12 +1,12 @@
-// agentty::provider::anthropic — SSE event parser.
+// agentty::provider::anthropic —SSE 事件 解析器。
 //
-// Extracted verbatim from transport.cpp (behavior guarded by
-// anthropic_sse_golden_test). Owns the per-event dispatch: the simdjson
-// content_block_delta fast path, the SSE event-kind closed sum + its
-// compile-time bijection proof, dispatch_event, and feed_sse. StreamCtx and
-// the shared dbg/debug_log logger live in sse.hpp so run_stream_sync (which
-// stays in transport.cpp) can drive a stream. Pure parse — no request build,
-// no network.
+// 从 transport.cpp 中逐字提取（由
+// anthropic_sse_golden_test 保护的行为）。拥有per-event
+// 分派：simdjson content_block_delta快速路径，SSE 事件
+// -kind封闭和+其编译-time双射证明，dispatch_event和feed_sse。
+// StreamCtx 和共享的 dbg/debug_log 记录器位于 sse.hpp，
+// 因此 run_stream_sync（位于 transport.cpp）可以驱动 数据流。纯 解析 — 无请求构建，
+// 无网络。
 
 #include "agentty/provider/anthropic/sse.hpp"
 
@@ -28,32 +28,32 @@ namespace {
 
 using json = nlohmann::json;
 
-// Fast path: content_block_delta dominates stream volume (one per output
-// token).  simdjson's ondemand walks the bytes in-place, grabs the two
-// strings we need, and returns without ever materialising a DOM.  Falls
-// back to caller for anything unexpected (unknown delta.type).
-// Returns true if the event was fully handled.
+// 快速路径：content_block_delta支配数据流卷（每个输出令牌一个）。
+// simdjson 的 ondemand 在 -place 中遍历 字节，
+// 获取我们需要的两个字符串，然后返回，而不会出现 按需加载 和 DOM。
+// 如果出现任何意外情况（未知 delta.type），则返回呼叫者。
+// 如果完全处理了事件，则返回真。
 //
-// `padded` points into the SseFramer's own accumulator, which guarantees
-// wire::kSseSimdPadding readable trailing bytes (== SIMDJSON_PADDING), so we
-// iterate in place with ZERO per-frame copy — the old memcpy-into-simd_scratch
-// dance is gone. simd_scratch survives only as the simdjson parser's owned
-// working buffer (ctx.simd_parser), not a payload copy.
+// `padded`指向SseFramer自己的累加器，这保证了wire::
+// kSseSimdPadding可读尾随字节 (== SIMDJSON_PADDING)，
+// 因此我们用ZERO对每个-frame副本进行原地迭代——旧的memcpy-into-simd_scratch舞蹈已经消失了。
+// simd_scratch 仅作为 simdjson 解析器 拥有的工作 缓冲区 (
+// ctx.simd_parser) 存在，而不是 载荷 副本。
 //
-// simdjson ondemand UNESCAPES strings in place, mutating `padded` (which
-// aliases the caller's `data`). So the result is a tri-state, not a bool:
+// simdjson按需UNESCAPES字符串就位，改变`padded`(其为
+// 呼叫者的`data`起别名)。所以结果是 tri-state，而不是 bool：
 //
-//   Unparseable  — iterate()/object-shape failed BEFORE any string was
-//                  extracted, so `data` is still pristine and the caller may
-//                  safely re-parse it with nlohmann.
-//   Recognized   — a well-formed content_block_delta whose `type` we don't
-//                  render (or couldn't read); already dropped, and `data` may
-//                  be dirtied — the caller must NOT re-parse. Matches the
-//                  nlohmann branch, which also silently ignores unknown types.
-//   Handled      — emitted the delta; done.
+//   不可解析-iterate()/object-shape失败，BEFORE提取
+//                  了任何字符串，因此`data`仍然是原始的，并且调用者可以安全地
+//                  用nlohmann重新-parse它。
+//   已识别——一个井-formed content_block_delta，
+//                  其`type`我们不渲染（或无法读取）；已经被丢弃，
+//                  并且 `data` 可能被弄脏 - 调用者不得 re-parse。
+//                  匹配 nlohmann 分支，该分支也会默默地忽略未知类型。
+//   已处理——发出增量；完毕。
 //
-// This also retires the old double-parse: a non-text/tool delta used to fall
-// through to a second full nlohmann parse of the same bytes.
+// 这也使旧的双-parse退役：用于落入相同字节的第二个完整
+// nlohmann 解析的non-text/tool增量。
 enum class FastDelta { Unparseable, Recognized, Handled };
 static_assert(wire::kSseSimdPadding == simdjson::SIMDJSON_PADDING,
               "wire::kSseSimdPadding must equal simdjson::SIMDJSON_PADDING so "
@@ -70,23 +70,23 @@ FastDelta dispatch_content_block_delta_fast(StreamCtx& ctx, std::string_view dat
     simdjson::ondemand::object root;
     if (doc.get_object().get(root)) return FastDelta::Unparseable;
 
-    // Read `index` BEFORE `delta`. simdjson On-Demand is a forward-only
-    // cursor: once we descend into the `delta` object and consume its
-    // fields, the root's remaining keys are no longer reachable. `index`
-    // precedes `delta` in every frame Anthropic emits, so taking it here
-    // costs nothing and makes it available to the tool-delta arm below.
+    // 读取 `index` 之前 `delta`。 simdjson On
+    // -Demand 是一个向前-only 游标：一旦我们下降到 `delta`
+    // 对象并使用其字段，根的剩余键将不再可访问。在每次 帧 Anthropic
+    // 发出时，`index` 都在 `delta` 之前，因此将其带到
+    // 这里不需要任何成本，并且可以供下面的工具 -delta 臂使用。
     //
-    // -1 means the frame carried no index — which no conforming
-    // content_block_delta does, and which the tool arm treats as
-    // unattributable rather than guessing.
+    // -1意味着帧没有携带索引——符合的
+    // content_block_delta没有携带索引，
+    // 并且工具臂将其视为不可归因而不是猜测。
     std::int64_t block_index = -1;
     if (root["index"].get_int64().get(block_index)) block_index = -1;
 
     simdjson::ondemand::object delta;
     if (root["delta"].get_object().get(delta)) return FastDelta::Unparseable;
 
-    // From here on simdjson may unescape into `padded`/`data`; never return
-    // Unparseable past this point — a malformed delta is Recognized (dropped).
+    // 从这里开始，simdjson可能转义为`padded`/`data`；
+    // 在此之后永远不会返回 Unparseable —— 格式错误的 delta 被识别（丢弃）。
     std::string_view delta_type;
     if (delta["type"].get_string().get(delta_type)) return FastDelta::Recognized;
 
@@ -99,13 +99,13 @@ FastDelta dispatch_content_block_delta_fast(StreamCtx& ctx, std::string_view dat
     if (delta_type == "input_json_delta") {
         std::string_view partial;
         if (delta["partial_json"].get_string().get(partial)) return FastDelta::Recognized;
-        // Which block do these bytes belong to? The frame says so — read
-        // it rather than assuming the most recently opened call.
+        // 这些字节属于哪个区块？ 帧 是这么说的—
+        // —阅读它而不是假设最近打开的 调用。
         auto* blk = ctx.tool_at(static_cast<int>(block_index));
         if (!blk) {
-            // A delta for a block we never saw open. Dropping is the only
-            // honest move: appending to some other call produces valid
-            // JSON and a silently wrong tool invocation. Say so instead.
+            // 我们从未见过开放的区块的增量。删除是唯一诚实的
+            // 举动：附加到其他一些 调用 会产生有效的
+            // JSON 和无提示的错误工具调用。而是这样说。
             AGT_LOG(Wire, Warn, "anthropic.tool_delta_unattributable",
                     "index={} open_blocks={}", block_index,
                     ctx.tool_blocks.size());
@@ -114,19 +114,19 @@ FastDelta dispatch_content_block_delta_fast(StreamCtx& ctx, std::string_view dat
         ctx.sink(StreamToolUseDelta{ToolCallId{blk->id}, std::string{partial}});
         return FastDelta::Handled;
     }
-    // Thinking blocks have nothing to render but they ARE proof that the
-    // model is actively working. Bump the reducer's liveness clock via a
-    // StreamHeartbeat — without this, a long reasoning pass (extended-
-    // thinking models can go 60-120 s between visible deltas) trips the
-    // reducer's stall watchdog and fires a spurious "stream stalled"
-    // error even though the wire is healthy and the model is producing
-    // thinking tokens we've chosen not to render.
+    // 思维块与渲染没有任何关系，但它们ARE证明该模型正在积极工作。
+    // 通过 StreamHeartbeat 冲击 状态更新函数
+    // 的活跃时钟——如果没有这个，长推理过程（扩展思维模型可以
+    // 在可见增量之间运行 60-120 秒）会使 状态更新函数
+    // 的停顿 看门狗 跳闸，并引发虚假的 "stream stalled" 错误，
+    // 即使 传输 是健康的，并且模型正在生成我们
+    // 选择不生成 渲染 的思维令牌。
     if (delta_type == "thinking_delta") {
-        // Capture the reasoning text. Empty under the default (redacted)
-        // adaptive thinking; NON-empty once the request asks for
-        // display:"summarized" (the ^R show-reasoning path), which is what
-        // feeds the visible reasoning block. Doubles as a liveness heartbeat
-        // — the reducer bumps last_event_at on this Msg too.
+        // 捕获推理文本。默认（已编辑）自适应思维下的清空；
+        // NON-empty 一旦请求要求显示：
+        // "summarized"（^R 显示-reasoning 路径），
+        // 这就是为可见推理块提供数据的内容。兼作活跃心跳 - 状态更新函数
+        // 也在 Msg 上碰撞 last_event_at。
         std::string_view text;
         if (delta["thinking"].get_string().get(text)) return FastDelta::Recognized;
         ++ctx.thinking_deltas;
@@ -140,24 +140,24 @@ FastDelta dispatch_content_block_delta_fast(StreamCtx& ctx, std::string_view dat
         ctx.sink(StreamThinkingDelta{{}, std::string{sig}});
         return FastDelta::Handled;
     }
-    // Well-formed delta, type we don't render (forward-compat). The nlohmann
-    // branch drops these too — don't waste a second parse re-discovering that.
+    // Well-formed delta，我们不输入渲染 (forward-compat)。
+    // nlohmann 分支也会丢弃这些 - 不要浪费第二个 解析 re-discovering。
     return FastDelta::Recognized;
 }
 
-// ── SSE event-kind closed sum ─────────────────────────────────────
-// Every event name Anthropic emits, plus an Unknown sentinel for the
-// forward-compat case (Anthropic adds a new event before agentty knows
-// about it — we drop it silently, not crash). The enum is the closed
-// dispatch surface; the kSseEvents table is the single point of
-// translation from wire string → enum. Adding a new event = add an
-// arm + a row; the bijection proof at the bottom fails the build if
-// the two ever desync.
+// ── SSE 事件-kind 已关闭的金额 ─────────────────────────────────────
+// Anthropic 发出的每个 事件 名称，
+// 加上前向 -compat 情况的未知哨兵（Anthropic 在
+// agentty 知道之前添加了一个新的 事件 — 我们默默地丢弃它，
+// 而不是崩溃）。 枚举 是封闭的 分派 曲面；
+// kSseEvents 表是从 传输 字符串 → 枚举 的单点转换。
+// 添加新的事件=添加一个手臂+一行；如果两者不同步，
+// 底部的双射证明就会导致构建失败。
 //
-// Previously: a long if/else if chain of `name == "..."` strcmps, with
-// a new event silently falling off the end. Now: kind_of_event() does
-// the lookup once, the dispatcher switches on the enum, and an Unknown
-// arm is the explicit drop site.
+// 先前：`name == "..."` strcmps的长if/else
+// if链，新的事件默默地从末端脱落。
+// 现在：kind_of_event() 查找一次，分派器 打开 枚举，
+// 并且未知臂是显式放置站点。
 enum class SseEventKind : std::uint8_t {
     Unknown,
     Ping,
@@ -192,9 +192,9 @@ inline constexpr std::array kSseEvents = {
     return SseEventKind::Unknown;
 }
 
-// Compile-time bijection: every Kind arm (except Unknown) has exactly
-// one row in the table. Adding a new Kind without a wire_name — or
-// duplicating a wire_name — fails the build at the static_assert.
+// 编译-time双射：每个Kind臂(除了Unknown)在表中恰好有一行。
+// 添加没有 wire_name 的新种类 - 或复制 wire_name
+// - 会导致 static_assert 处的构建失败。
 namespace sse_proofs {
 consteval bool kinds_in_table() {
     constexpr SseEventKind kAll[] = {
@@ -233,40 +233,40 @@ static_assert(kind_of_event("who_knows")        == SseEventKind::Unknown);
 void dispatch_event(StreamCtx& ctx, std::string_view name, std::string_view data,
                     char* padded) {
     if (data.empty() || data == "[DONE]") return;
-    // Per-event dump on the `wire` channel. The macro's gate short-circuits
-    // before any formatting, so a disabled log costs one atomic load and no
-    // string construction in this hot path.
+    // `wire`通道上的Per-event转储。宏的门在任何格式化之前
+    // 都是short-circuits，因此禁用的日志花费一个原子加载，
+    // 并且在此高频路径中没有字符串构造。
     AGT_LOG(Wire, Trace, "anthropic.event", "event={} data={}", name, data);
 
-    // Hot path first — ~95% of events during a streaming turn. The
-    // simdjson fast path parses in place over the framer's padded buffer.
-    // Only a genuinely UNPARSEABLE frame (parse error before any string was
-    // touched, so `data` is still pristine) falls through to nlohmann;
-    // Handled and Recognized (well-formed but unrendered type) both return
-    // — re-parsing a delta simdjson already understood is pure waste.
+    // 高频路径首先——在流式传输回合期间事件的〜95%。
+    // simdjson 快速路径 解析 位于成帧器的衬垫 缓冲区 上方。
+    // 只有真正的 UNPARSEABLE 帧 (在任何弦被触及之前 解析 错误，
+    // 因此 `data` 仍然是原始的）才落入 nlohmann 手中；
+    // 已处理和已识别（well-formed，但未渲染类型）均返回 -
+    // re-parsing，已理解的增量 simdjson 纯粹是浪费。
     if (name == "content_block_delta") {
         switch (dispatch_content_block_delta_fast(ctx, data, padded)) {
             case FastDelta::Handled:
             case FastDelta::Recognized: return;
-            case FastDelta::Unparseable: break;   // fall through to nlohmann
+            case FastDelta::Unparseable: break;   // 落入nlohmann
         }
     }
 
     const SseEventKind kind = kind_of_event(name);
 
-    // ping events are heartbeat keepalives — Anthropic interleaves them
-    // so proxies don't kill the long-poll (typically every 10-15 s).
-    // Forward as a StreamHeartbeat so the reducer's stall watchdog can
-    // tell "wire is silent but alive" from "wire is wedged." The
-    // reducer's handler only bumps last_event_at — no render, no state.
+    // ping 事件是心跳保活——Anthropic将它们交错，
+    // 因此代理不会杀死long-poll（通常每10-15秒）。
+    // 作为 StreamHeartbeat 前进，因此 状态更新函数 的失速 看门狗 可以区分
+    // "wire is silent but alive" 和 "wire is wedged."
+    // 状态更新函数 的 处理函数 仅碰撞 last_event_at — 没有 渲染，没有状态。
     if (kind == SseEventKind::Ping) { ctx.sink(StreamHeartbeat{}); return; }
 
     json j;
     try { j = json::parse(data); } catch (const std::exception& e) {
-        // Both parsers failed — this frame is about to be DROPPED. That is
-        // never fine to do silently: a lost content_block_start reads as
-        // "the model stopped talking", not as a parse bug. Warn: captured
-        // by default in release + kept in the crash flight recorder.
+        // 两个解析器都失败了——这个帧即将成为DROPPED。默默地这样做
+        // 永远是不好的：丢失的 content_block_start
+        // 读作 "the model stopped talking"，
+        // 而不是 解析 错误。警告：发布时默认捕获+保存在坠机飞行记录器中。
         AGT_LOG(Wire, Warn, "anthropic.frame_unparseable",
                 "event={} err={} bytes={} head={}",
                 name, e.what(), data.size(), data.substr(0, 256));
@@ -275,18 +275,18 @@ void dispatch_event(StreamCtx& ctx, std::string_view name, std::string_view data
 
     switch (kind) {
         case SseEventKind::Unknown:
-            // Forward-compat sink: a new event Anthropic added that we
-            // don't know yet. Dropping is the right BEHAVIOUR (unknown
-            // events are usually structural) but it must not be invisible —
-            // the wire Trace dump above only exists when trace is enabled,
-            // and "a new event we ignored" is exactly what a field report
-            // needs named. Debug so a shared AGENTTY_LOG=debug log shows it.
+            // Forward-compat接收器：添加了我们尚不知道的新
+            // 事件 Anthropic。丢弃的是正确的 BEHAVIOUR
+            // （未知的 事件 通常是结构性的），但它一定不能是不可见的——上面
+            // 的 传输 跟踪转储仅在启用跟踪时才存在，
+            // 而 "a new event we ignored" 正是现场报告需要命名的。
+            // 进行调试，以便共享 AGENTTY_LOG=debug 日志显示它。
             AGT_LOG(Wire, Debug, "anthropic.unknown_event",
                     "event={} bytes={}", name, data.size());
             break;
 
         case SseEventKind::Ping:
-            // Handled in the fast path above; unreachable in the switch.
+            // 在上面的快速路径中处理；在交换机中无法访问。
             break;
 
         case SseEventKind::MessageStart: {
@@ -307,37 +307,37 @@ void dispatch_event(StreamCtx& ctx, std::string_view name, std::string_view data
             auto block = j.value("content_block", json::object());
             auto type = block.value("type", "");
             if (type == "tool_use") {
-                // Record the block at the index the wire gave it. That index
-                // addresses every delta and the stop, so it is the block's
-                // identity for its whole life.
+                // 将块记录在传输给它的索引处。
+                // 该索引涉及每个增量和停止点，因此它是该块
+                // 整个生命周期的标识。
                 const int idx = j.value("index", -1);
                 StreamCtx::ToolBlock b;
                 b.index = idx;
                 b.id    = block.value("id", "");
                 b.name  = block.value("name", "");
-                // A restated index means the previous block at that slot is
-                // over and the server reused it. Replace rather than
-                // accumulate, so a long turn cannot grow an unbounded list.
+                // 重述索引意味着该时隙的前一个块已经
+                // 结束并且服务器重新使用它。
+                // 替换而不是累积，因此长循环不能增长无界列表。
                 if (auto* prior = ctx.tool_at(idx)) *prior = b;
                 else ctx.tool_blocks.push_back(b);
                 ctx.sink(StreamToolUseStart{ToolCallId{b.id}, ToolName{b.name}});
             } else if (type == "text") {
-                // Mark the text block open so its matching
-                // content_block_stop emits StreamTextBlockClosed.
+                // 将文本块标记为打开，以便其匹配的content_block_stop
+                // 发出StreamTextBlockClosed。
                 ctx.text_block_open = true;
             } else if (type == "thinking") {
-                // A NEW thinking block is starting. Interleaved thinking
-                // produces several independently-signed blocks per response;
-                // the reducer must seal the previous (text, signature) pair
-                // before this block's deltas arrive, or the signatures get
-                // cross-wired and the replay 400s.
+                // NEW思维块正在启动。交错思维为每个响应
+                // 生成几个独立的-signed块；
+                // 状态更新函数 必须在该块的增量到达之前密封前一个（文本、
+                // 签名）对，否则签名会交叉 -wired
+                // 并重放 400 秒。
                 ctx.sink(StreamThinkingDelta{{}, {}, /*block_boundary=*/true});
             } else if (type == "redacted_thinking") {
-                // Safety-redacted thinking: the whole block arrives HERE as
-                // an opaque `data` payload (no deltas follow). It must be
-                // replayed verbatim before this turn's tool_use or the
-                // follow-up 400s ("Expected thinking or redacted_thinking
-                // but found tool_use"). Also a liveness proof.
+                // 安全-redacted思考：整个块以不透明的`data` 载荷的形式
+                // 到达HERE（后面没有增量）。必须在本回合的 tool_use 或
+                // 后续 -up 400 秒（
+                // "Expected thinking or redacted_thinking but found tool_use"）（预期 thinking 或 redacted_thinking，却遇到 tool_use。）
+                // 之前逐字重播。也是一个活性证明。
                 ++ctx.thinking_deltas;
                 StreamThinkingDelta e;
                 e.block_boundary = true;
@@ -348,18 +348,18 @@ void dispatch_event(StreamCtx& ctx, std::string_view name, std::string_view data
         }
 
         case SseEventKind::ContentBlockDelta: {
-            // The simdjson fast path above handles the common case;
-            // fall back to the nlohmann path for anything it couldn't.
+            // 上述simdjson快速路径处理常见情况；
+            // 对于任何无法做到的事情，都回到 nlohmann 路径。
             auto delta = j.value("delta", json::object());
             auto type = delta.value("type", "");
             if (type == "text_delta") {
                 ctx.sink(StreamTextDelta{delta.value("text", "")});
             } else if (type == "input_json_delta") {
-                // Same attribution rule as the fast path above. This arm
-                // only runs when simdjson declined the frame, so it must
-                // reach the identical conclusion — two spellings of "which
-                // call owns these bytes" is how the divergence class
-                // starts.
+                // 与上述快速路径相同的归属规则。该手臂仅在
+                // simdjson 拒绝 帧 时运行，因此它必须得出
+                // 相同的结论 - "which call owns these bytes"
+                // 的两个拼写是发散类的开始
+                // 方式。
                 const int idx = j.value("index", -1);
                 if (auto* blk = ctx.tool_at(idx)) {
                     ctx.sink(StreamToolUseDelta{
@@ -370,7 +370,7 @@ void dispatch_event(StreamCtx& ctx, std::string_view name, std::string_view data
                             idx, ctx.tool_blocks.size());
                 }
             } else if (type == "thinking_delta") {
-                // Capture reasoning text for replay; also a liveness signal.
+                // 捕获推理文本以供重播；也是一个活跃信号。
                 ++ctx.thinking_deltas;
                 ctx.sink(StreamThinkingDelta{delta.value("thinking", ""), {}});
             } else if (type == "signature_delta") {
@@ -381,10 +381,10 @@ void dispatch_event(StreamCtx& ctx, std::string_view name, std::string_view data
         }
 
         case SseEventKind::ContentBlockStop: {
-            // The stop carries the index of the block it closes. Close THAT
-            // one — with parallel blocks, closing "the current tool" ends
-            // whichever opened last, which on interleaved output is the
-            // wrong call and leaves the right one open forever.
+            // 止损点携带其关闭的块的索引。关闭 该 一个 —
+            // 对于并行块，关闭 "the current tool"
+            // 会结束最后打开的那个，在交错输出上是错误
+            // 的 调用，并让正确的那个永远打开。
             const int stop_idx = j.value("index", -1);
             if (auto* blk = ctx.tool_at(stop_idx)) {
                 ctx.sink(StreamToolUseEnd{ToolCallId{blk->id}});
@@ -392,11 +392,11 @@ void dispatch_event(StreamCtx& ctx, std::string_view name, std::string_view data
                     return b.index == stop_idx;
                 });
             } else if (ctx.text_block_open) {
-                // The prose block just closed — this ALWAYS precedes a
-                // tool_use content_block_start, so it is the earliest
-                // authoritative "model finished typing" signal. The view
-                // drains the reveal cursor to the edge on it so the
-                // mandatory hard-snap at the tool card is a no-op (no burst).
+                // 刚刚结束的散文块——这个ALWAYS先于tool_use
+                // content_block_start，
+                // 所以它是最早的权威"model finished typing"信号。
+                // 该视图将 逐步显示 光标排到其边缘，
+                // 因此工具卡上的强制硬-snap 是 no-op（无突发）。
                 ctx.text_block_open = false;
                 ctx.sink(StreamTextBlockClosed{});
             }
@@ -422,11 +422,11 @@ void dispatch_event(StreamCtx& ctx, std::string_view name, std::string_view data
         }
 
         case SseEventKind::MessageStop: {
-            // Close whatever the server left open. Taking the lot, so order
-            // does not matter and there is nothing to be wrong about —
-            // the same reasoning as OpenCalls::drain() on the Responses
-            // dialect. A block without its stop would otherwise leave a
-            // tool call pending forever.
+            // 关闭服务器保持打开的任何内容。抽签，
+            // 所以顺序并不重要，也没有什么可错的——与响应
+            // 方言中的 OpenCalls::drain
+            // () 的推理相同。否则，没有停止的块将永远留下
+            // 工具 调用 待处理。
             for (const auto& b : ctx.tool_blocks)
                 ctx.sink(StreamToolUseEnd{ToolCallId{b.id}});
             ctx.tool_blocks.clear();
@@ -436,20 +436,20 @@ void dispatch_event(StreamCtx& ctx, std::string_view name, std::string_view data
         }
 
         case SseEventKind::Error: {
-            // Mid-stream SSE error event. The wire payload is just
-            // `error.type` + `error.message` — Anthropic doesn't surface
-            // Retry-After here (it's an HTTP-header thing, and we already
-            // passed the headers phase to enter the SSE body). Leave
-            // retry_after unset and let the runtime fall back to its own
-            // schedule.
+            // Mid-stream SSE 错误 事件。 传输 载荷 只是
+            // `error.type` + `error.message` -
+            // Anthropic 在这里没有出现 重试-After（这是 HTTP
+            // -header 的东西，我们已经通过了 头文件 阶段进入 SSE 正文）。
+            // 保留 retry_after 未设置，让 运行时 恢复到其自己
+            // 的时间表。
             auto err = j.value("error", json::object());
-            // The wire typed this for us (`rate_limit_error`,
-            // `overloaded_error`, …). Translate it to the equivalent HTTP
-            // status so the reducer classifies through the proven
-            // classify(HttpError) table instead of sniffing the human
-            // message — a retryable overload whose prose we don't recognise
-            // would otherwise be read as Terminal and kill the turn.
-            // 0 = unrecognised type, which leaves the existing string path.
+            // 传输 带类型的 这对于我们来说（
+            // `rate_limit_error`，`overloaded_error`，
+            // ……）。将其转换为等效的 HTTP 状态，
+            // 以便 状态更新函数 通过经过验证的分类（HttpError）
+            // 表进行分类，而不是嗅探人类消息 - 这是一个可重试的重载，
+            // 我们无法识别其散文，否则将被读取为 终端 并杀死回合。
+            // 0=无法识别的类型，其保留现有字符串路径。
             const int status =
                 provider::wire_error_type_status(err.value("type", ""));
             AGT_LOG(Wire, Warn, "anthropic.error_event",
@@ -463,19 +463,19 @@ void dispatch_event(StreamCtx& ctx, std::string_view name, std::string_view data
     }
 }
 
-} // namespace
+} // 命名空间结束。
 
 void feed_sse(StreamCtx& ctx, const char* data, std::size_t len) {
-    // Per-network-read boundary marker. The verbose `<< event=...` lines
-    // alone can't tell a bursty wire (many text_deltas delivered in ONE
-    // read after a gap) from a render-loop stall (deltas drip steadily but
-    // the screen lags). This line stamps each read with its byte length so
-    // the count of `<< event=` lines that follow before the NEXT `-- chunk`
-    // is exactly the number of SSE events that arrived together.
+    // Per-network-read边界标记。仅靠冗长的
+    // `<< event=...` 行无法区分突发的 传输（许多在
+    // 一个 中交付的 text_deltas 在间隙后读取）和 渲染
+    // -loop 停顿（增量稳定滴落但屏幕滞后）。该行用 字节 长度标记
+    // 每次读取，因此 下一个 `-- chunk` 之前的 `<< event=`
+    // 行的计数恰好是一起到达的 SSE 事件 的数量。
     AGT_LOG(Wire, Trace, "anthropic.chunk", "bytes={}", len);
-    // The shared framer owns the byte buffer, `event:`/`data:` accumulation,
-    // the multi-line data join, the 4 MiB overflow cap, and amortized buffer
-    // compaction. We only dispatch each complete event.
+    // 共享成帧器拥有字节 缓冲区、`event:`/`data:`累积、
+    // multi-line数据连接、4MiB溢出上限以及
+    // 分摊缓冲区压缩。我们仅分派各完成事件。
     ctx.sse.feed(data, len, [&](std::string_view name, std::string_view payload,
                                 char* padded) {
         dispatch_event(ctx, name, payload, padded);

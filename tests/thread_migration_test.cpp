@@ -1,16 +1,16 @@
-// thread_migration_test — a save moves a thread to the log, and can
-// never lose it doing so.
+// thread_migration_test — a 保存 移动 a
+// 线程 永远也不可能失去它
 //
-// This is the commit that touches user data: saving a thread now writes
-// the log and DELETES the legacy <id>.json. A save runs every turn, so a
-// bug here is unrecoverable — the file it removes is the only other copy.
+// 这是触及用户数据的承诺:保存一个 线程 现在写日志和 DELETES
+// 遗产 <id>.JSON. A 保存 运行每个转弯,
+// 所以这里的bug是无法恢复的——它删除的文件是唯一的另外一个副本.
 //
-// The safety argument is verify-before-delete: write the pair, read it
-// back off disk, compare, and only then remove the .json. These tests pin
-// both halves of that:
+// 安全论证是验证 -before-delete :写对子,
+// 从磁盘上读回,比较,然后只删除。 JSON。
+// 这些测试将其中一半的试验:
 //
-//   * the happy path really does migrate (and the thread survives it),
-//   * every failure path leaves the legacy document exactly where it was.
+//   * 幸福之路确实迁移(和 线程 幸存下来,
+//   * 每一个失败路径都使遗留文件完全留在原处。
 
 #include "agtest.hpp"
 
@@ -50,8 +50,8 @@ fs::path log_path(const Thread& t) {
     return persistence::threads_dir() / (t.id.value + ".jsonl");
 }
 
-// Write a thread in the OLD format only, as it would exist on disk before
-// this change ever ran.
+// Write a 线程 输入 旧 格式,因为它将在更改运行
+// 之前存在于磁盘上。
 void seed_legacy(const Thread& t) {
     auto j = persistence::thread_meta_to_json(t);
     nlohmann::json msgs = nlohmann::json::array();
@@ -66,7 +66,7 @@ void wipe(const Thread& t) {
     if (auto log = ThreadLog::open(t.id)) log->remove();
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("migration: saving a legacy thread moves it to the log") {
     auto t = make_thread("mig_happy", 25);
@@ -83,7 +83,7 @@ TEST_CASE("migration: saving a legacy thread moves it to the log") {
     CHECK_MESSAGE(!fs::exists(legacy_path(t)),
                   "and retire the legacy document once it verifies");
 
-    // The thread must come back intact through the normal store seam.
+    // 电话 线程 一定要从正常的商店里完整地回来 接口边界.
     auto back = persistence::load_thread_by_id(::agentty::IoAccess::grant(), t.id);
     REQUIRE(back.has_value());
     CHECK(back->id.value  == t.id.value);
@@ -98,7 +98,7 @@ TEST_CASE("migration: saving a legacy thread moves it to the log") {
 }
 
 TEST_CASE("migration: a thread with no legacy file just writes the log") {
-    // The new-thread case. Nothing to retire, nothing to lose.
+    // 新的 -thread 案子,没有退休,没有损失
     auto t = make_thread("mig_fresh", 5);
     wipe(t);
 
@@ -114,8 +114,8 @@ TEST_CASE("migration: a thread with no legacy file just writes the log") {
 }
 
 TEST_CASE("migration: saving again is idempotent") {
-    // Every turn saves. The second save has no legacy file to remove and
-    // must not corrupt or duplicate anything.
+    // 转弯 保存。第二个 保存 没有任何遗留文件可以删除,
+    // 并且不得腐败或复制任何东西。
     auto t = make_thread("mig_twice", 10);
     wipe(t);
     seed_legacy(t);
@@ -143,10 +143,10 @@ TEST_CASE("migration: saving again is idempotent") {
 }
 
 TEST_CASE("migration: Smart Mode routing cards are not persisted") {
-    // They are view-only telemetry, excluded from the wire and from disk.
-    // The verification step compares against the PERSISTABLE messages, so
-    // if that filter were wrong the save would fail verification and never
-    // migrate — this pins the intended behaviour either way.
+    // 他们就是景色 -only 遥测,不包括在 传输 和从磁盘。
+    // 核查步骤与 PERSISTABLE 信件,
+    // 所以如果过滤器错误 保存 核查失败,
+    // 永远不迁移——这无论怎样都给预期行为定下了界限。
     auto t = make_thread("mig_smart", 6);
     Message card;
     card.role          = Role::Assistant;
@@ -165,20 +165,20 @@ TEST_CASE("migration: Smart Mode routing cards are not persisted") {
                   "the routing card must not be written to disk");
     for (const auto& m : back->messages)
         CHECK(m.id.value != "routing");
-    // And it still migrated, i.e. verification passed.
+    // 并且它仍然迁移, i.e 核查工作通过。
     CHECK(fs::exists(log_path(t)));
     CHECK_FALSE(fs::exists(legacy_path(t)));
     wipe(t);
 }
 
 TEST_CASE("migration: an unwritable log keeps the legacy document") {
-    // The failure that matters. If the log cannot be written, the save
-    // MUST fall back and leave the old file intact — losing a turn is bad,
-    // losing the thread is unacceptable.
+    // 失败很重要。如果日志无法写入,则 保存 必须 倒回去,把旧文件留下,
+    // 不留任何痕迹——失去转弯是不好的,失去转弯就是不好的,失去了转弯就是坏的,
+    // 失去掉的就是坏的. 线程 无法接受
     //
-    // A directory sitting where the log file belongs makes every write to
-    // that path fail, without needing permissions games that behave
-    // differently as root or on Windows.
+    // 坐在日志文件所属位置的目录会使每个写入路径的文字失败,
+    // 而不需要 权限 以根或根的形式进行不同行为
+    // 的游戏 Windows.
     auto t = make_thread("mig_blocked", 8);
     wipe(t);
     seed_legacy(t);
@@ -193,7 +193,7 @@ TEST_CASE("migration: an unwritable log keeps the legacy document") {
     CHECK_MESSAGE(fs::exists(legacy_path(t)),
                   "a failed log write must leave the legacy document alone");
 
-    // And the thread still loads, through the legacy path.
+    // 还有 线程 仍然 加载 ,通过遗产路径。
     auto back = persistence::load_thread_by_id(::agentty::IoAccess::grant(), t.id);
     REQUIRE(back.has_value());
     CHECK(back->messages.size() == t.messages.size());
@@ -218,9 +218,9 @@ TEST_CASE("migration: deleting a migrated thread removes every file") {
 }
 
 TEST_CASE("migration: the picker lists a migrated thread exactly once") {
-    // load_all_threads walks *.json. A migrated thread has only
-    // <id>.meta.json, and mid-migration both can exist — so this is where
-    // a thread would either vanish from the list or appear twice.
+    // load_all_threads 走路 * 走路时,你应该走 JSON
+    // 迁移 线程 仅包含 <id>.meta.json 中间 -migration
+    // 两者都可以存在,因此,这就是一个 线程 要么从名单中消失 要么出现两次
     auto a = make_thread("mig_listed", 3);
     wipe(a);
     seed_legacy(a);
@@ -232,7 +232,7 @@ TEST_CASE("migration: the picker lists a migrated thread exactly once") {
     for (const auto& t : all) if (t.id.value == a.id.value) ++seen;
     CHECK_MESSAGE(seen == 1u, "a migrated thread must be listed exactly once");
 
-    // And with its real title, not a stem-derived artefact.
+    // 和它的真名,不是一根茎 -derived 艺术
     for (const auto& t : all)
         if (t.id.value == a.id.value) CHECK(t.title == a.title);
     wipe(a);

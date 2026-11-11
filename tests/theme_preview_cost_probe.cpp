@@ -1,14 +1,14 @@
-// What one theme-preview keystroke costs, measured on the two paths.
+// 在一个主题-preview键盘成本,在两条路径上衡量。
 //
-// theme_input_lag_probe measures reduce+render on a SYNTHETIC transcript,
-// where rehydrate_frozen's row budget collapses everything to ~11 prebuilt
-// rows — so it cannot see the cost this fix removes. This measures the two
-// restyle paths directly:
+// theme_input_lag_probe 减少措施+ 渲染 时间:
+// SYNTHETIC 记录,在哪里 rehydrate_frozen 排
+// 预算崩溃到 ~11 个预建行, 因此无法看到此修补消除的成本。
+// 这可以直接测量两个重排路径 :
 //
-//   restyle_sealed_turns()  publish + invalidate + REHYDRATE FROZEN
-//   restyle_preview()       publish + invalidate            (the fix)
+//   restyle_sealed_turns () 公布+无效+ REHYDRATE
+//   FROZEN restyle_preview (d) 公布+失效(固定)
 //
-// The gap between them is what every arrow key used to pay.
+// 两者之间的差距是每个箭键用来支付的东西.
 
 #include "agentty/runtime/app/deps.hpp"
 #include "agentty/runtime/app/update.hpp"
@@ -32,7 +32,7 @@ double ms_since(clk::time_point t0) {
     return std::chrono::duration<double, std::milli>(clk::now() - t0).count();
 }
 
-} // namespace
+} // 命名空间结束。
 
 int main(int argc, char** argv) {
     const int msgs = argc > 1 ? std::atoi(argv[1]) : 1000;
@@ -68,7 +68,7 @@ int main(int argc, char** argv) {
 
     constexpr int kIters = 20;
 
-    // The OLD per-keystroke cost.
+    // 电话 旧 百分比 -keystroke 成本。 成本。
     double full = 0;
     for (int i = 0; i < kIters; ++i) {
         m.d.ui().theme = (i % 2) ? "Dracula" : "Nord";
@@ -78,7 +78,7 @@ int main(int argc, char** argv) {
     }
     full /= kIters;
 
-    // The NEW per-keystroke cost.
+    // 电话 新 百分比 -keystroke 成本。 成本。
     double second = 0;
     for (int i = 0; i < kIters; ++i) {
         m.d.ui().theme = (i % 2) ? "Dracula" : "Nord";

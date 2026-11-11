@@ -1,23 +1,23 @@
-// stream_clock_test.cpp — the per-stream clock that ttft is measured from.
+// stream_clock_test.cpp —— 人均数 -stream 时间是从Ttft测量的。
 //
-// sail3r's report on PR #65: stats are precise with one model on a paid
-// provider, and "balloon out of proportion" on OpenRouter's free tier, where
-// automatic model selection and retries are constant. He suspected the PR. It
-// was a second, older bug the PR happened to make visible.
+// 帆船报告 PR 65号:统计数据精确,一个模型在付费提供者上,
+// "balloon out of proportion" 打开
+// OpenRouter 免费的等级,其中自动选择型号 重试 总是这样
+// 他怀疑 PR 刚刚是一秒钟,老虫子 PR 恰巧能显眼
 //
-// finalize_turn seals ttft = first_delta_at - a->started. `started` was only
-// (re)set by the StreamStarted event, and only two transport families emit
-// that: Anthropic (message_start) and the Responses codec. The OpenAI-chat
-// transport -- OpenRouter, Groq, Mistral, llama.cpp, LM Studio -- and Ollama
-// emit none. On those, `started` held the value submit stamped for the WHOLE
-// turn, so ttft absorbed:
-//   * every retry's backoff sleep
-//   * every prior sub-turn's generation and every tool's runtime, because the
-//     post-tool continuation never reset the clock either
+// finalize_turn 封条 ttft = first_delta_at - a - > 已启动。
+// `started` 仅由 StreamStarted 事件 ,只有两个 传输层 家庭表示:
+// Anthropic (message_start 和“回复编码”。 OpenAI-chat
+// 传输层 -- OpenRouter 格罗克,米斯特拉尔, llama.cpp,
+// LM 工作室 - 和 Ollama 绝不要允许任何人妄谈, `started` 持有所打印的值
+// 整个 转弯,所以Ttft吸收:
+//   * 每一个 重试's 退避 睡觉
+//   * 每一个先前的子 -turn 一代人和每个工具 运行时 因为
+//     后-tool 续作也从未重设时钟
 //
-// The fix stamps the clock in launch_stream, the one point every stream launch
-// passes through. These tests drive the real reducer with NO StreamStarted, the
-// way an OpenAI-chat transport behaves, and assert ttft measures one stream.
+// 固定的邮票 钟在 launch_stream ,每点 数据流 这些测试能推动
+// 真正的 状态更新函数 与 NO StreamStarted , 一种方式,
+// 一种 OpenAI-chat 传输层 行为,并坚持 ttft措施一 数据流.
 #include <chrono>
 #include <string>
 
@@ -50,15 +50,15 @@ void install_stub_deps() {
     });
 }
 
-// Every fold here runs at an explicit time, so ttft comes out exact. T0 is
-// when the stream under test launches.
+// 每一个 归并 这里运行在明确的时间, 所以ttft出来准确。
+// T0 即当 数据流 正在试验发射中。
 constexpr Clock::time_point T0 = app::kTestEpoch + std::chrono::hours{1};
 using std::chrono::milliseconds;
 
-// A model mid-turn: user message, an assistant placeholder, Streaming phase
-// with a ctx whose clock was started `ago` before T0 -- standing in for a
-// long earlier stretch of the same turn (a prior sub-turn, a tool, a retry
-// backoff) that the next stream must NOT inherit.
+// 中场模特儿 -turn : 用户消息,一个助理占位符, 流式传输 相位,
+// 其时钟已启动。 `ago` 之前的 T0 - 在同一转弯期的很长
+// 一段时间里站在那里(一个先前的子) -turn 工具、工具、
+// 工具 重试 退避 下一个 数据流 不得 继承。
 Model streaming_since(Clock::duration ago) {
     Model m;
     m.now = T0;
@@ -82,7 +82,7 @@ Model step(Model m, msg::StreamMsg sm, Clock::time_point at) {
     return app::update(std::move(m), Msg{std::move(sm)}, at).first;
 }
 
-// Seal the turn the way the real stream does: one delta at `at`, then finish.
+// 封住转弯的路 真正的 数据流 显示: 一个三角洲。 `at` ,然后结束。
 const Message::Telemetry& seal(Model& m, Clock::time_point at) {
     m = step(std::move(m), StreamTextDelta{"hello"}, at);
     m = step(std::move(m), StreamFinished{StopReason::EndTurn}, at);
@@ -90,19 +90,19 @@ const Message::Telemetry& seal(Model& m, Clock::time_point at) {
     return *m.d.current.messages.back().telemetry;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("stream clock: a relaunch restarts ttft, with no StreamStarted") {
     install_stub_deps();
 
-    // The turn has been running for 90 s before this stream launches --
-    // retries, a prior sub-turn, a slow tool. An OpenAI-chat transport then
-    // sends deltas WITHOUT a StreamStarted event.
+    // 转弯已经跑90秒了 数据流 发射 -- -- 重试 ,上一个子 -turn ,
+    // 慢工具。一个 OpenAI-chat 传输层 然后发送三角洲 无需
+    // a StreamStarted 事件.
     Model m = streaming_since(std::chrono::seconds{90});
-    (void)cmd::launch_stream(m);   // the relaunch: retry or post-tool, at T0
+    (void)cmd::launch_stream(m);   // 重新启动: 重试 员额 -tool ,在 T0
 
     const auto& t = seal(m, T0 + milliseconds{20});
-    // ttft is this stream's wait, not the 90 s the turn had already spent.
+    // 就是这样 数据流 等等,90年代的转弯已经用完了
     CHECK_MESSAGE(t.ttft_ms == 20,
                   "ttft must measure THIS stream, not the whole turn so far: "
                   "an OpenAI-chat transport never emits StreamStarted, so "
@@ -112,10 +112,10 @@ TEST_CASE("stream clock: a relaunch restarts ttft, with no StreamStarted") {
 TEST_CASE("stream clock: without a relaunch the stale origin is what leaks") {
     install_stub_deps();
 
-    // The negative control. Same model, but deliver deltas straight onto the
-    // 90-s-old clock, as happened on every OpenAI-chat sub-turn before the
-    // fix. If this ever stops reporting ~90 s, the clock is being restarted
-    // somewhere new and the test above needs re-reading.
+    // 负控,同样的模型,但直接把三角洲送到90号 -s-old 钟,
+    // 每一次都这样 OpenAI-chat 子目录 -turn
+    // 如果停止报告~90秒, 则该时钟正在新的地点重新启动,
+    // 上面的测试需要重新进行 -reading.
     Model m = streaming_since(std::chrono::seconds{90});
     const auto& t = seal(m, T0);
     CHECK(t.ttft_ms == 90'000);
@@ -124,13 +124,13 @@ TEST_CASE("stream clock: without a relaunch the stale origin is what leaks") {
 TEST_CASE("stream clock: StreamStarted still moves the origin forward") {
     install_stub_deps();
 
-    // Anthropic emits StreamStarted on message_start. Both resets compose:
-    // launch_stream stamps the request, StreamStarted re-stamps when the
-    // provider answers. ttft then excludes connect time, as it always did.
+    // Anthropic 发射 StreamStarted 打开 message_start。两种重置的组合:
+    // launch_stream 将请求印上 StreamStarted 内容
+    // -stamps 提供方回答时。 ttft 将连接时间排除在外, 一如既往。
     Model m = streaming_since(std::chrono::seconds{90});
     (void)cmd::launch_stream(m);
     m = step(std::move(m), StreamStarted{}, T0 + milliseconds{30});
 
     const auto& t = seal(m, T0 + milliseconds{35});
-    CHECK(t.ttft_ms == 5);   // the 30 ms before StreamStarted is excluded
+    CHECK(t.ttft_ms == 5);   // 30毫秒前的 30毫米前的 3 毫秒前 StreamStarted 不包括
 }

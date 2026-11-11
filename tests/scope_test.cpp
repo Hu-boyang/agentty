@@ -1,9 +1,9 @@
-// scope_test — the config-resolution algebra (include/agentty/scope/scope.hpp).
+// scope_test - 配置图 -resolution 代数( 4) include/agentty/scope/scope.hpp).
 //
-// Exercises the pure surface with fabricated Env values (the whole point of
-// the purity contract: no filesystem, no getenv). Covers precedence ordering
-// in plan(), the two fold monoids (resolve_first override, resolve_union
-// shadow+provenance), and content-bound trust (the MCPoison fix).
+// 以伪造的Env值(纯度合同的全部要点:没有文件系统,没有geenv)
+// 来锻炼纯表面。 plan() ,两个 归并 单体( 单体)
+// resolve_first 覆盖, resolve_union 阴影
+// +证明),和内容 -bound 信任(MCPoison固定)。
 
 #include "agtest.hpp"
 
@@ -17,8 +17,8 @@ using namespace agentty::scope;
 
 namespace {
 
-// An Env with both a project root and a home — so plan() emits the full
-// Project×Dialect ▷ User×Dialect ladder.
+// 既带有项目根又具有家的Env——所以plan()发布完整的Project×
+// Dialect QQ用户×Dialict 梯级.
 Env full_env() {
     Env e;
     e.home             = "/home/u";
@@ -27,25 +27,25 @@ Env full_env() {
     return e;
 }
 
-// Memory is a NATIVE-ONLY concern: memory.jsonl is agentty's own format, so
-// its ladder is one dialect per locus.
+// 内存 是一个 NATIVE-ONLY 关切: memory.jsonl 谓 agentty
+// 其自成格式,所以其梯形为每蝗1个方言.
 const Layout kMem{.leaf = "memory.jsonl"};
 
-// Skills are PORTABLE: the same SKILL.md works in another tool, so this
-// ladder opts into the interop dialects. Most assertions below use this one
-// because it exercises the full Locus × Dialect product.
+// 技能是: PORTABLE : 不变 SKILL.md 使用另一个工具,
+// 因此这个梯子选择了 Interop 方言。 下面的大多数断言都使用这个工具,
+// 因为它可以操控 Locus × Dialect 的完整产品。
 const Layout kSkills{.leaf = "skills", .dialects = kPortable};
 
-}  // namespace
+}  // 命名空间结束。
 
-// ── plan(): precedence order + provenance ─────────────────────────────
+// ── plan():优先顺序+出处 ─────────────────────────────
 static void plan_orders_by_precedence() {
     auto srcs = plan(kSkills, full_env());
 
-    // Project (3 dialects) then User (3 dialects) = 6, Local not emitted.
+    // 项目(3个方言)然后是用户(3个语方言)=6,当地没有排放.
     assert(srcs.size() == 6 && "project×3 ▷ user×3, no local");
 
-    // Locus is the major key: every Project source precedes every User source.
+    // Locus是主要的关键:每个项目源都先于每个用户源.
     bool seen_user = false;
     for (const auto& s : srcs) {
         if (s.locus == Locus::User) seen_user = true;
@@ -53,7 +53,7 @@ static void plan_orders_by_precedence() {
                && "project must never come after user");
     }
 
-    // Dialect is the minor key: within Project, native (.agentty) is first.
+    // 对话是次要的关键:在项目内,土生土长(.agentty)是第一。
     assert(srcs[0].locus == Locus::Project && srcs[0].dialect == Dialect::Agentty);
     assert(srcs[0].base == std::filesystem::path{"/work/repo/.agentty"});
     assert(srcs[1].dialect == Dialect::Agents);
@@ -61,13 +61,13 @@ static void plan_orders_by_precedence() {
     assert(srcs[3].locus == Locus::User && srcs[3].dialect == Dialect::Agentty);
     assert(srcs[3].base == std::filesystem::path{"/home/u/.agentty"});
 
-    // Only the native project dir is writable (memory's guard, generalised).
+    // 只有土生土长的项目可以写(内存的守护,概括).
     assert(srcs[0].writable && "project .agentty writable");
     assert(!srcs[1].writable && "interop project dirs never a write target");
 }
 
-// A root of "/" is the unrestricted-access sentinel, never a place to scatter
-// .agentty state → no Project sources at all.
+// 根词 "/" 属于非限制性 -access 哨兵,从没有地方散开。
+// agentty 完全没有项目来源。
 static void plan_rejects_filesystem_root() {
     Env e = full_env();
     e.project_root = "/";
@@ -77,7 +77,7 @@ static void plan_rejects_filesystem_root() {
     assert(srcs.size() == 3 && "only user×3 remain");
 }
 
-// Explicit ($ENV-pointed) config outranks everything, dialect-agnostic.
+// 明确( $ENV-pointed ) 配置比一切,方言都高 -agnostic.
 static void plan_explicit_wins() {
     Env e = full_env();
     e.explicit_config = std::filesystem::path{"/etc/agentty/mcp.json"};
@@ -86,7 +86,7 @@ static void plan_explicit_wins() {
     assert(srcs.front().base == std::filesystem::path{"/etc/agentty"});
 }
 
-// No HOME (cron/systemd) → no User sources; folds must not crash.
+// 没有 HOME (cron/systemd − 没有用户来源; 归并 千万别崩溃
 static void plan_no_home() {
     Env e = full_env();
     e.home.clear();
@@ -96,15 +96,15 @@ static void plan_no_home() {
     assert(srcs.size() == 3 && "only project×3 remain");
 }
 
-// ── Dialect breadth is per-FEATURE, declared on the Layout ───────────────
+// ── 视宽度为每 -FEATURE ,在布局上声明 ───────────────
 //
-// This is the invariant that makes the ladder honest: plan() emits exactly
-// what the caller will read, so nothing downstream has to filter it back
-// down. It used to emit all three dialects for every feature and MCP dropped
-// two of them afterwards, which meant plan() reported six sources where
-// three were ever read.
+// 这不是变量 使梯子诚实: plan() 完全照
+// 呼叫者所读的来电,所以什么也没有 下游 它会把每
+// 个功能和语言的三种方言都释放出来 MCP 之后扔了两个,
+// 这意味着 plan() 报告有6个来源,
+// 其中3个曾读过。
 static void plan_honours_layout_dialects() {
-    // Native-only (the default): one dialect per locus, and it is .agentty.
+    // 原生的。 -only (默认):每个蝗虫一个方言,它就是. agentty.
     auto mem = plan(kMem, full_env());
     assert(mem.size() == 2 && "native-only: project ▷ user, one each");
     for (const auto& s : mem)
@@ -114,19 +114,19 @@ static void plan_honours_layout_dialects() {
     assert(mem[1].locus == Locus::User);
     assert(mem[1].base == std::filesystem::path{"/home/u/.agentty"});
 
-    // Portable: the full product, same env.
+    // 便携式:全品,同型嵌套.
     assert(plan(kSkills, full_env()).size() == 6 && "portable: project×3 ▷ user×3");
 
-    // A Layout that names no dialects is a caller mistake, not an instruction
-    // to read nothing — an empty ladder would read as "this feature has no
-    // config" and silently disable it. Fall back to the native default.
+    // 一种没有方言名称的布局是调用错误,而不是一无所获的指令——
+    // 空阶梯会读作"this feature has no config",
+    // 并默默地禁用它。 回到原生默认状态。
     const Layout empty{.leaf = "x", .explicit_env = {}, .dialects = {}};
     auto e = plan(empty, full_env());
     assert(e.size() == 2 && "empty dialect span falls back to native");
     for (const auto& s : e) assert(s.dialect == Dialect::Agentty);
 
-    // Explicit is dialect-agnostic: it rides above the product either way,
-    // so narrowing the breadth must not cost a feature its escape hatch.
+    // 明确是方言-agnostic:它无论走哪条路都高于产品,
+    // 所以缩小宽度不能花费一个特征的逃生舱。
     Env env = full_env();
     env.explicit_config = std::filesystem::path{"/etc/agentty/memory.jsonl"};
     auto with_explicit = plan(kMem, env);
@@ -134,15 +134,15 @@ static void plan_honours_layout_dialects() {
     assert(with_explicit.front().locus == Locus::Explicit);
 }
 
-// ── resolve_first: override monoid ────────────────────────────────────────
+// ── resolve_first: 覆盖单体 ────────────────────────────────────────
 static void resolve_first_picks_first_present() {
-    // Pretend only the User/native source "has a value". The override fold
-    // must still return the FIRST present one in precedence order — here the
-    // project sources are absent (nullopt), so user wins, tagged correctly.
+    // 假装只有 User/native 来源 "has a value"。
+    // 该覆盖 归并 仍然必须返回 首次 以优先排序显示 —— 这里
+    // 没有项目源( nullopt) , 因此用户胜出, 标记正确。
     auto loader = [](const Source& s) -> Result<std::optional<std::string>> {
         if (s.locus == Locus::User && s.dialect == Dialect::Agentty)
             return std::optional<std::string>{"from-user"};
-        return std::optional<std::string>{std::nullopt};  // absent
+        return std::optional<std::string>{std::nullopt};  // 缺席
     };
     auto r = resolve_first<std::string>(kMem, full_env(), loader);
     assert(r.has_value());
@@ -151,7 +151,7 @@ static void resolve_first_picks_first_present() {
 }
 
 static void resolve_first_prefers_higher_locus() {
-    // Both project and user "present" → project (earlier) wins.
+    // 项目和用户"present" × 项目(更早)均获奖.
     auto loader = [](const Source& s) -> Result<std::optional<std::string>> {
         if (s.dialect != Dialect::Agentty)
             return std::optional<std::string>{std::nullopt};
@@ -173,7 +173,7 @@ static void resolve_first_none_is_error() {
 }
 
 static void resolve_first_propagates_parse_error() {
-    // A present-but-broken source short-circuits (fail loud).
+    // 礼物 -but-broken 源短 -circuits (失声).
     auto loader = [](const Source& s) -> Result<std::optional<std::string>> {
         if (s.locus == Locus::Project && s.dialect == Dialect::Agentty)
             return fail(ErrorKind::ParseFailed, "bad json");
@@ -184,11 +184,11 @@ static void resolve_first_propagates_parse_error() {
     assert(r.error().kind == ErrorKind::ParseFailed);
 }
 
-// ── resolve_union: shadow + provenance ────────────────────────────────────
+// ── resolve_union:阴影+来源 ────────────────────────────────────
 static void resolve_union_shadows_by_key() {
-    // Every native source yields two items: a common "shared" key and a
-    // locus-unique key. First-key-wins → "shared" resolves to the strongest
-    // locus (project), and each unique key survives once, tagged with origin.
+    // 每个本地来源都产生两个项目: "shared" 键和蝗虫
+    // -unique 键。 -key-wins → "shared" 与
+    // 最强的蝗虫(项目)决裂,每个独特的钥匙存活一次,并贴上原产地标签。
     auto keyfn  = [](const std::string& v) { return v.substr(0, v.find(':')); };
     auto loader = [](const Source& s) -> Result<std::vector<std::string>> {
         if (s.dialect != Dialect::Agentty) return std::vector<std::string>{};
@@ -198,7 +198,7 @@ static void resolve_union_shadows_by_key() {
     auto r = resolve_union<std::string>(kMem, full_env(), keyfn, loader);
     assert(r.has_value());
 
-    // "shared" appears once, from the winning (project) locus.
+    // "shared" 一次,从胜(项目)的蝗虫。
     int shared = 0;
     for (const auto& t : *r)
         if (keyfn(t.value) == "shared") {
@@ -208,11 +208,11 @@ static void resolve_union_shadows_by_key() {
         }
     assert(shared == 1 && "shadowed to a single winner");
 
-    // Both unique keys survive: shared(1) + project:only + user:only = 3.
+    // 两个独特的密钥都存活下来: 共享(1)+项目:只 + 用户:只 = 3.
     assert(r->size() == 3);
 }
 
-// ── trust_of: content-bound, not locus-inferred (MCPoison) ────────────────
+// ── trust_of : 内容 -bound 而不是蝗虫 而不是蝗灾 -inferred (麦克布森) ────────────────
 static void trust_user_is_implicit() {
     Source user{.locus = Locus::User};
     assert(std::holds_alternative<Trusted>(trust_of(user, "deadbeef", {})));
@@ -222,16 +222,16 @@ static void trust_project_pending_until_approved() {
     Source proj{.locus = Locus::Project};
     Approvals appr;
 
-    // Unapproved project content → Pending, carrying the hash to approve.
+    // 未经核准的项目内容 × 待处理, 携带散列待批准.
     auto t0 = trust_of(proj, "hash-A", appr);
     assert(std::holds_alternative<Pending>(t0));
     assert(std::get<Pending>(t0).content_sha == "hash-A");
 
-    // Approve THAT hash → Trusted.
+    // 批准THAT high → 信任。
     appr.approve("hash-A");
     assert(std::holds_alternative<Trusted>(trust_of(proj, "hash-A", appr)));
 
-    // MCPoison: swap the content under the approved name → approval is VOID.
+    // MCPoison:将内容换成批准名称 + 批准号为VOID.
     auto t2 = trust_of(proj, "hash-B", appr);
     assert(std::holds_alternative<Pending>(t2)
            && "changed content must re-gate trust");

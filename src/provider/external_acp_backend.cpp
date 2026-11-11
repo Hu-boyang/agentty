@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: same as project.
 //
-// ExternalAcpBackend — see include/agentty/provider/external_acp_backend.hpp.
+// ExternalAcpBackend —参见 include/agentty/provider/external_acp_backend.hpp.
 
 #include "agentty/provider/external_acp_backend.hpp"
 #include "agentty/util/callback.hpp"
@@ -14,35 +14,35 @@
 #include <variant>
 
 #include <acp/caps.hpp>          // negotiate_version
-#include <acp/content.hpp>       // acp::TextContent, ContentBlock
+#include <acp/content.hpp>       // acp::TextContent，ContentBlock
 #include <acp/methods.hpp>       // params/results
-#include <acp/tools.hpp>         // RequestPermissionOutcome, PO_*
+#include <acp/tools.hpp>         // RequestPermissionOutcome，PO_*
 
-#include "agentty/util/child_process.hpp"   // util::ChildProcess (portable spawn)
+#include "agentty/util/child_process.hpp"   // util::ChildProcess (便携式产卵)
 
-#include "agentty/domain/conversation.hpp"  // agentty::Message, Role
+#include "agentty/domain/conversation.hpp"  // agentty::Message，角色
 #include "agentty/util/base64.hpp"
-#include "agentty/tool/util/fs_helpers.hpp"  // read_file/write_file + path gates
+#include "agentty/tool/util/fs_helpers.hpp"  // read_file/write_file+路径门
 #include "agentty/tool/util/sandbox.hpp"     // sandbox::run_argv/run_shell_command
 #include "agentty/tool/util/subprocess.hpp"  // SubprocessResult
 
 namespace agentty::provider {
 
-// Pin the unqualified `acp::` in this TU to the GLOBAL ACP library namespace.
+// 将该TU中的不合格的`acp::`固定到GLOBAL ACP 库命名空间。
 // agentty has its OWN `agentty::acp` (the ACP *server* — src/acp/server.cpp),
-// so inside agentty::provider a bare `acp::` is ambiguous; under a unity build
-// (batched with a TU that opened agentty::acp) it wrongly bound to
-// agentty::acp. This alias makes every `acp::…` below resolve to ::acp
-// unconditionally — correct regardless of batching.
+// src/acp/server.cpp)，因此在agentty::provider内部，
+// 裸露的`acp::`是不明确的；在统一构建下（使用打开 agentty::acp 的
+// TU 进行批处理），它错误地绑定到 agentty::acp。此别名使下面的每个 `acp::…`
+// 无条件解析为 ::acp — 无论批处理如何，都是正确的。
 namespace acp = ::acp;
 
 namespace {
 
-// ── Current host turn → ACP prompt blocks ───────────────────────────────────
-// The delegated agent keeps its own transcript across rounds, so each prompt
-// carries only the newest REAL user turn plus synthetic context attached to
-// that turn. Proactive RAG is stored as a User message for native model wires;
-// treating it as the user question here would drop the actual request.
+// ── 当前主机转动 __ ACP 提示词 块 ───────────────────────────────────
+// 委托代理跨轮保留其自己的转录本，因此每个提示词仅
+// 携带最新的REAL用户轮次以及附加到该轮次的合成上下文。
+// 主动 RAG 作为本机型号线路的用户消息存储；
+// 此处将其视为用户问题会删除实际请求。
 [[nodiscard]] acp::List<acp::ContentBlock> prompt_blocks_from(const Request& req) {
     acp::List<acp::ContentBlock> out;
 
@@ -79,12 +79,12 @@ namespace {
     };
 
     if (user_index < req.messages.size()) {
-        // Fork provenance: a fork_note is a synthetic User message seeded at
-        // the HEAD of a forked thread, BEFORE the user's first prompt. It
-        // carries the pointer to the parent transcript the model reads on
-        // demand. Prepend any such leading notes so the very first turn of a
-        // fork still tells the agent where its prior context lives (the
-        // proactive-context loop below only scans AFTER user_index).
+        // 分叉出处：fork_note是在分叉的线程、
+        // BEFORE用户的第一个提示词的HEAD处播种的合成用户消息。
+        // 它携带指向模型按需读取的父转录本的指针。
+        // 在前面添加任何此类前导注释，以便叉子的第一圈仍然告诉代理其
+        // 先前上下文所在的位置（下面的 active-context
+        // 循环仅扫描 之后 user_index）。
         for (std::size_t i = 0; i < user_index; ++i) {
             if (req.messages[i].fork_note)
                 append_message(req.messages[i]);
@@ -97,8 +97,8 @@ namespace {
         }
     }
 
-    // A prompt with no content is invalid; send an empty text block so the
-    // agent gets a well-formed request instead of us silently no-op'ing.
+    // 没有内容的提示词无效；发送一个空文本块，以便代理收到一个 well
+    // -formed 请求，而不是我们默默地 no-op'ing。
     if (out.empty()) {
         acp::TextContent t;
         t.text = "";
@@ -107,34 +107,34 @@ namespace {
     return out;
 }
 
-} // namespace
+} // 命名空间结束。
 
-// ── Turn-level StopReason mapping ────────────────────────────────────────────
+// ── Turn-level StopReason 绘图 ────────────────────────────────────────────
 StopReason map_acp_stop_reason(acp::StopReason r) noexcept {
     switch (r) {
         case acp::StopReason::EndTurn:         return StopReason::EndTurn;
         case acp::StopReason::MaxTokens:       return StopReason::MaxTokens;
-        // "too many tool rounds" is a turn-level guardrail; from agentty's
-        // round view the model simply finished this round — EndTurn is the
-        // honest round-level reason (the agent loop's own turn cap governs).
+        // "too many tool rounds"为转-level护栏；
+        // 从 agentty 的回合视图来看，模型刚刚完成了这一轮 - EndTurn
+        // 是诚实的回合 -level 原因（代理循环自己的回合上限管辖）。
         case acp::StopReason::MaxTurnRequests: return StopReason::EndTurn;
-        // Cancelled / Refusal are handled as TurnErrors by the caller and never
-        // reach here; map defensively to EndTurn.
+        // 已取消/拒绝被呼叫者处理为TurnErrors并且永远不会到达这里；
+        // 防御性地映射到 EndTurn。
         case acp::StopReason::Refusal:         return StopReason::EndTurn;
         case acp::StopReason::Cancelled:       return StopReason::EndTurn;
     }
     return StopReason::EndTurn;
 }
 
-// ── Default sandbox-wired delegate ───────────────────────────────────
+// ── 默认 沙箱-wired 代表 ───────────────────────────────────
 AcpClientDelegate default_sandbox_delegate() {
     namespace util = agentty::tools::util;
     AcpClientDelegate d;
 
-    // fs/read_text_file → read gate (workspace + skill read-allowlist; symlink
-    // escape blocked). An out-of-bounds path or a missing file returns nullopt,
-    // which the handler maps to an empty read — the agent never escapes the
-    // boundary and never gets a raw filesystem error.
+    // fs/read_text_file → 读取门（工作区 + 技能 read
+    // -allowlist；符号链接转义被阻止）。 out-of-bounds
+    // 路径或丢失的文件返回 nullopt，处理函数 映射到空读取 - 代理
+    // 永远不会逃脱边界，也永远不会收到原始文件系统错误。
     d.read_text_file = [](const std::string& path,
                           std::optional<int> line,
                           std::optional<int> limit) -> std::optional<std::string> {
@@ -142,8 +142,8 @@ AcpClientDelegate default_sandbox_delegate() {
         if (!wp) return std::nullopt;
         std::string body = util::read_file(*wp);
 
-        // ACP line/limit is a 1-based line window (like agentty's read tool).
-        // Absent ⇒ whole file.
+        // ACP line/limit是1-based行窗口(类似于agentty的读取工具)。
+        // 不存在⇒整个文件。
         if (!line && !limit) return body;
 
         std::vector<std::string> lines;
@@ -166,17 +166,17 @@ AcpClientDelegate default_sandbox_delegate() {
         return out;
     };
 
-    // fs/write_text_file → write gate (workspace ONLY — never the read
-    // allowlist). Refuses (false) on an out-of-workspace path or write error.
+    // fs/write_text_file→写门（工作区 仅-从不读允许清单）。
+    // 在 out-of-workspace 路径或写入错误上拒绝 (false)。
     d.write_text_file = [](const std::string& path, const std::string& content) -> bool {
         auto wp = util::make_workspace_path_checked(path, "acp");
         if (!wp) return false;
-        return util::write_file(*wp, content).empty();   // "" == success
+        return util::write_file(*wp, content).empty();   // ""==成功
     };
 
-    // terminal/create → OS-native sandbox (bwrap / sandbox-exec; no-op on
-    // Windows). Runs the command to completion; the backend caches the result
-    // for the async output/wait_for_exit follow-ups.
+    // terminal/create → OS-native 沙箱 (bwrap/沙箱-exec；
+    // Windows 上无 -op)。运行命令直至完成；后端 缓存 是异步
+    // output/wait_for_exit 跟随 -ups 的结果。
     d.run_terminal = [](const std::string& command,
                         const std::vector<std::string>& args,
                         const std::optional<std::string>& cwd)
@@ -187,8 +187,8 @@ AcpClientDelegate default_sandbox_delegate() {
 
         util::SubprocessResult r;
         if (cwd && !cwd->empty()) {
-            // A cwd is requested — run through the shell form so we can `cd`
-            // first. Quote the cwd and each arg minimally (single-quote wrap).
+            // 请求cwd——通过shell表单运行，以便我们可以首先`cd`。
+            // 最少引用 cwd 和每个 arg（单个 -quote 换行）。
             auto shq = [](const std::string& s) {
                 std::string q = "'";
                 for (char c : s) { if (c == '\'') q += "'\\''"; else q += c; }
@@ -208,20 +208,20 @@ AcpClientDelegate default_sandbox_delegate() {
 
         AcpClientDelegate::TerminalResult out;
         out.output    = std::move(r.output);
-        out.exit_code = r.started ? r.exit_code : 127;   // 127 == spawn failure
+        out.exit_code = r.started ? r.exit_code : 127;   // 127==生成失败
         out.truncated = r.truncated;
         if (!r.started && out.output.empty()) out.output = r.start_error;
         return out;
     };
 
-    // request_permission is intentionally left UNSET: the external agent runs
-    // its own permission gate, and every fs/terminal call above is already
-    // boundary-checked here, so we allow by default rather than double-prompting
-    // the user for the same action.
+    // request_permission故意留下UNSET：外部代理
+    // 运行其自己的权限门，并且上面的每个fs/terminal 调用已经
+    // 是这里的边界-checked，因此我们默认允许用户进行相同的操作，
+    // 而不是双重-prompting。
     return d;
 }
 
-// ── Construction ────────────────────────────────────────────────────
+// ── 建筑业 ────────────────────────────────────────────────────
 ExternalAcpBackend::ExternalAcpBackend(ExternalAcpOptions opts)
     : opts_(std::move(opts)), router_(make_router()) {}
 
@@ -233,13 +233,13 @@ std::string ExternalAcpBackend::session_id() const {
     return session_.get().value_or(std::string{});
 }
 
-// ── Inbound calls ───────────────────────────────────────────────────────────
-// The agent's calls and notifications, answered on the peer's reader. The
-// round's sink is published for the life of the in-flight round and null
-// otherwise, so a late update after settle is dropped, not crashed.
+// ── 入境 调用 ───────────────────────────────────────────────────────────
+// 代理的调用和通知在对端的阅读器上应答。该回合的接收器
+// 在 in-flight 回合的生命周期内发布，
+// 否则为空，因此结算后的后期更新会被丢弃，而不是崩溃。
 //
-// The reader hands each callback its `unlocked`; the router's handlers get it
-// through their context (Ctx), so a handler that takes a lock is checked.
+// 读者将每个回调交给其`unlocked`；路由器的 处理函数 通过
+// 其上下文 (Ctx) 获取它，因此会检查采用 锁 的 处理函数。
 rpc::Dispatch ExternalAcpBackend::make_dispatch() {
     rpc::Dispatch d;
     d.on_call = [this](const maya::unlocked& cap, const acp::Call& c) {
@@ -258,15 +258,15 @@ ExternalAcpBackend::Router ExternalAcpBackend::make_router() const {
     using B = Ctx;
     Router r;
 
-    // session/update → normalized SessionUpdate to the round's sink.
+    // session/update → 将 SessionUpdate 归一化至该轮的下沉。
     r.on<m::SessionUpdate>([](B& c, const acp::SessionUpdateMsg& msg) {
         auto round = c.self.round_.current();
         if (!round) return;
         if (auto member = round->inflight.join()) round->sink(msg.update);
     });
 
-    // request_permission → delegate decides; default allow. We answer with the
-    // agent's own first option when allowing, else Cancelled.
+    // request_permission→代表决定；默认允许。当允许时，
+    // 我们用代理人自己的第一个选项来回答，否则 已取消。
     r.on<m::RequestPermission>([](B& c, const acp::RequestPermissionParams& p) {
         auto& b = c.self;
         bool allow = true;
@@ -277,20 +277,20 @@ ExternalAcpBackend::Router ExternalAcpBackend::make_router() const {
             sel.optionId = p.options.front().optionId;
             res.outcome  = sel;
         } else {
-            // Denied, or allowed with nothing to select.
+            // 拒绝或允许但没有任何选择。
             res.outcome = acp::PO_Cancelled{};
         }
         return res;
     });
 
-    // fs/* → delegate. Unset ⇒ MethodNotFound, which tells the agent not to use it.
+    // fs/*→代表。取消设置⇒MethodNotFound，告诉代理不要使用它。
     if (opts_.delegate.read_text_file) {
         r.on<m::FsReadTextFile>([](B& c, const acp::ReadTextFileParams& p) {
             auto& b = c.self;
             std::optional<int> line  = p.line  ? std::optional<int>(static_cast<int>(*p.line))  : std::nullopt;
             std::optional<int> limit = p.limit ? std::optional<int>(static_cast<int>(*p.limit)) : std::nullopt;
             acp::ReadTextFileResult res;
-            // A refused or missing read is an empty read, not a protocol error.
+            // 拒绝或丢失的读取是空读取，而不是协议错误。
             if (auto body = b.opts_.delegate.read_text_file(p.path, line, limit))
                 res.content = std::move(*body);
             return res;
@@ -304,9 +304,9 @@ ExternalAcpBackend::Router ExternalAcpBackend::make_router() const {
         });
     }
 
-    // terminal/* → synchronous executor. create() runs the command to
-    // completion via the delegate and caches the result under a fresh id;
-    // output/wait_for_exit read it back; release() drops it.
+    // terminal/*→同步执行器。 create() 通过委托运行
+    // 命令直至完成，缓存 在新 ID 下运行结果；
+    // output/wait_for_exit 读回来； release() 掉落它。
     if (opts_.delegate.run_terminal) {
         r.on<m::TerminalCreate>([](B& c, const acp::CreateTerminalParams& p) {
             auto& b = c.self;
@@ -333,7 +333,7 @@ ExternalAcpBackend::Router ExternalAcpBackend::make_router() const {
                 res.truncated = term->truncated;
                 acp::TerminalExitStatus st;
                 st.exitCode = term->exit_code;
-                res.exitStatus = st;   // command already ran to completion
+                res.exitStatus = st;   // 命令已经运行完成
             }
             return res;
         });
@@ -344,9 +344,9 @@ ExternalAcpBackend::Router ExternalAcpBackend::make_router() const {
                 return it == t.by_id.end() ? std::optional<int>{}
                                            : std::optional<int>{it->second.exit_code};
             }, p.terminalId);
-            return st;   // already exited (synchronous executor)
+            return st;   // 已经退出(同步执行器)
         });
-        // The command already ran; nothing to signal.
+        // 命令已经运行；没有任何信号。
         r.on<m::TerminalKill>([](B&, const acp::TerminalKillParams&) { return acp::Unit{}; });
         r.on<m::TerminalRelease>([](B& c, const acp::TerminalReleaseParams& p) {
             c.self.terminals_.with(c.cap, [](Terminals& t, std::string id) { t.by_id.erase(id); },
@@ -357,7 +357,7 @@ ExternalAcpBackend::Router ExternalAcpBackend::make_router() const {
     return r;
 }
 
-// ── Session lifecycle ────────────────────────────────────────────────────────
+// ── 届会周期 ────────────────────────────────────────────────────────
 std::optional<acp::SessionId>
 ExternalAcpBackend::ensure_session_(const maya::unlocked& cap, const Request& req,
                                     std::optional<TurnError>& err) {
@@ -380,7 +380,7 @@ ExternalAcpBackend::ensure_session_(const maya::unlocked& cap, const Request& re
         return std::nullopt;
     }
     if (!opts_.reuse_session) return r->sessionId;
-    // Rounds are one at a time, but if two ever raced, the first id wins.
+    // 回合一次，但如果有两轮比赛，则第一个获胜。
     const auto kept = session_.update(
         [](const std::optional<std::string>& s, const std::string& id) {
             return s ? s : std::optional<std::string>{id};
@@ -388,19 +388,19 @@ ExternalAcpBackend::ensure_session_(const maya::unlocked& cap, const Request& re
     return acp::SessionId{**kept};
 }
 
-// ── The round ────────────────────────────────────────────────────────────────
+// ── 圆 ────────────────────────────────────────────────────────────────
 TurnResult ExternalAcpBackend::prompt(const maya::unlocked&       cap,
                                       const Request&              req,
                                       const TurnSink&             sink,
                                       const http::CancelTokenPtr& cancel) {
-    // Open (or reuse) the session.
+    // 打开（或重用）会话。
     std::optional<TurnError> sess_err;
     auto sid = ensure_session_(cap, req, sess_err);
     if (!sid) return TurnResult::failed(*sess_err);
 
-    // Publish this round's sink so inbound session/update notifications (on the
-    // reader thread) reach it. Cleared on scope exit — a late update becomes a
-    // no-op, never a second terminal event.
+    // 发布本轮的接收器，以便入站session/update 通知（在读
+    // 取器线程上）到达它。在范围退出时清除 - 较晚的更新将变为 no-op，
+    // 而不是第二个 终端 事件。
     {
         auto round = std::make_shared<Round>(util::Callback<void(acp::SessionUpdate)>{
             [&sink](acp::SessionUpdate su) { sink(std::move(su)); }});
@@ -408,7 +408,7 @@ TurnResult ExternalAcpBackend::prompt(const maya::unlocked&       cap,
     }
     struct RoundGuard {
         ExternalAcpBackend*   self;
-        const maya::unlocked& cap;   // the prompt's: this thread holds nothing
+        const maya::unlocked& cap;   // 提示词的:这个线程什么也没有
         ~RoundGuard() {
             if (auto r = self->round_.take()) (void)r->inflight.stop_and_wait(cap, std::nullopt);
         }
@@ -418,10 +418,10 @@ TurnResult ExternalAcpBackend::prompt(const maya::unlocked&       cap,
     pp.sessionId = *sid;
     pp.prompt    = prompt_blocks_from(req);
 
-    // Wait for the PromptResult while session/update streams to `sink`. On
-    // Esc, send session/cancel: a cooperative agent answers Cancelled within
-    // a beat; one that doesn't is failed locally after a 2 s grace, so the
-    // wait is bounded however the agent behaves. A turn has no deadline.
+    // 等待PromptResult，同时session/update、
+    // 数据流到`sink`。 Esc，发送session/cancel：
+    // 协作座席在一拍内应答已取消；没有的代理会在 2 秒宽限后在本地失败，
+    // 因此无论代理的行为如何，等待都是有限的。回合没有最后期限。
     using namespace std::chrono_literals;
     bool sent_cancel = false;
     rpc::CallOptions o;
@@ -438,10 +438,10 @@ TurnResult ExternalAcpBackend::prompt(const maya::unlocked&       cap,
 
     if (sent_cancel) return TurnResult::cancelled();
 
-    // Terminal event — emitted EXACTLY ONCE, here, as the return value.
+    // 终端 事件 — 发出 恰好 一次，这里作为返回值。
     if (!result) {
-        // If the agent 401'd on its upstream, the message carries it — surface
-        // as auth_expired so the OAuth-refresh retry path can re-run.
+        // 如果代理在其上游上进行401，则消息携带它-表面为auth_expired，
+        // 因此OAuth-refresh 重试路径可以re-run。
         const std::string msg = result.error().what();
         TurnError te{std::string("agent error: ") + msg};
         if (msg.find("401") != std::string::npos || msg.find("403") != std::string::npos ||
@@ -450,7 +450,7 @@ TurnResult ExternalAcpBackend::prompt(const maya::unlocked&       cap,
         return TurnResult::failed(te);
     }
 
-    // Turn-level StopReason → round result.
+    // 回合-level StopReason→回合结果。
     switch (result->stopReason) {
         case acp::StopReason::Cancelled:
             return TurnResult::cancelled();
@@ -461,30 +461,30 @@ TurnResult ExternalAcpBackend::prompt(const maya::unlocked&       cap,
     }
 }
 
-// ── Subprocess factory ───────────────────────────────────────────────────────
-// Spawn `argv[0]` with the remaining args as an ACP agent, run an rpc::Peer
-// over its stdio, run `initialize`, and return the connected handle.
-// ::agentty::util::ChildProcess is fork/exec/pipe on POSIX and CreateProcess on
-// Windows, exposing the child's stdout as an istream and its stdin as an
-// ostream.
+// ── 子加工厂 ───────────────────────────────────────────────────────
+// 使用剩余参数生成 `argv[0]` 作为 ACP 代理，在其 stdio 上
+// 运行 rpc::Peer，运行 `initialize`，并返回连接的句柄。
+// ::agentty::util::ChildProcess 是 POSIX 上的 fork/exec/pipe 和
+// Windows 上的 CreateProcess，将子进程的标准输出暴露为 istream，将其标准输入暴露为
+// ostream。
 namespace {
 
-// Owns the spawned child. Torn down after the peer has stopped: by then the
-// reader is either done or abandoned (it co-owns its state, not the child's
-// streams, so the child must outlive the read it may be parked in — see
-// the order in SpawnedAcpAgent::reset).
+// 拥有所产生的孩子。 对端 停止后被拆除：到那时，读取器要么已完成，
+// 要么被放弃（它处于 -owns 状态，而不是子级的 数据流，
+// 因此子级必须比它可能停驻的读取寿命长——请参阅
+// SpawnedAcpAgent::reset 中的顺序）。
 struct AgentProcessHolder {
     std::unique_ptr<::agentty::util::ChildProcess> child;
     ~AgentProcessHolder() { if (child) child->terminate(); }
 };
 
-} // namespace
+} // 命名空间结束。
 
 void SpawnedAcpAgent::reset() noexcept {
-    // Destroy the peer first: ~Peer stops it (closes the child's stdin -- a
-    // cooperative agent exits -- and the interrupt kills the child so a
-    // reader parked on its stdout sees EOF) and joins. Only then is the child
-    // (and its streams) destroyed.
+    // 首先销毁 对端：~对端 停止它（关闭子进程的标准输入——
+    // 合作代理退出——并且中断杀死子进程，以便驻留在其标准
+    // 输出上的读者看到 EOF）并加入。只有到那时，
+    // 孩子（及其 数据流）才会被销毁。
     connection.reset();
     process.reset();
 }
@@ -510,14 +510,14 @@ SpawnedAcpAgent spawn_acp_agent(const maya::unlocked&           cap,
         return {};
     }
 
-    // Read the child's stdout, write its stdin. On stop: polite EOF on its
-    // stdin, a short grace for a cooperative exit, then kill it so its stdout
-    // closes and the reader wakes.
+    // 读取子进程的标准输出，写入其标准输入。停止时：在其标准输入上
+    // 礼貌地使用 EOF，这是合作退出的短暂恩典，然后杀死它，
+    // 以便其标准输出关闭并唤醒读者。
     auto ch = rpc::stream_channel(holder->child->out(), holder->child->in());
     ch.interrupt = [child = holder->child.get()](const maya::unlocked&) {
         using namespace std::chrono_literals;
         child->close_stdin();
-        child->terminate(1s);   // EOF first, up to 1s to exit, then the tree
+        child->terminate(1s);   // 先是EOF，最多1s退出，然后是源码树
         child->interrupt_output();
     };
 
@@ -526,8 +526,8 @@ SpawnedAcpAgent spawn_acp_agent(const maya::unlocked&           cap,
     out.connection = std::make_unique<rpc::Peer>(std::move(ch), std::move(dispatch), "acp-agent");
     out.connection->start();
 
-    // Negotiate. A handshake failure (incompatible version, agent died on
-    // startup, malformed reply) is a spawn error, never a half-open peer.
+    // 谈判。握手失败（版本不兼容、代理在启动时死亡、
+    // 回复格式错误）是一个生成错误，而不是 half-open 对端。
     auto r = out.connection->call<acp::to_agent::Initialize>(cap, init);
     if (r) {
         try { (void)acp::negotiate_version(acp::kProtocolVersion, r->protocolVersion); }
@@ -535,7 +535,7 @@ SpawnedAcpAgent spawn_acp_agent(const maya::unlocked&           cap,
     }
     if (!r) {
         err = std::string("spawn_acp_agent: initialize failed: ") + r.error().what();
-        return {};   // `out` tears the peer and the child down
+        return {};   // `out`撕毁了对端和孩子
     }
     return out;
 }

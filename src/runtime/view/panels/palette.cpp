@@ -1,7 +1,7 @@
-// palette.cpp — the command palette (^K) + the ONE palette_context().
+// palette.cpp 命令调色板( ) ^K + + 键 一个 palette_context().
 //
-// Pure adapter: builds maya::Panel::Config from Model state; the widget
-// owns every chrome decision. Shared scaffolding: panels_prologue.hpp.
+// 纯适配器: 构建 maya::Panel::Config 发件人 Model 状态;
+// 部件拥有每个铬决定。 共享脚手架 : panels_prologue.hpp.
 
 #include "panels_prologue.hpp"
 
@@ -11,9 +11,9 @@ Element palette_panel(const Model& m) {
     auto* o = m.ui.panel.get<pn::Palette>();
     if (!o) return nothing();
 
-    // Live visibility context — literally the same function the reducer uses,
-    // so a row the dispatcher would reject never renders (no dead Accept-all)
-    // and the cursor the view shows indexes the list the reducer resolves.
+    // 现场可见度上下文——字面上下文中的函数与 状态更新函数 使用,
+    // 所以行号为 分派器 永远拒绝 渲染 (没有死) -all
+    // )和光标,视图显示列表中的索引 状态更新函数 决断。
     const PaletteContext pctx = ui::palette_context(m);
     const auto& scored = match_commands(o->query, pctx);
     std::vector<const CommandDef*> matches;
@@ -30,14 +30,14 @@ Element palette_panel(const Model& m) {
 
     cfg.header.push_back(
         filter_header(o->query, {}, highlight, "\xe2\x8c\x98 "));   // ⌘
-    // Rule under the filter — the same `sep` every other picker draws, so the
-    // query box is separated from its results identically everywhere.
+    // 过滤器下的规则——相同 `sep` 彼此间 选择面板 绘图,
+    // 因此查询框与它的结果在任何地方都完全相同。
     cfg.header.push_back(sep);
 
-    // Each category owns a hue so the flat list reads as coloured bands; the
-    // badge keeps its hue on the selected row (Picker contract), so the
-    // grouping survives the cursor. General rows carry no badge (Quit/Update
-    // don't need a section chip).
+    // 每个类别都有一个色调,所以平面列表读作彩色带;
+    // 徽章保留其色调在选定的行上( 选择面板
+    // 常规行没有徽章( Quit/Update 不需要
+    // 一个区域 标签).
     auto category_hue = [](Category c) -> Color {
         switch (c) {
             case Category::Thread:   return info;
@@ -57,18 +57,18 @@ Element palette_panel(const Model& m) {
             fg_italic(muted)));
     } else {
         cfg.items.reserve(matches.size() + 6);
-        // On the EMPTY query we render real SECTION HEADERS between category
-        // groups — true nesting, VS Code / Raycast style. The moment the user
-        // types, headers vanish and the list goes flat-with-ranking (empty
-        // categories would be noise, and label-hit ranking reorders anyway).
-        // Headers are non-selectable rows; the cursor (o->index) indexes the
-        // header-FREE `matches`, so we only set Item::selected on real rows and
-        // point cfg.selected at the header-adjusted display position — the
-        // reducer/dispatch stay entirely header-unaware.
+        // 上场 空 查询我们 渲染 真实 SECTION HEADERS
+        // 类别之间——真正的巢穴, VS 代码/ Raycast 样式。
+        // 用户键入的那一刻, 头文件 名单消失,名单就平了 -with-ranking
+        // (空分类是噪音,标签) -hit 排名重排总而言之。
+        // 头文件 非为 -selectable 行; 光标(o->index)索引 头文件-FREE
+        // `matches` ,所以我们只设置 Item::selected 真实行和点数
+        // cfg.selected 现场 头文件-adjusted 显示位置——该
+        // reducer/dispatch 完全留下来 头文件-unaware.
         const bool show_headers = o->query.empty();
         Category   last_cat     = Category::General;
         bool       first_group  = true;
-        int        display_row  = 0;   // position INCLUDING headers, for scroll
+        int        display_row  = 0;   // 职位 INCLUDING 头文件 滚动
         int        sel_display  = -1;
 
         for (int i = 0; i < static_cast<int>(matches.size()); ++i) {
@@ -78,10 +78,10 @@ Element palette_panel(const Model& m) {
                 show_headers && (first_group || cmd.category != last_cat);
             if (group_start) {
                 if (auto lab = category_label(cmd.category); !lab.empty()) {
-                    // The SAME helper every other grouped picker uses. Hand-
-                    // rolling a header here is how the palette ended up with
-                    // its own bracket-and-spine grouping while the model
-                    // picker had plain rules — two designs for one idea.
+                    // 电话 相同 帮助其他组 选择面板 手卷起来
+                    // a 头文件 调色板最后是怎样 自己插上括号的
+                    // -and-spine 模型时分组 选择
+                    // 面板 有着简单的规则——一种想法有两个设计.
                     cfg.items.push_back(section_header(
                         SectionHeader{std::string{lab}, category_hue(cmd.category)}));
                     ++display_row;
@@ -92,26 +92,26 @@ Element palette_panel(const Model& m) {
 
             Panel::Item row;
 
-            // ── Label, with live toggle/mode state folded in ──
+            // ── 标签, 以 toggle/mode 状态折叠在 ──
             row.leading = std::string{cmd.label};
             row.leading_style = cmd.danger ? fg_of(danger) : fg_of(fg);
-            // Highlight the fuzzy-matched characters (Raycast-style) so the
-            // ranking is legible: with "re" typed, the "Re" in Review/Reject
-            // lights up. Positions came from the scored matcher.
+            // 突出模糊-matched字符(Raycast-style),
+            // 所以排名可以辨别:使用"re"带类型的,
+            // Review/Reject灯光中的"Re",位置来自得分匹配者.
             if (!o->query.empty()) {
                 row.highlight    = scored[static_cast<std::size_t>(i)].positions;
                 row.highlight_fg = cmd.danger ? danger : highlight;
             }
 
-            // ── Description UNDER the focused row (Item::help), rag-style,
-            // not crammed into the same line. Prose belongs below — it gets
-            // the panel's full width and only renders where the cursor is.
-            // Trailing keeps only the SHORTCUT: short reference data that
-            // survives a narrow (phone/SSH) terminal, marked SECONDARY so it
-            // yields before the label does.
+            // 在聚焦行下方显示 Item::help 说明，与 RAG 面板风格一致。
+            // Prose 属于下面的 – 它得到面板的全宽,
+            // 并且只有光标所在的 渲染。
+            // 拖曳只保留 SHORTCUT : 短距离的参考数据,
+            // 仅能存活到狭长距离( 3)。 phone/SSH) 终端 标记
+            // SECONDARY 让它在标签之前就发芽
             row.help = cmd.description;
-            // The chord if there is one, else the typed `/name`, so the
-            // palette teaches what to type in the composer next time.
+            // 如果有的话,和弦,另外是带类型的XX`/name`,
+            // 所以调色板在下一次作曲中教打什么.
             const char* trail = (cmd.shortcut && *cmd.shortcut) ? cmd.shortcut
                                                                  : slash_name_for(cmd.id);
             if (trail && *trail) {
@@ -123,12 +123,12 @@ Element palette_panel(const Model& m) {
             cfg.items.push_back(std::move(row));
             ++display_row;
         }
-        // Scroll tracks the header-adjusted cursor position.
+        // 滚动跟踪 头文件-adjusted 光标位置。
         cfg.selected = sel_display;
     }
 
     cfg.footer.push_back(text(""));
-    // Count anchor when the list is scrolled — same grammar as the @ / # pickers.
+    // 滚动列表时计算锚点——与@ /# 选择面板 相同的语法.
     if (static_cast<int>(matches.size()) > kViewportH) {
         cfg.footer.push_back(text(
             "  " + std::to_string(o->index + 1) + "/"
@@ -146,10 +146,10 @@ Element palette_panel(const Model& m) {
 }
 
 
-// The ONE row-visibility predicate. Declared in view/palette.hpp; called by
-// this view to render the list, by the palette reducer to resolve a cursor to
-// a command, and by back_to() to restore a cursor after Esc. Those three must
-// index the same list — see the header for what goes wrong when they do not.
+// 电话 一个 线条 -visibility 上游 已宣布为
+// view/palette.hpp ; 以这种观点要求 渲染 列表,
+// 由调色板 状态更新函数 以定义光标到命令, back_to ()在
+// Esc 这三个国家必须编制同样的索引——见 头文件 因为他们没有犯错。
 PaletteContext palette_context(const Model& m) {
     PaletteContext ctx;
     ctx.update_available    = !m.s.update_latest.empty();

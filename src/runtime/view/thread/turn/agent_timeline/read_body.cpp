@@ -1,16 +1,16 @@
-// tool_body_preview — `read` / `find_definition` tool body.
+// tool_body_preview — `read` / `find_definition` 工具 正文.
 //
-// FileRead with a line gutter. When a preceding Grep on the same path
-// produced hits, inherit them as highlight_lines so the read body anchors
-// the user's eye on the relevant region instead of forcing a re-scan. The
-// summary header `▸ matches: N1, N2, …` lists every hit even when they
-// fall outside the rendered head budget — common in long files where the
-// matches live mid-file but the read body shows the top.
+// FileRead。当同一路径上的前一个Grep产生命中点时,
+// 继承为 highlight_lines 故读作 正文 将用户的
+// 目光锁定在相关区域而不是强迫重置 -scan . 总结 头文件
+// `▸ matches: N1, N2, …` 列出每次点击,
+// 即使它们落在已实现的头预算之外—— 常见于长文件,
+// 匹配点位于中点 -file 但读数 正文 显示顶部。
 //
-// A DONE read produces the FileRead body (returns true). A FAILED read
-// returns false so the dispatcher's shared Failure fallback renders the
-// error text as plain red — no FileRead gutter would make sense for an
-// error message.
+// A DONE 读出 FileRead 正文 (回归真实)。
+// A FAILED 读取返回错误, 从而 分派器 共享失败 回退
+// 渲染 错误文本为纯红色 - no FileRead 沟槽对错误消息
+// 来说是有意义的。
 
 #include "tool_body_common.hpp"
 
@@ -25,8 +25,8 @@
 namespace agentty::ui::detail {
 
 namespace {
-// Returns {first line number, text without prefixes}, or {0, ""} when the
-// body isn't numbered on every line (old transcripts, outline replies).
+// 返回{第一行编号, 文本无前缀}, 或{0,。
+// "" 何时 正文 并非每行都编号(旧的笔录、大纲答复)。
 std::pair<int, std::string> strip_line_numbers(std::string_view body) {
     std::string out;
     out.reserve(body.size());
@@ -49,31 +49,31 @@ std::pair<int, std::string> strip_line_numbers(std::string_view body) {
     }
     return {first, std::move(out)};
 }
-} // namespace
+} // 命名空间结束。
 
 bool read_body(const ToolUse& tc,
                const GrepHits* grep_hits,
                maya::ToolBodyPreview::Config& out) {
     using Kind = maya::ToolBodyPreview::Kind;
-    if (!tc.is_done()) return false;   // failed → shared Failure fallback
+    if (!tc.is_done()) return false;   // 失败 – 共享失败 回退
 
     const std::string_view raw = card_output(tc);
     if (!raw.empty()) {
-        // A cache hit is prefixed "[cached — unchanged since your last read
-        // of this file]\n". That is the tool talking to the model, not file
-        // text; leaving it in made it line 1 of the gutter and shifted every
-        // real line number by one.
+        // A 缓存 击出前缀
+        // "[cached — unchanged since your last read of this file]\n"。（缓存命中：文件自上次读取后没有变化。）
+        // 这就是与模型交谈的工具,而不是文件文本;把它放在沟槽的1行中,
+        // 并让每个真实的行号都换一个。
         std::string_view body_src{raw};
         if (body_src.starts_with("[cached"))
             if (const auto nl = body_src.find('\n'); nl != std::string_view::npos)
                 body_src.remove_prefix(nl + 1);
-        // The read tool decorates its output: a leading "SUCCESS: `sym`
-        // defined at path:N (lines A–B).\n\n" header for symbol reads and a
-        // trailing "\n[showing lines A-B of N …]" pagination footer. Both
-        // would be NUMBERED AS FILE CONTENT by the FileRead gutter, skewing
-        // every line number below them. Strip them here and mine them for
-        // the TRUE first line — authoritative over the args echo (which is
-        // absent for symbol reads and negative for tail reads).
+        // 读取工具装饰其输出: 一条线索
+        // "SUCCESS: `sym` defined at path:N (lines A–B).\n\n"（成功：符号 sym 定义于 path:N，范围为 A–B 行。）
+        // 头文件 费用 符号 读和后继 "\n[showing lines A-B of N …]"
+        // 双脚都一样 NUMBERED AS FILE CONTENT
+        // 由 FileRead 沟渠, 挖下下面的每个线号,
+        // 剥光这里, 矿井的 TRUE 第一行——对参数回声的权威(
+        // 没有此回声) 符号 读取和负读 末尾 ,第3段)。
         std::string_view body{body_src};
         int true_start = 0;
 
@@ -85,13 +85,13 @@ bool read_body(const ToolUse& tc,
             return got ? v : 0;
         };
 
-        // Footer: authoritative for offset/limit and tail (-N) reads.
+        // 页脚: 权威用于 offset/limit 财务报告和已审计财务报表 末尾 (-N )读.
         constexpr std::string_view kFooterTag = "\n[showing lines ";
         if (auto fp = body.rfind(kFooterTag); fp != std::string_view::npos) {
             true_start = parse_int_at(body, fp + kFooterTag.size());
             body = body.substr(0, fp);
         }
-        // Symbol header: "SUCCESS: `x` defined at f:N (lines A–B).\n\n".
+        // 符号标题原文："SUCCESS: `x` defined at f:N (lines A–B).\n\n"，表示符号定义位置与行范围。
         constexpr std::string_view kSymTag = "SUCCESS: `";
         if (body.starts_with(kSymTag)) {
             if (auto he = body.find("\n\n"); he != std::string_view::npos) {
@@ -103,9 +103,9 @@ bool read_body(const ToolUse& tc,
         }
 
         out.kind = Kind::FileRead;
-        // Each line carries read's "%6d\t" prefix. The card draws its own
-        // gutter, so strip them; the first one is the true start line. Any
-        // heads-up note above the numbered block is dropped with them.
+        // 每一行都读作 "%6d\t" 前缀。
+        // 卡片会画自己的沟槽,所以剥去它们;第一个是真正的起始线。
+        // 任意头 -up 上方的编号块随它们一起丢弃。
         auto numbered = body;
         for (int guard = 0; guard < 8 && !numbered.empty(); ++guard) {
             std::size_t k = 0;
@@ -123,11 +123,11 @@ bool read_body(const ToolUse& tc,
         } else {
             out.text = std::string{body};
         }
-        out.text_color = text_primary;   // code reads as normal text, tokens on top
-        // Anchor the gutter to the real source line numbers. Priority:
-        // the number mined from the tool's own footer / symbol header
-        // (ground truth — covers symbol reads and tail reads), then the
-        // `offset` / `start_line` arg echo, then the default 1.
+        out.text_color = text_primary;   // 代码读作普通文本, 上面的符号
+        // 锁定沟口到真实源行号。 优先级 :
+        // 由工具本身的脚印 /符号 头文件(底真理——覆盖符号读
+        // 和末尾读)所挖掘的号码,然后是`offset` /
+        // `start_line` arg回声,然后是默认的 1。
         if (true_start >= 1) {
             out.start_line = true_start;
         } else if (tc.args.is_object()) {
@@ -142,9 +142,9 @@ bool read_body(const ToolUse& tc,
                     out.highlight_lines = it->second;
             }
         }
-        // A file reads from its top (includes, the declaration); its last
-        // lines are usually closing braces. Show the head and say how much
-        // follows. With grep hits, start at the first one instead.
+        // 文件从顶部读取( 包括声明); 其最后一行
+        // 通常关闭括号。 显示头部并显示后面的多少。
+        // 使用 grep 点击, 从第一个开始。
         out.tail_only = false;
         if (!out.highlight_lines.empty()) {
             const int first_hit = *out.highlight_lines.begin();

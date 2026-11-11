@@ -1,22 +1,22 @@
 #pragma once
-// agentty::ui — the provider picker's row model: ONE ordered list, built once,
-// consumed by both the reducer (src/runtime/app/update/picker.cpp) and the view
-// (src/runtime/view/pickers.cpp).
+// agentty::ui — 提供者 选择面板 的行模型：一个 有序列表，构建一次，由 状态更新函数 (
+// src/runtime/app/update/picker.cpp) 和视图 (
+// src/runtime/view/pickers.cpp) 消耗。
 //
-// Before this, the composite list — built-in presets, then external ACP agents,
-// then saved custom hosts, then the "Custom host…" sentinel — lived implicitly
-// as `n_presets + n_acp + n_custom + 1` arithmetic duplicated in the reducer and
-// the view. Every index (open-at-active, move, jump, select, render) recomputed
-// the same offsets by hand, and a search filter would have to reproduce that
-// remapping in two places without drifting. That is exactly the class of bug an
-// index-into-a-heterogeneous-list invites.
+// 在此之前，复合列表——内置-in预设，然后是外部ACP代理，然后是已保存自定义主机，
+// 然后是"Custom host…"哨兵——隐式地存在于状态更新函数和视图中
+// 重复的`n_presets + n_acp + n_custom + 1`算术中。
+// 每个索引（open-at-active、move、jump、select、
+// 渲染）都会手动重新计算相同的偏移量，并且搜索过滤器必须在两个位置重现该
+// 重新映射而不会发生漂移。这正是 index-into-a-heterogeneous-list
+// 引发的错误类别。
 //
-// Now the composite list is a value: `build_provider_rows(...)` returns the rows
-// in display order, each tagged with what it IS (a preset, an ACP agent, a saved
-// host, or the new-host sentinel). The cursor is just an index into THIS vector;
-// resolving a selection is `rows[index]`, with no offset math. The search filter
-// is applied where the rows are built, so the reducer and view can never
-// disagree about which rows are visible or where the cursor lands.
+// 现在，复合列表是一个值：`build_provider_rows(...)`
+// 按显示顺序返回行，每行都用IS（预设、ACP代理、
+// 已保存主机或新-host哨兵）进行标记。光标只是 此 向量的索引；
+// 解决选择是 `rows[index]`，没有偏移数学。
+// 搜索过滤器应用于构建行的位置，因此 状态更新函数 和
+// 视图永远不会在哪些行可见或光标落在哪里方面存在分歧。
 
 #include <algorithm>
 #include <string>
@@ -24,30 +24,30 @@
 #include <variant>
 #include <vector>
 
-#include "agentty/provider/registry.hpp"      // ProviderPreset, providers()
-#include "agentty/provider/acp_agents.hpp"     // AcpAgentSpec, enumerate_acp_agents()
-#include "agentty/provider/selection.hpp"      // filter_provider_indices, saved_custom_hosts
-#include "agentty/provider/auth_state.hpp"      // auth_source, AuthSource
+#include "agentty/provider/registry.hpp"      // ProviderPreset，providers()
+#include "agentty/provider/acp_agents.hpp"     // AcpAgentSpec，enumerate_acp_agents()
+#include "agentty/provider/selection.hpp"      // filter_provider_indices，saved_custom_hosts
+#include "agentty/provider/auth_state.hpp"      // auth_source，AuthSource
 
 namespace agentty::ui {
 
-// One row in the provider picker, tagged by kind. The payloads are cheap views
-// / copies owned elsewhere for the lifetime of a single reduce/render pass.
+// 提供者选择面板中的一行，按种类标记。 载荷 是在其他地方拥有的单个
+// reduce/render 通行证的 生命周期 的廉价视图/副本。
 struct ProviderRow {
-    // A built-in registry provider (anthropic, chatgpt, kimi, groq, …).
+    // 内置-in 注册表提供者（anthropic、chatgpt、kimi、groq、……）。
     struct Preset { const provider::ProviderPreset* preset; };
-    // A configured external ACP agent subprocess row.
+    // 配置的外部ACP代理子进程行。
     struct Acp { provider::AcpAgentSpec agent; };
-    // A saved custom OpenAI-compatible host (a Settings.provider_keys spec that
-    // is not a built-in preset), switchable without re-entering its key.
+    // 已保存定制OpenAI-compatible主机（不是内置-in预设的Settings.provider_keys规格），
+    // 无需re-entering其密钥即可切换。
     struct CustomHost { std::string spec; };
-    // The trailing "Custom host…" sentinel that opens the free-text modal.
+    // 打开 free-text 弹出面板 的尾随 "Custom host…" 哨兵。
     struct NewCustomHost {
-        // When the QUERY itself looks like an endpoint, the sentinel stops
-        // being a generic "Custom host…" escape hatch and becomes a concrete
-        // offer: "Use yolo-auto.com as a custom host". Non-empty here means
-        // the row is promoted to the TOP and Enter pre-fills the modal, so
-        // the user never retypes what they already typed.
+        // 当QUERY本身看起来像端点时，哨兵不再是通用的"Custom host…"
+        // 逃生舱口而变成具体的报价："Use yolo-auto.com as a custom host"。
+        // 这里的 Non-empty 意味着该行被提升到 TOP 和
+        // Enter 之前的 -fills 和 弹出面板，
+        // 因此用户永远不会重新键入他们已经 带类型的 的内容。
         std::string prefill;
     };
 
@@ -68,9 +68,9 @@ struct ProviderRow {
     [[nodiscard]] bool is_new_custom_host() const {
         return std::holds_alternative<NewCustomHost>(kind);
     }
-    // The endpoint the "Custom host…" row would pre-fill, or empty when it is
-    // the plain escape hatch. Lets the view render the promoted phrasing and
-    // the reducer seed the modal from one place.
+    // "Custom host…"行的端点将在-fill之前，
+    // 或者当它是普通逃生舱口时为空。让我们从一个地方查看 渲染 升级的
+    // 短语和 状态更新函数 种子 弹出面板。
     [[nodiscard]] const std::string* new_host_prefill() const {
         if (auto* c = std::get_if<NewCustomHost>(&kind))
             return c->prefill.empty() ? nullptr : &c->prefill;
@@ -78,62 +78,62 @@ struct ProviderRow {
     }
 };
 
-// Does this query look like an ENDPOINT the user wants to dial, rather than
-// the name of a built-in provider? True for "yolo-auto.com",
-// "localhost:8080", "https://gw.internal/api" — false for "kimi", "gpt-4o".
+// 该查询是否看起来像用户想要拨打的ENDPOINT，而不是内置的-in提供商的名称？
+// 对于 "yolo-auto.com"、"localhost:8080"、
+// "https://gw.internal/api" 为真，对于 "kimi"、"gpt-4o" 为假。
 //
-// WHY THIS EXISTS: agentty has spoken to any OpenAI-compatible host since
-// forever (`--provider host:port`, and the "Custom host…" row), but the picker
-// never SAID so. Someone who typed a hostname saw every familiar provider
-// vanish and one muted grey row left behind, which reads as "no, you can't".
-// The field evidence was a pull request adding a registry row for a service
-// the generic path already handled. The feature was there; the UI hid it.
+// 原因 此 EXISTS:agentty从永远以来已经与任何OpenAI
+// -compatible主机通话(`--provider host:port`和"Custom host…"行)，
+// 但是选择面板从未与SAID如此。某个主机名为 带类型的 的人看到每个熟悉的
+// 提供商都消失了，留下了一个静音的灰色行，其读作 "no, you can't"。
+// 现场证据是为通用路径已处理的服务添加注册表行的
+// 拉取请求。这个功能就在那里； UI 隐藏了它。
 //
-// THE TWO FAILURE MODES ARE NOT SYMMETRIC, which is what sets the threshold:
-//   false NEGATIVE — user typed a real endpoint, gets no offer, concludes
-//                    agentty cannot reach their server. Costs the feature.
-//   false POSITIVE — an extra row appears offering to dial something that
-//                    isn't a host. Costs one row, and Enter would just fail
-//                    the probe with a clear message.
-// So lean permissive — but NOT so permissive that typing a MODEL name while
-// hunting for a provider shoves the real providers down. "gpt-4o", "v1.5" and
-// "3.5" all contain a dot or a dash and must stay false, because a user types
-// those into this box constantly.
+// 该 两个 FAILURE MODES ARE 不 SYMMETRIC，其设置阈值：
+//   假NEGATIVE-用户带类型的是真实端点，没有得到报价，
+//                    得出结论agentty无法到达他们的服务器。增加该功能的成本。
+//   false POSITIVE — 出现额外的行，
+//                    提供拨打非主机的电话。花费一行，Enter 只会使
+//                    探测失败并显示一条明确的消息。
+// 如此精简的宽松——但是NOT如此宽松，以至于在寻找提供商时键入
+// MODEL名称会将真正的提供商推倒。 "gpt-4o"、"v1.5"
+// 和 "3.5" 都包含点或破折号，并且必须保持为 false，
+// 因为用户不断地将这些内容键入此框中。
 [[nodiscard]] inline bool query_looks_like_host(std::string_view q) {
-    // Trim first: a pasted endpoint usually arrives with whitespace, and the
-    // untrimmed form used to fail here while canonical_spec() accepted it —
-    // i.e. paste worked from the CLI but not from the picker.
+    // 首先修剪：粘贴的端点通常带有空格到达，并且未修剪的形式在此处失败，
+    // 而 canonical_spec() 接受了它 — i.e。
+    // 粘贴在 CLI 上有效，但在 选择面板 上无效。
     while (!q.empty() && (q.front() == ' ' || q.front() == '\t')) q.remove_prefix(1);
     while (!q.empty() && (q.back()  == ' ' || q.back()  == '\t'
                        || q.back()  == '\r' || q.back() == '\n')) q.remove_suffix(1);
 
-    if (q.size() < 4) return false;                       // "a.b" is not a host
-    if (q.find(' ') != std::string_view::npos) return false;   // prose
+    if (q.size() < 4) return false;                       // "a.b"不是主机
+    if (q.find(' ') != std::string_view::npos) return false;   // 散文
 
-    // An explicit scheme is a declaration of intent; nothing else to check.
+    // 显式方案是意图声明；没有其他需要检查的。
     if (q.starts_with("http://") || q.starts_with("https://")) return true;
 
-    // An IPv6 literal must be bracketed to carry a port: "[::1]:8080".
+    // IPv6文字必须用括号括起来以携带端口："[::1]:8080"。
     if (q.front() == '[') return q.find(']') != std::string_view::npos;
 
-    // host:port — a colon followed by a digit. Strongest signal after a
-    // scheme, and the one that makes every localhost server work.
+    // 主机：端口 — 冒号后跟数字。方案之后最强的信号，
+    // 也是使每个本地主机服务器正常工作的信号。
     if (const auto colon = q.find(':');
         colon != std::string_view::npos && colon > 0 && colon + 1 < q.size()
         && q[colon + 1] >= '0' && q[colon + 1] <= '9') return true;
 
-    // A dotted name. Require the LAST dot-segment to look like a TLD or a
-    // path — i.e. start with a letter — so version and model strings ("v1.5",
-    // "3.5", "gpt-4.1") do not read as hosts. "yolo-auto.com" and
-    // "api.openai.com/v1" do.
+    // 点名称。要求 最后 dot-segment 看起来像 TLD 或路径 — i.e。
+    // 以字母开头 - 因此版本和型号字符串（"v1.5"、"3.5"、"gpt-4.1"）
+    // 不会读取为主机。 "yolo-auto.com" 和
+    // "api.openai.com/v1" 可以。
     const auto dot = q.rfind('.');
     if (dot == std::string_view::npos || dot == 0 || dot + 1 >= q.size())
         return false;
     const char after = q[dot + 1];
     const bool alpha = (after >= 'a' && after <= 'z') || (after >= 'A' && after <= 'Z');
     if (!alpha) return false;
-    // ...and something alphabetic before the dot too, so "1.com" style noise
-    // and a bare ".com" stay out.
+    // ...在点之前也有一些字母，所以 "1.com" 风格的噪音和裸露的
+    // ".com" 不会出现。
     for (std::size_t i = 0; i < dot; ++i) {
         const char c = q[i];
         if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) return true;
@@ -141,28 +141,28 @@ struct ProviderRow {
     return false;
 }
 
-// Build the provider picker's rows in display order, filtered by `query`.
+// 按显示顺序构建提供者选择面板的行，并按`query`过滤。
 //
-//   [ "Use <query> as a custom host" ]  (FIRST, only when the query is
-//                                        endpoint-shaped — see below)
-//   [ presets matching query (fuzzy, ranked) ]
-//   [ saved custom hosts matching query ]
-//   [ ACP agents ]         (shown only when the query is empty)
-//   [ "Custom host…" ]      (always last, so the escape hatch is reachable)
+//   使用 <query> 作为自定义主机的列表入口。
+//                                        ]（首次，仅当查询为端点
+//   -shaped时 - 见下文）[预设匹配
+//   查询（模糊，排名）] [已保存自
+//   定义主机匹配查询] [ACP代理]（仅当查询为空时显示）
+//   ["Custom host…"]（始终在最后，因此可以到达逃生舱口）
 //
-// `saved_custom_hosts` is passed in (the caller loads Settings once).
+// `saved_custom_hosts`被传入（调用方加载设置一次）。
 //
-// TWO RULES EARN THEIR KEEP HERE:
+// 两个 RULES EARN THEIR KEEP 此处:
 //
-// 1. A host-shaped query PROMOTES the sentinel to the top and pre-fills it.
-//    Typing an endpoint is an unambiguous statement of intent, and the answer
-//    should be the first thing you see, not the last — with Enter going
-//    straight to the probe instead of reopening an empty text field.
+// 1.主机-shaped向顶部哨兵PROMOTES查询并pre-fills它。
+//    输入端点是明确的意图陈述，并且答案应该是您看到
+//    的第一件事，而不是最后一件事——Enter
+//    直接进入探测器而不是重新打开空文本字段。
 //
-// 2. Saved custom hosts are SEARCHABLE. They used to vanish the moment you
-//    typed, which meant the one way to reach a host you had already saved was
-//    to scroll past every preset. A saved host is a provider; it belongs in
-//    the provider search space.
+// 2.已保存自定义主机是SEARCHABLE。它们曾经在你出现的那一刻就消失了
+//    带类型的，这意味着到达您已经拥有 已保存 的主机的一种
+//    方法是滚动经过每个预设。 已保存 主机是提供商；
+//    它属于提供商搜索空间。
 [[nodiscard]] inline std::vector<ProviderRow> build_provider_rows(
     const std::vector<std::string>& saved_custom_hosts,
     std::string_view query) {
@@ -170,14 +170,14 @@ struct ProviderRow {
     const auto presets = provider::providers();
     rows.reserve(provider::providers().size() + saved_custom_hosts.size() + 4);
 
-    // Canonicalise ONCE, here, and offer the canonical form. The row the user
-    // sees is then byte-identical to the settings key that will be written, so
-    // "  YOLO-AUTO.COM/  " and "yolo-auto.com" cannot become two saved hosts.
+    // 此处将ONCE规范化，并提供规范形式。用户看到的行是将要写入的设置
+    // 密钥的字节-identical，因此"  YOLO-AUTO.COM/  "
+    // 和"yolo-auto.com"不能成为两个已保存主机。
     const std::string canon = provider::canonical_spec(query);
 
-    // A saved host that matches the query is already reachable as its own row
-    // below; offering to re-add it would be a duplicate. Compare CANONICALLY —
-    // saved specs are stored canonical, so a raw compare would miss.
+    // 与查询匹配的已保存主机已经可以作为其自己的行访问到；
+    // 提供给 re-add 它将是重复的。比较 CANONICALLY
+    // — 已保存 规格以规范方式存储，因此原始比较可能会丢失。
     const bool already_saved =
         std::find(saved_custom_hosts.begin(), saved_custom_hosts.end(), canon)
             != saved_custom_hosts.end();
@@ -186,16 +186,16 @@ struct ProviderRow {
     if (offer_host)
         rows.push_back({ProviderRow::NewCustomHost{canon}});
 
-    // Presets, fuzzy-filtered + ranked by the shared SSOT filter so the reducer
-    // and view see the exact same order.
+    // 预设，fuzzy-filtered+由共享SSOT过滤器排名，
+    // 因此状态更新函数和视图看到完全相同的顺序。
     const std::vector<int> vis = provider::filter_provider_indices(query);
     for (int idx : vis)
         rows.push_back({ProviderRow::Preset{&presets[static_cast<std::size_t>(idx)]}});
 
-    // Saved custom hosts: case-insensitive substring match on the spec (they
-    // have no label or blurb to fuzzy-rank, and a host is something you recall
-    // by prefix). Case-insensitive because the saved form is lowercased but a
-    // user hunting for it may not type it that way.
+    // 已保存自定义主机：case-insensitive子字符串与规范匹配
+    // （它们没有标签或模糊-rank的简介，并且主机是您通过前缀记住的东西）。
+    // Case-insensitive 因为 已保存 形式是小写的，
+    // 但搜索它的用户可能不会这样输入。
     for (const auto& spec : saved_custom_hosts) {
         if (query.empty()
             || spec.find(canon) != std::string::npos) {
@@ -203,44 +203,44 @@ struct ProviderRow {
         }
     }
 
-    // ACP agents are not part of the provider text search.
+    // ACP代理不是提供商文本搜索的一部分。
     if (query.empty()) {
         for (auto& agent : provider::enumerate_acp_agents())
             rows.push_back({ProviderRow::Acp{std::move(agent)}});
     }
 
-    // The plain "Custom host…" sentinel is always reachable — unless it is
-    // already sitting at the top as a concrete offer.
+    // 简单的 "Custom host…" 哨兵总是可以到达
+    // 的——除非它已经作为具体报价位于顶部。
     if (!offer_host)
         rows.push_back({ProviderRow::NewCustomHost{}});
     return rows;
 }
 
-// ── Sectioned, auth-aware variant ────────────────────────────────────────
+// ── 已分解, 认证 -aware 变体 ────────────────────────────────────────
 //
-// Same list, grouped. `^P` is the surface where you MANAGE backends, so the
-// browse view leads with the ones you can actually use; the rest of the
-// registry collapses into a single "N more — type to search" line. Typing
-// searches everything, so a provider you haven't configured is one keystroke
-// away rather than gone (the same no-dead-end contract the model picker's
-// sign-in offers hold).
+// 相同的列表，分组。 `^P` 是 MANAGE 后端的表面，
+// 因此浏览视图会引导您实际可以使用的视图； 注册表 的其余部分折叠成
+// 一条 "N more — type to search" 行。
+// 键入会搜索所有内容，因此您尚未配置的提供程序只需按一下键即可，
+// 而不是消失（型号 选择面板 的 sign-in 提供的相同 no-dead-end
+// 合同提供保留）。
 enum class ProviderSection { Yours, More, Signpost, Add };
 
 struct SectionedProviderRow {
     ProviderRow     row;
     ProviderSection section = ProviderSection::Yours;
-    // A registry row you have NOT configured, surfaced because the query
-    // named it. Renders dim, as an offer: Enter starts its sign-in.
+    // 您配置了 不 的 注册表 行，由于查询对其进行了命名而出现。
+    // 渲染 暗淡，作为报价：Enter 开始其标志-in。
     bool            offer   = false;
-    // The "N more providers" signpost. A real, selectable row so expanding
-    // is reachable by Enter and not only by a key you have to know.
+    // "N more providers"路标。一个真实的、可选择的行，
+    // 因此可以通过 Enter 来扩展，而不仅仅是通过您必须知道的密钥来实现。
     bool            more_signpost = false;
 };
 
 struct SectionedProviderRows {
     std::vector<SectionedProviderRow> rows;
-    int  n_hidden = 0;       // registry rows withheld from the browse view
-    bool searching = false;  // query non-empty
+    int  n_hidden = 0;       // 从浏览视图中保留 注册表 行
+    bool searching = false;  // 查询非-empty
 };
 
 [[nodiscard]] inline SectionedProviderRows build_sectioned_provider_rows(
@@ -260,19 +260,19 @@ struct SectionedProviderRows {
             != saved_custom_hosts.end();
     const bool offer_host = query_looks_like_host(query) && !already_saved;
 
-    // A typed host wins the top slot: it's the most specific thing the query
-    // could mean, and it's the one row that acts on the literal text.
+    // 带类型的主机赢得顶部位置：它是查询可能意味着的最
+    // 具体的事物，并且它是作用于文字文本的一行。
     if (offer_host)
         out.rows.push_back({{ProviderRow::NewCustomHost{canon}},
                             ProviderSection::Yours, false, false});
 
-    // Browsing withholds the unconfigured rows behind the signpost;
-    // expanding (^A) or searching asks for the WHOLE registry.
+    // 浏览保留路标后面未配置的行；
+    // 扩展 (^A) 或搜索要求 整个 注册表。
     const bool want_all = show_all || !query.empty();
     const auto filtered = provider::filter_provider_indices(query, settings, view);
 
-    // Partition the registry into the two bands. `configured` is the single
-    // rule both bands and the signpost count agree on, so they cannot drift.
+    // 将注册表划分成两个带。 `configured` 是
+    // 两个乐队和路标计数都同意的单一规则，因此它们不能漂移。
     std::vector<const provider::ProviderDescriptor*> mine, rest;
     {
         int i = 0;
@@ -281,25 +281,25 @@ struct SectionedProviderRows {
             (i < filtered.n_configured ? mine : rest).push_back(p);
             ++i;
         }
-        // Browse hid these; ^A re-admits them. Searching already returned
-        // the whole registry, so there is nothing to re-admit.
+        // 浏览隐藏这些； ^A 重新-admits 他们。搜索已经返回
+        // 了整个注册表，所以没有什么可以重新-admit的。
         if (want_all && query.empty())
             for (const auto& p : presets)
                 if (provider::auth_source(p, settings, view)
                     == provider::AuthSource::None)
                     rest.push_back(&p);
     }
-    // Hidden only counts what is actually withheld RIGHT NOW.
+    // 隐藏仅统计实际保留的RIGHTNOW。
     out.n_hidden = want_all ? 0 : filtered.n_hidden;
 
-    // The ACTIVE provider always leads YOURS, even mid-sign-in: it is the row
-    // you are running on, and the ● marker must not sit in another band.
-    // Its badge still tells the truth about the credential.
+    // 活动 提供者总是领先 YOURS，甚至是 mid-sign-in：
+    // 这是您正在运行的行，并且 ● 标记不得位于另一个带中。
+    // 它的徽章仍然说明了 凭据 的真相。
     //
-    // Collapsed browse withholds unconfigured rows, so an active provider
-    // whose credential is missing (first run, expired token, unset env var)
-    // is in NEITHER list -- pull it straight off the registry, and don't
-    // count it as hidden.
+    // 折叠浏览保留未配置的行，因此缺少 凭据（首次运行、
+    // 过期令牌、未设置环境变量）的活动提供程序位于 NEITHER
+    // 列表中——将其直接从 注册表 中拉出，
+    // 并且不将其视为隐藏。
     if (!active_id.empty()) {
         auto by_id = [&](const auto* p) { return std::string{p->id} == active_id; };
         if (auto it = std::find_if(rest.begin(), rest.end(), by_id);
@@ -319,15 +319,15 @@ struct SectionedProviderRows {
         }
     }
 
-    // ── Assemble, one band at a time ────────────────────────────────────
-    // Rows are emitted in SECTION order so each divider is drawn once. The
-    // view just walks the list; grouping is this function's job.
+    // ── 集合,一个乐队一个 ────────────────────────────────────
+    // 行以SECTION顺序发出，因此每个分隔线被绘制一次。
+    // 视图只是列表中的一个；分组是这个函数的工作。
     auto emit = [&](ProviderRow r, ProviderSection s, bool offer, bool sign) {
         out.rows.push_back({std::move(r), s, offer, sign});
     };
 
-    // YOURS: active first, then the rest of your presets, then saved hosts
-    // and ACP agents (yours by definition -- you configured them).
+    // YOURS：首先激活，然后是其余的预设，然后是 已保存 主机
+    // 和 ACP 代理（根据定义是你的——你配置了它们）。
     for (const auto* p : mine) emit({ProviderRow::Preset{p}},
                                     ProviderSection::Yours, false, false);
     for (const auto& spec : saved_custom_hosts)
@@ -339,11 +339,11 @@ struct SectionedProviderRows {
             emit({ProviderRow::Acp{std::move(agent)}},
                  ProviderSection::Yours, false, false);
 
-    // NOT CONFIGURED: offers, each one action away from being usable.
+    // 不 CONFIGURED:提供，每一项操作远离可用。
     for (const auto* p : rest) emit({ProviderRow::Preset{p}},
                                     ProviderSection::More, true, false);
 
-    // The signpost standing in for the band above when it is collapsed.
+    // 当上面的带折叠时，路标代表上面的带。
     if (out.n_hidden > 0)
         emit({ProviderRow::NewCustomHost{}},
              ProviderSection::Signpost, false, true);

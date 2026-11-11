@@ -1,19 +1,19 @@
-// acp_integration_test.cpp — end-to-end exercise of agentty's ACP agent.
+// acp_integration_test.cpp 结束 -to-end 行使 agentty's ACP 探员
 //
-// Drives a real agentty::acp::AgentServer (built on acp-cpp) through a full
-// protocol lifecycle over an in-memory transport, with a SCRIPTED provider so
-// no network/auth is needed. Verifies:
+// 驱动一个真正的agentty::acp::AgentServer(建于acp-cpp),
+// 通过一个全程协议生命周期,周期为-memory传输层,拥有SCRIPTED供应商,
+// 因此不需要network/auth。
 //
-//   • initialize advertises the v1 agent surface
-//   • session/new mints a session with modes
-//   • session/prompt drives a turn that streams an agent_message_chunk + a
-//     tool_call, requests permission (the deferred-response + outbound
-//     callback path that would DEADLOCK a blocking handler), runs the tool,
-//     feeds the result back, streams a final chunk, and resolves end_turn
-//   • the `write` tool actually wrote the file
-//   • session/set_mode + session/cancel + session/close round-trip
+//   • 初始化广告,宣传V1剂表面
+//   • session/new 薄荷带模式的会话
+//   • session/prompt 开一转 数据流 a 数据为: agent_message_chunk + a
+//     tool_call ,请求 权限 (推迟) -response
+//     + 出入境 回调 路径 DEADLOCK 屏蔽( B) 处理函数 ),
+//     运行工具,反馈结果, 数据流 最终块,并解决 end_turn
+//   • `write`工具实际编写文件
+//   • session/set_mode + session/cancel + session/close 圆形 -trip
 //
-// Exit code 0 = all assertions held.
+// 退出代码 0 = 所有持有的断言。
 
 #include <acp/acp.hpp>
 
@@ -34,7 +34,7 @@
 #include <unistd.h>
 #if defined(_WIN32)
 #include <fcntl.h>   // _O_BINARY
-#include <io.h>      // _pipe
+#include <io.h>      // 管道(_P)
 #endif
 
 #include "agtest.hpp"
@@ -50,34 +50,34 @@ namespace ag = agentty;
 
 TEST_CASE("acp integration end-to-end") {
     namespace fs = std::filesystem;
-    // The write tool's sandbox refuses paths outside the workspace root.
-    // Point the root at a tmp dir we own so the scripted `write` succeeds.
-    // PID-unique so the suite stays hermetic under parallel CTest (-j).
+    // 写作工具的 沙箱 拒绝在外的路径 工作区 根节。
+    // 将根指向我们拥有的 tmp dir , 这样脚本 `write` 成功。
+    // PID-unique 故套房在平行试验下保持隐形 -j).
     const fs::path tmp = fs::temp_directory_path() /
                          ("agentty_acp_it_" + std::to_string(::getpid()));
     fs::remove_all(tmp);
     fs::create_directories(tmp);
-    // Sandbox persistence too: AgentServer::persist() writes every turn
-    // to persistence::threads_dir() = $HOME/.agentty/threads. Without
-    // redirecting HOME, every ctest run deposited the scripted "please
-    // write the file" thread (plus acp_sessions.json entries) into the
-    // DEVELOPER'S real thread history — they showed up when cycling
-    // threads in the real app. data_dir() re-reads the env on each call,
-    // so setting it here (before any persistence touch) is sufficient.
+    // 沙箱 持久化 也为: AgentServer::persist () 写每转
+    // persistence::threads_dir() = $HOME
+    // /.agentty/threads. 不重定向 HOME ,每个测试运行 保存
+    // 脚本 "please write the file" 线程 (加) 减
+    // acp_sessions.json 条目) DEVELOPER 是真的,
+    // 我爱她 线程 历史——骑自行车时他们出现 线程 真正的应用。 data_dir (a)
+    // 调用 -reads 每个洞 调用 ,所以设置在这里(在任何 持久化 触摸)已经足够.
     setenv("HOME", tmp.string().c_str(), 1);
-    setenv("USERPROFILE", tmp.string().c_str(), 1);   // win32 branch of data_dir
+    setenv("USERPROFILE", tmp.string().c_str(), 1);   // win32 分支 data_dir
     ag::tools::util::set_workspace_root(::agentty::IoAccess::grant(), tmp);
     const fs::path target = tmp / "out.txt";
     fs::remove(target);
 
-    // ── Scripted provider ──────────────────────────────────────────────────
+    // ── 脚本提供者 ──────────────────────────────────────────────────
     std::atomic<int> completions{0};
     std::atomic<bool> read_mode{false};
     std::atomic<bool> bash_mode{false};
     std::atomic<bool> parallel_mode{false};
-    // What the MODEL actually received for the last turn. An ACP image block
-    // is only useful if it survives all the way onto the Request — declaring
-    // the capability and then dropping the bytes is the failure this guards.
+    // 或 MODEL 上次转弯时实际收到。
+    // ACP 图像块只有在它一直存活到请求上才有用——
+    // 宣布能力,然后放下 字节 是因为这个守卫的失败
     std::atomic<int> saw_images{0};
     std::string      saw_media_type;
     std::string      saw_bytes;
@@ -94,9 +94,9 @@ TEST_CASE("acp integration end-to-end") {
             }
         }
         if (parallel_mode.load() && n % 2 == 0) {
-            // #116: three writes in one response, deltas interleaved, every End
-            // at the end of the turn (how OpenAI chat streams parallel calls).
-            // Each call must keep its own args.
+            // #116:三个写在一个回应中,三角洲互换,每个 End
+            // 转弯后(如何) OpenAI 聊天 数据流 平行 调用).
+            // 每一个 调用 必须保持自己的动力。
             sink(ag::Msg{ag::StreamStarted{}});
             const std::string base = "tc_par_" + std::to_string(n) + "_";
             const ag::ToolCallId ids[3] = {ag::ToolCallId{base + "a"}, ag::ToolCallId{base + "b"},
@@ -115,10 +115,10 @@ TEST_CASE("acp integration end-to-end") {
             return;
         }
         if (bash_mode.load() && n % 2 == 0) {
-            // Bash-turn first completion: stream a `bash` tool call, so we can
-            // assert the fenced command-output card body (the "bash shows no
-            // output" fix). No terminal capability in this harness, so it runs
-            // the internal path and the result lands as fenced text.
+            // 贝什 -turn 第一次完成 : 数据流 a `bash` 工具 调用 ,
+            // 这样我们就可以坚持 栅栏上的命令 -output 纸牌 正文 (
+            // 无) "bash shows no output" 固定) (无)
+            // 终端 使用这种控制,它会运行内部路径,结果会变成栅栏的文字。
             std::string tcid = "tc_bash_" + std::to_string(n);
             const ag::ToolCallId call_id{tcid};
             sink(ag::Msg{ag::StreamStarted{}});
@@ -132,18 +132,18 @@ TEST_CASE("acp integration end-to-end") {
             return;
         }
         if (read_mode.load() && n % 2 == 0) {
-            // Read-turn first completion: stream a `read` tool call on the
-            // file, so we can assert the line-numbered result content shape.
+            // 读取 -turn 第一次完成 : 数据流 a `read` 工具 调
+            // 用 档案上,这样我们就可以 坚持线 -numbered 结果内容形状。
             std::string tcid = "tc_read_" + std::to_string(n);
             const ag::ToolCallId call_id{tcid};
             sink(ag::Msg{ag::StreamStarted{}});
             sink(ag::Msg{ag::StreamTextDelta{"Reading. "}});
             sink(ag::Msg{ag::StreamToolUseStart{call_id, ag::ToolName{"read"}}});
-            // RELATIVE path on purpose. A model writes "note.txt" far more
-            // often than an absolute path, and Zed silently drops a
-            // location it cannot resolve as absolute — so the server has to
-            // absolutise against the session cwd. Using target.string()
-            // here (already absolute) would make that fix untestable.
+            // RELATIVE 模式 "note.txt" 远比
+            // 绝对路径更常见, Zed 默默地将一个它无法
+            // 解析到绝对位置的地方放下—— 因此服务器必须针对会话
+            // cwd 取消。 使用。 target.string
+            // () 此处(已经绝对)将使该固定无法检验。
             std::string args = std::string("{\"path\":\"")
                              + target.filename().string() + "\"}";
             sink(ag::Msg{ag::StreamToolUseDelta{call_id, args}});
@@ -153,18 +153,18 @@ TEST_CASE("acp integration end-to-end") {
             return;
         }
         if (n % 2 == 0) {
-            // First completion of a turn: stream text + a `write` tool call.
+            // 轮到第一个完成: 数据流 文本 + a 键 `write` 工具 调用.
             std::string tcid = "tc_write_" + std::to_string(n);
             sink(ag::Msg{ag::StreamStarted{}});
             sink(ag::Msg{ag::StreamTextDelta{"Writing the file. "}});
             const ag::ToolCallId call_id{tcid};
             sink(ag::Msg{ag::StreamToolUseStart{
                 call_id, ag::ToolName{"write"}}});
-            // RELATIVE on purpose — a model writes "out.txt" far more often
-            // than an absolute path, and Zed silently DROPS a location it
-            // cannot resolve as absolute (resolve_location falls back to
-            // open_local_buffer only `if is_absolute`). Using target.string()
-            // here would make the server's absolutise() untestable.
+            // RELATIVE —— 模型写作 "out.txt" 更经常的不是绝对的路,
+            // 而Zed默默地 DROPS 无法解析为绝对的位置( Q)
+            // resolve_location 倒车 open_local_buffer
+            // 仅限 `if is_absolute`。使用时使用 target.string
+            // ()这里可以使服务器的 absolutise() 不可考证.
             std::string args = std::string("{\"path\":\"")
                              + target.filename().string()
                              + "\",\"content\":\"hello from acp\\n\"}";
@@ -173,11 +173,11 @@ TEST_CASE("acp integration end-to-end") {
             sink(ag::Msg{ag::StreamUsage{1200, 40, 0, 0}});
             sink(ag::Msg{ag::StreamFinished{ag::StopReason::ToolUse}});
         } else {
-            // Second completion: the tool result for the prior call must be in
-            // history (whether it succeeded or was rejected).
-            // Second completion: the tool result for the prior call must be in
-            // history (whether it succeeded or was rejected). The prior call is
-            // a write (tc_write_) or, in read_mode, a read (tc_read_).
+            // 第二次完成:前调用的工具结果必须载入
+            // 历史(无论成功还是被拒绝).
+            // 第二次完成:前一个工具结果 调用 必须是历史(无论成功还是被拒绝)。
+            // 调用 是一个写( 字迹) ( tc_write_ 或,
+            // 在 read_mode ,读数( tc_read_).
             std::string want_w = "tc_write_" + std::to_string(n - 1);
             std::string want_r = "tc_read_"  + std::to_string(n - 1);
             std::string want_b = "tc_bash_"  + std::to_string(n - 1);
@@ -195,13 +195,13 @@ TEST_CASE("acp integration end-to-end") {
         }
     };
 
-    // ── Wire two real OS pipes between agent and client ────────────────────
-    // c2a = client→agent, a2c = agent→client. Both sides run on rpc::Peer.
+    // ── 传输 两位真人 OS 代理和客户端之间的管道 ────────────────────
+    // c2a=客户_代理,a2c=代理_客户,双方运行于rpc::Peer.
     int c2a[2], a2c[2];
 #if defined(_WIN32)
-    // _O_NOINHERIT: _pipe's handles are inheritable by default, so any child
-    // a tool spawns mid-test would hold the write ends open and the readers
-    // would never see EOF at teardown (the process then hangs on exit).
+    // _O_NOINHERIT :_pipe的手柄默认可以继承,
+    // 所以任何孩子一个工具产卵于中位 -test 写字的结尾会打开
+    // 读者永远不会看到 EOF 以拆卸方式(然后在退出时挂起)进行。
     CHECK(::_pipe(c2a, 1 << 16, _O_BINARY | _O_NOINHERIT) == 0);
     CHECK(::_pipe(a2c, 1 << 16, _O_BINARY | _O_NOINHERIT) == 0);
 #else
@@ -214,19 +214,19 @@ TEST_CASE("acp integration end-to-end") {
 
     auto server = maya::co_owned<ag::acp::AgentServer>::make(
         ag::rpc::fd_channel(c2a[0], a2c[1]), stream, cred, "claude-test", ag::Profile::Ask);
-    std::thread agent_thread([&]{ server->serve(agtest::cap()); });   // returns at EOF on c2a
+    std::thread agent_thread([&]{ server->serve(agtest::cap()); });   // 返回到 c2a 上的 EOF 时
 
-    // ── Client side ────────────────────────────────────────────────────────
+    // ── 客户端 ────────────────────────────────────────────────────────
 
     std::atomic<int> agent_text_chunks{0};
     std::atomic<int> tool_calls{0};
-    // Every ToolCallUpdate must reference an id a ToolCall already announced.
+    // 每一个 ToolCallUpdate 编号必须参考 ToolCall 已经宣布了。
     //
-    // This is not a style rule — it is what Zed's client DOES with a stray
-    // update: acp_thread.rs's update_tool_call() looks the id up, finds
-    // nothing, and renders a visible "Tool call not found" FAILURE card in
-    // the user's panel. So an unpaired update is not silently ignored; it
-    // shows up as a broken tool in the transcript.
+    // 这不是一种风格规则——这是Zed客户端的DOES带有一个偏差更新:
+    // acp_thread.rs的update_tool_call()将id向上看,
+    // 什么也没有发现,渲染在用户的面板上是一张可见的"Tool call not found"
+    // FAILURE卡,所以一个未发的更新没有默默忽略;
+    // 它作为一个破碎的工具出现在了记录稿中.
     std::set<std::string> announced_tool_ids;
     std::atomic<int>      orphan_tool_updates{0};
     std::atomic<int>      relative_locations{0};
@@ -267,19 +267,19 @@ TEST_CASE("acp integration end-to-end") {
                 ++tool_calls;
                 std::lock_guard lk(transcript_mu);
                 announced_tool_ids.insert(t.toolCall.toolCallId.value);
-                // Locations must be ABSOLUTE. Zed's resolve_location tries
-                // project_path_for_absolute_path, then falls back to
-                // open_local_buffer only `if is_absolute(path)` — a relative
-                // path matches neither, returns None, and the location is
-                // silently dropped. Follow-along just stops moving; nothing
-                // errors, so this is invisible without an assertion.
+                // 地点必须是 ABSOLUTE . Zed的电话 resolve_location
+                // 尝试 project_path_for_absolute_path ,
+                // 然后回到 open_local_buffer 仅限
+                // `if is_absolute(path)` —— 相对路径匹配,
+                // 既不匹配, 返回无, 位置静默地被丢弃。 follow
+                // -along 停止移动,没有错误, 所以这是无形的,没有断言。
                 for (const auto& l : t.toolCall.locations)
                     if (!l.path.empty() && !std::filesystem::path(l.path).is_absolute())
                         ++relative_locations;
                 tc_title = t.toolCall.title;
-                // The PROGRAMMATIC name (spec 1.8.0), distinct from the
-                // human title. A client grouping or filtering by tool
-                // identity cannot recover it from "Reading src/main.cpp".
+                // 电话 PROGRAMMATIC 名称( spec 1.8.
+                // 0) 不同于人类标题。客户端通过工具身份组合或过滤
+                // 无法从中恢复 "Reading src/main.cpp".
                 if (t.toolCall.name) tc_name = *t.toolCall.name;
                 if (t.toolCall.kind == ToolKind::Edit) tc_is_edit_kind.store(true);
                 for (const auto& cc : t.toolCall.content)
@@ -290,10 +290,10 @@ TEST_CASE("acp integration end-to-end") {
                 { std::lock_guard lk(transcript_mu);
                   if (!announced_tool_ids.count(u.update.toolCallId.value))
                       ++orphan_tool_updates;
-                  // Locations ride on the UPDATE, not the initial ToolCall:
-                  // at announce time the args haven't finished streaming, so
-                  // there is no path yet. This is where the absolute-path
-                  // contract actually has to hold.
+                  // 地点在 UPDATE ,不是初始数据 ToolCall:
+                  // 宣布时, 参数还没有完成 流式传输 ,
+                  // 所以还没有路径。这是绝对的。 -path
+                  // 合同实际上必须持有。
                   if (u.update.locations)
                       for (const auto& l : *u.update.locations)
                           if (!l.path.empty() && !std::filesystem::path(l.path).is_absolute())
@@ -343,7 +343,7 @@ TEST_CASE("acp integration end-to-end") {
             [&](const auto&) {});
     });
     std::atomic<bool> reject_mode{false};
-    // Approve the write when asked (or reject when reject_mode is set).
+    // 被请求时批准写入( 或设定 reject_mode 时拒绝)。
     router.on<to_client::RequestPermission>([&](Client&, const RequestPermissionParams& p) {
         ++perm_requests;
         {
@@ -369,14 +369,14 @@ TEST_CASE("acp integration end-to-end") {
     dispatch.on_notification = [&](const maya::unlocked&, const jsonrpc::Notification& n) { router.handle(client_ctx, n); };
     ag::rpc::Peer agent(ag::rpc::fd_channel(a2c[0], c2a[1]), std::move(dispatch), "acp-client");
     agent.start();
-    // A call that must succeed; a failure throws the RpcError like the old
-    // future-based client did, so the error-code checks below read the same.
+    // A 调用 ;失败将 RpcError 喜欢旧的未来 -based
+    // 客户端确实如此, 所以错误 -code 下面的检查读作相同。
     auto must = [](auto r) {
         if (!r) throw r.error();
         return std::move(*r);
     };
 
-    // ── Drive the protocol ─────────────────────────────────────────────────
+    // ── 驱动协议 ─────────────────────────────────────────────────
     InitializeParams ip;
     ip.clientCapabilities.fs.readTextFile = true;
     ip.clientCapabilities.fs.writeTextFile = true;
@@ -384,11 +384,11 @@ TEST_CASE("acp integration end-to-end") {
     CHECK(init.protocolVersion == kProtocolVersion);
     CHECK(init.agentCapabilities.loadSession == true);
     CHECK(init.agentCapabilities.promptCapabilities.embeddedContext == true);
-    // Images are DECLARED because they are now decoded into the prompt
-    // rather than dropped. Declaring a capability we then discard is worse
-    // than not declaring it: the client shows the attachment as sent.
+    // 图像是 DECLARED 因为他们
+    // 现在被解码为 提示词 声明我们放弃的能力
+    // 比不宣布更糟糕:客户端显示发送的附件。
     CHECK(init.agentCapabilities.promptCapabilities.image == true);
-    // Audio stays undeclared — no provider we ship accepts it.
+    // 音频没有申报——没有我们船接受的供应商。
     CHECK(init.agentCapabilities.promptCapabilities.audio == false);
     CHECK(init.agentInfo.has_value() && init.agentInfo->name == "agentty");
 
@@ -396,26 +396,26 @@ TEST_CASE("acp integration end-to-end") {
     auto ns = must(agent.call<to_agent::SessionNew>(agtest::cap(), nsp));
     CHECK(!ns.sessionId.value.empty());
     CHECK(ns.modes.has_value());
-    // The selectors ride on the result itself, not only on the update that
-    // follows: JetBrains builds its dropdown from the result.
+    // 选择者们在结果本身上,不仅仅在以下更新上:
+    // JetBrains从结果上建立其下降.
     REQUIRE(ns.configOptions.has_value());
     CHECK(ns.modes->currentModeId.value == "ask");
     CHECK(ns.modes->availableModes.size() == 3);
 
-    // Shell parity with Zed's native agent: session/new advertises the
-    // slash-command menu (compact/new + skills) and the model-picker config
-    // option, as session/update notifications.
+    // 贝壳与Zed的本地代理商对等: session/new 广告斜线 -command
+    // 菜单( 选项) compact/new + 技能)和模式 -picker 配置选项,
+    // 如 session/update 通知.
     CHECK(avail_cmds.load() >= 1);
     CHECK(saw_skill_or_compact_cmd.load());
     CHECK(config_opts.load() >= 1);
     CHECK(saw_model_option.load());
-    // The permission mode is a config option on every connection: Zed builds
-    // its selectors from configOptions alone once they exist (it drops
-    // `modes`), so without it there was no profile picker in Zed.
+    // 电话 权限 模式是每个连接上的配置选项: Zed 从
+    // configOptions 单枪匹马一旦出现 `modes`
+    // 因此没有它,就没有描述 选择面板 扎德的电影
     CHECK(saw_mode_option.load());
 
-    // The MODEL option is version-agnostic. session/set_config_option applies
-    // a value from the option's own list and echoes the complete config state.
+    // 电话 MODEL 选项是版本 -agnostic.
+    // session/set_config_option 应用选项本身列表中的值,并响应完整的配置状态。
     {
         auto model_opt = std::find_if(ns.configOptions->begin(), ns.configOptions->end(),
                                       [](const ConfigOption& o) { return o.id == "model"; });
@@ -433,9 +433,9 @@ TEST_CASE("acp integration end-to-end") {
         bool reflected = false;
         for (const auto& o : set.configOptions)
             if (o.id == "model" && o.currentValue == pick) reflected = true;
-        CHECK(reflected);   // the result carries the new state
+        CHECK(reflected);   // 结果是带有新状态的
     }
-    // A model that is on no signed-in provider is a client mistake.
+    // 一个没有签名的-in供应商的模型是客户端错误.
     {
         int code = 0;
         try {
@@ -445,15 +445,15 @@ TEST_CASE("acp integration end-to-end") {
         } catch (const RpcError& e) { code = e.code; } catch (...) {}
         CHECK(code == errc::InvalidParams);
     }
-    // An unknown configId is a hard error, not a silent no-op — and the
-    // CODE matters, not just that it threw.
+    // 未知的线索 configId 是个很严重的错误,不是沉默,不是 -op ——
+    // 和 CODE 不只是它扔的 说不定是...
     //
-    // Zed branches on it (agent_servers/src/acp.rs): AuthRequired opens the
-    // sign-in flow, any other non-InternalError is surfaced to the user
-    // verbatim, and InternalError is treated as "the agent broke" — it digs
-    // into err.data looking for a crash detail and otherwise shows a
-    // generic failure. So reporting a CLIENT mistake as InternalError
-    // blames the agent for a bad request and buries the actionable message.
+    // 上面的Zed树枝( agent_servers/src/acp.rs):
+    // AuthRequired 打开标志 -in 流动,任何其他非流动
+    // -InternalError 浮出到用户的逐字记录中, InternalError
+    // 被视为 "the agent broke" ——它会挖进 err.data
+    // 寻找崩溃细节, 否则显示通用失败。 CLIENT 错误为
+    // InternalError 将一个错误的请求归咎于代理人,并埋葬了可采取行动的信息.
     {
         int  code = 0;
         Json data;
@@ -466,13 +466,13 @@ TEST_CASE("acp integration end-to-end") {
             threw = true; code = e.code; data = e.data;
         } catch (...) { threw = true; }
         CHECK(threw);
-        CHECK(code == errc::InvalidParams);      // NOT InternalError
-        // And it says what WOULD have worked, so the client can act.
+        CHECK(code == errc::InvalidParams);      // 不 InternalError 国 务 院
+        // 上面写着WOULD的工作原理,所以客户可以采取行动.
         CHECK(data.contains("supported"));
     }
 
-    // Same for an unknown sessionId: the client sent a bad id, we did not
-    // crash.
+    // 与未知的sessionId相同:客户端发送了坏ID,
+    // 我们没有崩溃.
     {
         int  code = 0;
         try {
@@ -484,29 +484,29 @@ TEST_CASE("acp integration end-to-end") {
         CHECK(code == errc::InvalidParams);
     }
 
-    // set_mode round-trip (switch to minimal then back to ask). Keep the
-    // session in Ask before the prompt so the `write` tool gates on the user.
+    // set_mode 圆-trip( 切换到最小, 然后回问)。 在提示词 之前,
+    // 将会话保留在 Ask 中, 因此用户上方的 `write` 工具门。
     must(agent.call<to_agent::SessionSetMode>(agtest::cap(), SetModeParams{ns.sessionId, SessionModeId{"minimal"}, Json::object()}));
     must(agent.call<to_agent::SessionSetMode>(agtest::cap(), SetModeParams{ns.sessionId, SessionModeId{"ask"}, Json::object()}));
 
     PromptParams pp;
     pp.sessionId = ns.sessionId;
     pp.prompt.push_back(TextContent{"please write the file", Nothing, Json::object()});
-    auto pr = must(agent.call<to_agent::SessionPrompt>(agtest::cap(), pp));   // resolves only after full turn
+    auto pr = must(agent.call<to_agent::SessionPrompt>(agtest::cap(), pp));   // 只有在完全回合后才能解决
 
     CHECK(pr.stopReason == StopReason::EndTurn);
-    CHECK(completions.load() == 2);             // two model completions ran
-    // The first prompt pushed a live session title to Zed's sidebar.
+    CHECK(completions.load() == 2);             // 两次模式完成运行
+    // 第一个提示词将一个直播会话标题推到了Zed的侧边栏.
     CHECK(session_infos.load() >= 1);
     { std::lock_guard lk(transcript_mu);
       CHECK(!last_session_title.empty()); }
-    CHECK(perm_requests.load() == 1);           // write asked once
+    CHECK(perm_requests.load() == 1);           // 写到过一次
     CHECK(tool_calls.load() == 1);
-    // No update referenced an unannounced id. Zed renders those as a
-    // "Tool call not found" failure card, so this is user-visible breakage,
-    // not a protocol nicety.
+    // 没有更新引用未事先通知的编号。 Zed 渲染 以 " . "Tool
+    // call not found" 失败卡, 所以这是用户 -visible 破碎,
+    // 不是协议的好。
     CHECK(orphan_tool_updates.load() == 0);
-    // Every location we emitted was absolute (see the collector above).
+    // 我们发射的每个地点都是绝对的(见上文收集器)。
     CHECK(relative_locations.load() == 0);
     if (tool_completed.load() != 1) {
         std::lock_guard lk(transcript_mu);
@@ -517,16 +517,16 @@ TEST_CASE("acp integration end-to-end") {
     CHECK(usage_updates.load() == 2);
     CHECK(agent_text_chunks.load() >= 2);
 
-    // The tool card is first-class: title is project-relative ("write out.txt",
-    // not the absolute tmp path), kind maps write→Edit, and an announce-time
-    // diff card is shown before the tool runs — on both the tool_call update
-    // and the permission request. This is the claude-code-acp parity work.
+    // 工具卡是第一个 -class : 标题是工程 -relative ("write out.txt" ,
+    // 而不是绝对的 tmp 路径), 类型地图写入 – 编辑, 并发布 -time
+    // diff卡在工具运行前显示——在两个工具上 tool_call 最新报告
+    // 及 权限 请求。这是 Claude。 -code-acp 平等工作。
     { std::lock_guard lk(transcript_mu);
       CHECK(tc_title.rfind("Write ", 0) == 0);
-      CHECK(tc_title.find('/') == std::string::npos);   // relative, no dir sep
-      // …and the programmatic name rides alongside it. Stabilised in spec
-      // 1.8.0; without it a client can only ever show the prose title, so
-      // grouping/filtering/iconography by tool identity is impossible.
+      CHECK(tc_title.find('/') == std::string::npos);   // 相对, 无 dir sep
+      // ... 程序名称会同时运行。 稳定在 1. 8. 0 个字符中;
+      // 没有它, 客户端只能显示传言标题,
+      // 所以 grouping/filtering/iconography 无法通过工具身份。
       CHECK(tc_name == "write");
       CHECK(perm_title.rfind("Write ", 0) == 0); }
     CHECK(tc_is_edit_kind.load());
@@ -537,14 +537,14 @@ TEST_CASE("acp integration end-to-end") {
       CHECK(transcript.find("Writing the file.") != std::string::npos);
       CHECK(transcript.find("Done.") != std::string::npos); }
 
-    // The tool actually wrote the file.
+    // 工具实际上写了文件.
     CHECK(fs::exists(target));
     { std::ifstream f(target); std::string body((std::istreambuf_iterator<char>(f)), {});
       CHECK(body.find("hello from acp") != std::string::npos); }
 
-    // ── Turn 2: client REJECTS the write. The tool must be marked failed,
-    //    the model gets the rejection as a tool result, and the turn still
-    //    resolves cleanly (end_turn). ────────────────────────────────────────
+    // 轮次 2：客户端拒绝写入。工具必须标记为失败，
+    //    模式作为工具结果获得拒绝,
+    //    转弯仍然能干净地解决(end_turn). ) QQ
     fs::remove(target);
     reject_mode.store(true);
     int perms_before   = perm_requests.load();
@@ -556,15 +556,15 @@ TEST_CASE("acp integration end-to-end") {
     auto pr2 = must(agent.call<to_agent::SessionPrompt>(agtest::cap(), pp2));
 
     CHECK(pr2.stopReason == StopReason::EndTurn);
-    CHECK(perm_requests.load() == perms_before + 1);   // asked again
-    CHECK(tool_failed.load()   == failed_before + 1);   // rejected → failed
-    CHECK(!fs::exists(target));                          // never written
+    CHECK(perm_requests.load() == perms_before + 1);   // 又问了
+    CHECK(tool_failed.load()   == failed_before + 1);   // 拒绝 + 失败
+    CHECK(!fs::exists(target));                          // 从未写
 
-    // ── Turn 3: a `read` result must come back LINE-NUMBERED and fenced,
-    //    matching claude-code-acp's card body (the "tool UI looks different"
-    //    fix). Scripted provider emits a read of the file we wrote in turn 1,
-    //    then ends the turn. ──────────────────────────────────────────────────
-    // Re-create the file (turn 2 rejected/removed it).
+    // 轮次 3：read 结果必须带行号并用围栏包裹，
+    //    匹配阴道 -code-acp 一张卡片 正文 (无)
+    //    "tool UI looks different"。脚本提供者发布我们所写文件的读数,
+    //    然后结束转折。 @ @ info -create 文件( 转弯 2)
+    // rejected/removed ) , , —— —— , ) .
     { std::ofstream f(target); f << "alpha\nbeta *star* line\ngamma\n"; }
     reject_mode.store(false);
     read_mode.store(true);
@@ -576,15 +576,15 @@ TEST_CASE("acp integration end-to-end") {
     auto pr3 = must(agent.call<to_agent::SessionPrompt>(agtest::cap(), pp3));
     CHECK(pr3.stopReason == StopReason::EndTurn);
     { std::lock_guard lk(transcript_mu);
-      // The Read card body is a fenced, tab-numbered excerpt: "```\n1\talpha…".
+      // 读取卡片正文是带围栏和制表符行号的摘录，例如 "```\n1\talpha…"。
       CHECK(last_tool_text.rfind("```", 0) == 0);
       CHECK(last_tool_text.find("1\talpha") != std::string::npos);
       CHECK(last_tool_text.find("2\tbeta")  != std::string::npos); }
 
-    // ── Turn 4: a `bash` result must show its OUTPUT in the card body as a
-    //    fenced block (the "bash shows no output" fix). No terminal capability
-    //    here, so it runs the internal path; the completion must carry the
-    //    captured stdout, fenced. ───────────────────────────────────────
+    // 轮次 4：bash 结果必须在卡片正文中展示实际输出，形式为
+    //    栅栏状块( "bash shows no output"
+    //    固定) (无) 终端
+    //    完成必须携带抓获的铁丝网,
     read_mode.store(false);
     bash_mode.store(true);
     last_tool_text.clear();
@@ -595,12 +595,12 @@ TEST_CASE("acp integration end-to-end") {
     auto pr4 = must(agent.call<to_agent::SessionPrompt>(agtest::cap(), pp4));
     CHECK(pr4.stopReason == StopReason::EndTurn);
     { std::lock_guard lk(transcript_mu);
-      // The bash card body is fenced and contains the command's stdout.
+      // 击打卡正文是栅栏,包含命令的stdout。
       CHECK(last_tool_text.find("```")          != std::string::npos);
       CHECK(last_tool_text.find("hello-stdout") != std::string::npos); }
 
-    // ── Turn 5 (#116): three parallel writes in one response, ends batched.
-    //    Every file is written with its own content. ───────────────
+    // 轮次 5（#116）：同一响应中的三次并行写入，结束时批量完成。
+    //    每个文件都用自己的内容写成。。 @ @ info
     bash_mode.store(false);
     parallel_mode.store(true);
     PromptParams pp5;
@@ -618,20 +618,20 @@ TEST_CASE("acp integration end-to-end") {
     }
     parallel_mode.store(false);
 
-    // ── An image in a prompt reaches the model ─────────────────────────────
+    // ── 图像在一个 提示词 到达模型 ─────────────────────────────
     //
-    // The server used to have an EMPTY visitor arm for ImageContent, so a
-    // screenshot pasted into Zed's agent panel was silently discarded — the
-    // words went, the picture didn't, on a build whose TUI has had vision
-    // for months. A dropped block is indistinguishable from a model that
-    // ignored the image, which is why nobody reported it.
+    // 服务器曾经有一个 空 访客臂 ImageContent ,
+    // 所以一个截图贴在Zed的代理面板上 被默默地丢弃
+    // 了—— 字句去,照片没有,在一块建筑上,
+    // TUI 被丢弃的街区与一个无视图像的模型是分不开的,
+    // 这就是为什么没有人报告它的原因。
     //
-    // Asserting on what the MODEL received (not just that the capability is
-    // declared) is the point: declaring `image` and then dropping the bytes
-    // would be worse than not declaring it at all.
+    // 坚持到底 MODEL 接收(不仅仅是宣布能力)
+    // 是:宣布 `image` 然后丢掉 字节
+    // 更糟糕的是,甚至没有宣布它。
     {
-        // A 1x1 PNG, base64 — the smallest thing that is unambiguously an
-        // image and survives a decode byte-for-byte.
+        // A 1x1 PNG, base64 最小的东西,一个清晰的图像
+        // 并生存在解码 字节-for-byte.
         const std::string png_b64 =
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
         PromptParams ip2;
@@ -644,19 +644,19 @@ TEST_CASE("acp integration end-to-end") {
         std::lock_guard lk(saw_mu);
         CHECK(saw_images.load() == 1);
         CHECK(saw_media_type == "image/png");
-        // Decoded, not passed through as base64: the model layer wants raw
-        // bytes, and a PNG starts with the 8-byte signature.
+        // 已解码,未通过为 base64 : 模型层想要原始 字节 ,
+        // 并设置一个 PNG 以 8 开头 -byte 签名。
         CHECK(saw_bytes.size() > 8);
         CHECK(saw_bytes.compare(1, 3, "PNG") == 0);
     }
 
-    // close round-trip.
+    // 关闭 -trip。
     must(agent.call<to_agent::SessionClose>(agtest::cap(), CloseSessionParams{ns.sessionId, Json::object()}));
 
-    // ── Tear down ──────────────────────────────────────────────────────────
-    ::close(c2a[1]);   // EOF on the agent's reader → serve() returns
+    // ── 拆开 ──────────────────────────────────────────────────────────
+    ::close(c2a[1]);   // EOF ==== == 翻译=== serve() 返回时
     agent_thread.join();
-    ::close(a2c[1]);   // EOF on our reader
+    ::close(a2c[1]);   // EOF 阅读器
     agent.stop(agtest::cap());
     ::close(c2a[0]);
     ::close(a2c[0]);

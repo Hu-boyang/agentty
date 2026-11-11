@@ -1,5 +1,5 @@
-// slash_io.cpp — the disk + MCP side of slash.hpp, for callers with no
-// Model (ACP, `agentty run`). The TUI builds its catalog from the Model.
+// slash_io.cpp 磁盘+ MCP 边 slash.hpp ,对于没有 Model
+// (ACP, `agentty run`。。 内容。 TUI 建立其 目录 从 Model.
 #include "agentty/runtime/slash.hpp"
 
 #include "agentty/tool/commands.hpp"
@@ -71,8 +71,8 @@ std::optional<std::string> expand(Io io, std::string_view text, const Catalog& c
                                   bool skill_already_active) {
     auto e = expand_checked(io, text, cat, skill_already_active);
     if (!e) return std::nullopt;
-    // A usage note is for the user. Callers that can't show one send the
-    // line as typed; the model then sees what the user wrote, not our note.
+    // 一个用户使用符。 无法显示一个用户发送行为 带类型的;
+    // 模型然后看到用户写的东西, 而不是我们的符。
     if (e->usage) return std::nullopt;
     return std::move(e->text);
 }

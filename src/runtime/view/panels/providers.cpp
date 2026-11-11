@@ -1,7 +1,7 @@
-// providers.cpp — the provider picker (^P) + accounts drill-down.
+// providers.cpp ——提供者 选择面板 (^P + 账户钻探 -down.
 //
-// Pure adapter: builds maya::Panel::Config from Model state; the widget
-// owns every chrome decision. Shared scaffolding: panels_prologue.hpp.
+// 纯适配器: 构建 maya::Panel::Config 发件人 Model 状态;
+// 部件拥有每个铬决定。 共享脚手架 : panels_prologue.hpp.
 
 #include "panels_prologue.hpp"
 
@@ -21,15 +21,15 @@ Element providers_panel(const Model& m) {
 
     const std::string active_id = m.d.selection.catalog_id();
 
-    // The one ordered, query-filtered row list — the SAME list the reducer
-    // resolves a selection against (see build_provider_rows). The cursor is a
-    // plain index into it; there is no offset math on either side.
+    // 订的,问吧 -filtered 行列表—— 缩写 相同 列表
+    // 状态更新函数 解决选择对齐(见 build_provider_rows。
+    // 光标是一个简单的索引,两边都没有数学偏移。
     //
-    // Off the RECORD, not the seam. view() is a pure function of the Model:
-    // reaching through deps() here meant the same Model could paint two
-    // different frames depending on what the store happened to hold, which
-    // is also what makes visual_hash's cache-skip unsound. `m.d.persisted`
-    // is the same settings the reducers read.
+    // 关闭( O) RECORD ,而不是 接口边界. view() 是一个纯粹的函数 Model:
+    // 覆盖到 deps() 这里的意思是一样的 Model 画两个
+    // 不同的 帧 取决于商店的店面 也取决于它是否 visual_hash's
+    // 缓存-skip 病态。 `m.d.persisted`
+    // 设置与该设置相同 状态更新函数 读。
     const auto& settings = m.d.persisted;
     const std::vector<std::string> saved_custom_hosts =
         provider::saved_custom_hosts(settings.provider_keys);
@@ -38,13 +38,13 @@ Element providers_panel(const Model& m) {
         picker->show_all);
     const auto& srows = sectioned.rows;
 
-    // Live search header (mirrors the model picker). Backspace trims; typing
-    // narrows. Hidden ACP/custom rows return the moment the query is cleared.
+    // 现场搜索 头文件 (模仿模型) 选择面板). Backspace 修剪;
+    // 输入窄处。 隐藏 ACP/custom 查询被清除后行返回。
     cfg.header.push_back(filter_header(picker->query, "providers"));
     cfg.header.push_back(sep);
 
-    // Trailing auth-status column for a built-in preset. One place, so every
-    // provider's badge stays consistent.
+    // 拖曳认证 -status 已建栏 -in 预设,一个地方,
+    // 所以每个供应商的徽章都保持一致。
     auto preset_note = [&](const provider::ProviderPreset& p, bool active)
         -> std::pair<std::string, maya::Color> {
         auto signed_badge = [&](std::string signed_label) {
@@ -53,11 +53,11 @@ Element providers_panel(const Model& m) {
                        : std::move(signed_label),
                 active ? success : muted};
         };
-        // OAuth providers whose token lives in their own transport: one
-        // uniform status line, answered by the auth vault. Was three
-        // near-identical name-keyed blocks calling three different
-        // signed_in() probes; vault::signed_in dispatches over the same
-        // table, so a new OAuth provider gets its status row for free.
+        // 拥有自己生命的奥奥特供应商 传输层 : 由Auth金库回答的
+        // 一条统一状态线。 -identical 名称 -keyed
+        // 调用三个不同的块 signed_in (a) 探测器;
+        // vault::signed_in 发送到同一个表格上,
+        // 所以一个新的 OAuth 提供者可以免费获得它的状态行。
         if (p.token_in_transport) {
             if (provider::signed_in(p.id, m.d.persisted, m.d.auth))
                 return signed_badge(std::string{p.label} + " (signed in)");
@@ -66,15 +66,15 @@ Element providers_panel(const Model& m) {
         if (p.is_local || p.auth == provider::AuthStyle::None)
             return {"\xe2\x97\x8f local", info};
         if (p.kind() == provider::Kind::Anthropic) {
-            // The credential store, not the live header (do NOT read
-            // deps().auth here), as loaded into the Model's AuthView.
+            // 电话 凭据 商店,不是现场 头文件 ( 做 ) 不 读 deps() 这儿,
+            // 作为 已加载 输入 Model's AuthView.
             if (m.d.auth.stored(p.id))
                 return {active ? "\xe2\x9c\x93 signed in \xc2\xb7 accounts" : "\xe2\x9c\x93 signed in", success};
             return {"\xe2\x9a\xa0 sign in", warn};
         }
-        // Hosted API-key provider: distinguish a SAVED (pasted) key — which
-        // ^D signs out — from an ENV key, which can't be removed in-app, so
-        // the badge must not imply ^D will work on it.
+        // 已主机 API-key 提供者: 区分 a SAVED (贴)
+        // 密钥——哪些 ^D 显示出——从 ENV 键,无法删除 -app ,
+        // 所以徽章不能暗示 ^D 将会努力。
         switch (provider::auth_source(p, settings, m.d.auth)) {
             case provider::AuthSource::Saved:
                 return {active ? "\xe2\x9c\x93 signed in \xc2\xb7 key"
@@ -94,21 +94,21 @@ Element providers_panel(const Model& m) {
     cfg.items.reserve(srows.size() + 3);
     std::optional<ui::ProviderSection> cur_section;
     int visual_selected = 0;
-    // Per-section counts for the right-pinned stat on each divider.
+    // 人数 -section 计算右边 -pinned 在每个分区上显示
     int yours_count = 0, more_count = 0;
     for (const auto& sr : srows) {
         if (sr.section == ui::ProviderSection::Yours) ++yours_count;
         else if (sr.section == ui::ProviderSection::More) ++more_count;
     }
-    // Does any row actually carry the amber "no key" badge? Drives the footer
-    // legend, which must only explain what's on screen. The signpost isn't
-    // one: it's a dim action row, not a warning.
+    // 是否有任何一行真的携带琥珀"no key"徽章?
+    // 驱动脚步传奇,这只能解释屏幕上的内容,
+    // 路标不是:是暗动作行,不是警告.
     const bool any_unconfigured = more_count > 0;
 
-    // Name column width: the longest provider label actually on screen, so
-    // every description starts at the SAME column and the list scans
-    // vertically. Capped so one long custom-host spec can't push every
-    // blurb off the right edge.
+    // 名称列宽: 屏幕上实际最长的提供者标签,
+    // 所以每个描述都从 相同 列表垂直扫描。
+    // -host 光谱不能把每一个模糊的
+    // 边缘都推向右侧.
     int name_w = 0;
     for (const auto& sr : srows) {
         if (sr.more_signpost) continue;
@@ -119,9 +119,9 @@ Element providers_panel(const Model& m) {
         name_w = std::max(name_w, static_cast<int>(maya::string_width(nm)));
     }
     name_w = std::min(name_w, 22);
-    // Pad `nm` out to the name column. A name longer than the cap keeps its
-    // full text and simply pushes its own description right -- truncating a
-    // provider name to save alignment is the wrong trade.
+    // 纸 `nm`。一个比盖子长的名字保留其全文,
+    // 并简单地将自己的描述右推 - 将提供者名称
+    // 切换为 保存 校正是错的交易。
     const auto pad_name = [&](const std::string& nm) {
         const int w = static_cast<int>(maya::string_width(nm));
         return nm + std::string(static_cast<std::size_t>(std::max(1, name_w - w + 2)), ' ');
@@ -132,10 +132,10 @@ Element providers_panel(const Model& m) {
         const auto& r  = sr.row;
         const int   i  = static_cast<int>(ri);
 
-        // One divider per band. Only drawn when the band is non-empty, so a
-        // fresh install (nothing configured) never shows an empty "YOURS".
-        // The signpost stands alone -- no divider above a single row that is
-        // itself a label.
+        // 每个带一个分割符。 只有在带子没有时才绘制 -empty ,
+        // 所以新安装( 配置无) 从未显示空 "YOURS".
+        // 路标站立在单行之上,没有分隔符本身
+        // 就是标签。
         if ((!cur_section || *cur_section != sr.section)
             && sr.section != ui::ProviderSection::Signpost) {
             SectionHeader sh;
@@ -151,7 +151,7 @@ Element providers_panel(const Model& m) {
                     sh.count = more_count;
                     break;
                 case ui::ProviderSection::Signpost:
-                    break;                       // unreachable, guarded above
+                    break;                       // 无法到达,在上方守护
                 case ui::ProviderSection::Add:
                     sh.label = "add";
                     sh.hue   = muted;
@@ -165,12 +165,12 @@ Element providers_panel(const Model& m) {
 
         Panel::Item row;
 
-        // The "N more providers" signpost, rendered as a real row so Enter
-        // reaches it. Dim and stated as an action, not a status.
+        // 电话 "N more providers" 路标, 做成真正的一行
+        // Enter 到了,迪姆,并说是一种行动,而不是一种状态。
         if (sr.more_signpost) {
-            // An action, not a destination: a dim › marker in the badge
-            // column distinguishes it from the provider rows above without
-            // borrowing the ● that means "active".
+            // 一个动作,而不是一个目的地:徽章栏中的暗QQ标记,
+            // 将其与上面的提供者行区分开来,
+            // 而不借用表示"active"的%.
             row.badge       = "\xe2\x80\xba";          // ›
             row.badge_style = fg_dim(muted);
             row.leading = "Show " + std::to_string(sectioned.n_hidden)
@@ -187,32 +187,32 @@ Element providers_panel(const Model& m) {
             const bool active = (p->id == active_id);
             const bool confirming = (picker->confirm_remove == std::string{p->id});
             auto [note, note_color] = preset_note(*p, active);
-            // ● in the badge column, like the model picker: the marker lives
-            // in chrome the widget already reserves, so every provider name
-            // starts at the same column instead of the active row being
-            // indented one glyph out of line with its neighbours.
+            // · 在徽章栏中,如型号选择面板:标记
+            // 生活在部件保留的铬中,因此每个提供者的
+            // 名字都在同一栏中开始,而不是将活动栏
+            // 缩进一个格莱弗,与其邻居不相符合。
             //
-            // A SPACE when inactive, not an empty string: maya only reserves
-            // the badge cell for rows that set one, so leaving it empty
-            // pulled every other row a glyph left and undid the alignment.
+            // A SPACE 非活动时, 而非空字符串 :
+            // maya 只保留徽章 存储单元 用于设置一行,
+            // 所以留空 将其他行拉出左侧的格莱弗,并解开对齐。
             row.badge       = active ? "\xe2\x97\x8f" : " ";   // ●
             row.badge_style = fg_of(accent);
             row.leading = pad_name(std::string{p->label})
                         + std::string{p->blurb};
-            // Primary content renders at full foreground (same rule as the
-            // model picker): dimming EVERY non-active row to make one stand
-            // out inverts the hierarchy — it makes the whole list read as
-            // unavailable while the trailing status chip out-shouts the name.
+            // 主要内容 渲染 完全前方(与模型相同的规则) 选择面板
+            // : 暗淡( 暗淡) 每个 无 -active 排行让
+            // 一个突出的等级倒置——它使得整个列表在后端状态下读作
+            // 不可用 标签 退出( O) -shouts 名字的号码。
             //
-            // An OFFER row is the one exception: it's a provider you haven't
-            // set up, shown because you searched for it, so it reads dim and
-            // states its single action instead of warning about a key you
-            // never asked to have.
+            // 一个OFFER列是一个例外:它是一个你没有
+            // 设置的提供者,因为你搜索它而显示,所以它读得暗淡,
+            // 并声明它的单项动作,而不是警告你从未
+            // 要求拥有的钥匙.
             row.leading_style  = sr.offer ? fg_dim(muted)
                                           : (active ? fg_bold(fg) : fg_of(fg));
             if (confirming) {
-                // Del/d armed on a preset that has a saved key — second press
-                // signs out (clears the key), the preset itself stays.
+                // Del/d 装备在预设有 已保存 键 —— 第二次
+                // 按键显示( 清除键) , 预设本身会保留。
                 row.trailing       = "\xe2\x9c\x97 press again to sign out";
                 row.trailing_style = fg_of(warn);
             } else if (sr.offer) {
@@ -244,8 +244,8 @@ Element providers_panel(const Model& m) {
                 row.trailing       = "\xe2\x9c\x97 press again to remove";
                 row.trailing_style = fg_of(warn);
             } else {
-                // What the host last told us, not a blanket "ready": a key
-                // it rejected is the thing the user came here to fix.
+                // 主持人最后告诉我们的 不是毯子 "ready"
+                // :它拒绝的密钥是用户来此修补的事物.
                 std::string err;
                 for (const auto& c : m.d.provider_catalogs)
                     if (c.provider_id == *spec) err = c.error;
@@ -265,21 +265,21 @@ Element providers_panel(const Model& m) {
             }
             row.active         = active;
         } else if (const std::string* prefill = r.new_host_prefill()) {
-            // PROMOTED sentinel: the query itself is endpoint-shaped, so this
-            // row stops being a generic escape hatch and becomes a concrete
-            // offer for the thing the user just typed. Full foreground, not
-            // muted — muted is this TUI's vocabulary for "unavailable", and
-            // reading the one row that solves your problem as disabled is
-            // exactly how a user concludes agentty cannot reach their server.
+            // PROMOTED 发送点: 查询本身是终点 -shaped ,
+            // 所以这行不再是一个通用的逃生舱 成为具体报价 的
+            // 东西用户只是 带类型的 完全前缘,而不是哑巴,
+            // 哑巴就是这个 TUI 用于 "unavailable" ,
+            // 读取一个行,解决您因禁用而存在的问题,
+            // 正是用户如何得出 agentty 无法到达他们的服务器。
             row.badge          = "+";
             row.badge_style    = fg_of(success);
             row.leading        = "Use " + *prefill + "  as a custom OpenAI-compatible host";
             row.leading_style  = fg_of(fg);
             row.trailing       = "\xe2\x8f\x8e connect";
             row.trailing_style = fg_of(info);
-        } else {   // NewCustomHost sentinel, unpromoted
-            // `+` marks the one row that CREATES a provider rather than
-            // selecting one, so "add" is legible without reading the label.
+        } else {   // NewCustomHost 哨兵,没有宣传
+            // `+` 标记一行 CREATES 而不是选择一个,
+            // 所以 "add" 可见而不读取标签。
             row.badge          = "+";
             row.badge_style    = fg_of(success);
             row.leading        = pad_name("Custom host\xe2\x80\xa6")
@@ -288,49 +288,49 @@ Element providers_panel(const Model& m) {
             row.trailing       = "\xe2\x9c\x8e edit";
             row.trailing_style = fg_dim(info);
         }
-        // Under width pressure the STATUS chip gives way, not the provider
-        // name — the name is what you select; "✓ signed in · accounts" is
-        // reference data. Same policy as the command palette and the model
-        // picker; maya's default (leading yields first) is for rows where the
-        // trailing cell matters more, like the file picker's diffstat.
+        // 在宽度压力下,STATUSXX标签让位,而不是提供者
+        // 名称——名称是您选择的;"✓ signed in · accounts"
+        // 是参考数据. 与命令调色板和型号选择面板相同的策略;
+        // maya的默认(领先产量先)是对于后方的存储单元更
+        // 重要的行,比如文件选择面板的diffstat.
         row.trailing_secondary = true;
         cfg.items.push_back(std::move(row));
     }
 
     cfg.selected = visual_selected;
 
-    // Enter opens the accounts drill-down on an account-capable OAuth
-    // provider, otherwise it switches. Read straight off the highlighted row.
+    // Enter 打开账户操作 -down 账户 -capable
+    // OAuth 提供者, 否则它会切换。 直接从突出显示的行读取。
     const bool row_has_accounts = [&] {
         if (picker->index < 0 || picker->index >= static_cast<int>(srows.size()))
             return false;
         const auto& sr = srows[static_cast<std::size_t>(picker->index)];
-        // An offer row's Enter starts sign-in, it doesn't drill into accounts.
+        // 开价一行 Enter 开始符号 -in ,它不钻入账户。
         if (sr.offer) return false;
         const auto& row = sr.row;
-        // Custom hosts hold multiple keys (accounts) — Enter drills in.
+        // 自定义主机持有多个密钥( 账户) – Enter 钻入.
         if (const auto* spec = row.custom_host())
             return provider::credentials::add_method(*spec)
                    != provider::credentials::AddMethod::None;
         const auto* p = row.preset();
         if (!p) return false;
-        // Every account-capable provider (OAuth + hosted API key) shows the
-        // account drill-down on Enter; only keyless local servers don't.
+        // 每个账户 -capable 提供者( OAuth + 主机) API 键)
+        // 显示账户钻 -down 打开 Enter ;只有无密钥的本地服务器没有.
         return provider::credentials::add_method(p->id)
                != provider::credentials::AddMethod::None;
     }();
 
     cfg.footer.push_back(text(""));
 
-    // The footer's top line is CONTEXTUAL, because a static legend teaches
-    // nothing at the moment a user is stuck. Three states:
+    // 脚印的顶部是CONTEXTUAL,因为一个静态
+    // 传说在用户卡住时不教任何东西. 三是:
     //
-    //   typed an endpoint  → confirm what Enter will do with it
-    //   typed a non-match  → say the generic path exists, in words, AT the
-    //                        moment the list looks empty (this is where a
-    //                        user otherwise concludes agentty can't reach
-    //                        their server and goes to patch the registry)
-    //   otherwise          → the badge legend
+    //   带类型的 终点 + 确认什么 Enter 将用
+    //   它 带类型的 a 非国家 -match 说通用路径存在,
+    //                        用文字, AT 列表看起来是空的(
+    //                        用户在此下结论) agentty
+    //                        无法到达他们的服务器,然后前往 补丁
+    //   编号 注册表 否则 徽章传说
     const bool host_shaped = ui::query_looks_like_host(picker->query);
     const bool no_presets  = !picker->query.empty()
                            && provider::filter_provider_indices(picker->query).empty();
@@ -351,10 +351,10 @@ Element providers_panel(const Model& m) {
             text(" to use any OpenAI-compatible server", fg_dim(muted))
         ).build());
     } else {
-        // The legend explains the badges that are ACTUALLY on screen. In the
-        // browse view every row is usable, so there is nothing to explain;
-        // expanded, the unconfigured rows say "Enter to set up" rather than
-        // naming an env var, so the legend must say the same thing.
+        // 传说中,人们解释徽章 ACTUALLY 屏幕上。
+        // 在浏览视图中,每行都可以使用,所以没有可解释的;
+        // 扩展后,未配置的行说 "Enter to set up"
+        // 而不是给一个阴道命名 所以传说中必须说同样的话
         if (any_unconfigured)
             cfg.footer.push_back(h(
                 text("\xe2\x9c\x93", fg_of(success)), text(" ready  ", fg_dim(muted)),
@@ -372,12 +372,12 @@ Element providers_panel(const Model& m) {
         {"Enter", host_shaped ? "connect"
                               : (row_has_accounts ? "accounts" : "switch"), 5},
     };
-    // Only advertise ^E when it would do something: while searching, every
-    // row is already shown.
+    // 只发布^E的广告, 当它会做一些事情: 在搜索时,
+    // 每行都已经显示。
     if (!sectioned.searching && (sectioned.n_hidden > 0 || picker->show_all))
         hints.push_back({"^E", picker->show_all ? "fewer" : "all", 3});
     hints.push_back({"^D", picker->confirm_remove.empty() ? "remove" : "confirm", 2});
-    hints.push_back({"^/", "models", 3});           // cross-hint: model picker
+    hints.push_back({"^/", "models", 3});           // 横 -hint : 型号 选择面板
     hints.push_back({"Esc", "close", 4});
     cfg.footer.push_back(key_hints(std::move(hints)));
 

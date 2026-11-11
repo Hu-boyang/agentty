@@ -1,30 +1,30 @@
-// wire_audit_test — the request is malformed; say WHICH message, not "400".
+// wire_audit_test ——请求有误;如: 对应的 消息,没有 "400".
 //
-// ── WHY THIS EXISTS ──────────────────────────────────────────────────────
+// ── 原因 此 EXISTS ──────────────────────────────────────────────────────
 //
-// Every provider rejects a malformed request with a 400 and a sentence
-// written for a human. By the time it arrives the payload is a 90 KB JSON
-// blob and the defect is one empty string inside it, so the diagnosis is
-// an afternoon of reading a body dump.
+// 每个提供者都拒绝一个有400个和为人类写一句的
+// 畸形请求。 当它到达时,载荷是一个90 KB
+// JSON blob,缺陷是里面的一个空弦,
+// 所以诊断是下午读正文的垃圾堆。
 //
-// GitHub's runtime does not accept that. Its failure telemetry carries a
-// seven-field `ModelCallFailureRequestFingerprint` describing the SHAPE of
-// the request that failed, and a preflight counter
-// (`request_nameless_tool_call_count`) measured BEFORE the request goes
-// out. They know the request is malformed while they can still name the
-// defect, and they know the rate across their fleet.
+// GitHub的运行时并不同意这一点. 其故障遥测携带了7-field
+// `ModelCallFailureRequestFingerprint`,
+// 描述请求中的SHAPE失败,飞行前计数器(
+// `request_nameless_tool_call_count`)
+// 测得请求的BEFORE,他们知道请求有误,同时他们仍然
+// 可以点出缺陷,他们知道整个机队的速率.
 //
-// audit_wire() is that, as a pure function over the wire payload.
+// audit_wire () 即,作为纯粹的功能,它优先于 传输 载荷.
 //
-// ── WHAT THIS PINS ───────────────────────────────────────────────────────
+// ── 内容 此 PINS  ⁇ ───────────────────────────────────────────────────────
 //
-// 1. Each defect kind is detected, and detected at the right INDEX — an
-//    audit that says "something is wrong" is the 400 we already had.
-// 2. Legitimate shapes stay clean. A checker that cries wolf gets muted,
-//    and a muted checker is worse than none: it converts "we don't know"
-//    into "we checked".
-// 3. The taxonomy is exhaustive by construction — a new Kind cannot be
-//    added without `describe()` naming it.
+// 1. 每种缺陷类型在右方的INDEX检测到,即
+//    审计内容 "something is wrong" 是我们已经拥有的400个
+// 2. 合法形状保持干净 哭狼声的检查者会哑巴
+//    哑巴的检查器比没有更糟糕,它会转换 "we don't know" 输入
+//    "we checked".
+// 3. 分类法通过建筑来详尽无遗——新类型不能是
+//    添加时未使用 `describe()` 命名。
 
 #include <string>
 #include <vector>
@@ -49,9 +49,9 @@ Message amsg(std::string text) {
     return m;
 }
 
-// An assistant turn carrying one tool call. `terminal` decides whether the
-// call already has its result (a completed round) or is still awaiting
-// execution (the normal mid-turn state).
+// 一个手持工具的助手转弯 调用. `terminal` 决定是否
+// 调用 已经取得了结果(一轮已完成),或者仍在等待执行(正常的
+// 中期) -turn ) ,"国家".
 Message with_call(std::string name, std::string id, bool terminal) {
     Message m; m.role = Role::Assistant;
     ToolUse tc;
@@ -71,12 +71,12 @@ bool has_kind(const WireAudit& a, Defect::Kind k) {
     return a.count(k) > 0;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("wire audit: a healthy exchange is clean") {
-    // The load-bearing case. Every other assertion is worthless if the
-    // ordinary shape trips the checker — a warning that fires on healthy
-    // traffic teaches people to ignore the channel it fires on.
+    // 电话 加载-bearing 如果普通形状穿过检查器,
+    // 那么其他的断言都毫无意义——这种对健康
+    // 交通的火灾警告让人们忽略它所开的渠道。
     std::vector<Message> wire;
     wire.push_back(umsg("list the files"));
     wire.push_back(with_call("shell", "call_1", /*terminal=*/true));
@@ -92,13 +92,13 @@ TEST_CASE("wire audit: a healthy exchange is clean") {
 }
 
 TEST_CASE("wire audit: a nameless tool call is named, with its index") {
-    // THE one. A tool call the server cannot route comes back as a 400
-    // that names an array index, not a cause — so the audit has to supply
-    // the cause and the index itself.
+    // 该 一. 工具 调用 服务器不能以一个400的路径返回,
+    // 它命名了一个数组索引,而不是一个原因——所以审计
+    // 必须提供原因和索引本身.
     //
-    // GitHub counts exactly this metric by name, which is how we know it
-    // is frequent enough on a multi-vendor wire to deserve its own
-    // counter rather than a generic "malformed request".
+    // GitHub 准确的计算这个量度 名字,这就是我们如何知道它足够频繁
+    // 的 在一个多 -vendor 传输 值得自己做一个计数器而不是
+    // 一个通用的 "malformed request".
     std::vector<Message> wire;
     wire.push_back(umsg("go"));
     wire.push_back(with_call("", "call_broken", /*terminal=*/true));
@@ -108,14 +108,14 @@ TEST_CASE("wire audit: a nameless tool call is named, with its index") {
     REQUIRE(a.count(Defect::Kind::NamelessToolCall) == 1);
     const auto& d = a.defects.front();
     CHECK(d.kind          == Defect::Kind::NamelessToolCall);
-    CHECK(d.message_index == 1);              // WHICH message
-    CHECK(d.detail        == "call_broken");  // and which call in it
+    CHECK(d.message_index == 1);              // 对应的 消息( 以 20 千 XX 消息 )
+    CHECK(d.detail        == "call_broken");  // 以及哪些 调用 里面,我写了
 }
 
 TEST_CASE("wire audit: an image with no media type is flagged") {
-    // Several gateways 400 rather than sniffing the bytes. GitHub tracks
-    // it as its own fingerprint field (`imagePartsMissingMediaType`),
-    // which is the tell that it happens often enough to matter.
+    // 有几个网关400 而不是嗅到 字节. GitHub 追踪它作为自己的
+    // 指纹 字段( 字段) ( `imagePartsMissingMediaType` ),
+    // 这就是说,它经常发生,足以影响。
     std::vector<Message> wire;
     Message m = umsg("what is this?");
     m.images.emplace_back("", std::string("\x89PNG fake bytes"));
@@ -126,7 +126,7 @@ TEST_CASE("wire audit: an image with no media type is flagged") {
     CHECK(a.image_part_count == 1);
     CHECK(has_kind(a, Defect::Kind::ImageMissingMediaType));
 
-    // And a well-formed image does NOT trip it.
+    // 还有一口井 -formed 图像确实 不 绊倒它。
     std::vector<Message> good;
     Message g = umsg("what is this?");
     g.images.emplace_back("image/png", std::string("\x89PNG fake bytes"));
@@ -136,12 +136,12 @@ TEST_CASE("wire audit: an image with no media type is flagged") {
 }
 
 TEST_CASE("wire audit: an empty message is flagged, except the last one") {
-    // No text, no calls, no images. Anthropic rejects empty content
-    // blocks; other dialects silently drop the turn, which is worse —
-    // the model then answers a question it cannot see.
+    // 没有文字,没有 调用 ,没有图像。 Anthropic
+    // 拒绝空的内容块;其他方言悄悄地放下转弯,
+    // 这更糟糕——模型接着回答了一个它无法看见的问题.
     std::vector<Message> wire;
     wire.push_back(umsg("hello"));
-    wire.push_back(amsg(""));          // nothing at all
+    wire.push_back(amsg(""));          // 一点都没有
     wire.push_back(umsg("still here"));
 
     const auto a = audit_wire(wire);
@@ -149,32 +149,32 @@ TEST_CASE("wire audit: an empty message is flagged, except the last one") {
     REQUIRE(a.count(Defect::Kind::EmptyMessage) == 1);
     CHECK(a.defects.front().message_index == 1);
 
-    // But the FINAL message is empty by construction: every turn appends
-    // the assistant message the model is about to fill before the request
-    // goes out. Flagging it fires on every healthy turn.
+    // 但是,我们... FINAL 消息通过构建是空
+    // 的: 每个转角附加模型在请求发出前将要填充的助理信息。
+    // 标记它在每个健康转角上都点燃。
     //
-    // This is not hypothetical — the first version shipped without the
-    // exemption and a real 928-message thread reported defects=1 on every
-    // single turn, always at the last index. A warning that fires on
-    // healthy traffic is worse than none: it trains the reader to skip
-    // the channel the real defects arrive on.
+    // 这不是假设——第一个版本的发运没有豁免,
+    // 而且一个真正的928 -message 线
+    // 程 报告缺陷=1, 总是在最后的指数。
+    // 警告健康交通的火灾比没有严重: 它训练读者
+    // 跳过真实缺陷到达的通道。
     std::vector<Message> in_flight;
     in_flight.push_back(umsg("hello"));
-    in_flight.push_back(amsg(""));     // the turn about to be filled
+    in_flight.push_back(amsg(""));     // 转弯时要填充
 
     CHECK(audit_wire(in_flight).count(Defect::Kind::EmptyMessage) == 0);
     CHECK(audit_wire(in_flight).clean());
 }
 
 TEST_CASE("wire audit: a pending call mid-transcript is unanswered") {
-    // A call with no result is legal as the LAST message — that is the
-    // normal state while a tool runs. Anywhere earlier it means a result
-    // was lost, and Anthropic rejects the next request outright
-    // ("tool_use ids must have corresponding tool_result blocks").
+    // A 调用 毫无结果即为合法 最后 消息—— 工具运行时的正常状态。
+    // 它之前的任何地方都意味着结果丢失,以及 Anthropic 直接拒绝下
+    // 一个请求(
+    // "tool_use ids must have corresponding tool_result blocks").（每个 tool_use 标识都必须具有对应 tool_result 块。）
     //
-    // So the same shape is a defect or not depending on position, and
-    // getting that backwards would make the checker fire on every healthy
-    // turn.
+    // 所以同样的形状是缺陷或不取决于位置,
+    // 得到这个倒转会让检查器在每一个健康的转弯上
+    // 起火。
     std::vector<Message> mid;
     mid.push_back(umsg("go"));
     mid.push_back(with_call("shell", "call_1", /*terminal=*/false));
@@ -182,7 +182,7 @@ TEST_CASE("wire audit: a pending call mid-transcript is unanswered") {
 
     CHECK(has_kind(audit_wire(mid), Defect::Kind::UnansweredToolCall));
 
-    // The same call as the final message: healthy, mid-turn.
+    // 一样 调用 作为最后信息:健康、中、中、 -turn.
     std::vector<Message> tail;
     tail.push_back(umsg("go"));
     tail.push_back(with_call("shell", "call_1", /*terminal=*/false));
@@ -191,9 +191,9 @@ TEST_CASE("wire audit: a pending call mid-transcript is unanswered") {
 }
 
 TEST_CASE("wire audit: counts make a rate visible, not just a flag") {
-    // One nameless call is a bug report. Forty is a systematic failure in
-    // whatever produced them, and the difference has to survive into the
-    // log — which is the whole reason `count()` exists rather than a bool.
+    // 一个无名 调用 四十是系统失败,
+    // 区别必须存在到日志中,
+    // `count()` 而不是一个鸟。
     std::vector<Message> wire;
     wire.push_back(umsg("go"));
     for (int i = 0; i < 5; ++i)
@@ -207,14 +207,14 @@ TEST_CASE("wire audit: counts make a rate visible, not just a flag") {
 }
 
 TEST_CASE("wire audit: the taxonomy is exhaustive") {
-    // describe() must name every Kind. A new defect added without a name
-    // would log as "unknown", which is the string form of the 400 this
-    // whole file exists to replace.
+    // describe() 名称。添加了新的缺陷,但没有名称,
+    // 则会登录为 "unknown" ,这是400个此整个文件
+    // 的字符串形式,用于替换。
     //
-    // The switch in describe() has no default for the enum cases, so a new
-    // Kind is already a -Wswitch warning at that site. This is the runtime
-    // half: it proves the names are distinct and none has silently
-    // collapsed to the fallback.
+    // 开关进来了 describe() 不存在默认值 枚举
+    // 新的类型已经是一个 -Wswitch 警告,
+    // 这是 运行时 一半:它证明名字是不同的,
+    // 没有一个人沉默地倒向了 回退.
     static constexpr Defect::Kind kAll[] = {
         Defect::Kind::NamelessToolCall,
         Defect::Kind::OrphanToolResult,
@@ -229,51 +229,51 @@ TEST_CASE("wire audit: the taxonomy is exhaustive") {
         CHECK(!name.empty());
         CHECK(name != "unknown");
         for (const auto& prior : seen)
-            CHECK(prior != name);            // names are distinct
+            CHECK(prior != name);            // 名称是不同的
         seen.emplace_back(name);
     }
 }
 
 TEST_CASE("wire audit: an empty payload is clean, not a crash") {
-    // Degenerate input. A checker that throws on the empty case turns a
-    // recoverable "nothing to send" into a dead turn.
+    // 减速输入。 向空格投放的检查器将可回收的
+    // "nothing to send" 变成死转。
     const auto a = audit_wire({});
     CHECK(a.clean());
     CHECK(a.message_count == 0);
 }
 
 TEST_CASE("vision: unknown sends, only a declaration withholds") {
-    // The tri-state, and why its default is the opposite of what "be
-    // safe" suggests.
+    // 三号 -state ,为什么它的默认是 与什么相反 "be safe"
+    // 说吧
     //
-    // A model that DECLARED vision:false rejects image parts — a hard 400
-    // on most wires, or on Ollama an image it silently ignores while
-    // answering about text it cannot see. Withholding there turns a dead
-    // turn into a normal one that simply lacks the picture.
+    // 一个模型 DECLARED 视觉:假象拒绝图像部件
+    // ——大多数线条上硬400个,或 Ollama
+    // 无法在它无法看到文本时默默忽略的图像。如果保留它,
+    // 它就会变成一个完全没有图片的正常的转变。
     //
-    // But UNKNOWN must still send. Stripping on silence would remove
-    // images from every model no catalog describes, and a vision model
-    // whose screenshot we quietly dropped is indistinguishable from one
-    // that looked and was unhelpful — the user reports "it ignored my
-    // screenshot" and nothing in the log disagrees.
+    // 不过 UNKNOWN 仍然必须发送。脱去沉默会删除
+    // 每个模型中的图像 否 目录 以及一个我们悄悄地 被截
+    // 图的视觉模型 与一个看起来和没有帮助的模型是分不开的
+    // ——用户报告 "it ignored my screenshot"
+    // 日志上没有东西不同意
     //
-    // Exactly the reasoning ModelInfo::supports_tools documents, which is
-    // why this mirrors it rather than inventing a second convention.
+    // 这正是推理 ModelInfo::supports_tools 因此,
+    // 这反映了《公约》,而不是创立了第二项公约。
     ModelInfo mi;
 
-    CHECK(!mi.supports_vision.has_value());   // nothing populates it by default
-    CHECK(mi.vision_allowed());               // …and unknown SENDS
+    CHECK(!mi.supports_vision.has_value());   // 默认情况下, 没有什么会填充
+    CHECK(mi.vision_allowed());               // ...和未知的SENDS( 20000XX)
 
     mi.supports_vision = true;
     CHECK(mi.vision_allowed());
 
-    mi.supports_vision = false;               // the one case we KNOW
+    mi.supports_vision = false;               // 我们唯一一个案子 KNOW
     CHECK(!mi.vision_allowed());
 
-    // And it agrees with the tool gate's shape, so a reader who has
-    // internalised one is not surprised by the other.
+    // 并且它也同意工具门的形状,因此一个已内
+    // 化的读者对另一个并不感到惊讶.
     ModelInfo t;
-    CHECK(t.tools_allowed());                 // unknown advertises tools
+    CHECK(t.tools_allowed());                 // 未知的广告工具
     t.supports_tools = false;
     CHECK(!t.tools_allowed());
 }

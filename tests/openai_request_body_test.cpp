@@ -1,18 +1,18 @@
-// tests/openai_request_body_test.cpp — the bytes we actually send.
+// tests/openai_request_body_test.cpp - 电话 字节 我们真的派来了
 //
-// conformance.hpp records WHICH fields go to which endpoints and why. Until
-// the body builder was pulled out of the streaming function there was nothing
-// checking that the code agreed with it: the only way to see a request was a
-// wire=trace log on a live call, so "do we send prompt_cache_key to a local
-// server?" was answered by reading a hot path.
+// conformance.hpp 记录 对应的 字段将输入哪个终点和原因。
+// 正文 建筑师被拉出 流式传输 函数没有检查是否同意该代码: 唯一能够
+// 看到请求的方法是 传输 实时追踪日志 调用 ,所以,
+// 我说 "do we send prompt_cache_key to a local server?"
+// 被回答的读作a 高频路径.
 //
-// build_request_body() is pure — Request in, json out — so the answer is now
-// an assertion. These tests are what turn the tiers from a comment into a
-// contract.
+// build_request_body ()纯度——请求进入,
+// JSON 答案是肯定的,这些测试将层次从评论变为
+// 合同。
 //
-// The asymmetry that sets every rule below: sending a field an endpoint
-// rejects is a HARD 400/422 that kills the turn; omitting one costs an
-// optimisation. So the tests care far more about what we DON'T send.
+// 将每个规则设置在下面的不对称: 发送一个
+// 字段的终点拒绝是。 HARD 400/422
+// 测试更关心我们 DON '不发.
 
 #include <doctest/doctest.h>
 
@@ -30,20 +30,20 @@ namespace oa = agentty::provider::openai;
 
 namespace {
 
-// A hosted TLS endpoint (OpenAI, Groq, Yolo-Auto, …).
+// 主持人 TLS 终点( E) OpenAI 格鲁克,尤洛 -Auto, …).
 oa::Endpoint hosted() {
     return oa::Endpoint{"api.example.com", 443, "/v1/chat/completions",
                         "/v1/models", true, "example"};
 }
 
-// A local plaintext server (llama.cpp, LM Studio, vLLM on a laptop).
+// 本地纯文本服务器( U) llama.cpp, LM 录音室,用笔记本电脑播放VLLM
 oa::Endpoint local() {
     oa::Endpoint e{"localhost", 8080, "/v1/chat/completions",
                    "/v1/models", false, "llama.cpp"};
     return e;
 }
 
-// A bare Ollama daemon speaking its own /api/chat protocol.
+// 赤裸裸的 Ollama 守护进程自己说 / api/chat 协议。
 oa::Endpoint ollama_native() {
     oa::Endpoint e{"localhost", 11434, "/api/chat", "/api/tags", false, "ollama"};
     e.native_api = true;
@@ -59,9 +59,9 @@ oa::Request base(oa::Endpoint ep) {
     return r;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
-// ═══ Universal tier: everything gets these ═══════════════════════════════
+// ═══ 通用等级: 万物都得到了这些 ═══════════════════════════════
 
 TEST_CASE("body: the universal fields go to every endpoint") {
     for (auto ep : {hosted(), local()}) {
@@ -70,33 +70,33 @@ TEST_CASE("body: the universal fields go to every endpoint") {
         CHECK(b["model"] == "test-model");
         CHECK(b["stream"] == true);
         CHECK(b["max_tokens"] == 4096);
-        // Ask for a final usage frame so the context gauge updates on a
-        // streaming turn. Endpoints that don't know it IGNORE it rather than
-        // erroring, so it is safe to send broadly (verified on Yolo-Auto).
+        // Ask 最终用途 帧 以上下文测量 流式传输 转身,
+        // 终点不知道 IGNORE 而非误入歧途,
+        // 故你应当广行(派遣), -Auto).
         CHECK(b["stream_options"]["include_usage"] == true);
-        // System prompt leads the conversation.
+        // 系统提示词引导对话.
         REQUIRE(b["messages"].is_array());
         CHECK(b["messages"][0]["role"] == "system");
     }
 }
 
 TEST_CASE("body: max_tokens, NOT max_completion_tokens") {
-    // THE DELIBERATE DIVERGENCE FROM OPENAI'S SPEC, and the one most likely
-    // to be "fixed" by someone reading OpenAI's docs.
+    // 该 DELIBERATE DIVERGENCE FROM OPENAI'S SPEC ,
+    // 最有可能是,但这个 "fixed" 被别人读 OpenAI 医生的
     //
-    // OpenAI deprecated max_tokens on Chat Completions in favour of
-    // max_completion_tokens. But vLLM, llama.cpp, Together and most of the
-    // compat family accept ONLY max_tokens — so conforming to the document
-    // breaks the majority of the ecosystem named after it. OpenAI still
-    // accepts the old name; one spelling that works everywhere beats
-    // conformance that works on one host.
+    // OpenAI 已贬值 max_tokens 聊天完成时的表示
+    // max_completion_tokens 但VLLM, , ,
+    // 我和他一起工作。 llama.cpp ,一起和大多数的共和家族接受 仅
+    // max_tokens ——如此符合文件要求,打破了以文件命名的大
+    // 多数生态系统. OpenAI 仍然接受旧名;一个在任何地方都可行
+    // 的拼写比一个主机上有效的符合性要好.
     const json b = oa::build_request_body(base(hosted()));
     CHECK(b.contains("max_tokens"));
     CHECK(!b.contains("max_completion_tokens"));
 }
 
 TEST_CASE("body: a host that 400'd max_tokens gets max_completion_tokens") {
-    // OpenAI's o-series on chat rejects the old name. Learned per host.
+    // OpenAI's o-series 聊天时拒绝旧名。每个主机都会学到。
     using agentty::provider::OptionalField;
     auto ep = hosted();
     ep.host = "maxtok-rename.example.com";
@@ -116,66 +116,66 @@ TEST_CASE("body: the legacy tool shape stays dead") {
 
     CHECK(b.contains("tools"));
     CHECK(b["tool_choice"] == "auto");
-    // `functions` was superseded years ago; sending it would opt into the
-    // legacy path on endpoints that still honour it, splitting tool handling.
+    // `functions` 将它送入遗留的路径,
+    // 在仍然尊重它的终点上,分割工具处理。
     CHECK(!b.contains("functions"));
     CHECK(!b.contains("function_call"));
 }
 
 TEST_CASE("body: no tools means no tools key at all") {
-    // An empty `tools: []` is not the same as absent — some servers reject
-    // the empty array, and it costs prompt tokens on others.
+    // 空的 空的 `tools: []` 与缺席不同——有些服务
+    // 器拒绝空阵列,而且成本 提示词 别人身上的标志
     const json b = oa::build_request_body(base(hosted()));
     CHECK(!b.contains("tools"));
     CHECK(!b.contains("tool_choice"));
 }
 
-// ═══ Hosted tier: TLS only ═══════════════════════════════════════════════
+// ═══ 托管等级: 仅TLS ═══════════════════════════════════════════════
 
 TEST_CASE("body: prompt_cache_key only where the row opts in (#93)") {
-    // OpenAI auto-caches prefixes >=1024 tokens and a stable key pins a
-    // conversation to one cache node. But OpenAI-COMPATIBLE is not OpenAI:
-    // strict hosted layers 400 the unknown field and the turn dies.
-    //   Groq:   "property 'prompt_cache_key' is unsupported"
-    //   Gemini: "Unknown name \"prompt_cache_key\": Cannot find field."
-    // TLS used to be the gate; it is not evidence. The registry row is.
+    // OpenAI 自动 -caches 前缀 QQ1024 符和稳定的键将对话插入到一个 缓存 节点,
+    // 但是 OpenAI-COMPATIBLE 不是,是"我们",不是"我们" OpenAI:
+    // 严格主机层 400 未知字段,转弯则死亡。
+    //   格罗克:"property 'prompt_cache_key' is unsupported"
+    //   Gemini 报告不认识 prompt_cache_key 字段。
+    // TLS曾经是大门;它不是证据,注册表行是.
     auto with_key = [](oa::Endpoint ep) {
         auto r = base(std::move(ep));
         r.session_key = "thread-abc";
         return oa::build_request_body(r);
     };
 
-    // Resolved exactly as the picker/CLI resolve a provider id.
+    // 解决的正是 picker/CLI 解决提供者 ID。
     CHECK(with_key(oa::Endpoint::from_spec("openai"))["prompt_cache_key"] == "thread-abc");
     CHECK(with_key(oa::Endpoint::from_spec("openrouter"))["prompt_cache_key"] == "thread-abc");
 
-    // The two hosts from the issue, plus every other strict compat row.
+    // 发行的两位主持人,加上其他严格的对等排.
     for (const char* id : {"groq", "gemini", "together", "cerebras", "deepseek",
                            "xai", "mistral", "fireworks", "kimi"}) {
         INFO("provider " << id);
         CHECK(!with_key(oa::Endpoint::from_spec(id)).contains("prompt_cache_key"));
     }
 
-    // A hosted endpoint that hasn't opted in (custom host over TLS): no.
+    // 尚未选择的托管端点( 客户端大于 TLS): 否。
     CHECK(!with_key(hosted()).contains("prompt_cache_key"));
-    // Local servers: no.
+    // 本地服务器:没有。
     CHECK(!with_key(local()).contains("prompt_cache_key"));
 
-    // No session key: no field, even where it is accepted.
+    // 没有会话键:没有字段,即使它被接受。
     CHECK(!oa::build_request_body(base(oa::Endpoint::from_spec("openai")))
                .contains("prompt_cache_key"));
 }
 
-// The two bodies from issue #93, verbatim in shape.
+// 两者 正文 从第93期开始, 逐字记录形。
 TEST_CASE("error: the provider's sentence, whatever the body shape (#93)") {
-    // Groq: the usual OpenAI object.
+    // 格罗克:通常的OpenAI对象.
     CHECK(oa::provider_error_message(
               R"({"error":{"message":"property 'prompt_cache_key' is unsupported",)"
               R"("type":"invalid_request_error"}})")
           == "property 'prompt_cache_key' is unsupported");
 
-    // Gemini: ARRAY-wrapped, pretty-printed, with a details/fieldViolations
-    // tree. Used to dump the whole thing into the transcript.
+    // Gemini: ARRAY-wrapped 漂亮,我爱她 -printed ,
+    // 带有 details/fieldViolations 源码树 曾经把全部都扔进记录
     const std::string gemini = R"([{
   "error": {
     "code": 400,
@@ -189,35 +189,35 @@ TEST_CASE("error: the provider's sentence, whatever the body shape (#93)") {
           == "Invalid JSON payload received. Unknown name \"prompt_cache_key\": "
              "Cannot find field.");
 
-    // Other shapes.
+    // 其他形状。
     CHECK(oa::provider_error_message(R"({"error":"rate limited"})") == "rate limited");
     CHECK(oa::provider_error_message(R"({"message":"nope"})") == "nope");
-    // Not JSON: a capped one-line excerpt, never a multi-line wall.
+    // 没有 JSON : 封顶的 -line 节选,从不重复 -line 墙壁。
     const auto raw = oa::provider_error_message("<html>\n<body>bad\ngateway</body>\n</html>");
     CHECK(raw == "<html> <body>bad gateway</body> </html>");
     CHECK(oa::provider_error_message(std::string(5000, 'x')).size() == 300);
     CHECK(oa::provider_error_message("").empty());
 }
 
-// #91: a local model (gpt-oss on llama.cpp) pasted code into its reply and
-// then refused "the entire codebase in a single response". Its prompt only
-// said when NOT to call tools. Both local prompts must now carry the rules
-// that make it act: use tools to write, never paste instead, many steps are
-// normal, and a [cached] read still has the bytes (#92).
+// #91:一个本地模型(gpt) -oss 打开 llama.cpp (将代码
+// 粘入答复,然后拒绝) "the entire codebase in a single response"。
+// 该主题 提示词 说到时候 不 改为 调用 两种本地工具。
+// 提示词 现在必须携带使其行动的规则:使用工具来写作,从不粘贴,
+// 许多步骤是正常的,读到的[划 仍然有 字节 (#92).
 TEST_CASE("local prompts tell the model to act, not paste (#91)") {
     const std::string rules{oa::local_model_action_rules()};
     CHECK(rules.find("NEVER paste the code") != std::string::npos);
     CHECK(rules.find("single response") != std::string::npos);
     CHECK(rules.find("[cached]") != std::string::npos);
-    // Both local prompts embed the SAME block, verbatim.
+    // 当地 提示词 嵌入 相同 块, 逐字记录。
     CHECK(oa::local_model_system_prompt().find(rules) != std::string::npos);
     CHECK(agentty::provider::ollama::system_prompt().find(rules) != std::string::npos);
 }
 
-// Every OpenAI-compat registry row: the body we'd send carries ONLY fields
-// the conformance table allows for that row. Catches the next #93 — any
-// field leaking to a host that never opted in — at test time, not on a
-// user's turn.
+// 每一个 OpenAI-compat 注册表 线条: 正文
+// 我们送货 仅 字段中,符合表允许该行。在测试时,
+// 不按用户的顺序,接下下一个 # 93 —— 任何漏给从未选择过
+// 主机的字段。
 TEST_CASE("body: no row is sent prompt_cache_key unless it opted in") {
     for (const auto& p : agentty::provider::kProviders) {
         if (!p.http_dialled() || p.native_api) continue;
@@ -229,85 +229,85 @@ TEST_CASE("body: no row is sent prompt_cache_key unless it opted in") {
     }
 }
 
-// ═══ Probed tier: only with evidence ═════════════════════════════════════
+// ═══ 已鉴定等级:只有证据 ═════════════════════════════════════
 
 TEST_CASE("body: reasoning_effort is gated, never assumed") {
-    // Mistral MAGISTRAL reasons natively and returns 422 for this field, so
-    // the catalog excludes it and `effort` arrives EMPTY here. The transport
-    // does not re-derive capability — it trusts the gate and sends nothing.
+    // 雾 MAGISTRAL 原生原因 返回422 个字段,
+    // 所以 目录 排除它,并且 `effort` 来了 空 给,
+    // 那个 传输层 不重写 -derive ——它信任大门,不发任何邮件。
     auto h = base(hosted());
     h.effort = "high";
     CHECK(oa::build_request_body(h)["reasoning_effort"] == "high");
 
-    // Gated off upstream -> absent.
+    // 缺勤额为上游 - >。
     auto gated = base(hosted());
     gated.effort = "";
     CHECK(!oa::build_request_body(gated).contains("reasoning_effort"));
 
-    // A LOCAL server gets it too. This used to assert the opposite —
-    // "local servers reject it outright" — which was true of the server it
-    // was written for and false of the one in this fixture: `local()` is
-    // labelled llama.cpp, and llama.cpp documents --reasoning-effort and
-    // accepts the request field.
+    // A LOCAL 服务器也得到它。这曾经是相反的。
+    // "local servers reject it outright" 服务器
+    // 的确是如此,它写给这个固定器的,而且是假的: `local()` 标签
+    // llama.cpp ,和 llama.cpp 文档 --reasoning-effort
+    // 并接受请求字段。
     //
-    // Ollama IS the server that rejects it, and it never reaches this code:
-    // native_api routes to the /api/chat branch, which returns before the
-    // reasoning_effort line (see the native dialect cases below).
+    // Ollama IS 拒绝它的服务器, 并且它从未达到此代码 :
+    // native_api 通往/ 的路线 api/chat 分支,
+    // 在 reasoning_effort 线(见下文的土著方言案例)。
     //
-    // The gate that matters is `effort` being empty, and that is decided
-    // upstream by resolved_caps() — which for a local server now reads the
-    // server's own capability declaration rather than guessing from the
-    // model id. Transport encryption was never evidence about a model.
+    // 关键是大门 `effort` 空的,这是决定的 上游
+    // 由 resolved_caps ()——对于一个本地服务器来说,
+    // 现在它读取的是服务器自己的能力声明,而不是从模型
+    // 的ID中猜测. 传输层 加密从来不是模型的证据。
     auto l = base(local());
     l.effort = "high";
     CHECK(oa::build_request_body(l)["reasoning_effort"] == "high");
 
-    // ...and an ungated local model still sends nothing.
+    // ...一个当地模特儿却一无所获
     auto l_gated = base(local());
     l_gated.effort = "";
     CHECK(!oa::build_request_body(l_gated).contains("reasoning_effort"));
 
-    // The server that DOES reject the field never sees it — proven, not
-    // asserted in a comment. Ollama's native branch builds its own body
-    // and returns early, so effort="high" cannot leak onto /api/chat even
-    // though the chat path would now send it.
+    // 服务器 执行 拒绝从未看到过的领域——经过证明,
+    // 在评论中也没有断言。 Ollama 本地分支建立自己的分支
+    // 正文 并提前返回,所以努力= "high" 无法漏入/。
+    // api/chat 即使聊天路径现在会发送它。
     auto n = base(ollama_native());
     n.effort = "high";
     CHECK(!oa::build_request_body(n).contains("reasoning_effort"));
 }
 
-// ═══ The native dialect is a different wire ══════════════════════════════
+// ═══ 本地方言不一样 传输 ══════════════════════════════
 
 TEST_CASE("body: Ollama native speaks its own protocol") {
-    // /api/chat is NOT OpenAI-shaped. Leaking OpenAI-only fields here is how
-    // a local daemon starts 400ing on fields it never advertised.
+    // /api/chat 谓 不 OpenAI-shaped 漏水 OpenAI-only
+    // 字段是本地守护进程如何在从未广告过的字段上开始400个字段的。
     auto req = base(ollama_native());
     req.session_key = "thread-abc";
     req.effort      = "high";
     const json b = oa::build_request_body(req);
 
-    // Output budget rides in options.num_predict — Ollama's default is ~128
-    // tokens, which truncates an agent turn to nothing.
+    // 产出预算的乘数 options.num_predict — Ollama
+    // '默认为~128令牌,它使代理器转折为无.
     CHECK(b["options"]["num_predict"] == 4096);
     CHECK(!b.contains("max_tokens"));
 
-    // None of the OpenAI-family extras belong on this wire.
+    // 没有一个 OpenAI-family 额外属于此 传输.
     CHECK(!b.contains("stream_options"));
     CHECK(!b.contains("prompt_cache_key"));
     CHECK(!b.contains("reasoning_effort"));
 
-    // But the basics still hold.
+    // 但基本情况依然不变。
     CHECK(b["model"] == "test-model");
     CHECK(b["stream"] == true);
     CHECK(b["messages"][0]["role"] == "system");
 }
 
-// ═══ Purity ══════════════════════════════════════════════════════════════
+// ═══ 纯洁 ══════════════════════════════════════════════════════════════
 
 TEST_CASE("body: building is pure and repeatable") {
-    // No globals, no I/O, no hidden state. If this ever fails, something in
-    // the builder reached outside its argument — which is exactly what made
-    // the old inline version untestable.
+    // 没有全局,没有I/O,没有隐藏状态。如果失败的话,
+    // 构建器中的某些东西会在其论据之外达到 — — 这正是使
+    // 旧的内置版本无法测试的原因。
     auto req = base(hosted());
     req.session_key = "t1";
     req.effort      = "medium";
@@ -323,44 +323,44 @@ TEST_CASE("body: an empty system prompt adds no empty message") {
         CHECK(m["role"] != "system");
 }
 
-// ═══ Quick utility calls ═════════════════════════════════════════════════════════════
+// ═══ 快速公用设备调用 ═════════════════════════════════════════════════════════════
 
 TEST_CASE("body: a quick call asks a custom host not to think") {
-    // A thinking model on llama.cpp spent a 64-token title budget on
-    // reasoning_content and returned no text.
+    // 一个思考模式 llama.cpp 花费64美元 -token 标题预算
+    // reasoning_content 并返回了文本。
     auto ep = oa::Endpoint::from_spec("https://pod-8888.proxy.runpod.net/v1");
     auto req = base(ep);
     req.quick = true;
     const json b = oa::build_request_body(req);
     CHECK(b["chat_template_kwargs"]["enable_thinking"] == false);
 
-    req.quick = false;                                 // normal turn: untouched
+    req.quick = false;                                 // 正常转弯:未触动
     CHECK(!oa::build_request_body(req).contains("chat_template_kwargs"));
 
-    req.quick  = true;                                 // asked for effort: honour it
+    req.quick  = true;                                 // 要求努力:遵守
     req.effort = "low";
     CHECK(!oa::build_request_body(req).contains("chat_template_kwargs"));
 }
 
 TEST_CASE("body: a quick call never sends chat_template_kwargs to a preset") {
-    // Hosted schemas are strict; an unknown field is a 400.
+    // 托管的模式定义是严格的;一个未知的字段是400.
     auto req = base(oa::Endpoint::from_spec("openai"));
     req.quick = true;
     CHECK(!oa::build_request_body(req).contains("chat_template_kwargs"));
 }
 
-// ═══ Reasoning off ═════════════════════════════════════════════════════════════════════
-// Off has to be SENT: Qwen3 / DeepSeek V3.1 / gpt-5.1+ think when the effort
-// field is just left out.
+// ═══ 原因关闭 ═════════════════════════════════════════════════════════════════════
+// off必须是SENT:Quen3 / DeepSeek V3.1 / gpt-5.1+
+// 当努力领域被忽略时思考.
 
 namespace {
 constexpr std::uint8_t off(agentty::ReasoningOff r) { return static_cast<std::uint8_t>(r); }
 }
 
 TEST_CASE("body: off on a custom host sends both off fields") {
-    // SovereignEG's vLLM honours only reasoning_effort:"none" (measured:
-    // 0 reasoning tokens vs 33 with the template switch); llama.cpp only
-    // the template switch. A custom host gets both.
+    // SovereignEG 'vLLM 荣誉 reasoning_effort:"none" (计量:
+    // 0 推理符对 33 带有模板切换符; llama.cpp
+    // 仅包含模板切换器, 自定义主机得到两者.
     auto req = base(oa::Endpoint::from_spec("https://backend.sovereigneg.com/v1"));
     req.model         = "Qwen3.8-27B-FP8";
     req.no_reasoning  = true;
@@ -369,25 +369,25 @@ TEST_CASE("body: off on a custom host sends both off fields") {
     CHECK(b["reasoning_effort"] == "none");
     CHECK(b["chat_template_kwargs"]["enable_thinking"] == false);
 
-    // Unknown model on a custom host: same.
+    // 自定义主机上的未知模型:相同.
     req.reasoning_off = off(agentty::ReasoningOff::Unknown);
     CHECK(oa::build_request_body(req)["reasoning_effort"] == "none");
 
-    // Learned that this host rejects "none" (persisted per host): only the
-    // template switch, and never the rejected value again.
+    // 得知这个主机拒绝"none"(每个主机为永久状态):
+    // 模板开关，之后绝不能再使用被拒绝的值。
     const auto hk = agentty::host_key(req.endpoint.host, req.endpoint.port);
     agentty::add_rejected_field(hk, agentty::provider::bit(
         agentty::provider::OptionalField::EffortNone));
     const json t = oa::build_request_body(req);
     CHECK(!t.contains("reasoning_effort"));
     CHECK(t["chat_template_kwargs"]["enable_thinking"] == false);
-    // A chosen tier is a different value and still goes out.
+    // 选择的等级是一个不同的值, 并且仍然会外出。
     req.effort = "low";
     CHECK(oa::build_request_body(req)["reasoning_effort"] == "low");
     req.effort.clear();
     agentty::set_rejected_fields({});
 
-    // Not off (auto with no ladder): nothing sent.
+    // 还没关机(没有梯子自动):没有发件.
     req.no_reasoning = false;
     const json n = oa::build_request_body(req);
     CHECK(!n.contains("chat_template_kwargs"));
@@ -435,7 +435,7 @@ TEST_CASE("body: a model that can't stop reasoning gets no fake off") {
 TEST_CASE("body: a chosen effort is never overridden by off") {
     auto req = base(oa::Endpoint::from_spec("https://backend.sovereigneg.com/v1"));
     req.effort        = "high";
-    req.no_reasoning  = true;   // stale flag must not win
+    req.no_reasoning  = true;   // 过期 标志 绝不能赢
     req.reasoning_off = off(agentty::ReasoningOff::Toggle);
     const json b = oa::build_request_body(req);
     CHECK(b["reasoning_effort"] == "high");
@@ -452,8 +452,8 @@ TEST_CASE("body: the old quick-call switch still works on a custom host") {
 TEST_CASE("off: a rejection naming reasoning_effort is not read as OpenRouter's reasoning") {
     using agentty::provider::OptionalField;
     using agentty::provider::parse_rejected_field;
-    // vLLM-style 400 on the value; must reach the effort-none arm, not the
-    // generic one that would drop OpenRouter's `reasoning` object.
+    // 虚拟LLM -style 400个价值;必须达到这一努力 -none 手,不是一般的,
+    // 会掉下来的 OpenRouter's `reasoning` 对象。
     CHECK(parse_rejected_field(
               "1 validation error: reasoning_effort: Input should be 'low', "
               "'medium' or 'high' [type=literal_error] (not supported)", 400)

@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
-"""A 40-line fake OpenAI-compatible /v1/embeddings server.
+"""约 40 行的模拟 OpenAI 兼容 /v1/embeddings 服务。
 
-Exists so the embeddings backend picker can be exercised end-to-end without
-Ollama, without a GPU, and without a corporate gateway: it returns
-deterministic unit-norm vectors of whatever dimension you ask for.
+用于端到端验证嵌入后端选择器，无需 Ollama、GPU 或企业网关。
+服务按请求的维度返回确定性的单位范数向量。
 
     python3 scripts/fake_embed_server.py --port 8099 --dim 768
 
-Then in agentty: Ctrl+K -> "Retrieval (RAG)" -> e
+随后在 agentty 中按 Ctrl+K -> "Retrieval (RAG)" -> e，配置：
     Backend  = Custom endpoint
     Host     = 127.0.0.1
     Port     = 8099
     Model    = anything
-    Enter on "Test connection"  ->  should report the dim you launched with.
+    在 "Test connection" 上按 Enter，应显示启动时设置的维度。
 
-Change --dim and re-test to watch the identity hash (and therefore the
-persisted .ragdb filename) change with the vector space.
+修改 --dim 后重新测试，可以看到身份哈希以及持久化的 .ragdb 文件名随向量空间改变。
 """
 
 import argparse, hashlib, json, math
@@ -25,7 +23,7 @@ DIM = 768
 
 
 def embed(text: str, dim: int):
-    """Deterministic pseudo-embedding: hash-seeded, then L2-normalised."""
+    """确定性的伪嵌入：以哈希设置随机种子，再进行 L2 归一化。"""
     h = hashlib.sha256(text.encode("utf-8")).digest()
     vals = [((h[i % len(h)] + i * 31) % 251) / 251.0 - 0.5 for i in range(dim)]
     norm = math.sqrt(sum(v * v for v in vals)) or 1.0
@@ -62,7 +60,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
     def log_message(self, *_):
-        pass   # we print our own, quieter line
+        pass   # 我们打印自己的、更安静的线路
 
 
 if __name__ == "__main__":

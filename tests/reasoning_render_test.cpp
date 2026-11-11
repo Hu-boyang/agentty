@@ -1,25 +1,25 @@
-// reasoning_render_test.cpp — the reasoning ("Thinking") block renders across
-// providers and lifecycle states.
+// reasoning_render_test.cpp ——推理(. "Thinking"
+// 块 渲染 提供方和生命周期状态。
 //
-// Reasoning text from EVERY provider funnels into Message::thinking via
-// StreamThinkingDelta (Anthropic thinking_delta, Codex reasoning_summary_text
-// .delta, OpenAI-compat reasoning_content), and Message::reasoning_display_text
-// () is the single unified accessor the view keys off. This pins:
-//   1. the unified accessor's precedence (thinking, else reasoning_summary),
-//   2. that a SETTLED reasoning turn renders the FULL reasoning text (it does
-//      NOT fold to a one-line summary) under a "Reasoned" header, ABOVE the
-//      answer,
-//   3. that a turn with NO reasoning renders neither.
+// 说明案文来源 每个 提供者漏斗进入 Message::thinking 途经 StreamThinkingDelta
+// (Anthropic thinking_delta, Codex reasoning_summary_text .
+// 德尔塔, OpenAI-compat reasoning_content ),
+// 以及 Message::reasoning_display_text ()是关闭视图键的单一统一存取器。此针 :
+//   1. 统一存取者优先(思考,否则为reasoning_summary),
+//   2. 说明a SETTLED 推理转弯 渲染 编号 完整 推理文本( 实际文本)
+//      不 归并 改为: -line 内容提要) "Reasoned" 头文件,
+//      上方 答案是,
+//   3. 转弯时 NO 推理 渲染 也没有。
 
 #include "agtest.hpp"
 
 #include <functional>
 #include <maya/widget/reasoning.hpp>
 
-#include <cstdlib>   // setenv — the reveal tests pin the effect explicitly
+#include <cstdlib>   // 设置env—— 逐步显示 测试针 副作用 明确
 
 #include "agentty/runtime/model.hpp"
-#include "agentty/domain/ui_live.hpp"   // the Thinking pref gates the block
+#include "agentty/domain/ui_live.hpp"   // 思维准备打开这个街区
 #include "agentty/runtime/app/update/internal.hpp"
 #include "agentty/runtime/view/thread/thread.hpp"
 #include "agentty/runtime/view/changes_strip.hpp"
@@ -40,9 +40,9 @@ using namespace agentty;
 
 namespace {
 
-// Render the whole app (transcript included) to plain ASCII text. Mirrors
-// midrun_seam_test's render_rows harness; non-ASCII glyphs (the ✦/· sigils)
-// map to '?', so assertions target the ASCII words.
+// 渲染 整个应用程序(包括图文)到平原 ASCII 文本。镜像 midrun_seam_test's
+// render_rows 系系; 非 -ASCII 格言( QQ/ 符号)
+// 映射到 '?' 因此,断言针对的是 ASCII 语句.
 std::string render_text(const Model& m, int width = 100, int height = 4000) {
     auto root = maya::AppLayout{{
         .thread        = ui::thread_config(m),
@@ -82,7 +82,7 @@ Message assistant(std::string text) {
     return a;
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("reasoning: unified accessor precedence") {
     Message a = assistant("answer");
@@ -101,10 +101,10 @@ TEST_CASE("reasoning: unified accessor precedence") {
 
 TEST_CASE("reasoning: settled turn shows the full reasoning, not a fold") {
     Model m;
-    // Thinking::Collapsed (the default) SHOWS the block; only Hidden suppresses it.
+    // Thinking::Collapsed (默认) SHOWS 块; 只有隐藏来压制它。
     Message a = assistant("Here is the FINAL_ANSWER_MARKER.");
-    // Reasoning arrived (any provider) and the answer is present => SETTLED:
-    // render the FULL streamed reasoning (no fold), under a "Reasoned" header.
+    // 理由已经到达(任何提供者),答案是在场的。 SETTLED:
+    // 渲染 编号 完整 流式推理( 无) 归并 ),a项下 "Reasoned" 头文件.
     a.thinking = "Analyze the request FIRST_LINE_MARKER\n"
                  "then a SECOND_LINE_MARKER that must ALSO stay visible.";
     m.d.current.messages.push_back(std::move(a));
@@ -117,7 +117,7 @@ TEST_CASE("reasoning: settled turn shows the full reasoning, not a fold") {
           "the settled header names an approximate token count");
     check(has(out, "FINAL_ANSWER_MARKER"),
           "the answer still renders alongside the reasoning block");
-    // The block STAYS FULLY EXPANDED after settle — no fold to a glimpse.
+    // 块 STAYS FULLY EXPANDED 和解后——无 归并 以一瞥见.
     check(has(out, "FIRST_LINE_MARKER"),
           "settled reasoning keeps its first line");
     check(has(out, "SECOND_LINE_MARKER"),
@@ -125,11 +125,11 @@ TEST_CASE("reasoning: settled turn shows the full reasoning, not a fold") {
 }
 
 TEST_CASE("reasoning: the meter footer lines up with the body text") {
-    // The footer used to be a filled CHIP, and the band carried its own
-    // one-column pad, so "✦ Reasoned" started one column RIGHT of the prose
-    // it was summarizing. Same box, same padding, two different left edges.
-    // Pin the columns equal: the footer is a label for the body, and a label
-    // that does not share the body's margin reads as a stray indented line.
+    // 脚印以前是满的 CHIP 乐队自己带着一个 -column 垫,
+    // 所以 "✦ Reasoned" 开始一个列
+    // RIGHT 相同的盒子,同样的垫子,两个不同的左边缘。
+    // 将列平按:页脚是标签 正文 ,并有一个标签,
+    // 该标签不共享 正文 '边值读作一条偏差缩进的线条.
     Model m;
     Message a = assistant("answer");
     a.thinking = "BODYMARKER reasoning line that the footer sits under.";
@@ -141,7 +141,7 @@ TEST_CASE("reasoning: the meter footer lines up with the body text") {
     auto indent_of = [&out](std::string_view needle) -> int {
         const std::size_t at = out.find(needle);
         if (at == std::string::npos) return -1;
-        const std::size_t bol = out.rfind('\n', at) + 1; // npos+1 == 0 == start
+        const std::size_t bol = out.rfind('\n', at) + 1; // ⁇   ⁇  ○  ⁇  开始
         int col = 0;
         for (std::size_t i = bol; i < out.size() && out[i] != '\n'; ++i) {
             if (out[i] != ' ') break;
@@ -158,10 +158,10 @@ TEST_CASE("reasoning: the meter footer lines up with the body text") {
           "footer indent must equal the body indent (no chip pad shift)");
 }
 
-// The swept meter, checked at the widget rather than through render_text():
-// the sweep is carried entirely by per-character fg colors, and the text dump
-// has no colors in it. Walks the built block for its meter row and counts
-// distinct ink.
+// 扫描的计数器, 检查部件, 而不是通过 render_text( ):
+// 扫描完全由每-character fg 颜色进行,
+// 文本堆放处没有颜色。走建构的块进行测量,
+// 并算出不同的墨水。
 TEST_CASE("reasoning: the live meter carries a per-character sweep") {
     auto meter_runs = [](bool sweep) {
         maya::ReasoningStream::Config cfg;
@@ -175,8 +175,8 @@ TEST_CASE("reasoning: the live meter carries a per-character sweep") {
         rs.set_elapsed_ms(6200);
         rs.set_content("some reasoning");
 
-        // The block is a bordered box whose rows are body / blank / meter.
-        // The meter is the one TextElement holding the live word.
+        // 块是一个边框,其行数为正文 / 空白/ 公尺.
+        // 计数器就是那个 TextElement 保持现场直播
         maya::Element e = rs.build();
         std::vector<maya::StyledRun> found;
         std::function<void(const maya::Element&)> walk =
@@ -201,10 +201,10 @@ TEST_CASE("reasoning: the live meter carries a per-character sweep") {
     check(swept.size() > plain.size(),
           "sweep explodes the meter into per-character runs");
 
-    // The crest is a gradient, not a two-tone flip. Only >= 2 is pinned: on
-    // an RGB theme the blend is smooth (many inks), but under theme::native
-    // the stops have no channels and lerp_color SNAPS by design, so the band
-    // is two-tone there. Both are correct; the count is not.
+    // 峰顶是梯度,不是两层 -tone 翻转。只有 # # # # 2 被
+    // 固定在: RGB 主题混合是平滑的(许多墨水),
+    // 但下 theme::native 停止没有渠道 lerp_color SNAPS 设计,
+    // 所以乐队是两个 -tone 两者都正确,但数数不正确。
     std::vector<maya::Color> inks;
     for (const auto& r : swept) {
         if (!r.style.fg) continue;
@@ -226,20 +226,20 @@ TEST_CASE("reasoning: no block when the turn never reasoned") {
     check(has(out, "PLAIN_ANSWER"), "the plain answer still renders");
 }
 
-// Appearance's Thinking row is the ONE switch over the reasoning block.
+// 外观的思考行是 一个 切换到推理区
 //
-// This used to set m.d.show_reasoning = false and call it "the global switch
-// (the default)". That flag had no control behind it: ^R opens diff review,
-// and nothing dispatched ModelsToggleShowReasoning, so the value was frozen
-// at whatever settings.json held. The test passed and the feature was
-// unreachable — it pinned a gate the user could not operate, which is how a
-// stale `true` ended up showing reasoning to people who had chosen Hidden.
+// 用来设置 m.d.show_reasoning = 虚假和 调用 来,来,
+// 来 "the global switch (the default)"。
+// 该 标志 背后没有控制力 ^R 打开 diff 复议, 则未发送
+// ModelsToggleShowReasoning ,所以价值被冻结在
+// 任何 settings.json 测试通过,功能无法达到——它把一个用户无法
+// 操作的门钉住,这就是一个 过期 `true` 最终向那些选择隐藏的人展示推理.
 TEST_CASE("reasoning: the Appearance switch hides the block even when text exists") {
     Model m;
-    // publish(), not just the Model field: render_text() builds the configs
-    // directly and never calls view(), which is what normally republishes
-    // the prefs each frame. Restored at the end so the slot does not leak
-    // into another test in the same binary.
+    // publish() 不只是,我们 Model 字段 :
+    // render_text () 直接构建配置,永远不要 调用 view() ,
+    // 通常会重新添加每个预告 帧。在结尾恢复,所以槽不会漏入同一
+    // 测试中的另一个测试中 二进制程序.
     const auto saved = agentty::ui_prefs::current();
     auto prefs = saved;
     prefs.thinking = agentty::ui_prefs::Thinking::Hidden;
@@ -260,17 +260,17 @@ TEST_CASE("reasoning: the Appearance switch hides the block even when text exist
           "the answer renders normally regardless of the reasoning switch");
 }
 
-// The reasoning body must REVEAL incrementally like normal streamed text —
-// not appear all at once. We grow msg.thinking frame by frame (as the wire
-// would), advance the shared animation clock, and assert the visible reasoning
-// text grows GRADUALLY rather than jumping straight to full on the frame the
-// bytes arrive. This pins the streaming-reveal path (turn.cpp MdView::Reasoning
-// + subturn_stably_keyable's reasoning-slot animation check).
+// 推理 正文 必须 REVEAL 渐进式地像正常流体文本一样,不是同时出现。
+// 我们逐渐增长。 msg.thinking 帧 由 帧 (作为 传输 并
+// 申明可见的推理文本正在增长 GRADUALLY 而不是跳到满座上 帧
+// 编号 字节 到了,这个是针头 流式传输-reveal 路径( 选项)
+// turn.cpp MdView::Reasoning +
+// subturn_stably_keyable 推理 -slot 动画检查).
 TEST_CASE("reasoning: body reveals incrementally, not all at once") {
-    // (The reveal is pinned ON for the whole binary in test_main.cpp — its
-    // default is terminal-derived and must not leak into the suite.)
-    // A long, single-paragraph body so the reveal cursor has many chars to
-    // walk through (word-boundary markers we can count as they appear).
+    // (本节 逐步显示 被绑定 ON 整个 二进制程序 输入 test_main.cpp
+    // ——它的默认值是 终端-derived 不得漏入套房中.
+    // ) 长而单的. -paragraph 正文 所以,我们 逐步显示 光标有
+    // 许多字符需要通过( 字词) -boundary 标记,我们可以计算出来。
     std::string full;
     for (int i = 0; i < 60; ++i)
         full += "word" + std::to_string(i) + " ";
@@ -281,7 +281,7 @@ TEST_CASE("reasoning: body reveals incrementally, not all at once") {
     Message a;
     a.role = Role::Assistant;
     a.id   = MessageId{"stream1"};
-    // No answer text yet: pure-reasoning phase (the case the user hit).
+    // 尚未回答文本:纯-reasoning阶段(用户击中的病例).
     m.d.current.messages.push_back(a);
 
     auto visible_words = [&](const std::string& out) {
@@ -291,10 +291,10 @@ TEST_CASE("reasoning: body reveals incrementally, not all at once") {
         return n;
     };
 
-    // Feed the ENTIRE reasoning body at once (as a big summarized delta would
-    // arrive), then render across many animation frames. If the reveal works,
-    // the visible word count climbs frame over frame instead of hitting 60
-    // immediately.
+    // 给它喂食 整个 推理 正文 立即(因为大三角洲即将到来),
+    // 渲染 横跨许多动画 帧 如果 逐步显示 工作,
+    // 可见的字数攀升 帧 结束 帧 而不是立刻打到60分 而不是
+    // 马上打到60
     m.d.current.messages[0].thinking = full;
 
     int first_frame_words = -1;
@@ -304,24 +304,24 @@ TEST_CASE("reasoning: body reveals incrementally, not all at once") {
         const int w = visible_words(out);
         if (first_frame_words < 0) first_frame_words = w;
         max_words = std::max(max_words, w);
-        maya::testing::advance_anim_clock_ms(33); // ~30fps
+        maya::testing::advance_anim_clock_ms(33); // ~30英尺(千米)
     }
 
-    // The reveal cursor should NOT dump the whole body on the first frame.
+    // 电话 逐步显示 光标应当 不 整个都丢掉 正文 第一次见面 帧.
     check(first_frame_words < 60,
           "reasoning does not appear fully on the first frame (it reveals)");
     check(first_frame_words < max_words,
           "reasoning reveals MORE text over subsequent frames (it animates)");
-    // And it eventually reveals (nearly) everything.
+    // 最终它揭示一切。
     check(max_words >= 55,
           "reasoning reveal eventually reaches the full body");
 }
 
-// The reasoning reveal must GLIDE the text out even when the answer starts
-// immediately after the last reasoning delta (the common Anthropic case:
-// summarized reasoning lands in one/two big deltas, then prose begins). If
-// the reveal is cut short at settle, the whole reasoning block "appears at
-// once". We inspect the #r slot's reveal cursor directly.
+// 推理 逐步显示 必须 GLIDE 即使最后的推理三角洲
+// 之后 答案立即开始(常见) Anthropic 实例 :
+// 归纳推理 one/two 如果有的话,那么,
+// 逐步显示 整个推理区 "appears at once"
+// 我们检查#r槽的 逐步显示 直接光标。
 TEST_CASE("reasoning: reveal glides, not cut short when the answer follows") {
     std::string full;
     for (int i = 0; i < 80; ++i) full += "tok" + std::to_string(i) + " ";
@@ -340,10 +340,10 @@ TEST_CASE("reasoning: reveal glides, not cut short when the answer follows") {
              ? -1 : static_cast<long long>(clip);
     };
 
-    // Reasoning arrives all at once (one big summarized delta).
+    // 理性一时到达(一个大总结三角洲).
     m.d.current.messages[0].thinking = full;
-    // A few frames of gliding — the reveal cursor should be MID-body, not at
-    // the end.
+    // 几个 帧 滑翔的飞行 逐步显示 光标应该是 MID-body 而不是
+    // 在结尾。
     long long clip_after_a_few = -1;
     for (int f = 0; f < 3; ++f) {
         (void)render_text(m);
@@ -354,14 +354,14 @@ TEST_CASE("reasoning: reveal glides, not cut short when the answer follows") {
           clip_after_a_few < static_cast<long long>(full.size()),
           "reveal cursor is still mid-body a few frames in (it is gliding)");
 
-    // NOW the answer starts immediately (settle trigger). The reveal must NOT
-    // snap to the end on the settling frame — it should keep gliding.
+    // 当前。 答案立即开始( settle 触发)。
+    // 逐步显示 不得 到了最后,就解决了 帧 - 它应该继续滑翔
     m.d.current.messages[0].streaming_text = "Here is the answer.";
     (void)render_text(m);
     maya::testing::advance_anim_clock_ms(33);
     const long long clip_at_settle = reveal_clip();
-    // The cursor should have advanced only incrementally, not jumped to full.
-    // (A snap would put it at full.size() the instant settle fired.)
+    // 光标应该只是渐进推进,而不是跳跃到满。
+    // (一响就会把它放在 full.size (即时和解)
     check(clip_at_settle < 0 ||
           clip_at_settle <= clip_after_a_few + static_cast<long long>(full.size()),
           "reveal is not force-snapped to the end when the answer begins");

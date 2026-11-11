@@ -1,9 +1,9 @@
 #pragma once
-// agentty::i18n — startup: choosing a language and loading the catalogs.
+// agentty::i18n——启动：选择语言并加载目录。
 //
-// Split from i18n.hpp so the core stays free of getenv and IO, and so a test
-// can drive resolve_language() with explicit inputs rather than by mutating
-// the process environment.
+// 从 i18n.hpp 分离，因此核心不受 getenv 和 IO 的影响，
+// 因此测试可以使用显式输入驱动 resolve_language()，
+// 而不是通过改变进程环境。
 
 #include <string_view>
 
@@ -11,26 +11,26 @@
 
 namespace agentty::i18n {
 
-// Which language to use, given the flag and the saved setting.
+// 给定标志和已保存设置，使用哪种语言。
 //
-// Precedence, highest first:
+// 优先级，最高优先：
 //
-//   1. --lang          what the user typed THIS run
-//   2. settings.json   ui.lang, when non-empty (empty = "auto")
-//   3. environment     LC_ALL, LC_MESSAGES, LANGUAGE, LANG
+//   1. --lang用户带类型的 THIS运行什么
+//   2. settings.json ui.lang，当非-empty时(空="auto")
+//   3.环境LC_ALL、LC_MESSAGES、LANGUAGE、LANG
 //   4. en
 //
-// Pure: takes its inputs as arguments rather than reading settings, so the
-// precedence can be tested without a filesystem or an environment.
+// Pure：将其输入作为参数而不是读取设置，
+// 因此可以在没有文件系统或环境的情况下测试优先级。
 [[nodiscard]] Lang resolve_language(std::string_view cli_lang,
                                     std::string_view saved);
 
-// Load the embedded catalogs and activate the resolved language.
+// 加载嵌入目录并激活解析语言。
 //
-// Returns false only when the ENGLISH catalog fails to parse, which is a
-// build defect rather than a runtime condition -- a requested language with
-// no catalog is not an error, it falls back to English silently (the picker
-// shows completeness, so the gap is visible where it is actionable).
+// 仅当 ENGLISH 目录 未能达到 解析 时才返回
+// false，这是构建缺陷而不是 运行时 条件——没有
+// 目录 的请求语言不是错误，它会默默地回退到英语（选择
+// 面板 显示完整性，因此在可操作的地方可见间隙）。
 bool init(std::string_view cli_lang, std::string_view saved);
 
 }  // namespace agentty::i18n

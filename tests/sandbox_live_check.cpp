@@ -1,24 +1,24 @@
-// Live enforcement check, driving agentty's OWN claybin spawn path.
+// 现场执法检查,驾驶 agentty's 自身 claybin 产卵路径。
 //
-// The end-to-end route (agentty run -> LLM -> shell tool) kept dying on
-// provider hiccups, and it is the wrong instrument anyway: it proves the model
-// can call a tool, not that the sandbox enforces. This calls the same
-// claybin_backend::spawn_shell() the shell tool calls, with a Posture built by
-// hand, and looks at what the child actually got.
+// 结束 -to-end 路线( 4) agentty 运行 - >
+// LLM - > shell工具)在提供者打嗝时不断死去,反正它也是错误的
+// 工具:它证明了模型可以 调用 工具,而不是那个 沙箱 强制 ,
+// 这个 调用 同样的 claybin_backend::spawn_shell
+// () 贝壳工具 调用 手建的姿势 看看孩子的手艺
 //
-// Two claims:
-//   1. under the compiler profile, realloc() works           (the mremap fix)
-//   2. with net_mode=None, a socket to a raw IP cannot connect (the net rule)
+// 两项索赔:
+//   1. 下 编译器 剖析器, realloc() 作品( 硬币修复)
+//   2. 与 net_mode =无,一个套接字到一个生 IP 无法连接( 净规则)
 #include "agentty/tool/util/sandbox_claybin.hpp"
 #include "agentty/tool/util/sandbox.hpp"
-#include "agentty/domain/sandbox_config.hpp"   // kAlwaysMasked*
+#include "agentty/domain/sandbox_config.hpp"   // 总是被破坏 *
 #include "agentty/util/io.hpp"
 
 #include <cstdio>
 #include <cstdlib>
 #include <cerrno>
 #include <filesystem>
-#include <fstream>   // the handoff-prevention case reads the HOST file back
+#include <fstream>   // 交接时 -prevention 案件读取 HOST 返回文件
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -31,15 +31,15 @@
 
 namespace cb = agentty::tools::util::sandbox::claybin_backend;
 
-// The stub setter from sandbox_config_race_stubs.cpp. Declared here rather
-// than pulled from fs_helpers.hpp, because including that header is exactly
-// what this target avoids (it reaches into mcp and drags the tool layer in).
+// 树枝的设置者 sandbox_config_race_stubs.cpp。
+// 在这里宣布,而不是从 fs_helpers.hpp ,
+// 因为包括 头文件 这正是这个目标所避免的(它伸入mcp,拖动工具层)。
 namespace agentty::tools::util { void set_workspace_root(Io, std::filesystem::path p); }
 
 namespace {
 
-// The sandbox's workspace for this check. Created in main(); a missing one
-// makes every spawn fail on mount(ENOENT).
+// 沙箱的工作区为本支票。创建于main();缺失的一款使每座
+// 产卵在山上发生故障(ENOENT)。
 constexpr const char* kWorkspace = "/tmp/agentty-sandbox-live-check";
 
 int failures = 0;
@@ -48,7 +48,7 @@ void expect(bool ok, const char* what) {
     if (!ok) ++failures;
 }
 
-// The read set agentty grants by default, enough for /bin/sh + python3.
+// 读集 agentty 授权 默认时,足够 / bin/sh + 蟒蛇3  ⁇ .
 cb::Posture base_posture() {
     cb::Posture p;
     p.system_read_roots = {"/usr", "/bin", "/sbin", "/lib", "/lib64", "/opt"};
@@ -58,38 +58,38 @@ cb::Posture base_posture() {
                            "/etc/ssl", "/etc/ca-certificates", "/etc/pki"};
     p.workspace         = kWorkspace;
     p.cwd               = kWorkspace;
-    p.syscall_mode      = 1;   // Compiler -- the default, and where the bug was
-    p.net_mode          = 0;   // Full
+    p.syscall_mode      = 1;   // 编译器 - 默认值, 错误在哪里
+    p.net_mode          = 0;   // 满
     p.tmp_bytes         = 512ull * 1024 * 1024;
 
-    // The non-configurable masks, exactly as build_claybin_posture() sets
-    // them. Mirrored rather than left empty: an empty mask list is why the
-    // first version of the .env check below "failed" for the wrong reason --
-    // it was measuring a posture nobody ever spawns.
+    // 非 国 家 -configurable 口罩,
+    // 完全一样 build_claybin_posture ()设置它们。
+    // 镜像而非空:一个空的面具列表是下面第一个版本的.env检查的原因。
+    // "failed" 错误的原因——它测量了没有人会产生的那种姿态。
     if (const char* home = std::getenv("HOME"); home && *home) {
         for (const char* m : agentty::sandbox_cfg::kAlwaysMasked)
             p.masked.emplace_back(std::string{home} + m);
     }
     for (const char* n : agentty::sandbox_cfg::kAlwaysMaskedNames) {
-        // Skip SUFFIX rules (`*.pem`, `*.tfvars`). A suffix is not a path and
-        // cannot be turned into one without knowing what is on disk -- the
-        // spawn path finds those by walking, which is the whole reason the
-        // walk exists. Keyed on the `*` marker rather than on a hardcoded
-        // ".pem", so adding a suffix to the list cannot silently plant a
-        // nonsense mask at `<workspace>/*.tfvars` here.
+        // 跳过 SUFFIX 规则( `*.pem`, `*.tfvars`
+        // ) 后缀不是一条路径,在不知磁盘上是什么的情况下不能变成一条
+        // 路径——产卵路径通过走来找到那些,这就是行走存在的全部原因。
+        // 按键在磁盘上。 `*` 标记而不是硬码 ".pem" ,
+        // 所以在列表中添加后缀不能默默地在其中放置一个无稽之谈的面具.
+        // `<workspace>/*.tfvars` 给
         if (n[0] == '*') continue;
-        // Every NAME rule, not just dotfiles. The old `n[0] != '.'` filter was
-        // an artifact of a list that happened to be all dotfiles; it now
-        // silently drops `credentials.json` and `service-account.json`, so
-        // this harness would mirror a posture weaker than the one the spawn
-        // path builds -- and a live check that measures the wrong posture is
-        // the failure mode the comment above already warns about.
+        // 每一个 NAME 规则,不只是点文件。 `n[0] != '.'`
+        // 过滤器是列表中一个碰巧都是点文件的文物;现在它默默地滴入
+        // `credentials.json` 财务报告和已审计
+        // 财务报表 `service-account.json` ,
+        // 所以这种控制会比产卵路径构建的姿态 更弱, 并且进行现场检查,
+        // 测量错误的姿态就是上面评论已经警告过的失败模式。
         p.masked.emplace_back(std::string{kWorkspace} + "/" + n);
     }
     return p;
 }
 
-// Run a shell command under the posture, capture its output, return exit code.
+// 在姿态下运行一个 shell 命令, 捕捉它的输出, 返回退出代码。
 int run(const cb::Posture& p, const std::string& cmd, std::string& out) {
     int fds[2];
     if (::pipe(fds) != 0) { std::printf("  pipe failed\n"); return -1; }
@@ -97,26 +97,26 @@ int run(const cb::Posture& p, const std::string& cmd, std::string& out) {
     auto sp = cb::spawn_shell(p, cmd, fds[1], fds[1]);
     ::close(fds[1]);
     if (!sp.started) {
-        // A spawn failure is a HARD failure of the whole check, not a quiet
-        // -1 the caller might read as "blocked". That distinction bit once
-        // already: with the workspace directory missing, claybin failed with
-        // mount(ENOENT), the child never ran, and the "did not reach the
-        // network" assertion passed -- because nothing reached anything. A
-        // negative test that passes when the subject never executed is worse
-        // than no test.
+        // 产卵失败就是 HARD 整个检查失败,不是安静的 -1
+        // 打电话者可能读作 "blocked"。这个区别已经比比
+        // 方说: 工作区 缺少目录, claybin 挂载失败(
+        // M) ENOENT ),孩子从未逃跑,
+        // "did not reach the network" 假设通过,
+        // 因为没有达到任何标准。当主体从未执行时,一个负面测试比没有
+        // 测试更糟糕。
         std::printf("  spawn failed: %s\n", sp.start_error.c_str());
         ++failures;
         ::close(fds[0]);
         return -1;
     }
-    // Drain the pipe AND service the supervisor, in one poll.
+    // 排水管 AND服务 主管,在一个民意调查。
     //
-    // Both, in the same loop, for the reason the production runner does it:
-    // a brokered syscall blocks the guest in the kernel until someone answers,
-    // so reading the pipe first and the listener later deadlocks -- the child
-    // waits for a decision, we wait for output it cannot produce until it has
-    // one. This harness has to mirror that or the brokering cases below would
-    // hang instead of failing, and a hang reads as "the test is broken".
+    // 两者,在同一圈,原因 生产跑者这样做:
+    // 被中介的烟囱 将客人堵在内核 直到有人接听为止
+    // 所以先看管子 后看听器 死锁 ——孩子等待决定,
+    // 我们等待它不能产生的结果,直到它有一个。
+    // 这个工具必须反映这一点,否则下面的中介案件将悬而不下,
+    // 悬而不下。 "the test is broken".
     std::string chunk;
     bool eof = false;
     while (!eof) {
@@ -125,8 +125,8 @@ int run(const cb::Posture& p, const std::string& cmd, std::string& out) {
         const bool brokering = sp.supervisor_fd >= 0 && sp.service_broker;
         if (brokering) pfds[1] = {sp.supervisor_fd, POLLIN, 0};
 
-        // A bounded wait rather than -1: a bug that stops answering should
-        // surface as a failed assertion, not as a harness that never returns.
+        // 边框等待而非 - 1 : 停止回答的bug
+        // 将表观为失败的断言, 而不是永远不返回的绳索。
         if (::poll(pfds, brokering ? 2 : 1, 10'000) <= 0) break;
 
         if (brokering && (pfds[1].revents & (POLLIN | POLLHUP | POLLERR))) {
@@ -150,7 +150,7 @@ int run(const cb::Posture& p, const std::string& cmd, std::string& out) {
     return WIFEXITED(status) ? WEXITSTATUS(status) : -2;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 int main() {
     if (!cb::available()) {
@@ -158,10 +158,10 @@ int main() {
         return 0;
     }
 
-    // The workspace has to EXIST before claybin can bind it -- otherwise
-    // every spawn dies on mount(ENOENT) and the negative tests below pass
-    // vacuously. Created here rather than assumed, so the check is
-    // self-contained and cannot be broken by someone cleaning /tmp.
+    // 电话 工作区 一定要这样 EXIST 之前的 claybin
+    // 能够绑定它 - 否则每个产卵都会在山上死亡( ) ENOENT )
+    // 和下面的负测试通过时空。这里创建的而不是假设,所以检查是自我的。
+    // -contained 并且不能被清理/tmp的人打破。
     {
         std::error_code ec;
         std::filesystem::create_directories(kWorkspace, ec);
@@ -172,14 +172,14 @@ int main() {
         }
     }
 
-    // build_bwrap_argv() binds workspace_root(), so the stub has to point at
-    // the directory we just made. Without this the bwrap case would bind /tmp
-    // and mask /tmp/.env -- and then pass, because the canary it is looking
-    // for lives somewhere else entirely. A check that passes for the wrong
-    // reason is the failure mode this harness has already hit twice.
+    // build_bwrap_argv ( ) 约束
+    // workspace_root ,所以根必须指向刚刚制作的目录。
+    // 没有这个,包件将绑定 /tmp 和 mask /
+    // tmp/.env ——然后通过,因为金丝雀在寻找其他生活。
+    // 一个错误原因的检查是,这种绳索已经两次撞击了失败模式。
     agentty::tools::util::set_workspace_root(::agentty::IoAccess::grant(), kWorkspace);
 
-    // ── net_mode=Ports: listed TCP ports only, and no listening ──────────
+    // ── net_mode = 点: 已列出 TCP 只打开端口, 不监听 ──────────
     std::printf("net_mode=Ports with 443 only:\n");
     {
         auto p = base_posture();
@@ -198,12 +198,12 @@ int main() {
                "EOF", out);
         expect(out.find("tcp80 denied") != std::string::npos, "an unlisted port is refused");
         expect(out.find("bind denied") != std::string::npos, "listening is refused");
-        // UDP in this mode. Ports SHARES the host netns (a port rule is about
-        // reaching real hosts), and landlock's port rules cover TCP only --
-        // UDP is a separate access right, added in abi 10, which claybin does
-        // not handle. So this is the one posture where a guest can still send
-        // a datagram anywhere, and the check records which way it goes rather
-        // than asserting a wall that is not there.
+        // UDP。此模式下。端口 SHARES 和
+        // Landlock 的端口规则覆盖 TCP 仅 -
+        // - UDP 是一个单独的访问权限,添加到 ABI 10,
+        // 其中,“ claybin 无法处理。所以,
+        // 这是客人可以向任何地方发送数据图的一种姿态,
+        // 以及检查记录, 而不是站立的墙。
         out.clear();
         run(p,
             "python3 -c \"import socket\n"
@@ -214,16 +214,16 @@ int main() {
             "    except Exception as e: print('udp', label, type(e).__name__)\" 2>&1",
             out);
         std::printf("  udp under Ports: %s", out.c_str());
-        // Not an expect() for the ABI: on a host below abi 10 landlock cannot
-        // model UDP and there is nothing to assert. Where it can, this is a
-        // real wall and the gap was real -- measured SENT before the fix.
+        // ABI不是expect():在ABI以下的宿主上,
+        // 10个地锁不能模拟UDP,而且没有什么可以断言的。只要它能够,
+        // 这就是真正的墙,差距是真实的 -- -- 在固定之前测量到的SENT。
         if (out.find("PermissionError") != std::string::npos) {
             expect(out.find("udp internet PermissionError") != std::string::npos
                        && out.find("udp lan PermissionError") != std::string::npos,
                    "UDP to an unlisted port is refused under Ports (abi 10)");
-            // And the other half of the trade: a port the caller ALLOWED has
-            // to work over UDP too, or allowing 53 breaks DNS. This is the
-            // regression the fix could have caused.
+            // 另一半是:一个港口,呼叫者 ALLOWED
+            // 得工作过来 UDP 或允许53个休息 DNS。
+            // 这是修复可能造成的回归。
             auto with_dns = base_posture();
             with_dns.net_mode = 2;
             with_dns.allow_ports = {53};
@@ -241,9 +241,9 @@ int main() {
         }
     }
 
-    // ── Strict still runs a shell, and W^X applies with the filter off ──
-    // Strict used to map to with_filesystem(), which has no execve, so the
-    // Hardened and Airgapped presets failed every command.
+    // ── 严格仍运行一个 shell, W^X 应用时关闭过滤器 ──
+    // 严格用于映射到with_filesystem(), 它没有执行,
+    // 因此Hardened和Airgapped预设失败了每个命令。
     std::printf("syscall_mode=Strict runs a command:\n");
     for (int net : {0, 1}) {
         auto p = base_posture();
@@ -268,14 +268,14 @@ int main() {
         expect(out.find("PermissionError") == std::string::npos, "W^X off allows an RWX mapping");
     }
 
-    // ── 1. realloc under the compiler profile ────────────────────────
-    // The regression: mremap was absent from base(), so realloc() of a large
-    // block returned NULL and curl reported "out of memory" on a machine with
-    // free RAM.
+    // ── 1. 重置 编译器 配置文件 ────────────────────────
+    // 回归: 硬币没有出现在 base() ,所以,我说 realloc() 返回
+    // 的大型块 NULL 和卷轴报告 "out of memory" 免费的机器上
+    // RAM.
     //
-    // Done in python rather than a compiled probe so the check has no build
-    // step of its own and nothing to leave behind outside the workspace.
-    // ctypes calls mremap(2) directly, then the allocator path curl hits.
+    // 以蟒蛇而不是编译的探测器完成,所以检查本身没有
+    // 建构步骤,在工作区之外也没有任何东西可留下.
+    // c 类型 调用 直接的,然后是 分配器 路径卷曲命中。
     std::printf("realloc under syscall_mode=Compiler:\n");
     {
         auto p = base_posture();
@@ -303,13 +303,13 @@ int main() {
         expect(out.find("realloc ok") != std::string::npos, "realloc works");
     }
 
-    // ── 2. net_mode=None isolates ───────────────────────────────────────
+    // ── 2. net_mode 没有任何隔离 ───────────────────────────────────────
     std::printf("connect() with net_mode=None:\n");
     {
         auto p = base_posture();
-        p.net_mode = 1;  // None
+        p.net_mode = 1;  // 无
         std::string out;
-        // A raw IP, so this exercises the socket layer and not DNS.
+        // 一个生的 IP ,因此此操作套接字层而不是 DNS.
         int rc = run(p,
             "python3 -c 'import socket,sys\n"
             "s=socket.socket(); s.settimeout(3)\n"
@@ -321,15 +321,15 @@ int main() {
         expect(out.find("CONNECTED") == std::string::npos, "did not reach the network");
     }
 
-    // ── 3. net_mode=Full still works, but only through the proxy ───────
-    // The other half of the claim: isolation is a CHOICE, so the permissive
-    // setting must actually permit. A sandbox that blocks everything is not
-    // enforcing a policy, it is broken.
+    // ── 3. net_mode 仍然有效,但只能通过代理 ───────
+    // 另一半说法:孤立是 CHOICE 因此,
+    // 允许设置必须实际允许。 沙箱 阻止一切不是执行政策,
+    // 而是被打破。
     //
-    // What "permit" MEANS changed with audit #1. A direct connect now fails
-    // (the box has no route off its own loopback — that is the boundary), and
-    // the real reach is through the proxy, which every tool finds via the env.
-    // So this asserts both halves: raw socket blocked, proxied fetch works.
+    // 或 "permit" MEANS 与审计 # 1 一起更改。
+    // 直接连接失败( 框没有自己的回路—— 边界) ,
+    // 而真正的联系是通过代理, 每个工具都通过内存找到代理。
+    // 因此,这说明两个半部分: 原始套接字被封锁, 代理的获取工程。
     std::printf("net_mode=Full: direct vs proxied:\n");
     {
         auto p = base_posture();
@@ -346,7 +346,7 @@ int main() {
         expect(out.find("CONNECTED") == std::string::npos,
                "a raw socket cannot leave the box, even on Full (#1)");
         out.clear();
-        // And the path that IS meant to work.
+        // 和那条路 IS 本来是想工作
         rc = run(p, "curl -sS --max-time 20 -o /dev/null -w net=%{http_code} "
                     "https://example.com/ 2>&1", out);
         std::printf("  proxied exit=%d, child said: %s\n", rc, out.c_str());
@@ -354,12 +354,12 @@ int main() {
                "a real fetch through the proxy works (#1)");
     }
 
-    // ── 4. the masks that are NOT configurable ────────────────────────
-    // kAlwaysMasked/kAlwaysMaskedNames are the one part of the policy a user
-    // cannot switch off, so they are the part most worth measuring rather
-    // than trusting. A workspace .env is the sharpest case: the workspace is
-    // bound READ-WRITE by both backends, so scope does not save us and the
-    // mask is the only thing standing between an agent and a real secret.
+    // ── 4. 面具是: 不 可配置 ────────────────────────
+    // kAlwaysMasked/kAlwaysMaskedNames
+    // 用户无法关闭是政策的一部分,因此,用户最值得衡量而不是信任。
+    // 工作区 .env是最尖锐的案例: 工作区 绑定
+    // READ-WRITE 由两个后端,所以范围不 保存
+    // 我们和面具是唯一 站在特工和真正秘密之间的东西
     std::printf("workspace .env is masked:\n");
     {
         const std::string envp = std::string{kWorkspace} + "/.env";
@@ -378,16 +378,16 @@ int main() {
         std::filesystem::remove(envp, ec);
     }
 
-    // ── 5. curl, specifically ─────────────────────────────────────
-    // Its own case because curl reports EVERY early failure as
-    // CURLE_OUT_OF_MEMORY (27), which sends you looking at memory caps and
-    // the network rules when the cause is neither. python3 fetches the same
-    // URL fine under this exact posture, so a curl failure here is about
-    // curl's startup, not about the boundary.
+    // ── 5. 卷曲,具体 ─────────────────────────────────────
+    // 它本身的情况是因为卷曲报告EVERY早期的失败
+    // 是CURLE_OUT_OF_MEMORY(27),
+    // 它会让你在没有原因时查看内存的封顶和网络规则. python3
+    // 在这个精确的姿态下获得相同的URL的罚款,所以这里卷曲
+    // 失败是关于卷曲的启动,而不是边界.
     //
-    // Kept as a check rather than a note because curl is what users reach
-    // for, and "the sandbox broke curl" is indistinguishable from "the
-    // sandbox is broken" from the outside.
+    // 以检查而不是注记的方式,因为卷曲是用户想要的,
+    // "the sandbox broke curl" 无法区分
+    // "the sandbox is broken" 从外而上.
     std::printf("curl reaches the network (net_mode=Full):\n");
     {
         auto p = base_posture();
@@ -399,14 +399,14 @@ int main() {
         expect(out.find("H:200") != std::string::npos, "curl got a 200");
     }
 
-    // ── 7. secrets BELOW the workspace root ──────────────────────────
-    // The gap the bounded sweep closes. kAlwaysMaskedNames are BASENAMES, and
-    // a name cannot become a mount without knowing where the file is -- so
-    // masking only `<workspace>/.env` covered the one layout nobody uses.
-    // `services/api/.env` is where it actually lives in a monorepo.
+    // ── 7. 秘密问题 下方 编号 工作区 根号 ──────────────────────────
+    // 边框扫荡的间隙关闭。 kAlways MaskedNames 是
+    // BASENAMES ,而名称在不知晓文件所在的情况下不能成为挂载 --
+    // 因此只遮盖 `<workspace>/.env` 覆盖了无人使用的布局。
+    // `services/api/.env`是它实际生活在单列波的地方.
     //
-    // Also checks the two things the sweep must NOT do: follow a directory
-    // symlink out of the workspace, and walk into node_modules.
+    // 还要检查一下扫荡必须完成的两件事 不 do: 沿着目录的符号链接
+    // 离开 工作区 ,然后走进 node_modules.
     std::printf("nested secrets are masked (sweep depth):\n");
     {
         const std::filesystem::path root{kWorkspace};
@@ -420,14 +420,14 @@ int main() {
         };
         plant(root / "services" / "api" / ".env", "NESTED=canary\n");
         plant(root / "services" / "api" / "key.pem", "PEMBODY=canary\n");
-        // Inside a skipped directory: NOT masked, and that is deliberate --
-        // the sweep trades it for not walking a 40k-file tree on every spawn.
-        // Asserted so the trade is visible rather than assumed.
+        // 跳过目录内 : 不 蒙面,这是故意的 扫荡用它
+        // 来换取40千块 -file 源码树 每一个产卵。
+        // 如此一来,交易是显而易见的,而不是假设的。
         plant(root / "node_modules" / "pkg" / ".env", "SKIPPED=canary\n");
 
         auto p = base_posture();
-        // The real list, from the shared function -- the same one both
-        // backends consume, so this cannot pass while production differs.
+        // 真实列表,从共享函数中——相同的列表,
+        // 两个后端都消耗,因此在生产不同的情况下,这个列表不能通过.
         {
             agentty::sandbox_cfg::Config c;
             c.configured = true;
@@ -448,25 +448,25 @@ int main() {
         std::filesystem::remove_all(root / "node_modules", ec);
     }
 
-    // ── 8. the default pid cap actually bounds a fork bomb ──────────────
-    // sandbox_audit reported resource.pids as `none` on a default install,
-    // which means an approved command could fork without limit. max_procs now
-    // ships at 4096 -- the one resource wall with a number that is safe on
-    // every host (no build needs 4096 concurrent processes; a fork bomb wants
-    // millions).
+    // ── 8. 默认的pid 盖实际上约束了叉炸弹 ──────────────
+    // sandbox_audit 报告 resource.pids 以
+    // `none` 默认安装,这意味着一个经核准的命令可以无限制地叉开。
+    // max_procs 现在船位为4096, 是一个资源墙,
+    // 每个主机上都有安全的数字(不需要4096个同时进行建造; 叉子炸弹需要
+    // 数百万个)。
     //
-    // Checked in the CHILD rather than in the report, because "cgroup2
-    // pids.max" in a guarantee table and "the fork actually fails" are
-    // different claims and this subsystem has already shipped the first
-    // without the second.
+    // 已经检查过 CHILD 而不是在报告中,
+    // 因为 "cgroup2 pids.max" 在一个担保表中,
+    // 以及 "the fork actually fails" 属于不同的索赔,这个子系统已经
+    // 运出第一个,但没有第二个。
     std::printf("the default pid cap bounds a fork bomb:\n");
     {
         auto p = base_posture();
         p.max_processes = agentty::sandbox_cfg::Config{}.max_procs;
         std::string out;
-        // Fork until it fails, print how far it got. A bounded sandbox reports
-        // a number near the cap; an unbounded one runs until the HOST suffers,
-        // which is the outcome worth never shipping.
+        // 叉子直到失效,请打印它有多远。 沙箱 报告一个
+        // 数字靠近上限;一个未绑定的号码运行到顶点。
+        // HOST 痛苦是值得永远不运输的结果。
         int rc = run(p,
             "python3 -c 'import os,sys\n"
             "n=0\n"
@@ -478,38 +478,38 @@ int main() {
             "    pass\n"
             "print(\"forked\", n)' 2>&1", out);
         std::printf("  exit=%d, child said: %s", rc, out.c_str());
-        // The cap is 4096 and the loop tries 20000, so a working cap stops it
-        // short. Asserting "did not reach 20000" rather than an exact number:
-        // the kernel counts threads the shell and python already hold, so the
-        // precise ceiling is host-dependent and pinning it would be flaky.
+        // 盖子是4096,循环尝试20000,所以一个工作盖会让它短。
+        // "did not reach 20000" 而不是确切的数字 :
+        // 内核计数 线程 贝壳和蟒蛇已经握住,所以精确的天花板是
+        // 主机 -dependent 并把它钉住, 这将是片状的。
         expect(out.find("forked 20000") == std::string::npos,
                "the fork loop hit a limit");
     }
 
-    // ── 9. syscall brokering decides instead of denying flatly ──────────
-    // The feature with the worst failure mode in this whole subsystem: a
-    // brokered syscall blocks the guest IN THE KERNEL until the supervisor
-    // answers, so a broker that is not polled is a hang rather than a weaker
-    // wall. Every case here would time out rather than fail if that regressed,
-    // which is why they run with a real child and a real listener.
+    // ── 9. 单一名称的经纪活动决定而不是断然否认 ──────────
+    // 整个子系统中最糟糕的失败模式的特征: 中介的
+    // syscall 阻断了客人 IN 该 KERNEL
+    // 如此一来,没有接受调查的经纪人就只能是绞刑而不是弱墙。
+    // 如果情况恶化,那么每个案件都会被拖延而不是失败,
+    // 这就是为什么他们要跟一个真正的孩子和真正的听众一起跑。
     std::printf("brokering: a self-ptrace is allowed\n");
     {
         auto p = base_posture();
         p.broker = true;
         std::string out;
-        // PTRACE_TRACEME: the child volunteers to be traced by its own parent.
-        // Grants no authority over anything else, and `strace prog` needs it.
-        // A flat deny breaks every debugger; the broker allows it from scalars.
+        // PTRACE_TRACEME:儿童志愿者由自己的父母追踪。
+        // 授权 没有权力来管理任何事物, `strace prog` 需要它,我需要它,你需要它,但你需要它。
+        // 平面拒绝打破每个调试器; 经纪人允许它从scalars中中断。
         int rc = run(p,
             "python3 -c 'import ctypes,os\n"
             "libc=ctypes.CDLL(None,use_errno=True)\n"
             "ctypes.set_errno(0)\n"
-            "r=libc.ptrace(0,0,0,0)\n"           // 0 == PTRACE_TRACEME
+            "r=libc.ptrace(0,0,0,0)\n"           // ⁇ 0  ⁇   ⁇  PTRACE_TRACEME
             "print(\"traceme\", r, ctypes.get_errno())' 2>&1", out);
         std::printf("  exit=%d, child said: %s", rc, out.c_str());
-        // The decision is what matters, not the return value: TRACEME can fail
-        // for unrelated reasons (already traced). EPERM (1) is the broker
-        // denying; anything else means it got through to the kernel.
+        // 决定是最重要的,而不是回报值: TRACEME 可能
+        // 由于无关的原因失败(已经追踪到). EPERM
+        // (1)是经纪人否认;任何其他意味着它通向内核.
         expect(out.find("errno=1") == std::string::npos &&
                out.find(" 1)") == std::string::npos,
                "TRACEME was not denied by the broker");
@@ -520,15 +520,15 @@ int main() {
         auto p = base_posture();
         p.broker = true;
         std::string out;
-        // PTRACE_ATTACH to pid 1 -- the sandbox's own init inside a pid
-        // namespace, and a container-escape primitive rather than a debugging
-        // step. The target is a SCALAR, which is exactly why this is decidable
-        // soundly: no guest memory is read, so there is no TOCTOU window.
+        // PTRACE_ATTACH至pid 1 — 沙箱在
+        // pidnamespace内自有的init, 以及一个容器-escape原始而不是调试步骤。
+        // 目标是一个SCALAR, 正因为如此, 这一点才可以音速决定:
+        // 没有读到 内存 的宾客, 所以没有 TOCTOU 窗口。
         int rc = run(p,
             "python3 -c 'import ctypes,os\n"
             "libc=ctypes.CDLL(None,use_errno=True)\n"
             "ctypes.set_errno(0)\n"
-            "r=libc.ptrace(16,1,0,0)\n"          // 16 == PTRACE_ATTACH
+            "r=libc.ptrace(16,1,0,0)\n"          // 16  ⁇  PTRACE_ATTACH
             "e=ctypes.get_errno()\n"
             "print(\"attach\", r, e, os.strerror(e) if e else \"\")' 2>&1", out);
         std::printf("  exit=%d, child said: %s", rc, out.c_str());
@@ -538,11 +538,11 @@ int main() {
 
     std::printf("brokering: the child still finishes (no hang)\n");
     {
-        // The regression that would hurt most. If the supervisor stops being
-        // polled -- or answers one notification and not the next -- the child
-        // blocks forever and the command dies on the hard deadline. A test that
-        // only checked decisions would pass while every real command took
-        // exactly the timeout.
+        // 将伤害最大的回归。如果主管停止接受调查,
+        // 或者回答一个问题。 通知 而不是下一个 —
+        // 孩子永远挡住,命令在困难的最后期限上死去。
+        // 只有检查决定的测试会通过,而每个真正的命令都
+        // 完全取下 超时.
         auto p = base_posture();
         p.broker = true;
         std::string out;
@@ -557,28 +557,28 @@ int main() {
         expect(rc == 0, "the child exited cleanly");
     }
 
-    // ── 9. the REAL entry point, not a posture we built ourselves ──────
+    // ── 9. 决 定 真实 进入点,不是我们自己建立起来的姿态 ──────
     //
-    // Everything above drives claybin::spawn with a Posture this file
-    // constructs. That proves claybin enforces what it is told — it does NOT
-    // prove that the posture agentty actually builds says the same thing.
+    // 驱动器上的所有设备 claybin::spawn 使用
+    // Pposure 来构建此文件。这证明 claybin 执行它所被告知的,
+    // 它确实 不 证明姿态 agentty 建筑也说同样的话
     //
-    // The gap is real and has bitten before: build_claybin_posture() reads the
-    // sealed config, applies kAlwaysMasked, runs the workspace sweep, and
-    // decides the syscall profile. A mirror of that logic in a test is a
-    // SECOND implementation, and the two drifted once already (bwrap emitted
-    // no masks at all while this file's mirror did).
+    // 差距是真实的, build_claybin_posture
+    // ()读取密封的配置,应用 kAlwaysMasked,
+    // 运行 工作区 扫描,并决定音响描述。在测试中,
+    // 逻辑的镜像是 第二 执行, 且两个漂移过一次( 包件在
+    // 文件镜显示时, 根本没有发出面具)。
     //
-    // So: call the same function a `bash` tool call reaches, with the config
-    // installed the same way main.cpp installs it, and read what the child
-    // actually got. Anything that passes here is true of the shipped product.
+    // 调用 和`bash` 工具调用 的函数相同,
+    // 配置安装方式与main.cpp 安装方式相同,
+    // 并读取孩子实际得到的东西。任何经过这里的功能都是对所运产品的真实的。
     std::printf("\nthe REAL path (run_shell_command, production posture):\n");
     {
         namespace sb = agentty::tools::util::sandbox;
         agentty::tools::util::set_workspace_root(::agentty::IoAccess::grant(), kWorkspace);
         sb::reset_config_for_test();
         agentty::sandbox_cfg::Config cfg;
-        cfg.configured = true;            // defaults = the Balanced posture
+        cfg.configured = true;            // 默认值 = 平衡态势
         sb::set_config(cfg);
         sb::init(sb::Mode::On);
 
@@ -587,8 +587,8 @@ int main() {
         } else {
             std::printf("  %s\n", sb::describe_state().c_str());
 
-            // Plant one of every masked SHAPE: a plain name, a nested name
-            // (needs the sweep), and both suffix rules.
+            // 植入每枚蒙面的SHAPE中一个:平原名,
+            // 巢名(需要扫荡),以及两个后缀规则.
             const std::string ws{kWorkspace};
             std::filesystem::create_directories(ws + "/services/api");
             auto plant = [&](const std::string& rel, const char* body) {
@@ -608,20 +608,20 @@ int main() {
                 "services/api/.env 2>&1; echo ---; cat main.cpp",
                 64 * 1024, std::chrono::seconds{30});
 
-            // Not one of the planted secrets may appear. `should_never` is the
-            // shared marker so a single find() covers all six.
+            // 任何秘密都不可能出现 `should_never` 是一个共享的标记,
+            // 所以一个单 find() 盖六根皆有.
             const bool leaked = r.output.find("should_never") != std::string::npos;
             if (leaked)
                 std::printf("  LEAKED: %s\n", r.output.c_str());
             expect(!leaked, "no masked secret reached a real bash call");
 
-            // And the sandbox did not break ordinary work: a non-secret file
-            // in the same directory still reads. A mask list that caught
-            // main.cpp would pass the test above and break every build.
+            // 还有 沙箱 未中断普通工作: a un
+            // -secret 打开该目录的“文件”。
+            // main.cpp 将经过上面的测试,打破每一个建筑。
             expect(r.output.find("int main") != std::string::npos,
                    "an ordinary workspace file is still readable");
 
-            // Host-readable grants read on /, and the masks must still hold.
+            // Host-readable 授权 读在/, 和面具必须保持。
             const char* real_home = std::getenv("HOME");
             const std::string saved_home = real_home ? real_home : "";
             const std::string fake = std::string{kWorkspace} + "-home";
@@ -653,8 +653,8 @@ int main() {
             sb::init(sb::Mode::Auto);
         }
 
-        // The Hardened preset must still run a command (Strict once had no
-        // execve), and a `~/` read path must grant what it names.
+        // 硬化预设必须仍然运行一个命令(Strict曾经没有执行),
+        // 并且 `~/` 读取路径必须 授权 其名称。
         if (sb::is_active()) {
             const char* home = std::getenv("HOME");
             const std::string dir = std::string{home ? home : "/tmp"} + "/.agentty-live-read";
@@ -681,48 +681,48 @@ int main() {
             sb::init(sb::Mode::Auto);
         }
 
-        // ── why the handoff gate cannot be a sandbox wall ───────────────
+        // ── 为什么交接门不能是一个 沙箱 墙 ───────────────
         //
-        // The obvious objection to the trust-handoff gate is "claybin already
-        // confines the process, so how can the agent write .vscode/tasks.json
-        // at all?" This is the answer, measured rather than argued.
+        // 明显反对信托 -handoff 门是
+        // claybin 已约束进程，为何代理仍能写入 .vscode/tasks.json？
+        // 这是答案,是衡量而不是论证。
         //
-        // A sandbox wall answers "may this PROCESS touch this PATH". For a
-        // path inside the workspace the answer is legitimately YES -- it has
-        // to be, or no build could write an object file. tasks.json is not
-        // dangerous because of WHERE it is; it is dangerous because VS Code
-        // executes it LATER, on the host, outside any sandbox we installed.
+        // A 沙箱 墙壁答案 "may this PROCESS touch this PATH"。
+        // 用于在 工作区 答案是正当的 YES - 必须是的,
+        // 否则无法创建一个对象文件。 tasks.json 并不危险,
+        // 因为 WHERE 危险是因为... VS 代码执行它
+        // LATER ,在主机,任何外边 沙箱 我们安装了。
         //
-        // So confinement and handoff are different questions, and this pair of
-        // checks pins that: the wall holds where confinement applies, and does
-        // not apply where it doesn't. If the first ever starts failing, the
-        // gate has become redundant; if the second ever starts failing, the
-        // sandbox has broken ordinary work.
+        // 因此,禁闭和交接是不同的问题,
+        // 这对检查针:墙上有禁闭的地方,而不会在禁闭的地方。
+        // 如果第一个开始失败,大门就变得多余;
+        // 如果第二个开始失败,就意味着: 沙箱
+        // 打破了普通的工作。
         {
             std::printf("\nconfinement vs. handoff (why the gate exists):\n");
             const std::string ws{kWorkspace};
             std::filesystem::create_directories(ws + "/.vscode");
 
-            // OUTSIDE the workspace: the sandbox must refuse. This is
-            // confinement, and it is claybin's job.
+            // OUTSIDE 编号 工作区 : 数据 沙箱 一定要拒绝 这是禁闭 这是
+            // claybin 工作就是工作 工作就是干这个的
             //
-            // NOT /tmp. The posture mounts a private tmpfs there (see
-            // build_policy: "so nothing leaks into the host /tmp"), so a write
-            // to /tmp SUCCEEDS inside the guest and never reaches the host --
-            // which looks like an escape to a naive probe and is in fact the
-            // containment working. I wrote that probe first and it reported
-            // ESCAPED while the host file did not exist.
+            // 不 / tmp. 姿态上挂一个私人的 tmpfs 在那里(
+            // 参见 build_policy:
+            // 确保不会泄漏到宿主 /tmp。
+            // 所以写给 /tmp SUCCEEDS 在客人内部,永远没有到达主机——
+            // 这看起来像是逃到天真的探测器,事实上是控制器起作用。我先写了这个探测器,
+            // 它报告了 ESCAPED , 而主机文件并不存在。
             //
-            // $HOME is the honest test: real, outside the workspace, and not
-            // virtualised by the posture.
+            // $HOME 诚实的考验:真实的,在 工作区 ,
+            // 而不是虚拟化的姿态。
             const char* home = std::getenv("HOME");
             const std::string victim =
                 std::string{home ? home : "/root"} + "/agentty_confinement_probe";
             auto out = sb::run_shell_command(
                 "echo escaped > " + victim + " && echo wrote || echo denied",
                 4096, std::chrono::seconds{15});
-            // The guest's own report is not evidence -- a virtualised target
-            // would say "wrote" too. Ask the HOST filesystem.
+            // 客人自己的报告不是证据 虚拟化的目标会说 "wrote" 也一样。
+            // Ask 编号 HOST 文件系统。
             std::error_code hec;
             const bool on_host = std::filesystem::exists(victim, hec);
             if (on_host) std::printf("  ESCAPED to %s\n", victim.c_str());
@@ -730,17 +730,17 @@ int main() {
             std::error_code rec;
             std::filesystem::remove(victim, rec);
 
-            // INSIDE the workspace: the sandbox ALLOWS it, and must. There is
-            // no wall here to lean on, which is exactly why the handoff gate
-            // is a separate mechanism.
+            // 内部 编号 工作区 : 数据 沙箱 ALLOWS
+            // 这儿没有墙可以靠着, 这就是为什么交接门是
+            // 一个独立的机制。
             //
-            // An ORDINARY file, not .vscode/tasks.json. This check used to use
-            // the trusted path and it was the right choice then -- the point
-            // was "confinement permits this, so confinement cannot be what
-            // stops a handoff". Now that prevention binds trusted paths
-            // read-only, that spelling would assert the gate does NOT work.
-            // The property being pinned is unchanged: a plain workspace write
-            // is permitted, so a wall is not what stops the dangerous one.
+            // ORDINARY文件,而不是.vscode/tasks.json.
+            // 此检查用于使用可信任路径,它当时是正确的选择 -- -- 要点是
+            // 进程隔离本来就允许此操作，因此信任交接必须由另一层阻止。
+            // 现在,预防将可信任路径绑定为-only,
+            // 拼写将断言该门是NOT的工作。
+            // 被封存的财产没有改变:平原 工作区
+            // 写作是允许的 所以墙不是阻止危险的东西
             auto in = sb::run_shell_command(
                 "echo hello > ordinary-file.txt && echo wrote || echo denied",
                 4096, std::chrono::seconds{15});
@@ -749,37 +749,37 @@ int main() {
                    "cannot be what stops a trust handoff");
         }
 
-        // ── handoff PREVENTION: a read-only bind over the trusted path ───
+        // ── 交接 PREVENTION : 读数 -only 绑定可信任的路径 ───
         //
-        // Detection reports a write after the bytes land. This stops it. The
-        // mechanism is a read-only bind of the path over itself, which is the
-        // same trick used to mask secrets and for the same reason: landlock
-        // has no negative rule, so you make the path not be writable rather
-        // than denying it.
+        // 检测报告在 字节 停止了,这个机制是读数
+        // -only 束缚路径凌驾于自身之上,
+        // 这是用来掩盖秘密的同样诡计,也是出于同样的原因:
+        // 地锁没有负面规则,所以你让路径不能被书写,
+        // 而不能否认.
         //
-        // Needs a mount namespace, so this whole block is conditional. On a
-        // host that denies unprivileged userns the wall is absent and
-        // detection is the only layer -- which is the honest outcome, not a
-        // silent downgrade.
+        // 需要一个挂载命名空间, 因此整个块是有条件的。
+        // 在拒绝非特权用户的主机上, 墙没有显示,
+        // 检测是唯一的层 — — 这是诚实的结果,
+        // 不是默默的降级。
         {
             std::printf("\nhandoff prevention (read-only bind):\n");
             const std::string ws{kWorkspace};
             std::filesystem::create_directories(ws + "/.vscode");
-            // Must EXIST before the posture is built: a bind of a missing path
-            // cannot be made, which is what detection covers.
+            // 必须 EXIST 在建立姿态之前:无法制成一条
+            // 缺失路径的束缚,这就是检测覆盖的.
             {
                 std::ofstream f(ws + "/.vscode/tasks.json");
                 f << "{\"version\":\"2.0.0\"}\n";
             }
 
-            // Re-init so the posture picks up the now-existing trusted path.
+            // 调 -init 所以现在的姿势就变了 -existing 信任的路径。
             (void)sb::init(sb::Mode::Auto);
 
             auto w = sb::run_shell_command(
                 "echo PWNED > .vscode/tasks.json && echo wrote || echo denied",
                 4096, std::chrono::seconds{15});
 
-            // The guest's own report is not evidence; read the HOST file.
+            // 客人自己的报告不是证据,读一下 HOST 文档。
             std::string after;
             {
                 std::ifstream f(ws + "/.vscode/tasks.json");
@@ -794,8 +794,8 @@ int main() {
                        "sandbox when mount namespaces exist");
             } else {
                 expect(true, "a write to a host-trusted path is refused");
-                // And it must still be READABLE -- git reads its own config on
-                // every invocation, so masking would break ordinary work.
+                // 肯定还是 READABLE - –  ⁇ –––– ⁇ –– ⁇  ⁇ – ⁇ – ⁇  ⁇  ⁇ – – ⁇ –  ⁇  ⁇ ––  ⁇   ⁇ – ⁇  – ⁇   ⁇  – – р ⁇ – ⁇ а ⁇   ⁇  ⁇   ⁇ ,  ⁇  / ⁇   ⁇ - ⁇   ⁇  -  ⁇ – р  ⁇  а
+                // ⁇  –– ⁇  а  ⁇  р ⁇   ⁇ а ⁇ а ⁇ , р ⁇ а ⁇ и ⁇   ⁇ р ⁇  а) – а ⁇  ⁇  –р ⁇  –а ⁇  р а ⁇ а  ⁇ а – т ⁇   ⁇ е ⁇   ⁇ и ⁇ а ⁇ )  ⁇  τ ⁇   ⁇ т ⁇  –
                 auto r = sb::run_shell_command(
                     "cat .vscode/tasks.json", 4096, std::chrono::seconds{15});
                 expect(r.output.find("2.0.0") != std::string::npos,
@@ -804,10 +804,10 @@ int main() {
         }
     }
 
-    // ── sandbox audit 2026-10-17 ───────────────────────────────────────────────
+    // ── 沙箱 审计 2026-10-17 ───────────────────────────────────────────────
     std::printf("\naudit 2026-10-17 regressions:\n");
     {
-        // #9: netlink and vsock refused, unix/inet still fine.
+        // 9号:网路和vsock拒绝,unix/inet仍然很好.
         auto p = base_posture();
         std::string out;
         run(p,
@@ -823,7 +823,7 @@ int main() {
         expect(out.find("inet ok") != std::string::npos, "AF_INET still works");
     }
     {
-        // #7: fake_hostname=false keeps the real name.
+        // #7: fake_hostname 假的保持真实的名字。
         char host[256] = {};
         ::gethostname(host, sizeof host - 1);
         auto p = base_posture();
@@ -841,9 +841,9 @@ int main() {
                "fake_hostname=true shows `sandbox`");
     }
     {
-        // #1: a handoff ro bind must not uncover a mask. Workspace = a fake
-        // $HOME holding ~/.agentty/memory.jsonl (masked) inside .agentty (a
-        // handoff dir), the exact shape the audit hit.
+        // #1: 交接的罗绑不得露出面具. 工作区 =一个假的 $HOME 持有
+        // ~/.agentty/memory.jsonl (口罩) 里面。。
+        // agentty (一个交割目录),审计打出的确切形状.
         namespace sb = agentty::tools::util::sandbox;
         const std::string fake_home = std::string{kWorkspace} + "-home";
         std::error_code ec;
@@ -893,29 +893,29 @@ int main() {
         std::filesystem::remove_all(fake_home, ec);
     }
 
-    // ── claybin-sandbox-audit.md #2-#7, observed from inside a real box ──
+    // ── claybin-sandbox-audit.md #2#7,从一个真实的盒子里观察到 ──
     {
         auto p = base_posture();
         std::string out;
-        // #2: /dev/shm is its own tmpfs with a cap, /dev itself is tiny.
+        // 2:/dev/shm是它自己的tmpfs带有盖,/dev本身是微小的.
         run(p, "df -B1 --output=size,target /dev/shm /dev 2>&1 | tail -n +2", out);
         std::printf("  df: %s", out.c_str());
         expect(out.find("67108864 /dev/shm") != std::string::npos,
                "/dev/shm is capped at 64 MiB (#2)");
         expect(out.find("1048576 /dev") != std::string::npos, "/dev is capped at 1 MiB (#2)");
         out.clear();
-        // #3: the box is the OOM killer's first pick.
+        // #3:盒子是OOM杀手的首选.
         run(p, "cat /proc/self/oom_score_adj", out);
         expect(out.find("500") != std::string::npos, "oom_score_adj is 500 (#3)");
         out.clear();
-        // #5: xattr reads work, so ls stays quiet.
+        // 5号:xattr读工作,所以保持安静.
         run(p, "ls -l /usr >/dev/null && echo ls-clean", out);
         expect(out.find("ls-clean") != std::string::npos &&
                    out.find("Operation not permitted") == std::string::npos,
                "ls -l prints no xattr EPERM noise (#5)");
         out.clear();
-        // #6: prctl PR_SET_NAME works; PR_SET_MM / PR_CAP_AMBIENT do not.
-        // python is the one interpreter that reaches prctl without a compiler.
+        // #6: 点缀 PR_SET_NAME 工作; 工作; PR_SET_MM / PR_CAP_AMBIENT 别
+        // Python 无需编译器即可调用 prctl，因此用它作为探测解释器。
         run(p,
             "python3 -c 'import ctypes;l=ctypes.CDLL(None);"
             "print(\"name\",l.prctl(15,b\"box\",0,0,0));"
@@ -930,14 +930,14 @@ int main() {
                    "personality query ok, ADDR_NO_RANDOMIZE refused (#6)");
         }
         out.clear();
-        // #7: own cgroup namespace, no core dumps.
+        // #7:拥有croup命名空间,没有核心堆放.
         run(p, "cat /proc/self/cgroup; ulimit -c", out);
         std::printf("  cgroup/core: %s", out.c_str());
         expect(out.find("0::/\n") != std::string::npos, "cgroup namespace hides the host path (#7)");
         expect(out.find("\n0\n") != std::string::npos || out.ends_with("0\n"),
                "RLIMIT_CORE is 0 (#7)");
         out.clear();
-        // #4: session sockets and provider keys don't reach the guest.
+        // #4:会话套接字和提供商密钥无法到达嘉宾.
         ::setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/run/user/1000/bus", 1);
         ::setenv("WAYLAND_DISPLAY", "wayland-1", 1);
         ::setenv("GROQ_API_KEY", "gsk_should_never", 1);
@@ -954,17 +954,17 @@ int main() {
         ::unsetenv("MY_BUILD_FLAG");
     }
 
-    // ── the network boundary (audit #1) ──────────────────────────────────
+    // ── 网络边界( 审计 # 1) ──────────────────────────────────
     //
-    // The audit's one High finding: "network allowed" used to mean sharing
-    // agentty's namespace, so a command could reach the host's loopback
-    // services and the whole LAN. Now the box gets its own namespace and one
-    // proxy on its loopback, and these are the claims that makes.
+    // 审计的发现是: "network allowed" 用来
+    // 表示共享 agentty 'namespace,
+    // 这样命令可以到达主机的回路服务以及整个 LAN。现在,
+    // 这个盒子有它自己的命名空间和一个代理, 这些是它提出的主张。
     {
         auto p = base_posture();
         std::string out;
-        // A host-only service the box must NOT be able to reach. Bound here,
-        // on the host's loopback, while the box runs.
+        // 主办单位 -only 服务框不得 能够到达,
+        // 在主机回转时, 打开这个盒子。
         int hostsrv = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
         int on = 1;
         ::setsockopt(hostsrv, SOL_SOCKET, SO_REUSEADDR, &on, sizeof on);
@@ -976,26 +976,26 @@ int main() {
             && ::bind(hostsrv, reinterpret_cast<sockaddr*>(&sa), sizeof sa) == 0
             && ::listen(hostsrv, 4) == 0;
 
-        // Its own namespace: a fresh one has loopback and nothing else.
+        // 它自己的命名空间:新鲜的有回路,没有其他的.
         run(p, "cat /proc/net/dev | awk 'NR>2 {print $1}' | tr -d ' :' | sort | tr '\\n' ' '", out);
         expect(out.find("lo") != std::string::npos && out.find("eth") == std::string::npos
                    && out.find("wl") == std::string::npos,
                "the box has its own netns: loopback only (#1)");
         out.clear();
-        // The proxy env the toolchain reads, in every spelling.
+        // 工具链的代理内涵在每句拼写中都读取.
         run(p, "env | grep -c -i '^\\(http\\|https\\|all\\)_proxy=127\\|^\\(HTTP\\|HTTPS\\|ALL\\)_PROXY=http'", out);
         expect(out.find("6") != std::string::npos,
                "all six proxy env spellings point at the box's loopback (#1)");
         out.clear();
         if (have_srv) {
-            // Direct: the host's service is not in this namespace at all.
+            // 直接:主机的服务完全不在这个命名空间中.
             run(p, "curl -sS --max-time 5 --noproxy '*' -o /dev/null "
                    "-w direct=%{http_code} http://127.0.0.1:48231/ 2>&1", out);
             expect(out.find("direct=000") != std::string::npos
                        || out.find("Could not connect") != std::string::npos,
                    "a host loopback service is unreachable from the box (#1)");
             out.clear();
-            // Through the proxy: refused on the resolved address.
+            // 通过代理:拒绝在已解决的地址上.
             run(p, "curl -sS --max-time 5 -o /dev/null -w loop=%{http_code} "
                    "-x http://127.0.0.1:3128 http://127.0.0.1:48231/ 2>&1", out);
             expect(out.find("loop=403") != std::string::npos,
@@ -1014,16 +1014,16 @@ int main() {
         if (hostsrv >= 0) ::close(hostsrv);
     }
 
-    // ── W^X: the arg rule vs the real wall ─────────────────────────────
+    // ── W^X:参数规则与真实的墙 ─────────────────────────────
     //
-    // The seccomp rule denies mmap/mprotect with PROT_WRITE|PROT_EXEC in ONE
-    // call. It cannot see the sequence real shellcode uses -- map it writable,
-    // write to it, mprotect it executable -- because each of those calls is
-    // innocent on its own. PR_SET_MDWE is a process property, so it does.
+    // 电话 seccomp 规则否认 mmap/mprotect 与 PROT_WRITE
+    // |PROT_EXEC 输入 一个 调用 无法看到真实的 shellcode 使用
+    // 的序列 -- -- 映射它可以写、写到它、保护它可以执行 -- 因为每个都 调
+    // 用 自己是无辜的 PR_SET_MDWE 是一个过程属性,所以它确实如此。
     //
-    // That wall breaks every JIT (node/V8 does not start under it), so it is
-    // on for Strict only. Both halves of that trade are asserted here: a
-    // default box can still make the transition, a Strict box cannot.
+    // 墙壁每间都断了 JIT (node/V8
+    // 此处将主张两半的交易:默认的框
+    // 仍然可以进行转换,而严格框则不能。
     {
         const char* probe =
             "python3 -c \"import ctypes\n"
@@ -1048,7 +1048,7 @@ int main() {
                "the W->X transition is ALLOWED by default, so JITs run");
         out.clear();
         auto strict = base_posture();
-        strict.syscall_mode = 2;   // Strict: Hardened / Airgapped
+        strict.syscall_mode = 2;   // 严格:硬化/空加装
         run(strict, probe, out);
         std::printf("  strict:  %s", out.c_str());
         expect(out.find("oneshot REFUSED") != std::string::npos,
@@ -1057,27 +1057,27 @@ int main() {
                "the W->X transition is refused on Strict (MDWE)");
     }
 
-    // ── the default resource throttles ─────────────────────────────────
+    // ── 默认资源节流 ─────────────────────────────────
     //
-    // memory and cpu used to report NONE on a default install, because the
-    // only knobs on offer were a hard cap and a quota -- and no number fits
-    // both an 8 GB laptop and a 128 GB workstation, so a wrong guess turns a
-    // working build into an OOM kill.
+    // 内存和CPU曾报告NONE默认安装,因为唯一出价
+    // 的把手是硬帽和配额-没有数字既适合8GB笔记本电脑,
+    // 也不符合128GB工作站,所以错误的猜测将一个
+    // 工作楼变成OOM杀机.
     //
-    // memory.high and cpu.weight are different in kind: one throttles instead
-    // of killing, the other only decides who loses under contention. Both are
-    // safe to default, and both halves of that claim are checked here -- the
-    // limits are really in force, AND an idle machine is not slowed by them.
+    // memory.high 财务报告和已审计财务报表
+    // cpu.weight 两者在实物上是不同的:一节油而不是杀戮,
+    // 另一节油只能决定谁在争议中输掉。 两者都安全地违约,
+    // 而且两半的债权都在这里核对——限制确实生效, 和 闲置机器不会被它们拖慢
     {
         auto p = base_posture();
         std::string out;
-        // The box reads its own cgroup through /proc, since /sys is absent.
+        // 框通过/proc读取自己的crogle,因为/sys缺席.
         run(p, "cat /proc/self/cgroup", out);
         const bool own_cgroup = out.find("0::/") != std::string::npos;
         expect(own_cgroup, "the box is in its own cgroup");
         out.clear();
-        // 12 parallel jobs, which is the shape cpu.weight would slow if it
-        // were a quota. Compared against the same work with no sandbox.
+        // 12个平行工作, 即形状 cpu.weight
+        // 如果配额是,那么会慢一些。 沙箱.
         const char* work =
             "i=0; while [ $i -lt 8 ]; do python3 -c 'sum(range(8000000))' & "
             "i=$((i+1)); done; wait; echo done";
@@ -1087,18 +1087,18 @@ int main() {
                                   std::chrono::steady_clock::now() - t0).count();
         expect(out.find("done") != std::string::npos, "parallel work completes in the box");
         std::printf("  8 parallel jobs in a box: %lldms\n", static_cast<long long>(boxed_ms));
-        // Not a hard threshold -- a loaded CI machine would make that flaky.
-        // The claim is that the work COMPLETED, which a quota of 25% would
-        // have stretched by 4x and a memory cap might have killed outright.
+        // 不是一个硬门槛 -- -- a 已加载 CI 机器会弄得一团糟
+        // 索赔内容是: COMPLETED ,
+        // 25%的配额将超过4x和a 内存 盖尔可能已经彻底杀死。
     }
 
-    // ── the JIT memory path (why node died) ───────────────────────────
+    // ── 编号 JIT 内存 路径(节点为何死亡) ───────────────────────────
     //
-    // `node -e` died in a box with V8's `Check failed: 12 == errno` on every
-    // claybin revision, including before any of this week's work. --jitless
-    // runs fine, which puts the failure on the code-memory path. This walks
-    // that path call by call so the answer is a line of output rather than a
-    // guess.
+    // `node -e` 死在一个盒子里 V8's
+    // `Check failed: 12 == errno` 时值 claybin
+    // 包括本周任何一次工作之前的修改。 --jitless 运行良好, 这使得失败出现
+    // 在代码上 -memory 路径。这个走路径 调用 由 调用 所以答案是输出线而不是
+    // 猜测。
     {
         auto p = base_posture();
         std::string out;
@@ -1136,14 +1136,14 @@ int main() {
             if (nl == std::string::npos) break;
             at = nl + 1;
         }
-        // The cage and the RW/RX cycle are what a JIT needs; a failure in any
-        // of them is the node bug, and naming WHICH one is the point.
+        // 笼子和 RW/RX 循环是什么样的 JIT 需要;
+        // 其中任何一个都有一个失败是节点错误, 并命名 对应的 关键是一
         expect(out.find("cage ok") != std::string::npos,
                "a JIT can reserve its code cage");
         expect(out.find("rx ok") != std::string::npos,
                "a JIT can flip a page to executable (W->X is allowed by default)");
-        // node/V8 needs RWX pages, so it dies whenever W^X is on. With W^X off
-        // it has to run, even under the Compiler filter.
+        // node/V8 需求 RWX 页面,所以它死 每当W ^X 已经开机了,
+        // W型 ^X 离开它,必须运行, 即使在下面 编译器 过滤器。
         {
             auto np = base_posture();
             np.wx_protect = false;
@@ -1153,7 +1153,7 @@ int main() {
             expect(nout.find("NODE_OK") != std::string::npos,
                    "node runs under Compiler with W^X off");
         }
-        // /proc/sys is visible (V8 reads /proc/sys/vm) but read-only.
+        // /proc/sys 可见( 3) V8 读 / proc/sys/vm )但读 -only.
         std::string sys;
         run(base_posture(), "cat /proc/sys/kernel/core_pattern | wc -c; "
                             "ls /proc/sys/vm >/dev/null && echo VM_OK; "

@@ -1,73 +1,73 @@
 #pragma once
-// agentty::logx — the structured diagnostic log.
+// agentty::logx——结构化诊断日志。
 //
 // ─────────────────────────────────────────────────────────────────────────
 // DESIGN
 // ─────────────────────────────────────────────────────────────────────────
-// One logging system with four properties the ad-hoc predecessors lacked
-// (dbglog's fopen-per-line, provider/debug.hpp's raw dump, the scattered
-// AGENTTY_*_PROF fopen sites):
+// 一种日志记录系统，具有 ad-hoc 前辈所缺乏的四个属性（dbglog 的 fopen
+// -per-line、provider/debug.hpp 的原始转储、
+// 分散的 AGENTTY_*_PROF fopen 站点）：
 //
-//   1. LEVELED + CHANNELED, filtered like RUST_LOG. Every event carries a
-//      (Channel, Level) pair; the filter is a per-channel minimum level
-//      parsed once from $AGENTTY_LOG:
+//   1.LEVELED+CHANNELED，如RUST_LOG一样过滤。每个 事件 都带有一个
+//      (通道，级别)对；过滤器是从 $AGENTTY_LOG 解析一次的
+//      per-channel 最低级别：
 //
-//          AGENTTY_LOG=debug                   # everything at debug+
-//          AGENTTY_LOG=wire=trace              # one channel wide open
-//          AGENTTY_LOG=warn,wire=trace,auth=debug
-//                                              # default warn, overrides
+//          AGENTTY_LOG=debug # 调试中的所有内容+
+//          AGENTTY_LOG=传输=trace # 一个通道全开 AGENTTY_LOG
+//          =warn,传输=trace,
+//                                              auth=debug # 默认警告，覆盖
 //
-//      The gate is ONE relaxed atomic load + compare per call site —
-//      when a channel is off, a log statement costs ~1ns and formats
-//      NOTHING (the macro short-circuits before the format arguments
-//      are even evaluated).
+//      门是ONE宽松原子加载+每个调用站点的比较——当
+//      通道关闭时，日志语句花费约1ns并格式化NOTHING
+//      (甚至在评估格式参数之前的宏short
+//      -circuits)。
 //
-//   2. ATOMIC APPENDS, file opened ONCE. Events format into a stack
-//      buffer and hit the file as a single write(2) on an O_APPEND fd —
-//      POSIX guarantees appends don't interleave, so there is NO MUTEX
-//      on the write path. (The predecessor re-opened the file per line
-//      under a global lock.) The file rotates once at startup when it
-//      exceeds 32 MB (renamed to .old), so a long-lived enabled log
-//      can't grow unboundedly.
+//   2.ATOMICAPPENDS，文件打开ONCE。 事件格式入栈
+//      缓冲区并在O_APPEND fd上将文件作为单个写入(
+//      2)击中——POSIX保证附加不会交错，因此在写入路径上
+//      存在NO MUTEX。 （前身re-opened文件每行在全局锁下。）
+//      当文件超过32 MB（重命名为.old）时，
+//      文件在启动时轮转一次，因此启用long
+//      -lived的日志不能无限增长。
 //
-//   3. FLIGHT RECORDER, always on. The last kRingSlots events at
-//      Warn+ (or everything, when a channel is enabled) are ALSO copied
-//      into a fixed in-process ring — even when file logging is off.
-//      On SIGSEGV/SIGABRT the crash handler calls dump_flight_recorder(),
-//      which write(2)s the preformatted ring to a crash file: the last
-//      ~256 things that happened ship with every crash report, at zero
-//      steady-state cost beyond a memcpy per warning. Async-signal-safe
-//      by construction (preformatted bytes, raw write, no allocation).
+//   3. FLIGHT RECORDER，常亮。最后一个 kRingSlots 事件 位于
+//      警告+（或所有内容，当通道启用时）ALSO复制到固定
+//      位置-process响铃 — 即使文件日志记录已关闭。
+//      在 SIGSEGV/SIGABRT 上，崩溃 处理函数 调用
+//      dump_flight_recorder()，它将预先格式化的环写入(
+//      2)到崩溃文件：每个崩溃报告附带发生的最后约 256 件事情，
+//      稳定的 -state 成本为零，超出每个警告的 memcpy。 Async
+//      -signal-safe 通过构造（预格式化 字节，原始写入，无 分配）。
 //
-//   4. SPANS. AGT_SPAN(channel, "name") logs entry at trace and exit
-//      with a monotonic duration — RAII, exception-safe, nestable. The
-//      poor-man's tracing profile that replaces the one-off
-//      AGENTTY_LOAD_PROF / AGENTTY_CACHE_PROF fopen sites (all now folded
-//      onto the `perf` channel — the migration this header called for is
-//      finished; no profiler writes its own file any more).
+//   4.SPANS。 AGT_SPAN（通道，"name"）在跟踪和退出时记录条目
+//      具有单调递增的持续时间-RAII，异常-safe，可嵌套。
+//      bad-man 的跟踪配置文件取代了 one-off
+//      AGENTTY_LOAD_PROF / AGENTTY_CACHE_PROF
+//      fopen 站点（现在全部折叠到 `perf` 通道上 — 此 头
+//      文件 要求的迁移已完成；不再有分析器写入自己的文件）。
 //
-// FORMAT (logfmt-ish, one line per event, grep-friendly):
+// FORMAT(logfmt-ish，每事件一行，grep-friendly)：
 //
-//   2026-08-28T01:23:45.678 +0012345ms 1a2b W wire     openai.stream: connect refused host=localhost:8080
-//   └─ wall clock ─────────┘ └ mono ─┘ tid  L channel  site: message
+//   2026-08-28T01:23:45.678 +0012345ms 1a2b W 传输 openai.stream:连接被拒绝主机=localhost:8080
+//   └─ 日历时钟 ──────────┘ └ 单调时钟 ┘ 线程 等级 通道 位置: 消息
 //
-// TWO VARIABLES, BOTH ABOUT WHAT TO CAPTURE: AGENTTY_LOG (level +
-// channel filter) and AGENTTY_LOG_BODIES (include payloads). WHERE the
-// file goes is `--log-file`, a flag, because a destination is not a
-// capture policy and a flag is the part that shows up in --help.
-// Retired: AGENTTY_LOG_FILE and AGENTTY_DEBUG_LOG (both destinations),
-// plus AGENTTY_DEBUG_API / AGENTTY_DEBUG_FILE / AGENTTY_ACP_TRACE and
-// the four AGENTTY_*_PROF profilers, all now channels here. The old
-// util::dbglog(where,msg) API still forwards here (General/Error) — the
-// function stayed, only its env var went away. Raw wire bytes are NOT a
-// separate system: full request/chunk bodies land here too, on the
-// `wire` channel at Trace, so a byte-level question and a behavioural
-// one are answered from the same file.
+// 两个 VARIABLES、两者 ABOUT 内容 TO
+// CAPTURE:AGENTTY_LOG(电平+通道滤波器)和AGENTTY_LOG_BODIES
+// (包括载荷)。 WHERE 文件是 `--log-file`、标志，
+// 因为目标不是捕获策略，而 标志 是 --help 中显示的部分。
+// 已退役：AGENTTY_LOG_FILE和AGENTTY_DEBUG_LOG(两个目的地)，
+// 加上AGENTTY_DEBUG_API/AGENTTY_DEBUG_FILE/AGENTTY_ACP_TRACE和四个AGENTTY_*_PROF分析器，
+// 现在全部都在这里频道。旧的 util::dbglog(where,
+// msg) API 仍然转发到这里 (General/Error) —
+// 该函数保留了下来，只是它的环境变量消失了。原始 传输 字节 不是 一个
+// 单独的系统：完整的 request/chunk 正文 也在这里，
+// 位于 Trace 的 `wire` 通道上，因此 字节-level
+// 问题和行为问题可以从同一文件中得到回答。
 //
-// THREADING: format on the caller's stack; publish to the ring with a
-// relaxed fetch_add claim; append with one write(2). No background
-// thread — nothing to join at shutdown, no teardown races (see the
-// prewarm-thread shutdown bug for why agentty avoids detached loggers).
+// THREADING：调用者堆栈上的格式；以宽松的 fetch_add
+// 声明发布到环；追加一次写入(2)。无背景 线程 — 关闭时
+// 没有任何内容可加入，无拆卸 竞态（请参阅 prewarm
+// -thread 关闭错误以了解为什么 agentty 避免分离记录器）。
 
 #include <atomic>
 #include <chrono>
@@ -78,33 +78,33 @@
 
 namespace agentty::logx {
 
-// ── Channels ──────────────────────────────────────────────────────────
-// One per subsystem. Adding one: extend the enum, kChannelNames, and the
-// static_assert — the parser and filter pick it up automatically.
+// ── 频道 ──────────────────────────────────────────────────────────
+// 每个子系统一个。添加一项：扩展 枚举、kChannelNames 和
+// static_assert — 解析器 和过滤器会自动选取它。
 enum class Channel : std::uint8_t {
-    General,   // uncategorised (the dbglog shim lands here)
-    Wire,      // HTTP/SSE transports, request/response lifecycle
-    Auth,      // OAuth flows, key resolution, account switching
-    Persist,   // settings/threads/memory disk IO
-    Tool,      // tool dispatch, permissions, sandbox
-    Ui,        // reducer/view anomalies
-    Rag,       // retrieval engine
-    Mcp,       // MCP bridge + plugins
+    General,   // 未分类（dbglog shim 位于此处）
+    Wire,      // HTTP/SSE 传输层、request/response生命周期
+    Auth,      // OAuth流程、密钥解析、帐户切换
+    Persist,   // settings/threads/memory磁盘IO
+    Tool,      // 工具分派、权限、沙箱
+    Ui,        // reducer/view异常
+    Rag,       // 检索引擎
+    Mcp,       // MCP桥+插件
     Acp,       // ACP server/adapter
-    Smart,     // smart-mode routing decisions
-    Net,       // sockets, TLS, proxy, prewarm
-    Model,     // capability resolution + provider/model heterogeneity:
-               // which dialect a turn routed to, what effort survived the
-               // clamp, learned capability facts, weak-model fallbacks,
-               // tool-call salvage. The channel to open when a model
-               // "behaves weird" on one provider but not another.
-    Perf,      // timings and cache accounting: prompt-cache hit/miss per
-               // turn, thread-load and view-build cost, stream frame
-               // pacing, retrieval latency. Answers "why did that take so
-               // long", which is a different question from "what did it
-               // do" and would otherwise drown the other channels at the
-               // level it needs.
-    kCount_,   // sentinel — keep last
+    Smart,     // smart-mode路由决策
+    Net,       // 套接字，TLS，代理，预热
+    Model,     // 能力分辨率+provider/model异构性：
+               // 哪方言一转就走，用什么力气夹住，学到能力事实，
+               // 弱-model 回退，工具-call打捞。
+               // 当型号 "behaves weird" 在
+               // 一个提供商上而非另一提供商上时打开的通道。
+    Perf,      // 计时和缓存记账：提示词-cache hit/miss每
+               // 依次，线程-load和查看-build花费，
+               // 数据流，帧起搏，检索延迟。
+               // 回答 "why did that take so long"，
+               // 这是与 "what did it do" 不同的问题，
+               // 否则会淹没其他频道所需的级别。
+    kCount_,   // 哨兵——保持最后
 };
 inline constexpr std::size_t kChannels =
     static_cast<std::size_t>(Channel::kCount_);
@@ -114,43 +114,43 @@ inline constexpr std::string_view kChannelNames[kChannels] = {
     "rag", "mcp", "acp", "smart", "net", "model", "perf",
 };
 
-// ── Levels ────────────────────────────────────────────────────────────
+// ── 职等 ────────────────────────────────────────────────────────────
 enum class Level : std::uint8_t {
     Trace = 0, Debug = 1, Info = 2, Warn = 3, Error = 4,
-    Off   = 5,   // filter value only — no event carries Off
+    Off   = 5,   // 仅过滤器值 — 没有 事件 携带 Off
 };
 inline constexpr char kLevelChar[] = { 'T', 'D', 'I', 'W', 'E', '-' };
 
-// ── The gate (hot path) ───────────────────────────────────────────────
-// Per-channel minimum level, parsed once from the environment. Relaxed
-// loads are correct: the array is written once during init() (before any
-// reader can observe a torn value — init runs from a magic static) and
-// never changes after.
+// ── 大门(高频路径) ───────────────────────────────────────────────
+// Per-channel最低级别，从环境解析一次。宽松的 加载
+// 是正确的：该数组在 init() 期间写入一次（在任何读者
+// 可以观察到撕裂值之前 - init 从神奇的静态运行），
+// 并且此后永远不会改变。
 namespace detail {
 extern std::atomic<std::uint8_t> g_min_level[kChannels];
-extern std::atomic<bool>         g_ring_all;   // ring captures < Warn too
-bool init();                                    // idempotent, cheap after first
+extern std::atomic<bool>         g_ring_all;   // 环捕获<警告太
+bool init();                                    // 幂等，便宜先后
 inline bool inited() {
     static const bool done = init();
     return done;
 }
 } // namespace detail
 
-// Whole request bodies are the biggest thing we log: a long thread sends a
-// multi-MB body every round, and the default debug-build level (Trace)
-// used to write all of it, then run redact() over it, on the stream
-// thread right before the request went out. body() returns the text to
-// log for one: the whole thing only when AGENTTY_LOG_BODIES is set (any
-// value but "0"), otherwise a bounded head plus the total size. Cheap to
-// call: the flag is read once.
+// 整个请求正文是我们记录的最大的事情：长线程每轮发送一个multi
+// -MB 正文，并且默认的debug-build级别（跟踪）
+// 用于写入所有它，然后在请求发出之前在数据流 线程上运行
+// redact()。 body() 返回要记录的文本：仅当设置
+// AGENTTY_LOG_BODIES 时才返回整个内容（除
+// "0" 之外的任何值），否则为有界头加上总大小。
+// 比 调用 便宜：标志 被读取一次。
 [[nodiscard]] bool full_bodies() noexcept;
 [[nodiscard]] inline std::string_view body(std::string_view b) noexcept {
     constexpr std::size_t kHead = 4096;
     return (full_bodies() || b.size() <= kHead) ? b : b.substr(0, kHead);
 }
 
-// True iff an event on (ch, lv) would be written to the FILE. The macro
-// calls this before evaluating its format arguments.
+// 当且仅当(ch，lv)上的事件将被写入FILE时为真。
+// 宏 调用 在评估其格式参数之前。
 [[nodiscard]] inline bool enabled(Channel ch, Level lv) noexcept {
     (void)detail::inited();
     return static_cast<std::uint8_t>(lv) >=
@@ -158,67 +158,67 @@ inline bool inited() {
                .load(std::memory_order_relaxed);
 }
 
-// True iff the event should be recorded AT ALL (file OR flight ring).
-// Warn+ always records to the ring, even with file logging off.
+// 正确当且且当事件应当被记录为AT 全部(文件OR飞行环)。
+// 即使文件注销，Warn+也始终记录到环。
 [[nodiscard]] inline bool recorded(Channel ch, Level lv) noexcept {
     return lv >= Level::Warn || enabled(ch, lv)
         || detail::g_ring_all.load(std::memory_order_relaxed);
 }
 
-// ── Emission (cold path — call through the macros) ────────────────────
-// `site` is a short static tag ("openai.stream", "persistence.save").
-// `msg` is the fully formatted body. Writes the file line (if enabled)
-// and the flight-recorder slot (if recorded). Never throws, never
-// allocates on the ring path.
+// ── 排放(冷路——通过宏观的调用) ────────────────────
+// `site`是短静态标签("openai.stream"，"persistence.save")。
+// `msg`是完全格式化的正文。写入文件行（如果启用）和
+// Flight-recorder 插槽（如果已记录）。
+// 从不抛出，从不在环路上分配。
 void emit(Channel ch, Level lv, std::string_view site,
           std::string_view msg) noexcept;
 
-// Dump the flight recorder to `fd` using only async-signal-safe calls
-// (raw write of preformatted slots, oldest first). Called from the
-// SIGSEGV/SIGABRT handler; also usable from tests. Returns bytes written.
+// 仅使用 async-signal-safe 调用 将飞行记录器转储到
+// `fd` (预格式化槽的原始写入，最早的在前)。
+// 从 SIGSEGV/SIGABRT 处理函数 调用；也可以通过测试使用。返回写入的 字节。
 std::size_t dump_flight_recorder(int fd) noexcept;
 
-// Open (creating) the crash-dump file and dump the ring into it, with a
-// small header. Returns true if anything was written. NOT signal-safe in
-// the path-building part — main.cpp precomputes the path at startup and
-// the handler calls the (int fd) overload; this convenience exists for
-// tests and orderly shutdown paths.
+// 打开（创建）crash-dump文件并将带有小头文件的环转储到其中。
+// 如果写入任何内容，则返回 true。路径 -building 部分
+// 中的 不 信号 -safe — main.cpp 在启动时预先计算路径，
+// 而 处理函数 调用 (int fd) 过载；这种便利性对于
+// 测试和有序关闭路径来说是存在的。
 bool dump_flight_recorder_to(const char* path) noexcept;
 
-// Async-signal-safe log marker: writes a "=== MARK ===" banner plus a
-// flight-recorder snapshot into the live log file. Installed on SIGUSR1 in
-// main() so `kill -USR1 $(pgrep agentty)` stamps the log at the moment a
-// bug is OBSERVED — no TUI interaction, no timestamp archaeology. No-op
-// when file logging is off.
+// Async-signal-safe日志标记：将"=== MARK ==="横幅
+// 加上flight-recorder 快照写入实时日志文件中。安装在 main() 的
+// SIGUSR1 上，因此 `kill -USR1 $(pgrep agentty)`
+// 在错误是 OBSERVED 时标记日志 — 没有 TUI 交互，没有时间戳考古。
+// 文件记录关闭时为 No-op。
 void signal_mark() noexcept;
 
-// Write a session banner line straight to the file sink (bypasses the
-// level filter — if a file is being written at all, each process run must
-// self-identify in it). Called once from main() with version/build/pid/
-// cwd; makes a multi-session append-mode log navigable: grep "=== agentty"
-// splits it into runs. No-op when file logging is off.
+// Write是直接到文件接收器的会话横幅行（绕过级别过滤器——如果正在写入文件，
+// 则每个进程运行必须在其中运行self-identify）。
+// 使用 version/build/pid/ cwd 从 main() 调用一次；
+// 使 multi-session 附加-mode 日志可导航：grep "=== agentty"
+// 将其拆分为多个运行。文件记录关闭时为 No-op。
 void session_banner(std::string_view info) noexcept;
 
-// The resolved log-file path ("" = file logging disabled). For status UI.
+// 已解析的 log-file 路径（"" = 文件日志记录已禁用）。对于状态 UI。
 [[nodiscard]] std::string_view log_file() noexcept;
 
-// Point the log at `path`. Backs `--log-file`, and MUST be called before
-// the first log call — the sink resolves lazily on first use, so a later
-// call is silently ignored rather than reopening a file other threads may
-// already be writing to. main() calls it while parsing argv, which is
-// before any thread exists. Empty path = no override (the default under
-// the user root still applies).
+// 将日志指向`path`。在第一个日志 调用 之前调用
+// `--log-file` 和 必须 — 接收器在第一次使用时会延迟解析，
+// 因此后面的 调用 会被默默地忽略，而不是重新打开其他 线程
+// 可能已经写入的文件。 main() 调用 它同时 解析 argv，
+// 它在任何 线程 存在之前。空路径=无覆盖（用户 root
+// 下的默认设置仍然适用）。
 void set_log_path(std::string_view path) noexcept;
 
-// How many secrets have been stripped from log lines so far. Surfaced to the
-// user when they go looking for the log: seeing "redacted 47 secrets" is what
-// makes someone comfortable attaching it to a bug report.
+// 到目前为止，已经从日志行中剥离了多少秘密。当用户查找日志时，
+// 他们会看到：看到 "redacted 47 secrets"
+// 会让人们放心地将其附加到错误报告中。
 [[nodiscard]] unsigned long redaction_count() noexcept;
 
-// ── Spans ─────────────────────────────────────────────────────────────
-// RAII scope timer: entry at Trace, exit at Trace with the duration.
-// The exit line always emits when the channel is at Trace — including
-// via early return or exception unwind.
+// ── 西班牙语 ─────────────────────────────────────────────────────────────
+// RAII范围定时器：在Trace处进入，在Trace处退出并具有持续时间。
+// 当通道处于 Trace 时，退出线总是发出 —
+// 包括通过提前返回或异常展开。
 class Span {
 public:
     Span(Channel ch, std::string_view name) noexcept
@@ -249,25 +249,25 @@ private:
     std::chrono::steady_clock::time_point t0_{};
 };
 
-// ── Formatting front-end ──────────────────────────────────────────────
-// std::format with compile-time checked format strings. The enabled()/
-// recorded() gate runs BEFORE argument evaluation via the macro, so a
-// disabled statement never formats, never converts, never allocates.
+// ── 格式化前方-end ──────────────────────────────────────────────
+// std::format与编译-time检查格式字符串。
+// enabled()/recorded() 门通过宏运行 之前 参数评估，
+// 因此禁用的语句永远不会格式化、永远不会转换、永远不会分配。
 template <class... Args>
 void logf(Channel ch, Level lv, std::string_view site,
           std::format_string<Args...> fmt, Args&&... args) noexcept {
     try {
         emit(ch, lv, site, std::format(fmt, std::forward<Args>(args)...));
-    } catch (...) { /* diagnostics must never throw into callers */ }
+    } catch (...) { /* 诊断绝不能扔给呼叫者 */ }
 }
 
 } // namespace agentty::logx
 
-// ── Macros ────────────────────────────────────────────────────────────
+// ── 宏 ────────────────────────────────────────────────────────────
 // AGT_LOG(wire, Warn, "openai.stream", "connect refused host={}", host);
-// Channel name is the bare enum arm; level the bare Level arm. The gate
-// short-circuits before `__VA_ARGS__` evaluates — a disabled log line
-// costs one atomic load.
+// 通道名称为裸枚举臂；将裸露的水平臂调平。 `__VA_ARGS__`
+// 评估之前的门 Short-circuits — 禁用的日志行
+// 花费一个原子 加载。
 #define AGT_LOG(ch, lv, site, ...)                                          \
     do {                                                                    \
         if (::agentty::logx::recorded(::agentty::logx::Channel::ch,         \
@@ -277,10 +277,10 @@ void logf(Channel ch, Level lv, std::string_view site,
                                   site, __VA_ARGS__);                       \
     } while (0)
 
-// AGT_LOGL — same as AGT_LOG but the LEVEL is a runtime expression, for the
-// sites that log success and failure through one statement (e.g. a turn
-// outcome that is Debug when clean and Warn when not). Keeps those from
-// duplicating the whole call in an if/else.
+// AGT_LOGL —与 AGT_LOG 相同，但 LEVEL 是
+// 运行时 表达式，用于通过一条语句记录成功和失败的站点（e.g。
+// 一个轮次结果，干净时调试，不干净时警告）。防止那些人在
+// if/else. 中复制整个 调用
 #define AGT_LOGL(ch, lv_expr, site, ...)                                    \
     do {                                                                    \
         const ::agentty::logx::Level agt_lv_ = (lv_expr);                   \
@@ -290,30 +290,30 @@ void logf(Channel ch, Level lv, std::string_view site,
     } while (0)
 
 // AGT_SPAN(persist, "save_thread"); — names the local so two spans in one
-// scope need distinct names (deliberate: nested spans should be visible).
+// 范围需要不同的名称（有意：嵌套的跨度应该是可见的）。
 #define AGT_SPAN(ch, name)                                                  \
     ::agentty::logx::Span agt_span_##ch{::agentty::logx::Channel::ch, name}
 
-// ── AGT_LOG_HOT — for sites that fire per frame or faster ─────────────
+// ── AGT_LOG_HOT - 用于每座火力发射场 帧 或更快 时间 ─────────────
 //
-// THE COST ASYMMETRY THIS EXISTS TO ENFORCE. A log site that does NOT
-// fire costs ~0.5 ns (one relaxed atomic load; the arguments are never
-// evaluated). A site that DOES fire costs ~4.4 us — format, then one
-// write(2). Four orders of magnitude apart, both measured -O2 NDEBUG.
+// 该 COST ASYMMETRY 此 EXISTS TO ENFORCE。
+// 不执行 火灾的日志站点的成本约为 0.5 ns（一个宽松的原子 加载；
+// 参数从未被评估）。一个 执行 火灾的网站花费了约 4.4 us — 格式化，
+// 然后写入 (2)。相差四个数量级，两者的测量值均为 -O2 NDEBUG。
 //
-// That ratio is why "log everywhere" is free in release: the default is
-// Warn, so the whole fleet of Debug/Trace sites sits on the 0.5 ns path
-// and a healthy session writes about two lines. It is ALSO why one
-// careless site can wreck a frame budget: at 4.4 us, a Debug log in a
-// per-token path costs ~4.4 ms per 1000 tokens, and in a 60fps render
-// path it eats a quarter of the frame on its own.
+// 这个比率就是 "log everywhere" 在发布中免费的原因：默认为警告，
+// 因此 Debug/Trace 站点的整个队列位于 0.5 ns 路径上，
+// 并且健康会话写入大约两行。这就是 ALSO 为何一个粗心的站点可能
+// 会破坏 帧 预算的原因：在 4.4 us 下，每个 -token 路径
+// 中的调试日志每 1000 个令牌花费约 4.4 毫秒，而在 60fps
+// 的 渲染 路径中，它自己会消耗 帧 的四分之一。
 //
-// The rule: anything on a per-frame-or-hotter path logs at Trace, never
-// Debug. Trace is off even under AGENTTY_LOG=debug, so the site stays on
-// the 0.5 ns path for everyone who didn't explicitly ask for it.
+// 规则：per-frame-or-hotter路径上的任何内容都记录在跟踪处，
+// 从不调试。即使在 AGENTTY_LOG=debug 下跟踪也会关闭，
+// 因此对于没有明确要求的每个人来说，站点都会保持在 0.5 ns 路径上。
 //
-// Use this macro at those sites and the rule is a COMPILE ERROR instead
-// of a convention someone has to remember:
+// 在这些站点上使用该宏，规则是 COMPILE ERROR，
+// 而不是人们必须记住的约定：
 //
 //     AGT_LOG_HOT(Perf, Trace, "stream.frame", "build_us={}", us);  // ok
 //     AGT_LOG_HOT(Perf, Debug, "stream.frame", "build_us={}", us);  // won't compile

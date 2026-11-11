@@ -1,11 +1,11 @@
-// agentty::auth::accounts — named per-provider credential slots.
+// agentty::auth::accounts —命名为每-provider 凭据槽。
 //
-// One JSON document, sealed at rest with crypt::seal (machine-bound). A
-// legacy plaintext body is accepted and re-sealed on the next write.
+// 一份 JSON 文件，用 crypt::seal (机器-bound)密封。
+// 旧版明文 正文 被接受，并在下次写入时重新-sealed。
 //
-// Every agentty on the machine shares this file, so each change is one
-// read-modify-write inside its shared-file section (io/shared_file.hpp):
-// two windows adding accounts at once both keep theirs.
+// 计算机上的每个 agentty 都共享此文件，因此每次更改都是在其共享-file
+// 部分 (io/shared_file.hpp) 内读取 -modify-write：
+// 两个同时添加帐户的窗口都保留各自的帐户。
 
 #include "agentty/auth/accounts.hpp"
 
@@ -15,7 +15,7 @@
 #include <nlohmann/json.hpp>
 
 #include "agentty/auth/auth.hpp"          // config_dir()
-#include "agentty/auth/cred_crypt.hpp"    // crypt::seal / unseal / looks_sealed
+#include "agentty/auth/cred_crypt.hpp"    // crypt::seal/开封/looks_sealed
 #include "agentty/io/shared_file.hpp"
 
 namespace agentty::auth::accounts {
@@ -33,10 +33,10 @@ std::int64_t now_ms() {
         std::chrono::system_clock::now().time_since_epoch()).count();
 }
 
-// In-memory shape: provider → {active_label, accounts[]}.
+// 在-memory形状中：提供商→{active_label，帐户[]}。
 struct Registry {
     std::vector<Account>                            all;
-    std::vector<std::pair<std::string,std::string>> active;  // provider → label
+    std::vector<std::pair<std::string,std::string>> active;  // 提供商→标签
 
     [[nodiscard]] std::string active_for(const std::string& provider) const {
         for (const auto& [p, l] : active) if (p == provider) return l;
@@ -54,10 +54,10 @@ Registry parse_registry(const std::optional<std::string>& file) {
     std::string body;
     if (crypt::looks_sealed(*file)) {
         auto pt = crypt::unseal(*file);
-        if (!pt) return reg;                // tampered / wrong machine
+        if (!pt) return reg;                // 被篡改/错机
         body = std::move(*pt);
     } else {
-        body = *file;                       // legacy plaintext
+        body = *file;                       // 遗留明文
     }
     try {
         json j = json::parse(body);
@@ -70,8 +70,8 @@ Registry parse_registry(const std::optional<std::string>& file) {
             if (!acc.provider.empty() && !acc.label.empty())
                 reg.all.push_back(std::move(acc));
         }
-        // Not .items() on j.value(...) directly: value() returns a temporary
-        // and items() would dangle (GCC 14 Release dropped the registry).
+        // 不是直接在 j.value(...) 上的 .items()：value()
+        // 返回临时值，items() 将悬空（GCC 14 版本删除了 注册表）。
         const json active = j.value("active", json::object());
         for (const auto& [prov, lbl] : active.items())
             reg.set_active(prov, lbl.get<std::string>());
@@ -81,7 +81,7 @@ Registry parse_registry(const std::optional<std::string>& file) {
     return reg;
 }
 
-// Sealed bytes, or nullopt when sealing fails: secrets are never written plain.
+// 密封字节，或者当密封失败时无效：秘密永远不会被明文书写。
 std::optional<std::string> serialise(const Registry& reg) {
     json j;
     j["accounts"] = json::array();
@@ -101,9 +101,9 @@ persistence::Lane& registry_lane() {
     return l;
 }
 
-// One change to the registry: read it inside the section, let `edit` change
-// it (false = nothing to do), write it back. True only if it changed and
-// was saved.
+// 对 注册表 的一项更改：在该部分中读取它，让 `edit` 更改它（假
+// = 不执行任何操作），然后将其写回。仅当它发生更改且为 已保存
+// 时才为真。
 template <class F, class... Args>
 bool mutate(const lock_levels::below_file_lane& cap, F edit, Args... args) {
     (void)edit;
@@ -118,13 +118,13 @@ bool mutate(const lock_levels::below_file_lane& cap, F edit, Args... args) {
         }, std::move(args)...);
 }
 
-} // namespace
+} // 命名空间结束。
 
 std::string path() { return registry_path().string(); }
 
 std::vector<Account> list(Io io) {
     auto reg = read_registry(io);
-    // Newest-saved first for a stable, useful default ordering in the picker.
+    // Newest-saved首先用于选择面板中稳定、有用的默认排序。
     std::stable_sort(reg.all.begin(), reg.all.end(),
                      [](const Account& a, const Account& b) {
                          return a.saved_at_ms > b.saved_at_ms;
@@ -204,7 +204,7 @@ bool remove(Io, const lock_levels::below_file_lane& cap, const std::string& prov
         const auto before = reg.all.size();
         std::erase_if(reg.all, [&](const Account& a) { return a.provider == p && a.label == l; });
         if (reg.all.size() == before) return false;
-        // Removed the active slot: promote the newest remaining one, if any.
+        // 移除活动槽位：提升最新的剩余槽位（如果有的话）。
         if (reg.active_for(p) == l) {
             std::string promote;
             std::int64_t best = -1;

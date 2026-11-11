@@ -1,21 +1,21 @@
-// external_acp_backend_test — the ExternalAcpBackend core, driven against an
-// in-memory FAKE ACP agent.
+// external_acp_backend_test - 电话 ExternalAcpBackend 核心,
+// 驱动对内 -memory FAKE ACP 探员
 //
-// Harness: the fake agent is its own rpc::Peer, wired to the backend's peer
-// through rpc::channel_pair(). We drive prompt() end to end with no
-// subprocess or sandbox.
+// 机能:假代理机是自己的rpc::Peer,传输连接到后端的对端到rpc::
+// channel_pair(20). 我们驱动prompt()端
+// 端端没有子进程或沙箱.
 //
-// Coverage:
-//   1. A clean turn: agent streams message + thought + tool_call + usage
-//      updates, then returns StopReason::EndTurn. We assert every SessionUpdate
-//      reached the TurnSink in order, and the round settled EndTurn (exactly one
-//      terminal event — the return value, never a spurious "cancelled").
-//   2. tool_use mapping: agent returns MaxTurnRequests → round EndTurn (the
-//      agent's turn cap isn't agentty's round reason).
-//   3. Refusal → TurnError (round failed, not cancelled).
-//   4. Cancelled stop reason → TurnResult::cancelled().
-//   5. User Esc (cancel token) → we send session/cancel and settle cancelled.
-//   6. map_acp_stop_reason pure-function table.
+// 覆盖范围:
+//   1. 清转:代理数据流消息+思考+tool_call+使用
+//      更新,然后返回 StopReason::EndTurn 我们坚持 SessionUpdate
+//      到达 TurnSink 依次而行,圆圆成 EndTurn (确切的说,
+//      一个) 终端 事件 ——回报值,从不虚构. "cancelled").
+//   2. tool_use 映射: 代理返回 MaxTurnRequests ⁇   ⁇ EndTurn (无)
+//      代理的转弯盖不是agentty的圆形理由.
+//   3. 拒绝 ______________________ TurnError (回合失败,没有) 已取消).
+//   4. 已取消 停止理由 – TurnResult::cancelled().
+//   5. 用户 Esc (取消 ——我们发送 session/cancel 和解后, 已取消.
+//   6. map_acp_stop_reason 纯 -function 表格中显示的表格。
 
 #include "agentty/provider/external_acp_backend.hpp"
 
@@ -39,7 +39,7 @@
 #include <vector>
 
 #if !defined(_WIN32)
-#include <unistd.h>   // getpid
+#include <unistd.h>   // 发作
 #endif
 
 using namespace acp;
@@ -48,25 +48,25 @@ namespace rpc = agentty::rpc;
 
 namespace {
 
-// How the fake agent should end a prompt, and whether it streams updates first.
+// 假的特工应该怎么结束? 提示词 ,是否为 数据流 先更新。
 struct AgentScript {
     StopReason stop = StopReason::EndTurn;
-    bool       stream_updates = false;   // emit message+thought+tool_call+usage
-    // Block the prompt until session/cancel arrives, then answer Cancelled.
+    bool       stream_updates = false;   // 发送消息+ 想法+ tool_call +使用量
+    // 封锁 提示词 一直持续到 session/cancel 到了,然后回答,我问 已取消.
     bool       block_until_released = false;
-    // A BUGGY agent: accepts the prompt, never answers it, ignores
-    // session/cancel. prompt() must still return, bounded.
+    // A BUGGY 代理: 接受 提示词 永远不回答,
+    // 忽略 session/cancel. prompt() 仍须返回, 范围。
     bool       ignore_cancel = false;
-    // Call back into the client during the prompt: fs/write, fs/read,
+    // 调用 返回客户端时 提示词: fs/write, fs/read,
     // terminal/create+output+release.
     bool       exercise_callbacks = false;
-    // Callback results, filled by the prompt worker.
+    // 回调 成果,由 提示词 工作线程.
     std::string read_back;
     std::string term_output;
     int         term_exit = -1;
 };
 
-// The fake agent: its own peer, answering on the far end of a channel pair.
+// 假代理:自有对端,在频道对对的远端答话.
 struct FakeAgent {
     AgentScript script;
     std::unique_ptr<rpc::Peer> peer;
@@ -100,10 +100,10 @@ struct FakeAgent {
         peer->notify<to_client::SessionUpdate>(agtest::cap(), m);
     }
 
-    // Runs on a worker so the agent's reader stays free for replies.
+    // 运行在工作线程上,所以代理的读者可以自由回信.
     void run_prompt(Id id, PromptParams p) {
         using Prompt = to_agent::SessionPrompt;
-        if (script.ignore_cancel) return;   // never answer
+        if (script.ignore_cancel) return;   // 永远不回答
         if (script.block_until_released) {
             std::unique_lock lk(mu);
             cv.wait(lk, [&] { return released; });
@@ -138,7 +138,7 @@ struct FakeAgent {
             tc.toolCallId = ToolCallId{std::string("tc_1")};
             tc.title      = "shell";
             send_update(p.sessionId, SU_ToolCall{tc});
-            send_update(p.sessionId, SU_Usage{/*used*/123, /*size*/200000, Nothing});
+            send_update(p.sessionId, SU_Usage{/*使用过的*/123, /*大小*/200000, Nothing});
         }
         peer->reply<Prompt>(agtest::cap(), id, PromptResult{script.stop});
     }
@@ -172,16 +172,16 @@ struct FakeAgent {
     }
 };
 
-// A running fake-agent + backend pair. Destroy to tear down.
+// 运行的假-agent + 后端对。 销毁以拆卸。
 struct Harness {
     std::unique_ptr<P::ExternalAcpBackend> backend;
-    std::unique_ptr<rpc::Peer>             client;   // agentty's side
+    std::unique_ptr<rpc::Peer>             client;   // agentty 侧
     std::unique_ptr<FakeAgent>             agent;
 
     const acp::List<acp::ContentBlock>& last_prompt() const { return agent->last_prompt; }
     AgentScript& script() { return agent->script; }
     ~Harness() {
-        // The client peer first: its dispatch points at the backend.
+        // 客户 对端 首份报告: 分派 后端的点。
         if (client) client->stop(agtest::cap());
         agent.reset();
         client.reset();
@@ -246,7 +246,7 @@ void test_clean_turn_streams_and_settles() {
     CHECK(res.ok());
     CHECK(res.stop == agentty::StopReason::EndTurn);
     CHECK(h->backend->session_id() == "sess_fake");
-    // All four update kinds arrived, in order.
+    // 四个更新型都来了,按顺序排列.
     CHECK(kinds.size() == 4);
     if (kinds.size() == 4) {
         CHECK(kinds[0] == "message");
@@ -320,11 +320,11 @@ void test_agent_cancelled_stop_reason() {
 }
 
 void test_user_cancel_via_token() {
-    auto h = make_harness(AgentScript{StopReason::EndTurn, false, /*block*/true});
+    auto h = make_harness(AgentScript{StopReason::EndTurn, false, /*块*/true});
     P::TurnSink sink; sink.update = [](acp::SessionUpdate){};
 
     auto cancel = std::make_shared<agentty::http::CancelToken>();
-    // Trip the token from another thread shortly after prompt() starts blocking.
+    // 从另一个方向标出一个符号 线程 不久之后 prompt() 开始屏蔽。
     std::thread tripper([&]{
         std::this_thread::sleep_for(std::chrono::milliseconds(60));
         cancel->cancel();
@@ -337,12 +337,12 @@ void test_user_cancel_via_token() {
     CHECK(res.error.has_value() && res.error->user_cancel);
 }
 
-// A BUGGY agent that never settles the cancelled prompt future. Without the
-// backend's engine-level escape hatch, prompt() would block forever in the
-// getter-join. We assert it still returns cancelled, bounded in wall-clock.
+// A BUGGY 从未解决过 已取消 提示词 没有后端的引擎
+// -level 逃生舱门, prompt() 永远挡在黑暗中
+// -join 我们断言它仍然返回 已取消 ,以墙为界 -clock.
 void test_cancel_against_non_settling_agent_is_bounded() {
     AgentScript script;
-    script.ignore_cancel = true;   // async prompt leaks the responder; cancel is a no-op
+    script.ignore_cancel = true;   // 自动同步 提示词 泄漏应答者; 取消 是一个不 -op
     auto h = make_harness(script);
     P::TurnSink sink; sink.update = [](acp::SessionUpdate){};
 
@@ -358,7 +358,7 @@ void test_cancel_against_non_settling_agent_is_bounded() {
                   std::chrono::steady_clock::now() - t0).count();
     tripper.join();
 
-    // The 2s cancel deadline + escape hatch must have bounded it. Cushion for CI.
+    // 双胞胎 取消 最终期限 + 逃生舱门必须已经设定了界限。 CI.
     CHECK(ms < 6000);
     if (ms >= 6000)
         std::cerr << "cancel-wedge prompt took " << ms << "ms (escape hatch regressed?)\n";
@@ -372,10 +372,10 @@ void test_map_stop_reason_pure() {
     CHECK(P::map_acp_stop_reason(StopReason::MaxTurnRequests) == agentty::StopReason::EndTurn);
 }
 
-// The agent, mid-prompt, calls fs/write → fs/read → terminal/* back into the
-// client; a STUB delegate records them. Verifies the handler wiring end to end.
+// 探员,中场 -prompt, 调用 fs/write → fs/read →
+// terminal/* 返回客户端; a STUB 代表记录下来,验证一下 处理函数 线线端至尾端.
 void test_delegate_callbacks_wired() {
-    // In-memory stub delegate.
+    // 内 -memory 代表书记
     auto files = std::make_shared<std::map<std::string, std::string>>();
     P::AcpClientDelegate del;
     del.write_text_file = [files](const std::string& path, const std::string& content) {
@@ -408,9 +408,9 @@ void test_delegate_callbacks_wired() {
     CHECK(h->script().term_output == "printf acp-term-ok");
 }
 
-// The REAL default_sandbox_delegate() against a temp workspace: a write lands
-// on disk inside the workspace, a read gets it back, and an out-of-workspace
-// write is refused.
+// 真实 default_sandbox_delegate()对一个临时工作区:
+// 一个写在工作区内部的磁盘上,一个读数把它拿回来,
+// 一个出-of-workspace写字被拒绝.
 void test_default_sandbox_delegate_roundtrip() {
     namespace fs = std::filesystem;
     static std::atomic<int> counter{0};
@@ -425,8 +425,8 @@ void test_default_sandbox_delegate_roundtrip() {
     CHECK(static_cast<bool>(del.write_text_file));
     CHECK(static_cast<bool>(del.run_terminal));
 
-    // In-workspace write + read round-trip. The ACP fs protocol uses ABSOLUTE
-    // paths (that's what an agent sends), so exercise the delegate the same way.
+    // 内 -workspace 写入 + 读取圆形 -trip。该词 ACP fs
+    // 协议用途 ABSOLUTE 路径(即代理人发送的路径),所以以同样的方式锻炼代表.
     const std::string abs_hello = (root / "hello.txt").string();
     CHECK(del.write_text_file(abs_hello, "real-delegate\n") == true);
     CHECK(fs::exists(root / "hello.txt"));
@@ -434,22 +434,22 @@ void test_default_sandbox_delegate_roundtrip() {
     CHECK(body.has_value());
     if (body) CHECK(*body == "real-delegate\n");
 
-    // Out-of-workspace write is refused by the write gate.
+    // Out-of-workspace 写字被写门拒绝.
     CHECK(del.write_text_file("/etc/acp_should_not_write", "nope") == false);
 
     fs::remove_all(root);
 }
 
-// ── Self-spawn AGENT MODE ────────────────────────────────────────────────────
-// When invoked as `<this-binary> --acp-agent`, run a REAL ACP agent over
-// stdin/stdout (rpc::fd_channel). This is the subprocess spawn_acp_agent
-// launches in the e2e test below — a genuine cross-process round-trip with no
-// external dependency on claude-agent-acp / codex-acp being installed.
+// ── 自己 -spawn AGENT MODE ────────────────────────────────────────────────────
+// 援引为 `<this-binary> --acp-agent` 运行 真实 ACP
+// 代理结束 stdin/stdout (rpc::fd_channel。
+// 这是子进程 spawn_acp_agent 发射情况: -process 圆形 -trip
+// 外部不依赖 Claude 的 -agent-acp / 代码 -acp 正在安装。
 //
-// It answers initialize and session/new, streams one "pong" chunk per prompt,
-// and ends the turn. `session` names the session it hands out.
+// 它回答初始化和 session/new, 数据流 单曲 "pong" 块数( E)
+// 提示词 ,然后结束转弯。 `session` 名称,它所发出的会话。
 std::unique_ptr<rpc::Peer> start_stdio_agent(std::string session, std::atomic<bool>& answered) {
-    // The dispatch notifies through the peer it belongs to, set right after.
+    // 电话 分派 通过《公约》第2条 对端 属于它, 紧接着。
     auto self = std::make_shared<rpc::Peer*>(nullptr);
     rpc::Dispatch d;
     d.on_call = [self, session, &answered](const maya::unlocked&, const Call& c) -> std::optional<std::string> {
@@ -480,29 +480,29 @@ int run_agent_mode() {
     std::atomic<bool> answered{false};
     auto peer = start_stdio_agent("e2e", answered);
     peer->start();
-    peer->wait_closed(agtest::cap());   // the parent closes our stdin
+    peer->wait_closed(agtest::cap());   // 父母关上我们的臭味
     peer->stop(agtest::cap());
     return 0;
 }
 
-// ── Self-spawn WEDGED AGENT MODE ─────────────────────────────────────────────
-// When invoked as `<this-binary> --acp-agent-wedged`, this deliberately
-// MISBEHAVES: it answers the first prompt, then IGNORES stdin EOF entirely and
-// spins forever without exiting. A parent that only closed our stdin and
-// waited for our stdout to end would hang; the spawned agent's teardown must
-// kill us instead. If that regresses, the e2e test below HANGS.
+// ── 自己 -spawn WEDGED AGENT MODE ─────────────────────────────────────────────
+// 援引为 `<this-binary> --acp-agent-wedged`
+// 故意这样做 MISBEHAVES :它回答第一个 提示词 ,
+// 则 IGNORES 标准 EOF 完全旋转,永远不离开。
+// 一个只关闭我们的臭味,等待我们臭味结束的家长会挂起;产卵剂的撕裂必须杀死我们。
+// 如果这倒退,下面的e2e测试将结束。 HANGS.
 int run_wedged_agent_mode() {
     std::atomic<bool> answered{false};
     auto peer = start_stdio_agent("wedged", answered);
     peer->start();
-    // Never exit on stdin EOF: spin forever. Only an external kill stops us.
+    // 永远不要离开Stdin EOF: 永远旋转。只有外部杀戮才能阻止我们。
     for (;;) std::this_thread::sleep_for(std::chrono::milliseconds(20));
 }
 
-// ── End-to-end: spawn_acp_agent drives a REAL subprocess ────────────────────
+// ── End-to-end: spawn_acp_agent 驱动 a 真实 子进程 ────────────────────
 void test_spawn_real_subprocess(const std::string& self_path) {
-    // Build the backend first, get its dispatch, spawn the agent with it,
-    // then bind — the documented production flow.
+    // 建立后端先,得到其分派,产物与之,
+    // 然后捆绑——有文件记载的生产流量.
     P::ExternalAcpOptions opts;
     opts.cwd = "/tmp";
     auto backend = std::make_unique<P::ExternalAcpBackend>(std::move(opts));
@@ -517,9 +517,9 @@ void test_spawn_real_subprocess(const std::string& self_path) {
     InitializeParams init;
     std::string err;
     auto agent = P::spawn_acp_agent(agtest::cap(),
-        // Bundled into agentty_standalone_tests (argv-dispatched), so the child
-        // must carry the dispatch name before its own child-mode flag:
-        //   <exe> external_acp_backend_test --acp-agent
+        // 被困在了内地 agentty_standalone_tests (argv) 语句
+        // -dispatched 因此,儿童必须携带 分派 名字在孩子之前 -mode 标志:
+        //   <exe> external_acp_backend_test --acp-agent  ⁇
         {self_path, "external_acp_backend_test", "--acp-agent"}, init,
                                     backend->make_dispatch(), err);
     if (!agent.ok()) {
@@ -535,12 +535,12 @@ void test_spawn_real_subprocess(const std::string& self_path) {
     CHECK(backend->session_id() == "e2e");
     CHECK(captured.size() == 1);
     if (captured.size() == 1) CHECK(captured[0] == "pong");
-    // Dropping `agent` here tears down the peer and the child.
+    // 正在丢弃 `agent` 这儿,泪下 对端 和孩子,我们一起生活
 }
 
-// The child ignores stdin EOF and spins forever. Tearing down the spawned agent
-// must NOT hang: the holder dtor's watchdog force-kills it. We assert teardown
-// completes well within a few seconds (the dtor's grace is ~1s + reap).
+// 小孩不理会小事 EOF 永远旋转 撕裂产物的药剂 不 吊: 持有者
+// Dtor 的 看门狗 部队 -kills 我们断言,
+// 拆解在几秒钟内就完成得非常顺利(dtor的优雅是~1s + 收获)。
 void test_wedged_child_teardown_is_bounded(const std::string& self_path) {
     P::ExternalAcpOptions opts;
     opts.cwd = "/tmp";
@@ -559,27 +559,27 @@ void test_wedged_child_teardown_is_bounded(const std::string& self_path) {
     }
     backend->connect(*agent.connection);
 
-    // One clean round so the child is fully live and its reader is parked.
+    // 整圈干净,让孩子全程直播 读者停在车旁
     auto res = backend->prompt(agtest::cap(), make_req("ping"), sink, nullptr);
     CHECK(res.ok());
 
-    // Now tear down. The child will IGNORE the stdin-EOF we send; only the
-    // kill reaps it. Time the teardown: it must be bounded.
+    // 现在拆掉,孩子会的 IGNORE 脚踏实地
+    // -EOF 时间到来,必须限制它。
     auto t0 = std::chrono::steady_clock::now();
-    // The peer first: its dispatch points at the backend.
+    // 电话 对端 首份报告: 分派 后端的点。
     agent.reset();
     backend.reset();
     auto elapsed = std::chrono::steady_clock::now() - t0;
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
-    // Grace is ~1s; give generous headroom for CI. A regression to the old
-    // "close_stdin + join" would block here indefinitely (caught by ctest
-    // timeout even if this bound didn't).
+    // 格蕾丝是~1s;给慷慨的 头室为~ CI。
+    // 回归旧的 "close_stdin + join" 将无限期地封锁这里(
+    // 被测试所捕获) 超时 即使没有这个束缚。
     CHECK(ms < 5000);
     if (ms >= 5000)
         std::cerr << "wedged-child teardown took " << ms << "ms (watchdog regressed?)\n";
 }
 
-} // namespace
+} // 命名空间结束。
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--acp-agent")

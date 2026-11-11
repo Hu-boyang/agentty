@@ -1,21 +1,21 @@
-// settings_list_scroll_test — the settings list is a REAL scrolling picker.
+// settings_list_scroll_test ——设置列表为 真实 滚动 选择面板.
 //
-// The Plugins pane (Ctrl+K → Plugins, or /mcp servers) is built from live
-// server snapshots; a single server advertising 125 tools produces 135+
-// rows. The list used to be the ONE picker built with scroll = nullptr —
-// by maya's widget contract that paints the body as a static block, so the
-// rows drew under the footer, past the modal border, off the screen.
+// 插件( X) 面板 (Ctrl +K → 插件,或/mcp 服务
+// 器)从活服务器构建 快照 ; 单一服务器广告125工具生成135+行。
+// 列表曾经是 一个 选择面板 以滚动 = 键盘构建 nullptr 由 .
+// . 由 : maya 用于描绘 正文 以静态块的形式,
+// 所以在脚下划行,通过 弹出面板 边界,关闭屏幕。
 //
-// Pins three properties by rendering the REAL view through maya (canvas
-// flatten — same approach as panel_sections_render_test):
-//   1. Bounded: the canvas ends on the modal's bottom border; no row
-//      paints below it.
-//   2. Clipped: a big list renders only ~viewport_h rows.
-//   3. Scrollable: driving the selection deep moves the window — an early
-//      row leaves the canvas, a late row becomes visible.
+// 由 Pins 3 属性 渲染 编号 真实 视图通过 maya (canvas平坦
+// ——与 panel_sections_render_test):
+//   1. 边界: 画布在弹出面板的底边框上结束; 无行
+//      画在它下面。
+//   2. 剪辑:大名单 渲染 仅 ~ viewport_h 排行数.
+//   3. 可滚动:驱动选择的深层移动窗口——早期
+//      排出画布, 晚排变得可见。
 //
-// Ported from PR #34 (davidwed) across the panel refactor: ov::→pn::,
-// settings_list_view→settings_list_panel, Row→Item vocabulary.
+// 移植自 PR #34(被切割)横跨面板的重构:ov:_pn::, settings_list_view
+// →settings_list_panel , RO – 项目词汇表。
 
 #include "agtest.hpp"
 
@@ -37,7 +37,7 @@ using namespace agentty;
 
 namespace {
 
-// A Plugins snapshot with `n` enabled tools on one connected server.
+// 插件 快照 与 `n` 启用连接服务器上的工具。
 Model big_plugins_model(int n) {
     Model m;
     mcp::PluginModel snap;
@@ -52,11 +52,11 @@ Model big_plugins_model(int n) {
     return m;
 }
 
-// Render ONLY the picker element and flatten the canvas to text (same
-// approach as panel_sections_render_test: render_tree + character fold;
-// non-ASCII folds to '?'). The canvas is deliberately SHORT (48 rows): the
-// bug overflowed the modal past the terminal bottom, so a short canvas
-// makes overflow visible as painted rows beyond the border.
+// 渲染 仅 编号 选择面板 元素,将画布平整为文本(方法与
+// panel_sections_render_test:
+// render_tree + 字符 归并 ; 无 -ASCII 归并 改
+// 为 '?'。画布是故意的 SHORT (48行):虫子溢出,
+// 弹出面板 过 终端 底部,所以短画布可以视同漆色的行超越边界。
 std::string render_picker(const Model& m, int width = 100, int height = 48) {
     auto root = ui::settings_list_panel(m);
     maya::StylePool pool;
@@ -104,7 +104,7 @@ int count_tool_rows(const std::string& screen, int n) {
     return seen;
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("settings list: a 120-tool server is one row until opened") {
     Model m = big_plugins_model(120);
@@ -114,21 +114,21 @@ TEST_CASE("settings list: a 120-tool server is one row until opened") {
     CHECK(has(screen, "big"));
     CHECK(has(screen, "120 tools"));
     CHECK_MESSAGE(!has(screen, "tool_0"), "collapsed: no tool rows");
-    CHECK(has(screen, "show tools"));   // the footer says how to open it
+    CHECK(has(screen, "show tools"));   // 脚印上说要怎么打开
 }
 
 TEST_CASE("settings list: bounded, clipped, and scrollable") {
     Model m = big_plugins_model(120);
     {
         pn::SettingsList o{{settings::Category::Plugins, 2}};
-        o.expanded = {"big"};   // tools are collapsed until the server is opened
+        o.expanded = {"big"};   // 工具崩溃,直到服务器打开
         m.ui.panel.descend(std::move(o));
     }
 
     const std::string screen = render_picker(m);
     INFO(screen);
 
-    // ── 1: bounded — nothing paints below the modal's bottom border ──
+    // ── 1: 定界——无漆 弹出面板 下边框 ──
     {
         const auto lines = split_lines(screen);
         int last_nonblank = -1;
@@ -154,14 +154,14 @@ TEST_CASE("settings list: bounded, clipped, and scrollable") {
                       "footer renders above the bottom border (no underpaint)");
     }
 
-    // ── 2: clipped — only the viewport window renders ──
+    // ── 2: 剪辑——只有 可视区域 窗口 渲染 ──
     const int seen = count_tool_rows(screen, 120);
     CHECK_MESSAGE(seen > 0, "some tool rows render");
     CHECK_MESSAGE(seen < 40, "list is clipped to the viewport, not painted whole");
 
-    // ── 3: scrolling — a deep selection moves the window ──
-    // Row 0 = server row, 1..n = tool_i (the summary is the pane header,
-    // not a row) — cursor 117 sits on tool_116.
+    // ── 3:滚动——深层选择移动窗口 ──
+    // 0行=服务器行, 1..n= tool_i (摘要是: 面板 头文件
+    // ——光标 117 坐上 tool_116.
     const bool early_before = has(screen, "tool_0\xe2\x80\xa6") || has(screen, " tool_0");
     {
         pn::SettingsList o{{settings::Category::Plugins, 117}};

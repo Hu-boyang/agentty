@@ -1,16 +1,16 @@
 #pragma once
-// agentty::provider::kimi::KimiProvider — native Kimi Code provider.
+// agentty::provider::kimi::KimiProvider —本地 Kimi 代码提供商。
 //
-// Kimi Code's inference API is OpenAI-Chat-compatible, served at a fixed base
-// URL (https://api.kimi.com/coding/v1), so this is a THIN wrapper over the
-// shared openai transport: on each turn it ensures a fresh OAuth access token
-// (auto-refreshed via refresh_token from the persisted device-flow bundle),
-// builds the Endpoint, stamps the token as the request auth, and delegates
-// streaming to openai::run_stream_sync. A 401 (token revoked early) triggers
-// one forced refresh + retry.
+// Kimi Code的推论API是OpenAI-Chat-compatible，
+// 在固定基础URL（https://api.kimi.com/coding/v1),，因此这是共享openai
+// 传输层上的THIN包装器：在每次转动时，它确保新的OAuth访问令牌（通过
+// 来自持久设备-flow捆绑包的refresh_token的auto-refreshed），
+// 构建端点，将令牌标记为请求身份验证，并将 流式传输 委托给
+// openai::run_stream_sync 401（令牌提前撤销）
+// 触发一次强制刷新 + 重试。
 //
-// It is a LongLived provider (owns the token cache) — constructed once in
-// main() like the Anthropic / ChatGPT / Copilot providers.
+// 它是 LongLived 提供者（拥有代币 缓存)——与 Anthropic/ChatGPT/Copilot
+// 提供者一样，在 main() 中构建一次。
 
 #include <string>
 #include <vector>
@@ -30,25 +30,25 @@ public:
     provider::StreamResult stream(const maya::unlocked& cap, provider::Request req,
                                   provider::EventSink sink);
 
-    // Builds the Kimi inference Endpoint. Shared by stream() and list_models().
+    // 构建Kimi推理端点。由 stream() 和 list_models() 共享。
     static provider::openai::Endpoint make_endpoint();
 };
 
-// Every backend must satisfy the streaming contract. Kimi was the one provider
-// missing this line — it happened to conform, but nothing PROVED it, so a
-// signature drift here would have surfaced as a link error in main.cpp's
-// dispatch rather than a crisp "KimiProvider does not satisfy Provider".
+// 每个后端必须满足流式传输合同。 Kimi 是唯一一个缺少这条线的提供商——它
+// 碰巧符合要求，但没有 PROVED，所以这里的签名漂移将作为
+// main.cpp 的 分派 中的 链接 错误而不是清晰的
+// "KimiProvider does not satisfy Provider" 出现。
 static_assert(provider::Provider<KimiProvider>);
 
-// The account's live model catalog from Kimi's /models (falls back to a small
-// bundled list when offline / not signed in).
-// Refreshes the OAuth token (rank-ordered lock), so the caller holds no lock.
+// 来自 Kimi's /models 的帐户的实时模型 目录 (
+// 当离线/未登录时回退到小的捆绑列表)。
+// 刷新OAuth令牌(rank-ordered 锁)，因此调用者不持有锁。
 [[nodiscard]] std::vector<ModelInfo> list_models(Io, const maya::unlocked& cap);
 
-// The account's default model slug (first catalog entry) or a safe fallback.
+// 帐户的默认模型段（第一个 目录 条目）或安全 回退。
 [[nodiscard]] std::string default_model(Io, const maya::unlocked& cap);
 
-// Drop the cached model catalog so the next list_models() re-fetches.
+// 删除缓存的模型目录，以便下一个list_models()重新-fetches。
 void invalidate_model_cache();
 
 } // namespace agentty::provider::kimi

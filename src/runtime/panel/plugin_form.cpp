@@ -1,5 +1,5 @@
-// plugin_form.cpp — the plugin editor's row model. See header for the
-// kind-first add contract. Pure projection: inputs → rows, no IO.
+// plugin_form.cpp ——插件编辑器的行模式。
+// 见 头文件 用于此类 -first 纯投影:输入 = 行,无 IO.
 
 #include "agentty/runtime/panel/plugin_form.hpp"
 
@@ -7,9 +7,9 @@ namespace agentty::plugin_form {
 
 namespace {
 
-// One place for the kind vocabulary: ids, labels, and the one-line help the
-// choice dropdown shows. Order = dropdown order (stdio first — the common
-// case; passthrough last — the expert case).
+// 类型词汇的一个位置: ids, lables, 和 one-line 帮助选择的下拉显示.
+// order = 下拉顺序(stdio first- the common case;
+// 最后传入，保留专家配置这一场景。
 struct KindInfo {
     const char* id;
     const char* label;
@@ -32,17 +32,17 @@ constexpr KindInfo kKinds[] = {
     return kKinds[0];
 }
 
-} // namespace
+} // 命名空间结束。
 
 form::Form build_form(const PluginFormInputs& in) {
     const bool add = in.add_mode;
     form::Builder b{add ? " Add plugin " : (" " + in.name + " ")};
 
-    // ── Subtitle: the pane's one-line situation report ─────────────
+    // ── 副标题: 面板 是一个 -line 情况报告 ─────────────
     //
-    // A connect failure is NOT a situation report — it is a message whose
-    // tail says what to fix, so it goes on `error` (which wraps) and the
-    // subtitle keeps describing the pane. Putting it here truncated it.
+    // 连接失败不是 情况报告——它是一个信息,它是一个信息:
+    // 末尾 说要修什么,所以它继续 `error` (它
+    // 包装)和字幕 继续描述 面板 把它放在这里,把它切掉。
     if (!in.error.empty()) b.error(in.error);
     if (add) {
         b.subtitle("pick a kind — the fields below follow");
@@ -58,7 +58,7 @@ form::Form build_form(const PluginFormInputs& in) {
         b.subtitle(in.connected ? "connected" : "connecting…");
     }
 
-    // ── Kind ───────────────────────────────────────────────────────
+    // ── 温柔 ───────────────────────────────────────────────────────
     {
         std::vector<std::string> labels, ids, hints;
         for (const auto& k : kKinds) {
@@ -72,13 +72,13 @@ form::Form build_form(const PluginFormInputs& in) {
             b.lock("transport is identity — remove and re-add to change it");
     }
 
-    // ── Identity ───────────────────────────────────────────────────
+    // ── 身份 ───────────────────────────────────────────────────
     if (add) {
         b.text(kName, "Name", in.name,
                "letters, digits, _ - : (this is the mcp.json key)");
     }
 
-    // ── Kind-specific transport rows ───────────────────────────────
+    // ── 温柔 -specific 传输层 行数 ───────────────────────────────
     if (in.kind == kKindStdio) {
         b.text(kCommand, "Command", in.command,
                "executable to spawn (searched on PATH)");
@@ -94,12 +94,12 @@ form::Form build_form(const PluginFormInputs& in) {
         b.toggle(kAdvertise, "Advertise on the wire", in.advertise,
                  "off = proxy owns the schema (usual); on = agentty "
                  "advertises it too");
-    } else {   // http / sse
+    } else {   // http/SSE
         b.text(kUrl, "URL", in.url,
                "http(s)://host[:port]/path of the MCP endpoint");
     }
 
-    // ── Scope + provenance ─────────────────────────────────────────
+    // ── 范围+来源 ─────────────────────────────────────────
     if (add) {
         b.toggle(kScopeProject, "Project-scoped", in.project,
                  "write to ./.agentty/mcp.json instead of your user config");
@@ -111,7 +111,7 @@ form::Form build_form(const PluginFormInputs& in) {
         b.lock("edit via Save below — this row is the address");
     }
 
-    // ── Detail-mode: enabled + tools ───────────────────────────────
+    // ── 详细-mode: 启用的+工具 ───────────────────────────────
     if (!add) {
         b.toggle(kEnabled, "Enabled", in.enabled,
                  in.kind == kKindPassthrough
@@ -128,7 +128,7 @@ form::Form build_form(const PluginFormInputs& in) {
         }
     }
 
-    // ── Actions ────────────────────────────────────────────────────
+    // ── 行动 ────────────────────────────────────────────────────
     b.header("");
     if (!add && in.untrusted) {
         b.action(kApprove, "Approve this server",
@@ -142,7 +142,7 @@ form::Form build_form(const PluginFormInputs& in) {
                  "deletes the entry from its mcp.json (asks once)");
     }
 
-    // No b.note(): the shared key grammar comes from form_config (SSOT).
+    // 没有 b.note (:共享密钥语法来自 form_config (SSOT).
     return b.build();
 }
 

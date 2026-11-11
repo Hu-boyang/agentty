@@ -1,23 +1,23 @@
-// codex_login_flow_test — the in-app ChatGPT (Codex) login reducer arms that
-// don't need network I/O.
+// codex_login_flow_test - 进去 -app ChatGPT (Codex 登录( I)
+// 状态更新函数 不需要网络的臂膀 I/O.
 //
-// Locks the pure transitions of the first-class in-app ChatGPT sign-in:
+// 锁 第一次的纯过渡 -class 输入 -app ChatGPT 签名 -in:
 //
-//   A. LoginPickMethod{'3'} from the general Picking modal → ChatGptWaiting
-//      (and a non-none Cmd: the async loopback login is launched).
-//   B. CodexLoginDone{error} while ChatGptWaiting → Failed{message}.
-//   C. CodexLoginDone arriving when the modal is NOT ChatGptWaiting (user
-//      Esc'd out) is dropped — no state change.
-//   D. Anthropic-scoped add-account Picking ignores ChatGPT key '3'.
-//   E. The ChatGPT account list's add row launches OAuth directly.
-//   F. Device-code progress populates the waiting state.
-//   G. Late device-code progress after cancellation is ignored.
-//   H. A stale attempt cannot overwrite a newer attempt's code.
-//   I. Closing the modal trips cooperative worker cancellation.
+//   A. LoginPickMethod{'3' 将军的选手 弹出面板 → ChatGptWaiting
+//      (和无) -none Cmd : 启动Aync回路登录).
+//   B. CodexLoginDone 时 间 时 时 , ChatGptWaiting ~ 失败{消息}。
+//   C. CodexLoginDone 到达时 弹出面板 谓 不 ChatGptWaiting
+//      (用户) Esc 放弃了 没有州级的改变
+//   D. Anthropic-scoped 添加( E) -account 选择忽略 ChatGPT 键 '3'.
+//   E. ChatGPT帐号列表中添加的行发射 OAuth直接.
+//   F. 设备-code 进度充充等待状态.
+//   G. 过时装置 -code 后的进展 取消 被忽略。
+//   H. 过期尝试不能覆盖较新的尝试代码。
+//   一、结束会议 弹出面板 合作旅行 工作线程 取消.
 //
-// The success path (CodexLoginDone{creds}) runs commit_provider_switch, which
-// needs a fully-installed Deps + process-global provider registry; it's
-// covered by the live provider-switch tests, not here.
+// 成功之路( 3) CodexLoginDone {creds} 运行 commit_provider_switch ,
+// 需要完全 -installed Deps + 过程 -global 提供者
+// 注册表 由现场提供者负责 -switch 测试,不是在这里。
 
 #include <string>
 
@@ -38,21 +38,21 @@ static int g_checks = 0;
 TEST_CASE("codex login flow") {
     std::printf("codex_login_flow_test\n");
 
-    // A. Picking + key '3' → ChatGptWaiting, with a launch Cmd.
+    // A. 选取+键 '3' → ChatGptWaiting ,并附有发射装置 Cmd.
     {
         Model m;
         m.ui.login = login::Picking{};
         auto [m2, cmd] = ::agentty::app::detail::step(agentty::app::detail::login_update, std::move(m), msg::LoginMsg{agentty::LoginPickMethod{U'3'}});
         check(std::holds_alternative<login::ChatGptWaiting>(m2.ui.login),
               "A: '3' from Picking enters ChatGptWaiting");
-        // No Cmd any more: entering the state is what starts the worker.
-        // subscribe() returns a stream keyed on the attempt, so the state
-        // IS the launch — and leaving it is the cancel.
+        // 没有 Cmd 更多: 进入状态是开始 工作线程.
+        // subscribe() 返回 a 数据流 尝试时按键,
+        // 所以州 IS 发射,离开它就是 取消.
         check(cmd.is_none(),
               "A: the worker is a subscription, not a launch Cmd");
     }
 
-    // B. A failed CodexLoginDone while waiting → Failed with the message.
+    // B. A 等待时失败 CodexLoginDone / 与信件失败。
     {
         Model m;
         m.ui.login = login::ChatGptWaiting{.attempt_id = 1};
@@ -70,7 +70,7 @@ TEST_CASE("codex login flow") {
         (void)cmd;
     }
 
-    // C. A late CodexLoginDone when the modal isn't ChatGptWaiting is dropped.
+    // C. 迟到 CodexLoginDone 当 弹出面板 岂不是 ChatGptWaiting 被删除。
     {
         Model m;
         m.ui.login = login::Closed{};
@@ -86,7 +86,7 @@ TEST_CASE("codex login flow") {
         (void)cmd;
     }
 
-    // D. An Anthropic-scoped add flow must not escape into ChatGPT OAuth.
+    // D. 问 题 Anthropic-scoped 添加流量不能逃入 ChatGPT 欧奥特
     {
         Model m;
         m.ui.login = login::Picking{.provider = "anthropic"};
@@ -97,24 +97,24 @@ TEST_CASE("codex login flow") {
         check(cmd.is_none(), "D: no ChatGPT OAuth command is launched");
     }
 
-    // E. ChatGPT has only one add method, so its add row starts OAuth directly.
+    // E.ChatGPT只有一个加法,因此其加法行直接启动OAuth.
     {
         Model m;
         login::AccountList accounts;
         accounts.provider = "chatgpt";
         accounts.provider_label = "ChatGPT";
-        accounts.cursor = 0; // empty list: row zero is "+ Add another account…"
+        accounts.cursor = 0; // 空列表: 行0为 "+ Add another account…"
         m.ui.login = std::move(accounts);
         auto [m2, cmd] = ::agentty::app::detail::step(agentty::app::detail::login_update, std::move(m), msg::LoginMsg{agentty::AccountSelect{}});
         check(std::holds_alternative<login::ChatGptWaiting>(m2.ui.login),
               "E: ChatGPT add row enters ChatGptWaiting directly");
-        // Entering the state IS the launch — subscribe() returns the worker's
-        // stream keyed on the attempt. See case A.
+        // 进入状态 IS 发射 subscribe() 返回“%s” 工作线程
+        // 's 数据流 已按键尝试。见案例A。
         check(cmd.is_none(),
               "E: ChatGPT add row starts the worker via the state, not a Cmd");
     }
 
-    // F. Device-code progress updates the live waiting panel.
+    // F. Decast -code 进度更新直播等待面板.
     {
         Model m;
         m.ui.login = login::ChatGptWaiting{
@@ -136,7 +136,7 @@ TEST_CASE("codex login flow") {
         check(cmd.is_none(), "F: progress update launches no second command");
     }
 
-    // G. A code from an abandoned worker must not reopen a cancelled modal.
+    // G. 废弃的密码 工作线程 不得重开 已取消 弹出面板.
     {
         Model m;
         m.ui.login = login::Closed{};
@@ -150,7 +150,7 @@ TEST_CASE("codex login flow") {
         check(cmd.is_none(), "G: late device code launches no command");
     }
 
-    // H. Progress from attempt A cannot alter a newer attempt B.
+    // H. 尝试A的进展不能改变新的尝试B。
     {
         Model m;
         m.ui.login = login::ChatGptWaiting{
@@ -169,11 +169,11 @@ TEST_CASE("codex login flow") {
         check(cmd.is_none(), "H: stale progress launches no command");
     }
 
-    // I. Closing a waiting modal cancels its worker.
+    // 一. 结束等待 弹出面板 取消其名称 工作线程.
     //
-    // The worker is a keyed Sub::stream now, so cancellation is not a flag
-    // the reducer trips — it is the subscription going away, which is what
-    // fires the body's stop_token. Assert the thing that actually stops it.
+    // 电话 工作线程 已键入 Sub::stream 现在,所以 取消
+    // 不是一个 标志 编号 状态更新函数 旅行——这是 事件订阅 离开,
+    // 这就是火的点燃 正文's stop_token 保持实际停止它的东西。
     {
         Model m;
         m.ui.login = login::ChatGptWaiting{

@@ -1,7 +1,7 @@
 #pragma once
-// agentty::provider::anthropic::AnthropicProvider — the concrete adapter that
-// satisfies the `provider::Provider` concept by translating the abstract
-// request into an anthropic::transport call.
+// agentty::provider::anthropic::AnthropicProvider
+// —通过将抽象请求翻译成anthropic::transport 调用来满足
+// `provider::Provider`概念的具体适配器。
 
 #include <utility>
 
@@ -13,8 +13,8 @@ namespace agentty::provider::anthropic {
 
 class AnthropicProvider {
 public:
-    // run_stream_sync takes no capability today; the cap is the
-    // Provider-concept contract (thread it through if the transport locks).
+    // run_stream_sync今天不具备能力；
+    // 上限是 Provider-concept 合约（线程 是通过 传输层 锁 的合约）。
     provider::StreamResult stream(const maya::unlocked&, provider::Request req,
                                   provider::EventSink sink) {
         Request areq;

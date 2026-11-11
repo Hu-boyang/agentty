@@ -1,18 +1,18 @@
-# Normalize line endings across the repo.
+# 统一仓库中的行尾格式。
 #
-# `text=auto` lets git decide which files are text and stores them with LF
-# in the repository. `eol=lf` forces LF on checkout too, so the working tree
-# stays LF on every platform (including Windows / MSYS2) — this repo builds
-# under MinGW and clang64 where stray CRLF churned diffs before. Submodules
-# (maya, acp-cpp, mcp-cpp, rag-cpp) carry their own attributes and are
-# unaffected.
+# text=auto 让 Git 自动识别文本文件，并在仓库中以 LF 保存。
+# eol=lf 同时强制检出时采用 LF，使各平台的工作树保持一致，
+# 包括 Windows / MSYS2。本仓库支持 MinGW 和 clang64 构建，
+# 此前混入 CRLF 曾产生大量无意义差异。
+# maya、acp-cpp、mcp-cpp、rag-cpp 等子模块各自维护属性，
+# 不受此处规则影响。
 * text=auto eol=lf
 
-# Windows batch scripts must keep CRLF or cmd.exe mis-parses them.
+# Windows 批处理脚本必须保留 CRLF，否则 cmd.exe 会错误解析。
 *.bat text eol=crlf
 *.cmd text eol=crlf
 
-# Binary assets: never touch.
+# 二进制资源不做转换。
 *.png binary
 *.jpg binary
 *.jpeg binary

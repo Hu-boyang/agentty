@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Minimal ACP client harness to exercise agentty's `acp` subcommand:
-# drives initialize/new/prompt and auto-answers session/request_permission.
+# Minimal ACP客户端利用agentty的`acp`子命令：
+# 驱动器initialize/new/prompt和auto-answers session/request_permission.
 import json, subprocess, sys, threading
 
 proc = subprocess.Popen(
@@ -24,17 +24,17 @@ def reader():
         if not line: continue
         msg = json.loads(line)
         print("<<", json.dumps(msg)[:300])
-        # Auto-answer permission requests.
+        # Auto-answer 权限请求。
         if msg.get("method") == "session/request_permission":
             send({"jsonrpc":"2.0","id":msg["id"],
                   "result":{"outcome":{"outcome":"selected","optionId":"allow_once"}}})
-        # session/new response → grab the real sessionId, then prompt.
+        # session/new响应→抓取真正的sessionId，然后抓取提示词。
         if msg.get("id") == 2 and "result" in msg:
             session_id["v"] = msg["result"]["sessionId"]
             send({"jsonrpc":"2.0","id":3,"method":"session/prompt",
                   "params":{"sessionId":session_id["v"],
                             "prompt":[{"type":"text","text":prompt}]}})
-        # Final prompt response → done.
+        # 最终 提示词 响应 → 完成。
         if msg.get("id") == 3 and "result" in msg:
             done.set()
 

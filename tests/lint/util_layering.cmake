@@ -1,24 +1,24 @@
-# util_layering.cmake — agentty::util must not depend on agentty::tools::util.
+# util_layering.cmake — agentty::util 不得依赖 agentty::tools::util.
 #
-# There are two `util` namespaces, and the split is the only thing that makes
-# the name collision tolerable:
+# 有两个`util`命名空间,而分裂是唯一使名称碰撞可以容忍的
+# 东西:  ⁇   ⁇  :
 #
-#   agentty::tools::util   the TOOL BOUNDARY. Walls and parsers standing
-#                          between a model's request and the machine:
-#                          workspace clamping, subprocess spawn, the sandbox,
-#                          the trust handoff gate, argument reading.
-#   agentty::util          APP-WIDE PLUMBING with no notion of a tool call:
-#                          logging, home/root resolution, base64, teardown.
+#   agentty::tools::util 编号 TOOL BOUNDARY
+#                          墙壁和 解析器 站在模型的要求和机器之间:
+#                          工作区 夹、子进程产卵、
+#                          沙箱 信任的交接门 辩论读物
+#   agentty::util          APP-WIDE PLUMBING 没有任何工具的概念 调用:
+#                          伐木业, home/root 决议, base64 撕裂。 撕裂的。
 #
-# The dependency must run ONE WAY. tools::util may use util (fs_helpers calls
-# home_dir()); util must never reach back, because a wall that depends on the
-# thing it is protecting is not a wall — and because the cycle is what would
-# make the two directories genuinely indistinguishable rather than merely
-# similarly named.
+# 依赖必须运行 一个 WAY. tools::util 可能
+# 使用乌提尔( $ fs_helpers 调用 home_dir
+# 使用权绝不能退缩,因为依赖它所保护的东西的墙不是墙——
+# 而且因为循环是使两个目录真正无法区分而不是仅仅被命名为类似
+# 名称的原因。
 #
-# Documented in both headers. Documentation decays, so this enforces it.
+# 两者都有记录 头文件 文档衰减,所以这才强制它。
 #
-# Usage: cmake -DROOT=<repo root> -P util_layering.cmake
+# 用法: 制作( make) -DROOT=<repo root > , 转动 -P util_layering.cmake
 
 if(NOT DEFINED ROOT)
     message(FATAL_ERROR "util_layering: -DROOT=<repo root> required")
@@ -26,7 +26,7 @@ endif()
 
 set(_offenders "")
 
-# Both halves of agentty::util: the sources and the headers.
+# 两者的一半 agentty::util : 来源和 头文件.
 file(GLOB_RECURSE _util_files
      "${ROOT}/src/util/*.cpp" "${ROOT}/src/util/*.hpp"
      "${ROOT}/include/agentty/util/*.hpp")
@@ -36,8 +36,8 @@ foreach(_f IN LISTS _util_files)
     if(_hits)
         file(RELATIVE_PATH _rel "${ROOT}" "${_f}")
         foreach(_h IN LISTS _hits)
-            # Skip the explanatory notes in both headers, which name the other
-            # namespace precisely in order to tell them apart.
+            # 省略第头文件项中的解释性说明,该说明中将另一个命名为
+            # 命名空间正是为了区分它们而存在。
             if(NOT _h MATCHES "^[ \t]*//")
                 string(STRIP "${_h}" _h)
                 list(APPEND _offenders "    ${_rel}: ${_h}")

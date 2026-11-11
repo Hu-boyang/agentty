@@ -1,4 +1,4 @@
-// agentty::util::home_dir — see the header for the MSYS2 split-brain rationale.
+// agentty::util::home_dir - 看见了 头文件 财务报告和审定财务报表 MSYS2 拆分( E) -brain 理由说明。
 #include "agentty/util/home_dir.hpp"
 
 #include <cstdlib>
@@ -13,8 +13,8 @@ fs::path home_dir() {
 }
 
 fs::path home_dir_or_empty() {
-    // $HOME first (POSIX/MSYS2/mintty/Cygwin), then $USERPROFILE (native
-    // Windows). Empty when neither is set — the caller decides what that means.
+    // $HOME先(POSIX/MSYS2/mintty/Cygwin),
+    // 后为$USERPROFILE(原第Windows),两者均不设时空——由呼叫者决定这意味着什么.
     if (const char* home = std::getenv("HOME"); home && *home)
         return fs::path(home);
     if (const char* up = std::getenv("USERPROFILE"); up && *up)

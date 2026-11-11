@@ -1,14 +1,14 @@
-// tool_search_eval_test — #98: does tool_search find the right tool?
+// tool_search_eval_test -98号: tool_search 找到合适的工具了吗?
 //
-// A realistic catalog (the reporter's Binary Ninja server plus GitHub, Slack,
-// Postgres, filesystem, browser and Jira servers; ~130 tools with the names
-// and descriptions those servers really ship) and queries the way people
-// write them: plain task words, the server's own jargon, typos, other word
-// forms, and the query in German, Spanish and French with English tool text.
+// 一个现实 目录 (记者的) 二进制程序 Ninja 服务器加 GitHub ,
+// Slack, Postgres, 文件系统,浏览器和Jira服务器;
+// ~130 工具, 上面有这些服务器的名称和描述真实的船),
+// 并询问人们写它们的方式: 平版任务词, 服务器自己的词汇, 字典,
+// 其他单词形式, 以及德语,西班牙语和法语中带有英文工具文本的查询.
 //
-// Floors are set below what the search scores today, so a regression fails
-// and an improvement can raise them. hit@5 matters most: tool_search loads
-// up to 5, so a tool in the top 5 is a tool the model can call.
+// 下限设定在今天搜索得分以下, 因此回归失败, 改善可以提高。
+// hit@ 5 matters: tool_search 加载 最多5,
+// 所以前5个工具就是模型可以使用的工具 调用.
 
 #include "agtest.hpp"
 
@@ -40,7 +40,7 @@ ToolDef t(const std::string& srv, const std::string& name, const std::string& de
 
 std::vector<ToolDef> catalog() {
     std::vector<ToolDef> c;
-    // Binary Ninja (the #98 reporter's server; names from binary_ninja_mcp).
+    // 二进制程序 Ninja (#98记者服务器;名称来自 binary_ninja_mcp).
     const char* bn[][3] = {
         {"decompile_function", "Decompile a function to high level IL pseudo C", "name"},
         {"get_il", "Get the IL (LLIL, MLIL, HLIL) of a function", "name"},
@@ -76,7 +76,7 @@ std::vector<ToolDef> catalog() {
         {"format_value", "Convert and annotate a value at an address", "address"},
     };
     for (auto& r : bn) c.push_back(t("binary_ninja", r[0], r[1], {r[2]}));
-    // GitHub (names from github-mcp-server).
+    // GitHub (名字来自github -mcp-server).
     const char* gh[][2] = {
         {"create_issue", "Create a new issue in a GitHub repository"},
         {"get_issue", "Get details of a specific issue"},
@@ -108,7 +108,7 @@ std::vector<ToolDef> catalog() {
         {"request_copilot_review", "Request a Copilot code review for a pull request"},
     };
     for (auto& r : gh) c.push_back(t("github", r[0], r[1], {"owner", "repo"}));
-    // Slack.
+    // 斯莱克
     const char* sl[][2] = {
         {"slack_list_channels", "List public channels in the workspace"},
         {"slack_post_message", "Post a new message to a Slack channel"},
@@ -121,7 +121,7 @@ std::vector<ToolDef> catalog() {
         {"slack_search_messages", "Search messages across channels"},
     };
     for (auto& r : sl) c.push_back(t("slack", r[0], r[1], {"channel_id"}));
-    // Postgres.
+    // 邮归.
     const char* pg[][2] = {
         {"query", "Run a read-only SQL query"},
         {"list_schemas", "List database schemas"},
@@ -133,7 +133,7 @@ std::vector<ToolDef> catalog() {
         {"list_extensions", "List installed extensions"},
     };
     for (auto& r : pg) c.push_back(t("postgres", r[0], r[1], {"sql"}));
-    // Browser automation (playwright-mcp names).
+    // 浏览器自动化(playwright-mcp names).
     const char* br[][2] = {
         {"browser_navigate", "Navigate to a URL"},
         {"browser_click", "Click an element on the page"},
@@ -152,7 +152,7 @@ std::vector<ToolDef> catalog() {
         {"browser_close", "Close the page"},
     };
     for (auto& r : br) c.push_back(t("playwright", r[0], r[1], {"element"}));
-    // Jira.
+    // 吉拉,你来干什么?
     const char* ji[][2] = {
         {"jira_get_issue", "Get details of a Jira issue"},
         {"jira_search", "Search Jira issues using JQL"},
@@ -165,7 +165,7 @@ std::vector<ToolDef> catalog() {
         {"jira_link_to_epic", "Link an issue to an epic"},
     };
     for (auto& r : ji) c.push_back(t("jira", r[0], r[1], {"issue_key"}));
-    // Sentry + Grafana, so names like "issue" and "query" are contested.
+    // 哨兵+格拉法纳,所以名字像 "issue" 财务报告和已审计财务报表 "query" 被质疑。
     const char* se[][3] = {
         {"sentry", "get_sentry_issue", "Get a Sentry error issue with its stack trace"},
         {"sentry", "list_sentry_issues", "List unresolved Sentry issues for a project"},
@@ -183,7 +183,7 @@ std::vector<ToolDef> catalog() {
 struct Q { const char* query; const char* want; const char* kind; };
 
 const Q kQueries[] = {
-    // Task words, English.
+    // 任务词,英语.
     {"decompile this function", "decompile_function", "task"},
     {"show me the pseudo C for main", "decompile_function", "task"},
     {"who calls this address", "get_xrefs_to", "task"},
@@ -208,7 +208,7 @@ const Q kQueries[] = {
     {"log 2 hours on the ticket", "jira_add_worklog", "task"},
     {"show the stack trace of the crash", "get_sentry_issue", "task"},
     {"search the logs", "query_loki_logs", "task"},
-    // Jargon and identifiers.
+    // 贾贡和识别器。
     {"xrefs", "get_xrefs_to", "jargon"},
     {"hlil", "get_il", "jargon"},
     {"hexdump", "hexdump_address", "jargon"},
@@ -216,14 +216,14 @@ const Q kQueries[] = {
     {"PromQL", "query_prometheus", "jargon"},
     {"set_function_prototype", "set_function_prototype", "jargon"},
     {"get_pull_request_diff", "get_pull_request_diff", "jargon"},
-    // Typos and word forms.
+    // 泰波斯语和词表。
     {"decomple functon", "decompile_function", "typo"},
     {"renaming varaibles", "rename_single_variable", "typo"},
     {"screenshoot", "browser_take_screenshot", "typo"},
     {"crete pull reqest", "create_pull_request", "typo"},
     {"imported symbols", "list_imports", "typo"},
     {"comments on functions", "set_function_comment", "typo"},
-    // Other languages, English tool text (the reporter's concern).
+    // 其他语言,英语工具文本(记者的关注).
     {"Funktion dekompilieren decompile", "decompile_function", "lang"},
     {"Pull Request erstellen", "create_pull_request", "lang"},
     {"captura de pantalla screenshot", "browser_take_screenshot", "lang"},
@@ -231,7 +231,7 @@ const Q kQueries[] = {
     {"Kommentar zu einer Funktion setzen comment", "set_function_comment", "lang"},
 };
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("tool search eval: the right tool is in what tool_search loads (#98)") {
     const auto cat = catalog();

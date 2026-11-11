@@ -1,34 +1,34 @@
-// codeblock_update — reducer for the Ctrl+G code-block picker (the "run
-// what the AI just suggested" flow). Open scans the newest assistant
-// message for fenced blocks; Select suspends the TUI and runs the chosen
-// block INTERACTIVELY on the real terminal — sudo password prompts work,
-// output streams live — while a tee captures every output byte;
-// RunFinished opens the Result card where the user decides what happens
-// to the captured copy: attach to the composer as an Output chip, copy
-// it clean, or discard.
+// codeblock_update —状态更新函数为Ctrl+G代码-block
+// 选择面板("run what the AI just suggested"流程)。
+// 打开扫描围栏区块的最新辅助消息； Select 暂停 TUI 并在
+// 真实的 终端 上运行所选块 INTERACTIVELY — sudo
+// 密码 提示词 工作，实时输出 数据流 — 而 tee
+// 捕获每个输出 字节； RunFinished 打开结果卡，
+// 用户可以在其中决定如何处理捕获的副本：作为输出 标签 附加到作曲家、
+// 将其复制干净或丢弃。
 //
-// Deliberate scope decisions:
-//   • Interactive-first: the run happens under maya's Cmd::suspend — the
-//     TUI tears down to a cooked tty, the child inherits the REAL
-//     terminal for stdin (sudo reads the password from /dev/tty, which
-//     stays the real tty regardless of our stdout pipe), and stdout+
-//     stderr flow through a tee pipe: every byte hits the user's screen
-//     live AND lands in the capture buffer. Ctrl+C uses classic
-//     system() semantics — the parent ignores SIGINT/SIGQUIT for the
-//     duration, the child takes the default action and dies; agentty
-//     resumes cleanly.
-//   • The captured output only reaches the COMPOSER when the user
-//     presses `a` on the Result card — it lands as an Output attachment
-//     (chip), not a conversation message: the same collapse/expand
-//     contract as a big paste. The user annotates and submits when (and
-//     if) they want the model to see it.
-//   • Only shell-ish blocks are runnable (see is_shell_language). For a
-//     python/js block Select shows a toast; Edit / Copy still work.
-//   • Opening is gated on an idle session: mid-stream the message list
-//     is in flux and the "latest assistant reply" is still growing.
-//   • Windows: no fork/tcsetattr — falls back to the non-interactive
-//     captured runner (same one the bash tool uses). sudo isn't a
-//     Windows concept anyway; the honest degradation.
+// 深思熟虑的范围决定：
+//   ·Interactive-first:运行发生在maya的Cmd::suspend下——
+//     TUI分解为熟的tty，子进程继承了stdin的REAL
+//     终端（sudo从/dev/tty读取密码，无论我们的stdout
+//     管道如何，它都保持真实的tty），并且stdout+
+//     stderr流过Tee管道：每个字节实时命中用户屏幕，
+//     AND落在捕获缓冲区中。 Ctrl+C 使用经典的
+//     system() 语义——父进程在持续时间内忽略
+//     SIGINT/SIGQUIT，子进程执行默认操作并死亡；
+//     agentty 干净地恢复。
+//   • 捕获的输出仅达到COMPOSER当用户
+//     在结果卡上按 `a` — 它作为输出附件 (标签) 登陆，
+//     而不是对话消息：与大粘贴相同的
+//     collapse/expand 合同。用户在（如果）希望
+//     模型看到它时进行注释并提交。
+//   ·仅shell-ish块是可运行的（参见is_shell_language)。对于一个
+//     python/js块选择显示吐司；编辑/复制仍然有效。
+//   ·在空闲会话上门控打开：消息列表mid-stream
+//     正在不断变化并且"latest assistant reply"仍在增长。
+//   ·Windows:无fork/tcsetattr —回落至非-interactive
+//     捕获的跑步者（与bash工具使用的跑步者相同）。无论如何，
+//     sudo 并不是一个 Windows 概念；诚实的退化。
 
 #include "agentty/runtime/app/update/internal.hpp"
 
@@ -52,9 +52,9 @@ namespace cbp = agentty::code_blocks;
 
 namespace {
 
-// Newest assistant message that yields at least one fenced block.
-// Document order within the message is preserved (block 1 = topmost),
-// matching how the user visually indexes the reply on screen.
+// 产生至少一个围栏块的最新辅助消息。
+// 消息内的文档顺序被保留（块1=最上面），
+// 匹配用户在屏幕上视觉索引回复的方式。
 [[nodiscard]] std::vector<CodeBlock> latest_assistant_blocks(const Model& m) {
     for (auto it = m.d.current.messages.rbegin();
          it != m.d.current.messages.rend(); ++it) {
@@ -62,29 +62,29 @@ namespace {
         if (it->text.empty()) continue;
         auto blocks = cbp::extract_code_blocks(it->text);
         if (!blocks.empty()) return blocks;
-        // Keep walking: an assistant turn with prose but no fences
-        // shouldn't mask an earlier reply that HAS runnable blocks
-        // (common shape: reply N has the commands, reply N+1 is a
-        // short "let me know how it goes" follow-up).
+        // 继续走：带有散文但没有围栏的助理转弯不应该掩盖
+        // HAS可运行块的早期回复（常见形状：回复N具有命令，
+        // 回复N+1是简短的"let me know how it goes"
+        // 跟随-up）。
     }
     return {};
 }
 
-// Blocks available RIGHT NOW from a still-streaming reply. The live text
-// lands in `streaming_text` (settled prose moves to `text` only at turn end),
-// so mid-turn we read whichever the live assistant message carries and use
-// the CLOSED-only extractor: a block whose ``` fence hasn't arrived yet is
-// still being typed and must not be offered (running a half-line is unsafe).
-// `saw_open` reports that a block is mid-fence, so the caller can say "still
-// streaming" instead of "no blocks".
+// 阻止来自 still-streaming 回复的可用 RIGHT 当前。
+// 实时文本落在 `streaming_text`（已解决的散文仅在回合结束时移动到
+// `text`），因此我们在 -turn 中读取实时助理消息携带的内容并使用
+// 仅提取已闭合代码块：结束 ``` 尚未到达的块
+// 仍然是带类型的并且不能被提供（运行半-line是不安全的）。
+// `saw_open`报告块是mid-fence，因此调用者可以说"still streaming"
+// 而不是"no blocks"。
 [[nodiscard]] std::vector<CodeBlock>
 streaming_reply_closed_blocks(const Model& m, bool& saw_open) {
     saw_open = false;
     for (auto it = m.d.current.messages.rbegin();
          it != m.d.current.messages.rend(); ++it) {
         if (it->role != Role::Assistant) continue;
-        // Prefer the live streaming buffer; fall back to settled text (the
-        // finalize may have already moved it while the phase lag clears).
+        // 优选直播流式传输 缓冲区;回退到固定文本（在
+        // 相位滞后清除时，最终确定可能已经移动了它）。
         std::string_view live = !it->streaming_text.empty()
                                     ? std::string_view{it->streaming_text}
                                     : std::string_view{it->text};
@@ -96,21 +96,21 @@ streaming_reply_closed_blocks(const Model& m, bool& saw_open) {
     }
     return {};
 }
-// The block RUNNER (fork/exec on the real tty, or the Windows subprocess
-// fallback) is an effect and lives in cmd_code_block_run.cpp. This file only
-// decides which block runs and returns cmd::run_code_block(...).
+// 块RUNNER(真实tty上的fork/exec，或者Windows子进程回
+// 退)是副作用并且存在于cmd_code_block_run.cpp中。该文件仅决定
+// 运行哪个块并返回 cmd::run_code_block(...)。
 
-} // namespace
+} // 命名空间结束。
 
 Cmd codeblock_update(Model& m, msg::CodeBlockMsg cm) {
     return std::visit(overload{
         [&](OpenCodeBlocks) -> Cmd {
-            // Mid-stream is allowed: the network stream runs on a background
-            // worker (StreamDelta posts back to the UI thread), so suspending
-            // the TUI to run a block does NOT pause the reply — deltas keep
-            // arriving and land when you return. While streaming we offer the
+            // Mid-stream是允许的：网络数据流在后台工作线程
+            // 上运行（StreamDelta回发到UI 线程），
+            // 因此暂停TUI来运行块会导致NOT暂停回复——当你返回时，
+            // 增量不断到达并着陆。虽然 流式传输 我们提供
             // blocks whose ``` fence has ALREADY closed in the live reply; a
-            // block still being typed is withheld until its fence lands.
+            // 仍为带类型的的块被保留，直到其栅栏落地。
             std::vector<CodeBlock> blocks;
             if (m.s.active()) {
                 bool saw_open = false;
@@ -135,9 +135,9 @@ Cmd codeblock_update(Model& m, msg::CodeBlockMsg cm) {
             return Cmd::none();
         },
         [&](CloseCodeBlocks) -> Cmd {
-            // Result overlay open → both alternatives die and we unwind to
-            // the parent; the list alone → same. ascend() restores whatever
-            // the picker was opened over (palette → ^K state intact).
+            // 结果 覆盖面板 打开 → 两种选择都失败，我们展开到父项；
+            // 单独的列表 → 相同。 ascend() 恢复 选择
+            // 面板 打开的任何内容（调色板 → ^K 状态完好）。
             ascend(m);
             return Cmd::none();
         },
@@ -149,10 +149,10 @@ Cmd codeblock_update(Model& m, msg::CodeBlockMsg cm) {
                 return Cmd::none();
             }
             if (m.ui.panel.get<pn::CodeBlockResult>()) {
-                // Read-only result card: Move deltas scroll the capture
-                // viewport directly. max_y is paint-written-back by the
-                // Picker widget; clamp against it (0 before first paint
-                // — harmless, the writeback lands next frame).
+                // 读取-only结果卡：移动增量直接滚动捕获可视区域。
+                // max_y 是 选择面板 小部件绘制的
+                // -written-back；夹紧它（第一次绘制之前
+                // 为 0 — 无害，写回落在下一个 帧）。
                 auto& sc = m.ui.code_blocks_scroll;
                 sc.y = std::clamp(sc.y + e.delta, 0, std::max(0, sc.max_y));
             }
@@ -167,9 +167,9 @@ Cmd codeblock_update(Model& m, msg::CodeBlockMsg cm) {
             CodeBlock block = o->blocks[static_cast<std::size_t>(idx)];
             const cbp::BlockShell shell = cbp::shell_for_language(block.language);
             if (shell == cbp::BlockShell::None) {
-                // Not runnable on this platform — nudge toward the actions
-                // that DO make sense for this block. Picker stays open so
-                // `e` / `y` are one keystroke away.
+                // 无法在这个平台上运行——向那些行动前进 DO
+                // 说得通 选择面板 保持开放,这样 `e` /
+                // `y` 是一个键盘打掉。
                 const std::string tag = block.language.empty()
                     ? std::string{"this"} : "'" + block.language + "'";
                 auto cmd = set_status_toast(m,
@@ -188,9 +188,9 @@ Cmd codeblock_update(Model& m, msg::CodeBlockMsg cm) {
                 return Cmd::none();
             std::string body = o->blocks[static_cast<std::size_t>(idx)].body;
             m.ui.panel.close<pn::CodeBlocks>(); m.ui.panel.close<pn::CodeBlockResult>();
-            // Splice at the cursor rather than replacing — same
-            // convention as the @file / #symbol chips. The common case
-            // is an empty composer, where this IS a replace.
+            // 光标上的切片,而不是替换—— 与 @
+            // file / # 相同的常规 符号 标签。常见的情况是,
+            // 一个空的作曲家,这里 IS a 替换。
             m.ui.composer.text.insert(
                 static_cast<std::size_t>(m.ui.composer.cursor), body);
             m.ui.composer.cursor += static_cast<int>(body.size());
@@ -204,11 +204,11 @@ Cmd codeblock_update(Model& m, msg::CodeBlockMsg cm) {
                 return Cmd::none();
             std::string body = o->blocks[static_cast<std::size_t>(idx)].body;
             m.ui.panel.close<pn::CodeBlocks>(); m.ui.panel.close<pn::CodeBlockResult>();
-            // Write via native tooling (pbcopy/wl-copy/xclip) synchronously
-            // AND emit the OSC 52 Cmd. OSC 52 is opt-in in Terminal.app /
-            // iTerm2 so it silently no-ops there; the native write is what
-            // actually lands the copy locally. OSC 52 still carries it across
-            // an SSH/tmux hop to a remote clipboard.
+            // Write 通过本地工具( Name pbcopy/wl-copy/xclip
+            // 同步进行 和 发射 OSC 52 Cmd. OSC 52是选择 -in
+            // 输入 Terminal.app / iTerm2 默默地表示没有
+            // -ops 在那里,当地写的东西是 当地复制品。 OSC 五十二号还带着它
+            // 穿过一个 SSH/tmux 跳转到远程剪贴板。
             (void)write_clipboard_text(body);
             auto toast = set_status_toast(m, "copied clean block to clipboard");
             return Cmd::batch(
@@ -216,14 +216,14 @@ Cmd codeblock_update(Model& m, msg::CodeBlockMsg cm) {
                         std::move(toast));
         },
         [&](CodeBlockRunFinished& e) -> Cmd {
-            // Don't auto-stage — open the RESULT card instead. The user
-            // already watched the output live on the real terminal; this
-            // is the decision beat: attach the captured copy to the
-            // composer, copy it clean, or discard. The composer only
-            // ever receives output the user explicitly asked for.
-            // descend(), not assignment: the run finishes ASYNC — the user
-            // may have another panel open by now, and the result card must
-            // not destroy it. Esc from the card restores it verbatim.
+            // 别自動 -stage - 打开门 RESULT。
+            // 用户已经看到输出在真实中运行 终端 ;
+            // 这是决定节拍: 将抓取的副本附加到
+            // 作曲家身上, 复制干净, 或者丢弃。
+            // 作曲者只收到用户明确要求的输出。
+            // descend() ,而不是任务:运行完成 ASYNC
+            // ——用户现在可能还有另一个面板打开,结果卡不得破坏.
+            // Esc 从卡片上恢复它 逐字恢复它。
             m.ui.panel.descend(pn::CodeBlockResult{{
                 std::move(e.command), std::move(e.output),
                 e.exit_code, e.timed_out}});
@@ -233,19 +233,19 @@ Cmd codeblock_update(Model& m, msg::CodeBlockMsg cm) {
         [&](CodeBlockResultAttach) -> Cmd {
             auto* r = m.ui.panel.get<pn::CodeBlockResult>();
             if (!r) return Cmd::none();
-            // Fold the captured output into the composer as an Output
-            // attachment — the SAME collapse-to-chip / expand-on-submit
-            // machinery a big paste uses. However huge the log is, the
-            // composer shows one pill ("Output: sudo mkfs… · 1240 lines
-            // · 48 KB"); the whole body only materialises on the wire
-            // when the user actually submits.
+            // 归并 将捕获的输出作为输出附件输入作曲家中—— 相同
+            // 崩溃 -to-chip / 扩展 -on-submit
+            // 大型的贴面用机械。无论日志有多大,作曲家都显示一种药丸(
+            // "Output: sudo mkfs… · 1240 lines · 48 KB"（输出摘要示例：命令名称、1240 行、48 KB。）
+            // ) 整个 正文 仅限 按需加载 自动调试
+            // 传输 当用户实际提交时。
             std::string out = std::move(r->output);
             std::size_t lines = out.empty() ? 0 : 1;
             for (char c : out) if (c == '\n') ++lines;
 
             Attachment att;
             att.kind       = Attachment::Kind::Output;
-            att.name       = std::move(r->command);   // chip caption
+            att.name       = std::move(r->command);   // 标签 标题
             att.line_count = lines;
             att.byte_count = out.size();
             att.body.set_bytes(std::move(out));
@@ -265,7 +265,7 @@ Cmd codeblock_update(Model& m, msg::CodeBlockMsg cm) {
             if (!r) return Cmd::none();
             std::string body = std::move(r->output);
             m.ui.panel.close<pn::CodeBlocks>(); m.ui.panel.close<pn::CodeBlockResult>();
-            (void)write_clipboard_text(body);   // native pbcopy/wl-copy/xclip
+            (void)write_clipboard_text(body);   // 原生的 pbcopy/wl-copy/xclip
             auto toast = set_status_toast(m, "output copied to clipboard");
             return Cmd::batch(
                         cmd::write_clipboard(std::move(body)),

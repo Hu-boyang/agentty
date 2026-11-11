@@ -1,37 +1,37 @@
-// agentty::i18n — Russian.
+// agentty::i18n——俄语。
 //
-// The THREE-FORM PLURAL case, and the reason it is in this batch. Every
-// language shipped so far has one form (zh, ja) or two (en, de, es, fr);
-// Russian is the first with `one`/`few`/`many`, which is the case
-// `"%d file(s)"` cannot express and the reason this project does not use
-// gettext's runtime-evaluated rules.
+// 三个-FORM PLURAL案件，以及其在该批次中的原因。迄今为止发布
+// 的每种语言都有一种形式（zh、ja）或两种形式（en、de、es、fr）；
+// 俄语首先是`one`/`few`/`many`，
+// 这就是`"%d file(s)"`无法表达的情况，也是本项目不使用gettext
+// 的运行时-evaluated规则的原因。
 //
-//     1 файл      one     ends in 1, but NOT 11
-//     2 файла     few     ends in 2-4, but NOT 12-14
-//     5 файлов    many    everything else
-//     21 файл     one     again -- the LAST DIGIT decides
+//     1 файл 1 以 1 结尾，但 不 11
+//     2 файла 少数以 2-4 结尾，
+//     但 不 12-14 5 файлов
+//     许多其他一切 21 файл 又一——最后 DIGIT 决定
 //
-// The catalog carries no plural strings yet (none of the 34 ids are counted
-// nouns), so this is currently untested against real Russian text. The
-// SELECTOR is tested exhaustively -- every integer 0..1000 against an
-// independently written rule, in i18n_test -- which is the half that would
-// be wrong. When the first counted string lands, `_meta.plurals` here is
-// what tells the translator they owe three forms.
+// 目录尚未携带复数字符串（34个id中没有一个被算作名词），
+// 因此目前尚未针对真实的俄语文本进行测试。
+// SELECTOR 经过彻底测试 - 每个整数 0..
+// 1000 都针对 i18n_test 中独立编写的规则 - 这
+// 是错误的一半。当第一个计数的字符串到达​​时，
+// `_meta.plurals` 告诉译者他们欠三种形式。
 //
-// Also the first CYRILLIC catalog. Cyrillic is single-width (verified:
-// string_width("при") == 3), so it behaves like Latin for layout -- but it
-// runs ~1.3x English, close to German, so the width budget matters.
+// 也是第一CYRILLIC 目录。西里尔字母是 single-width （已验证：
+// string_width("при")==3)，因此它的布局行为类似于
+// 拉丁语——但它运行英语的约1.3倍，接近德语，因此宽度预算很重要。
 //
 // TRANSLATION NOTES:
 //
-//   * «песочница» is the established Russian term for a sandbox in security
-//     writing, not a loan. Used in the help text; the pane title stays in
-//     English because it is a proper noun there.
+//   * «песочница» 是安全领域中 沙箱 的既定俄语术语
+//     书写，非借用。用于帮助文本中； 面板 标题保留为英文，
+//     因为它是那里的专有名词。
 //
-//   * ты, not вы. Dev-tool register, same call as Spanish and French.
+//   * ты，不是 вы。 Dev-tool 寄存器，与西班牙语和法语相同 调用。
 //
-//   * Latin tech terms (https, git-ssh, dns, stat(), fork) stay Latin --
-//     that is how they are written in Russian technical prose.
+//   * 拉丁语技术术语（https、git-ssh、dns、stat()、fork）保留拉丁语 --
+//     这就是它们在俄语技术散文中的写法。
 
 #include <string_view>
 

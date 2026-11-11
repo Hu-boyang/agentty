@@ -9,32 +9,32 @@
 #include <string>
 #include <vector>
 
-#include "agentty/tool/util/exec.hpp"   // run_child: the one supervise loop
-#include <maya/runtime.hpp>                // windows command-line helpers
+#include "agentty/tool/util/exec.hpp"   // run_child: 监督环线的
+#include <maya/runtime.hpp>                // 窗口命令-line 帮助
 
 namespace agentty::tools::util {
 
 namespace {
 
-// Terminal line-discipline + UTF-8 repair, applied to EVERY byte that
-// leaves the subprocess runners — live progress snapshots and the final
-// captured output alike. The live path is the one that used to leak raw
-// escapes: bash progress snapshots went straight to the UI card, so a
-// child that thought it owned a tty (ls --color, cargo, top -b, anything
-// probing with DECSTBM/SGR) painted its CSI parameter bytes as literal
-// glyphs ("[1;24r" → stray "r" cells), which then committed to native
-// scrollback — the reported per-frame corruption during bash tool use.
+// 终端 线条 -discipline + UTF - 8次修理,
+// 适用于 每个 字节 使子进程运行者——实时进程 快照 和最终捕获
+// 输出相同。活路是用来泄露原始逃生的路径: 击打进度 快照 直接
+// 去了那个 UI 牌,所以一个孩子认为它拥有一个tty(ls)
+// --color 货物,顶部 -b 任何调查 DECSTBM/SGR
+// ) 涂上其图案 CSI 参数 字节 作为字面格( 字母)
+// "[1;24r" □ 流浪汉 "r" 存储单元 ),之后承诺本土
+// 回滚缓冲区 ——报告的每笔 -frame 使用打击工具时的腐败。
 std::string clean_capture(std::string s) {
     return to_valid_utf8(strip_terminal_controls(s));
 }
 
-} // namespace
+} // 命名空间结束。
 
 namespace {
 
-// One supervise loop for every child agentty runs: run_child (exec.cpp) on
-// jaal's native process. This only maps the options across. `win_cmdline`,
-// when set, is the verbatim Windows command line.
+// 每个孩子一个监督循环 agentty 运行 : run_child (exec.cpp
+// 继续 jaal 本地进程。 仅此选项会覆盖整个区域。 `win_cmdline`
+// 设定时,是逐字记录 Windows 命令行。
 SubprocessResult run_via_child(std::vector<std::string> argv, const SubprocessOptions& opts,
                                std::string win_cmdline = {}) {
     ChildRun run;
@@ -42,8 +42,8 @@ SubprocessResult run_via_child(std::vector<std::string> argv, const SubprocessOp
     run.windows_command_line = std::move(win_cmdline);
     run.idle = opts.timeout;
     run.wall = [&]() -> std::chrono::seconds {
-        // $AGENTTY_TOOL_HARD_TIMEOUT_SECS overrides for the whole process;
-        // 0 switches the ceiling off.
+        // 整个过程的$AGENTTY_TOOL_HARD_TIMEOUT_SECS超载;
+        // 0切换天花板.
         if (const char* e = std::getenv("AGENTTY_TOOL_HARD_TIMEOUT_SECS"); e && e[0]) {
             char* end = nullptr;
             const long v = std::strtol(e, &end, 10);
@@ -86,12 +86,12 @@ SubprocessResult run_via_child(std::vector<std::string> argv, const SubprocessOp
     return r;
 }
 
-} // namespace
+} // 命名空间结束。
 
 SubprocessResult Subprocess::run(SubprocessOptions opts) {
     SubprocessResult r;
 
-    // Build a final command line appropriate for this platform.
+    // 构建适合本平台的终极命令行.
 #ifdef _WIN32
     namespace pf = maya::platform;
     std::string cmdline;
@@ -102,42 +102,42 @@ SubprocessResult Subprocess::run(SubprocessOptions opts) {
         if (av.empty()) {
             r.started = false; r.start_error = "empty command"; return r;
         }
-        // CreateProcess cannot start a .cmd/.bat (npx, npm, yarn); those go
-        // through cmd.exe.
+        // CreateProcess 无法启动 .cmd/.bat (npx,npm,纱);这些经过.
+        // cmd.exe.
         cmdline = pf::join_command_line(av);
         if (pf::resolves_to_batch(av[0])) cmdline = pf::cmd_command_line(cmdline);
     }
-    // No trailing "no command specified" arm: the variant has exactly two
-    // alternatives, so shell_if() being null means argv_if() is not.
+    // 无跟踪 "no command specified" 臂: 手提键 变体 有两个选择,
+    // 所以 shell_if () 无效 argv_if () 否。 (中文)
     const std::string prog = opts.shell_if() ? std::string{"cmd.exe"} : (*opts.argv_if())[0];
     return run_via_child({prog}, opts, std::move(cmdline));
 #else
-    // Exactly two alternatives, so the null check on one IS the other:
-    // there is no "neither form set" arm to write, because that state no
-    // longer exists. The old chain ended in a `"no command specified"`
-    // runtime error for a condition the type now rules out.
+    // 完全有两个选择,所以一个IS的无效检查是另一个:
+    // 不存在 "neither form set" 臂可以写入, 因为此状态
+    // 已经不存在。 旧的链条以 `"no command specified"`
+    // 运行时 错误结束, 因为它的条件类型现在排除了。
     if (const std::string* sh = opts.shell_if()) {
-        // Shell form: pass the whole command string as the single sh -c
-        // argument. The runner sets up sh "-c" "<cmd>" itself; no
-        // additional quoting needed (and we don't want any — the user
-        // passed shell syntax expecting it to be parsed verbatim).
+        // Shell 窗体: 将整个命令串作为单 sh 传出去
+        // -c 参数。 运行者设置了 sh "-c"
+        // "<cmd>" 本身;不需要额外的引用(我们不希望有任何
+        // ——用户通过 shell 语法期望它被解析为逐字).
         return run_via_child({"sh", "-c", *sh}, opts);
     }
     const std::vector<std::string>& av = *opts.argv_if();
     if (av.empty()) {
         r.started = false; r.start_error = "empty command"; return r;
     }
-    // argv form: exec directly with no shell in the loop. Preserves
-    // every byte of every arg, which is what callers like git_commit
-    // (commit messages with $vars / quotes / newlines) actually need.
+    // argv形式: 直接执行, 循环中没有 shell。
+    // 保存每个 arg 的每 字节, 这是像 git_commit (
+    // 承诺 的 $vars / 引文 / 新的行) 这样的调用者实际需要的。
     return run_via_child(av, opts);
 #endif
 }
 
-// ── Convenience wrappers ────────────────────────────────────────────────
+// ── 方便包装器 ────────────────────────────────────────────────
 //
-// For agentty's own helpers (git for checkpoints, keyring, hooks). No live
-// progress: these are not tool calls, so nobody is watching a card.
+// 用于 agentty 自己的助手( 用于检查点、 键盘、 钩子)。
+// 没有现场进展 : 这些不是工具 调用 所以没人看卡片
 
 SubprocessResult run_command_s(const std::string& cmd,
                                std::size_t max_bytes,
@@ -164,9 +164,9 @@ std::string legacy_format(const SubprocessResult& r, std::chrono::seconds timeou
     std::string o = r.output;
     if (r.truncated) o += "\n[output truncated]";
     if (r.hard_capped) {
-        // It was still producing output when we stopped it, so the useful
-        // next step is more time or a background session -- not the hunt for
-        // a hang that "timed out" would send the model on.
+        // 停止生产时它仍在生产输出, 所以下一步有用
+        // 的是更多的时间或背景会议-- 不是寻找
+        // "timed out"会发送模型的吊销。
         o += "\n[stopped at the wall-clock ceiling while still producing "
              "output. It was not stuck. Re-run with a larger `timeout`, or "
              "start it with `process_start` and poll it, which is the right "

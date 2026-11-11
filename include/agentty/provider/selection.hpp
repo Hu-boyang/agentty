@@ -1,14 +1,14 @@
 #pragma once
-// agentty::provider — process-wide selection of which backend the runtime
-// talks to. The hot path (Deps::stream) is already type-erased, so the
-// reducer / view never name a concrete provider. Two call sites still need
-// to know the active backend out-of-band:
+// agentty::provider--wide选择运行时与哪个后端进行对话。
+// 高频路径 (Deps::stream) 已经是 -erased 类型，
+// 因此 状态更新函数 / 视图永远不会命名具体的提供程序。两个 调用 站点仍然
+// 需要知道活动后端 out-of-band：
 //
-//   • cmd::fetch_models() — routes to the right list_models() impl.
-//   • main.cpp / ACP / subagent — construct the right concrete Provider.
+//   ·cmd::fetch_models()—路由到右侧的list_models()实现。
+//   ·main.cpp/ACP/子代理——构造正确的混凝土Provider。
 //
-// This header centralises that choice. `select()` is called once at startup
-// from main(); `active()` is read wherever the out-of-band routing is needed.
+// 该头文件集中了该选择。 `select()`在启动时从main()开始被调用一次；
+// 只要需要 out-of-band 路由，就会读取 `active()`。
 
 #include <cstdint>
 #include <algorithm>
@@ -19,7 +19,7 @@
 #include <vector>
 
 #include "agentty/auth/auth.hpp"
-#include "agentty/domain/auth_view.hpp"   // auth::AuthView
+#include "agentty/domain/auth_view.hpp"   // auth::AuthView 认证视图。
 #include "agentty/domain/catalog.hpp"   // ModelInfo
 #include "agentty/provider/openai/endpoint.hpp"
 #include "agentty/provider/registry.hpp"
@@ -30,90 +30,90 @@
 
 namespace agentty::provider {
 
-// `Kind` lives in registry.hpp (the single source of truth for backend
-// metadata); Selection reuses it.
+// `Kind`存在于registry.hpp(后端元数据的
+// 单一真实来源)；选择重用它。
 
-// The resolved active-provider config. For OpenAI-family backends the
-// Endpoint carries the base URL / port / TLS / label; for Anthropic it's
-// unused (the anthropic transport hardcodes api.anthropic.com).
+// 已解析的active-provider配置。对于 OpenAI-family 后端，
+// 端点携带基本 URL / 端口 / TLS / 标签；对于 Anthropic，
+// 它未使用（人择 传输层 硬编码 api.anthropic.com）。
 struct Selection {
     Kind             kind = Kind::Anthropic;
-    openai::Endpoint openai_endpoint;   // meaningful only when kind == OpenAI
-    // The external ACP agent's spec id ("claude-agent-acp", "codex-acp", or a
-    // config-defined id). Meaningful only when kind == ExternalAcp; the runtime
-    // hands it to stream_external_acp() to spawn/drive the right subprocess.
+    openai::Endpoint openai_endpoint;   // 仅当kind==OpenAI时才有意义
+    // 外部ACP代理的规范ID("claude-agent-acp"、"codex-acp"或config
+    // -defined id)。仅当 kind == ExternalAcp 时才有意义； 运行时 将
+    // 其交给 stream_external_acp() 到 spawn/drive 正确的子进程。
     std::string      acp_agent_id;
 
-    // The provider row this selection names, resolved ONCE by parse_selection.
+    // 该选择名称的提供商行由parse_selection解析为ONCE。
     //
-    // Identity and endpoint are ORTHOGONAL, and collapsing them is what broke
-    // the custom-host flow. Identity used to be re-derived on every query by
-    // comparing `openai_endpoint.label` against a literal — but pointing a
-    // provider at a custom base URL OVERWRITES that label, so the identity was
-    // destroyed and a Copilot-backed custom host silently degraded to the
-    // generic OpenAI path (empty model list, no error).
+    // 身份和端点是ORTHOGONAL，并且折叠它们是破坏custom-host流的原因。
+    // 过去，通过将 `openai_endpoint.label` 与
+    // 文字进行比较，每次查询时的身份都是 re-derived，
+    // 但将提供程序指向该标签的自定义基 URL OVERWRITES，
+    // 因此身份被破坏，并且 Copilot-backed 自定义主机会默默
+    // 降级为通用 OpenAI 路径（空模型列表，无错误）。
     //
-    // Carrying the row makes identity a value, not a derivation. Points into
-    // the constexpr kProviders table (static storage, never dangles); null
-    // only for a genuinely unknown custom host, which correctly has no
-    // registry identity.
+    // 携带该行使得身份成为值，而不是派生。指向constexpr
+    // kProviders表（静态存储，永不悬挂）；
+    // null 仅适用于真正未知的自定义主机，该主机正确地没有
+    // 注册表 身份。
     const ProviderPreset* row = nullptr;
 
-    // This selection's provider id ("copilot", "kimi", …), or "" for an
-    // unrecognised custom host. THE identity accessor — prefer it to any
-    // is_X() predicate at new call sites.
+    // 该选择的提供者ID("copilot"、"kimi"、…)，
+    // 或对于无法识别的自定义主机的""。 该 身份访问器 — 比新 调用 站点
+    // 上的任何 is_X() 谓词更喜欢它。
     [[nodiscard]] std::string_view provider_id() const noexcept {
         return row ? row->id : std::string_view{};
     }
 
-    // Rides a dedicated long-lived transport with its own OAuth store
-    // (ChatGPT/Codex, Copilot, Kimi) rather than the generic key-authed
-    // OpenAI path. A new such provider becomes true by setting one row flag.
+    // 乘坐具有其自己的OAuth存储(ChatGPT/Codex、Copilot、
+    // Kimi)的专用long-lived 传输层，而不是通用key-authed
+    // OpenAI路径。通过设置一行 标志，一个新的此类提供程序就成为现实。
     [[nodiscard]] bool is_oauth_native() const noexcept {
         return row && row->oauth_native;
     }
 
-    // Identity by registry id — the row's immutable primary key. NOT the
-    // display label, which the custom-host flow overwrites.
+    // 注册表 id标识的身份——行的不可变主键。 不 显示标签，
+    // 自定义-host 流将覆盖该标签。
     [[nodiscard]] bool is_copilot() const noexcept { return provider_id() == "copilot"; }
     [[nodiscard]] bool is_kimi()    const noexcept { return provider_id() == "kimi"; }
     [[nodiscard]] bool is_chatgpt() const noexcept { return provider_id() == "chatgpt"; }
 
-    // Structural equality. `row` compares by POINTER, which is exact: it
-    // always points into the static kProviders table, so two selections of
-    // the same registry row hold the same address. The dispatch seam uses
-    // this to publish the Model's selection to the process-global copy only
-    // when it actually changed.
+    // 结构平等。 `row` 与 POINTER 进行比较，
+    // 这是准确的：它始终指向静态 kProviders 表，
+    // 因此同一注册表行的两个选择保留相同的地址。仅当 Model
+    // 的选择实际发生更改时，调度接缝才将其发布到 process
+    // -global 副本。
     [[nodiscard]] bool operator==(const Selection&) const = default;
 
-    // The catalog id this selection is filed under — the key every recents,
-    // fused-catalog and capability row uses: the OpenAI-family endpoint label,
-    // the ACP agent id, else the default (Anthropic) id. ONE definition: the
-    // reducers and the provider picker both ask it, so they cannot disagree
-    // about which row is "active".
+    // 该选择归档在 目录 id 下 — 每个最近、fused-catalog
+    // 和功能行使用的键：OpenAI-family 端点标签、ACP 代理 id，
+    // 否则默认 (Anthropic) id。 一个 定义：状态更新函数
+    // 和提供者 选择面板 都询问它，因此他们不能对哪一行是
+    // "active" 存在分歧。
     [[nodiscard]] std::string catalog_id() const;
 };
 
-// Parse a provider spec into a Selection. Accepts:
-//   ""          → Anthropic (default)
-//   "anthropic" → Anthropic
-//   "openai" / "groq" / "openrouter" / "together" / "cerebras" / "ollama"
-//               → OpenAI-compatible with the matching Endpoint preset
-//   "host[:port]" → OpenAI-compatible against a custom base URL
+// 解析将提供商规范放入选择中。接受：
+//   "" → Anthropic（默认） "anthropic"
+//   → Anthropic "openai"
+//   / "groq" / "openrouter" / "together" / "cerebras" /
+//               "ollama" → OpenAI-compatible 以及针对自定义底座的
+//   匹配端点预设 "host[:port]" → OpenAI-compatible URL
 [[nodiscard]] Selection parse_selection(std::string_view spec);
 
-// CANONICALISE a user-typed provider spec before it becomes an IDENTITY.
-// The raw string is used as (1) the wire spec, (2) the settings key for
-// provider_keys / provider_models, (3) the picker row identity, and (4) the
-// display label — so two spellings of the same endpoint ("http://h:8080" vs
-// "http://h:8080/") would otherwise split keys, models, and rows. This was
-// the root cause behind the whole custom-host PR series (#8/#10/#11/#17/#19
-// each patched one downstream site): normalisation must happen ONCE, at
-// every entry point (CLI --provider, the TUI custom-host modal), before the
-// spec is persisted or compared. Rules: trim whitespace; strip trailing
-// '/' (but never the scheme's "//"); presets and ACP ids pass through
-// untouched. The "#name" account fragment is PRESERVED — it is part of the
-// identity by design.
+// CANONICALISE是用户-typed提供者规范，然后才成为IDENTITY。
+// 原始字符串被用作(1)传输规范、
+// (2)provider_keys/provider_models的设置键、
+// (3)选择面板行标识、以及(4)显示标签——因此同一端点的两种拼写(
+// "http://h:8080"与"http://h:8080/")否则会分割键、
+// 模型和行。这是整个 custom-host PR 系列背后的根本原因（#
+// 8/#10/#11/#17/#19 每个修补了一个 下游 站点）：规范化
+// 必须在 一次 发生，在每个入口点（CLI --provider、
+// TUI custom-host 弹出面板），然后才能保留规范或比较。
+// 规则：修剪空白；删除尾随 '/'（但绝不删除方案的 "//"）；
+// 预设和 ACP id 不受影响地通过。 "#name" 帐户片段是 PRESERVED —
+// 它是设计身份的一部分。
 [[nodiscard]] inline std::string canonical_spec(std::string_view spec) {
     std::size_t b = 0, e = spec.size();
     while (b < e && (spec[b] == ' ' || spec[b] == '\t')) ++b;
@@ -123,14 +123,14 @@ struct Selection {
     while (s.size() > 1 && s.back() == '/' && s[s.size() - 2] != '/')
         s.pop_back();
 
-    // CASE-FOLD THE HOST (and the scheme), never the path or the #name.
-    // DNS is case-insensitive, so "YOLO-AUTO.COM" and "yolo-auto.com" are the
-    // same server and MUST collapse to one identity here — otherwise they
-    // become two saved hosts, two provider_keys entries, and two picker rows
-    // for one endpoint, and the user pastes a key into one spelling then
-    // wonders why the other says "no key". Paths stay untouched because a
-    // path CAN be case-sensitive (`/V1` is not guaranteed to equal `/v1` on
-    // an arbitrary gateway), and the "#name" account tag is user-chosen text.
+    // CASE-FOLD 该 HOST（和方案），绝不是路径或#name。
+    // DNS是case-insensitive，所以"YOLO-AUTO.COM"
+    // 和"yolo-auto.com"是相同的服务器，并且MUST在这里折叠
+    // 成一个身份——否则它们变成两个已保存主机、两个provider_keys
+    // 条目和一个端点的两个选择面板行，并且用户将密钥粘贴到一个拼写中，
+    // 然后想知道为什么另一个说"no key"。路径保持不变，因为路径 CAN
+    // 为 case-sensitive（不保证 `/V1` 在任意网关上等于
+    // `/v1`），并且 "#name" 帐户标签是 user-chosen 文本。
     const auto scheme_end = s.find("//");
     std::size_t host_begin = (scheme_end == std::string::npos) ? 0 : scheme_end + 2;
     std::size_t host_end   = s.find('/', host_begin);
@@ -141,162 +141,162 @@ struct Selection {
     return s;
 }
 
-// ── Persist-on-success for CLI custom hosts ───────────────────────
-// A custom --provider spec is raw INTENT until the host answers something;
-// persisting it at parse time let a typo poison settings.json for every
-// future bare launch. main.cpp registers the spec (and the -m recall to
-// file with it) here instead of writing settings. init() takes it into the
-// Model once; the ModelsLoaded reducer persists it when a NON-EMPTY catalog
-// lands for that provider — proof-gated stickiness. Known presets never
-// register (they persist at parse, as always).
+// ── 坚持主义 -on-success 费用 CLI 自定义主机 ───────────────────────
+// 自定义--provider规范是原始INTENT，直到主机回答某些问题为止；
+// 将其保留在 解析 时间会让未来的每次裸机发布都因拼写错误而中毒
+// settings.json。 main.cpp 在此处注册规范（以及
+// -m 召回文件），而不是写入设置。 init()将其带入Model一次；
+// 当 NON-EMPTY 目录 到达该提供商时，ModelsLoaded
+// 状态更新函数 会持续存在 — 证明 -gated 粘性。
+// 已知的预设永远不会注册（它们一如既往地保留在 解析）。
 void set_unproven_spec(Io, std::string spec, std::string model_recall);
-// The registered (spec, model_recall), clearing it. Called once, by init().
+// 已注册(spec，model_recall)，清除它。由 init() 调用过一次。
 [[nodiscard]] std::optional<std::pair<std::string, std::string>> take_unproven_spec_at_launch(Io);
 
-// Session-wide custom auth header NAME (--auth-header) for OpenAI-family
-// backends whose gateway doesn't accept `Authorization: Bearer` (e.g.
-// `X-API-Key`). Stored process-globally so every parse_selection — startup
-// AND live provider switches from the picker — stamps it onto the resulting
-// Endpoint. Empty (the default) keeps the standard bearer header.
+// Session-wide 自定义身份验证 头文件 NAME (--auth-header) 用于
+// OpenAI-family 后端，其网关不接受 `Authorization: Bearer` (e.g.
+// `X-API-Key`)。存储过程-globally，
+// 因此每个parse_selection（从选择面板启动AND实时提供商
+// 交换机）将其标记到生成的端点上。空（默认）保留旗手 头文件。
 void set_custom_auth_header(Io, std::string name);
 [[nodiscard]] std::string custom_auth_header();
 
-// Install the active selection (process-global). Called at startup and by
-// the provider-picker reducer for live switches (UI thread).
+// 安装活动选择(process-global)。在启动时由提供商 -picker
+// 状态更新函数 调用，用于实时交换机 (UI 线程)。
 void select(Io, Selection s);
 
-// Read the active selection. Defaults to Anthropic before select() runs.
-// Returns a BY-VALUE snapshot taken under the selection mutex: the stream
-// worker thread reads this (launch_stream's task / run_stream_sync) while
-// the UI thread may be mid-`select()` from the provider picker. Handing
-// back a reference let the worker observe a torn move-assign of the
-// embedded endpoint strings (data race → possible crash); the snapshot
-// makes every read a consistent copy.
+// 读取有效选择。在 select() 运行之前默认为 Anthropic。
+// 返回在选择互斥量下取得的BY-VALUE 快照：数据流 工作线程
+// 线程读取此(launch_stream的任务/run_stream_sync)，
+// 而UI 线程可能是来自提供者选择面板的`select()`中期。
+// 交回引用让 工作线程 观察到嵌入端点字符串的撕裂的
+// move-assign（数据 竞态 → 可能崩溃）；
+// 快照 使每次读取都成为一致的副本。
 [[nodiscard]] Selection active();
 
-// Human display name for the active backend — "Anthropic", "Groq",
-// "Ollama", "OpenAI", or the raw endpoint label for a custom host with
-// no preset row. Used by the status bar provider badge.
+// 活动后端的人类显示名称 — "Anthropic"、
+// "Groq"、"Ollama"、"OpenAI" 或没有预设行的
+// 自定义主机的原始端点标签。由状态栏提供商徽章使用。
 [[nodiscard]] std::string provider_display_name(const Selection& s);
 
-// The host to warm before the first turn, fully derived from a Selection.
-// `host` empty ⇒ nothing to warm (local backend / ACP subprocess / port-0
-// sentinel). `override_host`/`override_port` carry the AGENTTY_API_HOST dial
-// (Anthropic only) so the warm connection targets the real upstream. This is
-// a PURE function of (Selection, registry, endpoint) — no globals, no I/O —
-// so the prewarm routing table is unit-testable; prewarm_active_provider() is
-// then just "resolve target, open socket".
+// 主持人在第一轮预热前，完全源自一场选秀。
+// `host` 空 ⇒ 没有什么可加热的（本地后端/ACP 子进程/端口 0 哨兵）。
+// `override_host`/`override_port` 带有 AGENTTY_API_HOST
+// 表盘（仅限 Anthropic），因此温暖连接针对真正的 上游。这是（选择、注册表、
+// 端点）的 PURE 函数 — 无全局变量，无 I/O — 因此预热路由表为 unit
+// -testable； prewarm_active_provider() 就是
+// "resolve target, open socket"。
 struct PrewarmTarget {
-    std::string   host;             // "" ⇒ skip prewarm
+    std::string   host;             // "" ⇒ 跳过预热
     std::uint16_t port = 443;
-    std::string   override_host;    // AGENTTY_API_HOST host (Anthropic), else ""
+    std::string   override_host;    // AGENTTY_API_HOST主机(Anthropic)，否则""
     std::uint16_t override_port = 0;
 
     [[nodiscard]] bool should_warm() const noexcept { return !host.empty(); }
 };
 
-// Resolve the prewarm target for a selection. Registry-driven: a preset row's
-// `prewarm_host` (Anthropic → api.anthropic.com, ChatGPT → chatgpt.com) wins;
-// otherwise the OpenAI-compat Endpoint's own host is used, skipped for local /
-// no-TLS / port-0 endpoints. Passed a Selection explicitly so tests can drive
-// it; prewarm_active_provider() calls it on active().
+// 解析选择的预热目标。 注册表-driven：预设行的`prewarm_host`（
+// Anthropic→api.anthropic.com，ChatGPT→chatgpt.com）获胜；
+// 否则使用 OpenAI-compat 端点自己的主机，对于本地/no-TLS/端口 0
+// 端点则跳过。显式地传递了一个选择，以便测试可以驱动它； prewarm_active_provider
+// () 调用 位于 active() 上。
 [[nodiscard]] PrewarmTarget prewarm_target(const Selection& sel);
 
-// Open a TCP+TLS connection to the ACTIVE provider's host on a detached
-// background thread, parking it in the http client's pool so the first real
-// request skips the cold handshake. Uniform across native backends — Anthropic
-// and ChatGPT/Codex (and any hosted OpenAI-family endpoint) get the same head
-// start. Locals (Ollama / llama.cpp) and ACP subprocesses are no-ops.
-// Idempotent per (host,port); safe to call fire-and-forget from any thread.
-// A thin wrapper over prewarm_target(active()) — the routing lives there.
+// 在分离的后台线程上打开到ACTIVE提供者的主机的TCP+TLS连接，
+// 将其停放在http客户端的池中，以便第一个真实请求跳过冷握手。
+// 跨本机后端统一 - Anthropic 和 ChatGPT/Codex（以及
+// 任何托管的 OpenAI-family 端点）获得相同的领先优势。
+// 本地 (Ollama / llama.cpp) 和 ACP 子进程是 no-ops。
+// 每个（主机、端口）幂等；从任何 线程 向 调用 发射 -and-forget 都是安全的。
+// prewarm_target(active())上的薄包装器——路由存在于那里。
 void prewarm_active_provider(Io);
 
-// Resolve the AuthHeader for a provider spec, registry-driven.
-//   • Anthropic   → derived from `anthropic_creds` (OAuth / x-api-key from
-//                   `agentty login`), passed in by the caller.
-//   • OpenAI-family → a bearer key, in precedence order: `cli_key` (--key)
-//                   > `saved_key` (pasted in-app, from Settings.provider_keys)
-//                   > the first non-empty env var in the preset's auth_env.
-//   • Local (Ollama) → an empty ApiKeyHeader (the local server needs no auth).
-// Used by main.cpp at startup AND by the provider-picker reducer for live
-// switches, so the two can never disagree about how a backend authenticates.
+// 解析提供商规范 注册表-driven 的 AuthHeader。
+//   ·Anthropic →源自 `anthropic_creds` (OAuth/x-api-key 来自
+//                   `agentty login`)，由调用者传入。
+//   · OpenAI-family→承载密钥，按优先顺序：`cli_key` (--key)
+//                   > `saved_key`（从 Settings.provider_keys 粘贴到
+//                   -app）> 预设的 auth_env 中的第一个非 -empty 环境变量。
+//   ·本地(Ollama)→空ApiKeyHeader(本地服务器不需要认证)。
+// 由 main.cpp 在启动时由 和 由提供者 -picker
+// 状态更新函数 用于实时交换机，因此两者永远不会在后端如何验证方面存在分歧。
 [[nodiscard]] auth::AuthHeader resolve_auth_for(
     std::string_view spec,
     const auth::AuthHeader& anthropic_creds,
     std::string_view cli_key = {},
     std::string_view saved_key = {});
 
-// Fetch the model catalog for a selection — the ONE model-list router.
-// Replaces the `is_chatgpt → OpenAI → Anthropic` ladder that fetch_models()
-// hand-wrote: it dispatches on the same axes as the stream path (the Wire
-// dialect + the oauth_native flag), so the picker and the transport can never
-// disagree about which backend a selection names. ExternalAcp returns empty
-// (an ACP agent picks its own model and exposes no catalog). `auth` is the
-// active credential (used by the Anthropic / OpenAI-compat catalog endpoints;
-// ChatGPT reads its own in-process OAuth creds and ignores it). It fetches
-// over the network (and refreshes OAuth tokens): `unlocked`.
+// 获取型号目录进行选择——ONE型号-list路由器。
+// 替换fetch_models()hand-wrote的
+// `is_chatgpt → OpenAI → Anthropic`梯子：它在
+// 与数据流路径相同的轴上分派（传输方言+oauth_native 标志），
+// 因此选择面板和传输层永远不会对哪个后端选择名称有分歧。 ExternalAcp
+// 返回空（ACP 代理选择自己的模型并且不公开 目录）。 `auth` 是活动的
+// 凭据（由 Anthropic / OpenAI-compat 目录 端点使用；
+// ChatGPT 读取自己的 in-process OAuth 凭据并忽略它）。
+// 它通过网络获取（并刷新 OAuth 令牌）：`unlocked`。
 [[nodiscard]] std::vector<ModelInfo> list_models_for(Io io, const maya::unlocked& cap,
     const Selection& sel, const auth::AuthHeader& auth);
-// Same, and sets `error` to why the live fetch failed (empty when it worked).
-// The result can still be non-empty on failure: hosted providers fall back
-// to their bundled seed.
+// 相同，并将`error`设置为实时获取失败的原因（工作时为空）。
+// 失败时结果仍然可能是非-empty：托管提供商回
+// 退到其捆绑种子。
 [[nodiscard]] std::vector<ModelInfo> list_models_for(Io io, const maya::unlocked& cap,
     const Selection& sel, const auth::AuthHeader& auth, std::string& error);
 
-// ── Provider-picker search filter (shared by the reducer + the view) ────────
-// Returns the indices into `providers()` whose id/label/blurb match `query`
-// (empty query = all, in registry order). Fuzzy-scored and ranked so "kimi"
-// or "ds" floats the right row up. Used by BOTH picker.cpp (index ↔ preset
-// resolution on select/move) and pickers.cpp (row rendering) so the filtered
-// list can never disagree between them. Defined in selection.cpp.
+// ── Provider-picker 搜索过滤器( 由 状态更新函数 + 视图) ────────
+// 返回 `providers()` 中的索引，其中 id/label/blurb 与
+// `query` 匹配（空查询 = 全部，按 注册表 顺序）。 Fuzzy-scored 并排名，
+// 因此 "kimi" 或 "ds" 浮在右行上。由 两者 picker.cpp（索引 ↔
+// select/move 上的预设分辨率）和 pickers.cpp（第 渲染 行）使用，
+// 因此过滤后的列表永远不会在它们之间出现不一致。在 selection.cpp 中定义。
 [[nodiscard]] std::vector<int> filter_provider_indices(std::string_view query);
 
-// The same ranking, but AUTH-AWARE: on an empty query only the providers you
-// have actually configured come back, so the browse view is "your backends"
-// rather than a flat dump of the vendor registry. Typing searches the whole
-// registry exactly as before, so nothing becomes unreachable -- the
-// unconfigured rows turn into sign-in offers the moment you name one.
+// 排名相同，但是 AUTH-AWARE：在空查询中，
+// 仅返回您实际配置的提供商，因此浏览视图是 "your backends"
+// 而不是供应商 注册表 的平面转储。键入会像以前一样
+// 搜索整个 注册表，因此没有任何内容变得无法访问
+// - 未配置的行会在您命名时变成 Sign-in。
 //
-// `n_configured` reports how many of the returned indices are configured, so
-// a caller can section the list without re-deriving auth per row.
+// `n_configured`报告配置了多少个返回的索引，因此调用者可以
+// 对列表进行分段，而无需对每行进行re-deriving认证。
 struct FilteredProviders {
     std::vector<int> indices;
-    int              n_configured = 0;   // leading `indices` that are authed
-    int              n_hidden     = 0;   // registry rows withheld (empty query)
+    int              n_configured = 0;   // 已授权的领先`indices`
+    int              n_hidden     = 0;   // 保留 注册表 行（空查询）
 };
 [[nodiscard]] FilteredProviders filter_provider_indices(
     std::string_view query, const store::Settings& settings,
     const auth::AuthView& view);
 
-// The user's saved custom OpenAI-compatible hosts, sorted. These are the
-// Settings.provider_keys entries that do not resolve onto a built-in preset
-// row — a raw "host:port", an Ollama/llama.cpp endpoint, a private gateway.
-// Both the provider-picker VIEW and its reducer build this list, and the
-// fused picker's catalog refresh consumes it; keeping it here guarantees
-// they render and index the SAME rows in the SAME order (a drift here would
-// map a selection to the wrong host).
+// 用户的已保存自定义OpenAI-compatible主机，已排序。
+// 这些 Settings.provider_keys 条目不会解析到内置的 -in 预设行
+// - 原始 "host:port"、Ollama/llama.cpp 端点、私有网关。
+// 提供者-picker VIEW和其状态更新函数都构建这个列表，
+// 并且融合的选择面板的目录刷新消耗它；将其保留在这里可以
+// 保证它们 渲染 并按 相同 顺序索引 相同 行（此处的漂移
+// 会将选择映射到错误的主机）。
 //
-// ADOPTION is why the test is on the RESOLVED id, not the raw spec.
-// parse_selection() folds a spec that names a known backend onto that
-// backend's row: "api.githubcopilot.com" resolves to provider_id "copilot",
-// which is what makes the Copilot endpoint/auth apply instead of the generic
-// /v1/models path (see provider_identity_test). But `preset_for(spec)` asks a
-// DIFFERENT question — "is this string a preset id?" — and answers nullptr
-// for that host, so it used to come back as a "custom" host as well as being
-// a preset. Every consumer then listed it twice: the provider picker showed
-// two "GitHub Copilot" rows, and once the fused picker gained custom-host
-// catalogs it grew a duplicate catalog and duplicate models with it.
+// ADOPTION 是测试在 RESOLVED id 而非原始规格上进行的原因。
+// parse_selection() 归并 是一个将已知后端命名到该后端行的规范：
+// "api.githubcopilot.com" 解析为 provider_id
+// "copilot"，这就是使 Copilot endpoint/auth 应用而不是
+// 通用 /v1/models 路径的原因（参见 provider_identity_test）。
+// 但是 `preset_for(spec)` 询问 不同 问题 -
+// "is this string a preset id?" - 并为该主机回答 nullptr，
+// 因此它过去常常作为 "custom" 主机返回，并且是预设。然后，每个消费者将其列出
+// 两次：提供商 选择面板 显示了两行 "GitHub Copilot"，一旦融合的
+// 选择面板 获得了自定义 -host 目录，它就会生成重复的 目录 和重复的模型。
 //
-// Ask the question that matters: does this spec RESOLVE to a preset row? If
-// so it is already covered by the preset enumeration and must not be listed
-// again here.
+// Ask重要的问题：该规范RESOLVE是否为预设行？
+// 如果是这样，它已经被预设枚举覆盖，并且不能在此处
+// 再次列出。
 [[nodiscard]] inline std::vector<std::string> saved_custom_hosts(
     const std::map<std::string, std::string>& provider_keys) {
     std::vector<std::string> hosts;
     for (const auto& [spec, key] : provider_keys) {
-        if (preset_for(spec)) continue;                     // literally a preset id
+        if (preset_for(spec)) continue;                     // 字面上是预设id
         if (preset_for(parse_selection(spec).provider_id()))
-            continue;                                       // adopted onto a preset row
+            continue;                                       // 采用到预设行上
         hosts.push_back(spec);
     }
     std::sort(hosts.begin(), hosts.end());
@@ -305,8 +305,8 @@ struct FilteredProviders {
 
 } // namespace agentty::provider
 
-// Selection is plain data plus `row`, which only ever points into the
-// constexpr kProviders table (static, immutable). Safe to copy across threads,
-// and nothing reachable from a const one can change.
+// 选择是纯数据加上`row`，其仅指向constexpr
+// kProviders表（静态，不可变）。可以安全地跨 线程 进行复制，
+// 并且从 const 可以访问的任何内容都无法更改。
 MAYA_SENDABLE(agentty::provider::Selection);
 MAYA_FROZEN(agentty::provider::Selection);

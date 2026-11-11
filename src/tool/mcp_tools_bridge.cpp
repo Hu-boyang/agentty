@@ -1,27 +1,27 @@
-// mcp_tools_bridge.cpp — see mcp_tools_bridge.hpp.
+// mcp_tools_bridge.cpp - 看见了 mcp_tools_bridge.hpp.
 //
-// Adapts mcp-cpp's make_provider() toolset into agentty ToolDefs. The
-// provider owns each Tier-1 tool's implementation; this file owns the
-// thin re-wrap: build a ToolDef per advertised tool, dispatch execute()
-// into the provider, and read the typed effects and
-// FileChanges on its Result back into agentty's ToolOutput.
+// 适应 mcp-cpp's make_provider ( 工具套入 agentty
+// ToolDefs。提供方拥有每个 Tier-1 工具的操作;此文件拥有细的 re
+// -wrap : 构建一个 ToolDef 每一个广告工具, 分派 execute() 输入提供者,
+// 并读取 带类型的 副作用 财务报告和已审计财务报表
+// FileChanges 返回到 agentty's ToolOutput.
 
 #include "agentty/tool/mcp_tools_bridge.hpp"
-#include "agentty/tool/util/exec.hpp"   // the host's one way to run a program
+#include "agentty/tool/util/exec.hpp"   // 管理程序的方法之一
 #include "agentty/tool/mcp_tools_backends.hpp"
 
 #include "agentty/diff/diff.hpp"
-#include "agentty/domain/sandbox_config.hpp"   // kAlwaysMaskedNames: files the read tools refuse
+#include "agentty/domain/sandbox_config.hpp"   // kAlways MaskedNames: 文件 拒绝读取工具
 #include "agentty/io/http.hpp"
-#include "agentty/rag/rag_adapter.hpp"   // rag::feedback::note_file_opened (learning loop)
+#include "agentty/rag/rag_adapter.hpp"   // rag::feedback::note_file_opened(学习循环)
 #include "agentty/tool/registry.hpp"   // tools::progress::emit
-#include "agentty/tool/web_search_plan.hpp"     // web_search: which services, in order
-#include "agentty/tool/web_search_policy.hpp"   // web_search: Settings → Web Search
+#include "agentty/tool/web_search_plan.hpp"     // web_search:按先后顺序排列的哪些服务.
+#include "agentty/tool/web_search_policy.hpp"   // web_search:设置 ~ 网络搜索
 #include "agentty/runtime/app/update/stream_args.hpp"  // canonify_tool_args (`cmd`→`command`)
-#include "agentty/tool/spec.hpp"       // spec catalog — effects authority
+#include "agentty/tool/spec.hpp"       // 光谱 目录 — 副作用 权力
 #include "agentty/tool/util/disk_files.hpp"
 #include "agentty/tool/util/fs_helpers.hpp"
-#include "agentty/util/home_dir.hpp"   // agentty workspace_root()
+#include "agentty/util/home_dir.hpp"   // agentty workspace_root()  ⁇
 
 #include <mcp/tools/toolset.hpp>
 #include <mcp/tools/host.hpp>
@@ -37,7 +37,7 @@
 
 #include <algorithm>
 #include <array>
-#include <cctype>    // std::isalnum — env-name validation in the sandbox hook
+#include <cctype>    // std::isalnum - 内 -name 验证 沙箱 钩子
 #include <chrono>
 #include <cstdint>
 #include <memory>
@@ -52,24 +52,24 @@ namespace {
 
 namespace mt = ::mcp::tools;
 
-// ── HttpClient adapter ─────────────────────────────────────────────────
-//   mcp's web tools call HttpClient::send(HttpRequest{url, ...}) and expect
-//   the client to handle TLS + redirect-following + 4xx/5xx delivery as a
-//   response (not a transport error). agentty's http::Client returns 4xx/5xx
-//   as HttpError::Status and does NOT auto-follow redirects, so this adapter
-//   parses the URL, follows 3xx manually, and maps status errors back into
-//   an mcp HttpResponse the tool can read.
+// ── HttpClient 适配器 ─────────────────────────────────────────────────
+//   mcp 的网络工具 调用 HttpClient::send(HttpRequest {
+//   url,...} 并期望客户端处理 TLS + 重定向键 -following +
+//   4xx/5xx 执行作为答复(不是 传输层 错误). agentty's http::Client
+//   返回时 4xx/5xx 以 HttpError::Status 并且确实 不 自动 -follow
+//   重定向, 因此这个适配器 解析 编号 URL ,手动跟踪 3xx,并将状态错误映射回
+//   mcp HttpResponse 工具可以读取。
 
 struct AgenttyHttpClient final : mt::HttpClient {
     static constexpr int kMaxRedirects = 5;
 
-    // SSRF guard applied to EVERY hop (initial URL AND each redirect target).
-    // mcp-cpp's web shell validates only the first URL it's handed; because
-    // this adapter follows 3xx itself, a public URL that redirects to
-    // 169.254.169.254 (cloud metadata), 127.0.0.1, or an RFC1918 host would
-    // otherwise sail straight through. Mirrors mcp's is_blocked_host: folds
-    // the many legal IPv4 spellings (decimal/hex/octal/short-form) to a
-    // dotted quad before range-checking, plus loopback/link-local/ULA IPv6.
+    // SSRF 适用于 每个 跳( 初始状态) URL 和 每个方向目标).
+    // mcp-cpp 网络 shell 仅验证第一个 URL 因为它跟随3xx本身,
+    // 一个公众 URL 改为169.254.169.254(云形元数据)、
+    // 127.0.0.1或a RFC1918 原主机会直航,Mcp的镜像
+    // is_blocked_host: 归并 众多合法的IPv4拼写法(
+    // decimal/hex/octal/short-form 至点形四边形前区域
+    // -checking 附加时 loopback/link-local/ULA IPv6 (英语).
     static bool host_blocked(std::string_view host) {
         if (host.size() >= 2 && host.front() == '[' && host.back() == ']')
             host = host.substr(1, host.size() - 2);
@@ -82,24 +82,24 @@ struct AgenttyHttpClient final : mt::HttpClient {
         if (h == "::1" || h == "::") return true;
         if (h.starts_with("fc") || h.starts_with("fd")) return true;   // ULA
         if (h.starts_with("fe8") || h.starts_with("fe9")
-            || h.starts_with("fea") || h.starts_with("feb")) return true; // link-local
+            || h.starts_with("fea") || h.starts_with("feb")) return true; // 链接-local
 
-        // IPv4-mapped / -compatible IPv6 (::ffff:127.0.0.1, ::ffff:a9fe:a9fe,
-        // ::127.0.0.1) resolve to the embedded IPv4 and are a classic SSRF
-        // filter bypass: the prefix checks above miss them and the dotted-quad
-        // parser below rejects them (they contain ':'). If an IPv6 literal
-        // carries a trailing IPv4 (dotted, or the last two hex groups of a
-        // ::ffff: mapping), fold it to dotted form and let the IPv4 range
-        // check below decide. A genuine public IPv6 (2606:4700::1111) has no
-        // such embedded v4 and is left to pass — we don't blanket-block v6.
+        // IPv4 调用 -mapped / -compatible IPv6(:
+        // ffff:127.0.0.1, ^ff:a9fe:a9 fe,
+        // *127.0.0.1) 解析嵌入式IPv4,是经典的. SSRF 过滤绕行:
+        // 上面的前缀检查错过了它们和点数 -quad 解析器 不信真主,
+        // 他们有 ':' 如果一个IPv6字段带有一个后继IPv4(被点,
+        // 或一个 ffff:映射的后两个六重子组), 归并 由它来点定表, 让 IPv4
+        // 范围检查下面决定。 一个真正的 IPv6 (2606: 4700: : 1111)
+        // 还没有这样的嵌入式 v4 , 并且要通过。 我们不覆盖 -block v6.
         if (h.find(':') != std::string::npos
             && (h.starts_with("::ffff:") || h.starts_with("::"))) {
             auto last_colon = h.rfind(':');
             std::string tail = h.substr(last_colon + 1);
             if (tail.find('.') != std::string::npos) {
-                h = tail;   // ::ffff:127.0.0.1 → "127.0.0.1"
+                h = tail;   // ffff:127.0.0.1 − "127.0.0.1"
             } else {
-                // ::ffff:7f00:0001 — last two hex groups encode the v4.
+                // ffff:7f00:0001——最后两个六重奏组编码v4.
                 auto prev_colon = (last_colon == 0) ? std::string::npos
                                                     : h.rfind(':', last_colon - 1);
                 std::string g_hi = (prev_colon != std::string::npos)
@@ -126,7 +126,7 @@ struct AgenttyHttpClient final : mt::HttpClient {
             }
         }
 
-        // Fold the IPv4 spellings inet_aton/getaddrinfo accept into one u32.
+        // 归并 IPv4拼音inet_aton/getaddrinfo 接受为1u32.
         auto parse_part = [](std::string_view p, unsigned long& v) -> bool {
             if (p.empty()) return false;
             int base = 10;
@@ -177,7 +177,7 @@ struct AgenttyHttpClient final : mt::HttpClient {
                 if (a == 192 && b == 168) return true;
                 if (a == 100 && b >= 64 && b <= 127) return true;
                 if (a >= 224) return true;
-                return false;   // numeric but public
+                return false;   // 数字但公开
             }
         }
         return false;
@@ -197,7 +197,7 @@ struct AgenttyHttpClient final : mt::HttpClient {
             out.host.assign(authority.substr(0, colon));
             try {
                 int port_int = std::stoi(std::string{authority.substr(colon + 1)});
-                if (port_int <= 0 || port_int > 65535) return out;   // bad port → not ok
+                if (port_int <= 0 || port_int > 65535) return out;   // 坏的端口 —— 不好 ——
                 out.port = static_cast<uint16_t>(port_int);
             }
             catch (...) { return out; }
@@ -246,11 +246,11 @@ struct AgenttyHttpClient final : mt::HttpClient {
             req.port = p.port;
             req.path = p.path;
             req.body = in.body;
-            // Defense in depth: host_blocked() above rejects obvious internal
-            // NAMES/literals fast, but a public hostname can DNS-rebind to an
-            // internal IP that the name check can't see. ssrf_guard re-checks
-            // the RESOLVED sockaddr at dial time and refuses loopback/private/
-            // link-local/metadata targets — the authoritative backstop.
+            // 防御深度: host_blocked (b) 上文拒绝明显的内部
+            // NAMES/literals 快速, 但一个公共主机名可以 DNS-rebind
+            // 改为内部 IP 名字检查看不到。 ssrf_guard 内容 -checks
+            // 编号 RESOLVED 拨号时,拒绝 loopback/private/
+            // link-local/metadata 目标——权威后援.
             req.ssrf_guard = true;
             for (const auto& [k, v] : in.headers) req.headers.push_back({k, v});
 
@@ -260,8 +260,8 @@ struct AgenttyHttpClient final : mt::HttpClient {
             };
             auto r = http::default_client(::agentty::IoAccess::grant()).send(req, tos);
             if (!r) {
-                // A 4xx/5xx arrives as HttpError::Status — surface it as a
-                // real HttpResponse so the web tools can report the code.
+                // A 4xx/5xx 抵达时是 HttpError::Status -
+                // 表面是真实的 HttpResponse 这样网络工具就可以报告代码.
                 if (r.error().kind == http::HttpErrorKind::Status
                     && r.error().http_status > 0) {
                     out.status = r.error().http_status;
@@ -272,7 +272,7 @@ struct AgenttyHttpClient final : mt::HttpClient {
                 return out;
             }
 
-            // Manual redirect following (agentty's client doesn't auto-follow).
+            // 手动重定向 agentty 客户端不自动 -follow).
             if (r->status >= 300 && r->status < 400 && in.method != "HEAD") {
                 std::string loc;
                 for (const auto& h : r->headers)
@@ -282,7 +282,7 @@ struct AgenttyHttpClient final : mt::HttpClient {
                     auto nxt = resolve_redirect(p, loc);
                     if (nxt.empty()
                         || std::find(visited.begin(), visited.end(), nxt) != visited.end()) {
-                        out.status = r->status;   // give the tool what we have
+                        out.status = r->status;   // 给工具我们拥有的
                         out.body   = std::move(r->body);
                         for (const auto& h : r->headers) out.headers.push_back({h.name, h.value});
                         return out;
@@ -303,12 +303,12 @@ struct AgenttyHttpClient final : mt::HttpClient {
     }
 };
 
-// ── Result → ExecResult decode ─────────────────────────────────────────
-//   Map an mcp cap::Result back into agentty's ExecResult. On error wrap
-//   the text in a ToolError; on success carry text + (decoded) FileChange.
-//   mcp's FileChange has no hunks (host recomputes), so feed before/after
-//   through diff::compute to rebuild the full FileChange the diff-review
-//   UI consumes.
+// ── 结果 − ExecResult 解码 ─────────────────────────────────────────
+//   将 mcp cap::Result 地图回映到 agentty 的 ExecResult 中。
+//   在错误中将文本包裹在 ToolError 中; 在成功时, 将文本 + (解码) FileChange 中。
+//   医生的 FileChange 没有 差异块 (主机重算),所以请输入 before/after
+//   结束 diff::compute 重建整个 FileChange diff (英语) -review
+//   UI 消费。
 
 ToolError decode_tool_error(std::string text) {
     using K = ErrorKind;
@@ -345,18 +345,18 @@ ExecResult decode_result(const std::string& tool_name, ::mcp::cap::Result r) {
     ToolOutput out;
     out.text = std::move(r.text);
 
-    // Strip mcp-cpp's output-budget truncation marker before it reaches the
-    // UI — but ONLY for file-mutating tools, where it's both noise and safe to
-    // drop. The dispatcher (apply_output_budget) appends a line like
-    //   "[... N chars elided — output exceeded tool's budget; refine your
-    //    request to see more ...]"
-    // to bound the WIRE payload. For edit/write/apply_patch/replace the text
-    // is a human-readable diff/confirmation AND the COMPLETE change is carried
-    // structurally (r.changes below, before/after), so the marker is
-    // redundant for the model and actively wrong in the review card (it was
-    // rendering a grey "refine your request" line under the diff). For
-    // read/grep/bash the marker is left intact — there the model genuinely
-    // needs to know output was clipped so it can page/refine.
+    // 脱 mcp-cpp ' 输出 -budget 到达前的切换标记 UI - 但是,
+    // 我说, 仅 用于文件 -mutating 工具,既有噪音,又安全。 分派器 (
+    // apply_output_budget 附加一条线
+    //   "[... N chars elided — output exceeded tool's budget; refine your request to see more ...]"
+    //    约束 传输 载荷 用于
+    // edit/write/apply_patch/replace 文字是人类
+    // 的 -readable diff/confirmation 和 编号
+    // COMPLETE 改变是结构上的( r.changes 下图,
+    // before/after ),因此标记对于模型是多余的,在审查卡中也积极
+    // 错误(它曾经是 渲染 灰色 "refine your request"。
+    // 用于 read/grep/bash 标记没有被修改 – 模型真的需要
+    // 知道输出被剪辑了, 以便它能够 page/refine.
     {
         const bool mutating =
             tool_name == "edit" || tool_name == "write" ||
@@ -375,9 +375,9 @@ ExecResult decode_result(const std::string& tool_name, ::mcp::cap::Result r) {
         }
     }
 
-    // Every file the tool changed, with path/before/after; rebuild the
-    // structured hunks the diff-review needs. out.change stays the first for
-    // any single-file consumer.
+    // 工具更改的每个文件, 与 path/before/after ; 重建结构化
+    // 差异块 diff (英语) -review 需要帮助。 out.change 任何单曲都
+    // 保留第一个 -file 消费者。
     for (const auto& ch : r.changes) {
         FileChange fc = diff::compute(ch.path, ch.before, ch.after);
         fc.original_contents = ch.before;
@@ -386,10 +386,10 @@ ExecResult decode_result(const std::string& tool_name, ::mcp::cap::Result r) {
     }
     if (!out.changes.empty()) out.change = out.changes.front();
 
-    // Images the tool surfaced (read on an image file), raw bytes. They
-    // become image blocks in this call's tool_result for a vision model; a
-    // non-vision model just sees the [image ...] note in out.text, and the
-    // wire layer drops them for models that can't see.
+    // 图像工具浮出水面( 在图像文件中读取), 原始 字节。
+    // 它们成为图像块 调用's tool_result 用于视觉模型;
+    // 非 -vision 模型只是看到 [图像...] 音符在 out.text ,
+    // 并显示 传输 层会把它们丢弃给无法看到模型。
     for (auto& im : r.images)
         out.images.push_back(ImageContent{std::move(im.media_type), std::move(im.bytes)});
 
@@ -397,9 +397,9 @@ ExecResult decode_result(const std::string& tool_name, ::mcp::cap::Result r) {
     return out;
 }
 
-// mcp-cpp's effect set in agentty's terms. Spelled out per tag, so a tag
-// added on either side is a compile error here rather than a silent bit
-// mismatch.
+// mcp-cpp的副作用在agentty的术语中设定了.
+// 拼写出每个标记,所以在两侧添加的标记就是这里的编译错误,而不是沉默的
+// 位错配.
 [[nodiscard]] EffectSet from_mcp(::mcp::cap::EffectSet m) noexcept {
     using ME = ::mcp::cap::Effect;
     EffectSet e;
@@ -410,33 +410,33 @@ ExecResult decode_result(const std::string& tool_name, ::mcp::cap::Result r) {
     return e;
 }
 
-// The mcp-cpp tools' memory between calls (read cache, file snapshots,
-// background processes, repo graphs), under one maya::guarded. The workspace
-// root and read roots are agentty's (main sets one, the skills scanner adds
-// the other); they are copied in on every access, so there is one source of
-// truth and nothing to mirror.
+// 电话 mcp-cpp 工具( 工具) : 内存 介于 调用 (
+// 读) 缓存 打开 快照 ,背景过程, 仓库 图表),列在一个下
+// maya::guarded。该词 工作区 根和读根为 agentty '
+// '(主集一个,技能扫描仪加另一个);每个访问中都复制它们,所以有一个真理的来源,
+// 没有东西可以镜像.
 //
-// The tools hand us a function to run on the state. Its shape is the
-// library's (a std::function<void(ToolState&)> that may capture anything),
-// so it goes through guarded::with_foreign, the one jaal entry that runs a
-// borrowed callback under a lock. Sound because mcp-cpp holds no locks and
-// starts nothing (its concurrency allowlist is empty), and every with() body
-// in it only reads and writes ToolState (process.cpp, repomap.cpp, fs.cpp,
-// call_state.hpp); one that blocked would trip held_top() at the wait.
+// 工具让我们在状态上运行一个功能。它的形状是 库's (a
+// std::function<void(ToolState&)> 可能捕捉到任何东西,
+// 所以它会穿过 guarded::with_foreign ,一个 jaal 运行
+// 借入的条目 回调 a 项下 锁。声音因为 mcp-cpp 持有否 锁 开始( 其
+// 货币) 允许清单 和每个 with() 正文 里面只有读写 ToolState (
+// process.cpp, repomap.cpp, fs.cpp,
+// call_state.hpp ),一个被堵塞的会绊倒 held_top () 在等待。 (笑声)
 //
-// Lock order: the state is a LEAF. StateAccess::with is mcp-cpp's virtual,
-// called from inside a tool body with a signature it fixes, so it can't be
-// handed a capability; it re-states one here, the single reviewed root for
-// mcp-cpp's state callback (tests/lint/allowlist.txt). Sound because the
-// only caller is mcp-cpp tool code, which holds no lock of ours: every
-// agentty lock body is a captureless function over its own value and can't
-// reach a tool body.
+// 锁 顺序: 状态是 LEAF. StateAccess::with 谓
+// mcp-cpp 虚拟, 从工具内调用 正文 签字后它就修复了 所以它不能
+// 被赋予能力 -states 单个被审查的根用于 mcp-cpp '状态
+// 回调 (tests/lint/allowlist.txt。
+// 声音是因为唯一的呼叫者是 mcp-cpp 工具代码, 其不为 锁 我们
+// 的:每 agentty 锁 正文 是一个无法捕捉到的功能, 超越它自身的值,
+// 无法到达工具 正文.
 //
-// Nothing in ToolState can block or lock when destroyed under this lock: a
-// process entry is a shared_ptr<const Proc>, and the last reference to a
-// Session only runs Session::stop() (an atomic and an eventfd write; see
-// JaalSession in tool/util/exec.cpp). So erasing an entry inside with() is
-// safe even when it drops the session.
+// 里面没有东西 ToolState 可以阻断或 锁 销毁时在此下 锁 : 进程
+// 条目是 shared_ptr<const Proc> ,而最后一个仅引用会话
+// 的引用 Session::stop (原子和事件fd写作;见 JaalSession
+// 输入 tool/util/exec.cpp。所以删除一个条目 with()
+// 即使它放弃了会话, 也还是安全的。
 using StateFn = std::function<void(mt::ToolState&)>;
 
 class GuardedToolState final : public mt::StateAccess {
@@ -445,11 +445,11 @@ class GuardedToolState final : public mt::StateAccess {
         maya::thread_root([&](const maya::unlocked& cap) {
             st_.with(cap, [](mt::ToolState& s, std::filesystem::path h) {
                 s.home = std::move(h);
-                // agentty's own way to widen the boundary, for the refusal text.
+                // agentty本身的拓宽边界的方法,为拒绝文本.
                 s.widen_hint = "Restart agentty in a parent directory or pass "
                                "--workspace <dir> to widen the scope.";
-                // The native read tools refuse what the sandbox masks for
-                // commands (.env, keys, tokens), like zed's private_files.
+                // 本地读取工具拒绝什么 沙箱 命令的口罩(.env、密钥、
+                // 符牌),如 Zed 的 private_files.
                 for (const char* n : sandbox_cfg::kAlwaysMaskedNames)
                     s.private_names.emplace_back(n);
             }, std::move(home));
@@ -458,7 +458,7 @@ class GuardedToolState final : public mt::StateAccess {
     void with(const StateFn& f) override {
         auto ws    = util::workspace_root();
         auto roots = util::read_roots_now();
-        // One hold: the scope fields and the body see each other atomically.
+        // 一种方式:范围领域和 正文 解剖学上见彼此.
         auto body = [&](mt::ToolState& s) {
             s.workspace_root = std::move(ws);
             s.read_roots     = std::move(roots);
@@ -470,9 +470,9 @@ class GuardedToolState final : public mt::StateAccess {
     maya::guarded<mt::ToolState> st_;
 };
 
-// Process-lifetime keep-alive for the provider: the ToolDef::execute
-// closures capture a shared_ptr to it, but we also park it here so its
-// HostServices adapters (incl. the HttpClient) outlive every closure.
+// 进程 -lifetime 保留 -alive 提供方: ToolDef::execute
+// 关闭 抓取 a shared_ptr 把它停在这里,
+// 所以它 HostServices 适配器(包括 HttpClient 超过每一次关闭。
 struct ProviderKeepAlive {
     std::shared_ptr<::mcp::cap::CapabilityProvider> provider;
     std::shared_ptr<mt::HttpClient>                 http;
@@ -481,51 +481,51 @@ struct ProviderKeepAlive {
 };
 ProviderKeepAlive& keep_alive() { static ProviderKeepAlive k; return k; }
 
-} // namespace
+} // 命名空间结束。
 
 std::vector<ToolDef> build_mcp_tool_defs() {
     auto& ka = keep_alive();
     ka.http = std::make_shared<AgenttyHttpClient>();
-    // Running another program is a capability the HOST supplies, exactly
-    // like the HttpClient above: mcp-cpp states what it wants and we do it,
-    // over jaal's process + reactor. One implementation, in one place, with
-    // the idle-vs-wall policy that the two old poll loops disagreed about.
+    // 运行另一个程序是HOST供应能力,
+    // 这与上面的HttpClient完全一样:mcp-cpp在jaal进程
+    // +反应堆中陈述了它想要的东西,我们做了它。 在一个地方,
+    // 一个执行是两个旧的民意测验循环所不同意的闲置的-vs-wall政策。
     ka.exec = util::make_exec();
-    // Parallel scans too: mcp-cpp owns no threads, so its grep / structural
+    // 平行扫描也 : mcp-cpp 拥有无 线程 ,所以它的grep /结构
     ka.state = std::make_shared<GuardedToolState>(::agentty::util::home_dir_or_empty());
 
     mt::HostServices svc;
     svc.http = ka.http;
-    // Which services web_search tries is the user's choice (Settings → Wire
-    // Tools); the source is read on every call, so an edit reaches the next
-    // search with no restart and no re-registration.
+    // 哪些服务 web_search 尝试是用户的选择( 设置 )。
+    // 传输 工具); 源代码为 调用 ,所以编辑到达下一个搜索时,没有重新启动,
+    // 也没有重新 -registration.
     svc.web_search_plan = tools::web_search_plan::make_plan_source();
     svc.exec = ka.exec;
-    // Every file the tools touch: mcp-cpp does no IO itself, the host does.
+    // 每个文件工具的触摸 : mcp-cpp 没有 IO 自己,主人会的。
     svc.files = std::make_shared<util::DiskFiles>();
-    // search / repo map fan out on maya::scope.
+    // 搜索/ 检查 仓库 地图风扇在外 maya::scope.
     svc.split = util::make_splitter();
     svc.state    = ka.state;
-    // Inject the host-coupled backends (memory/skill/retriever/subagent).
-    // todo stays null — its shell renders identical text with no host state.
+    // 输入主机 -coupled 后端( 3) memory/skill/retriever/subagent).
+    // 拖放待办事宜将保持无效。 其 shell 渲染 文本与主机状态相同。
     install_host_backends(svc);
 
-    mt::ToolsetConfig cfg;   // all Tier-1 families on by default
-    // agentty's own steering. The library describes what each tool does;
-    // which tool agentty wants a model to reach for is agentty's call.
+    mt::ToolsetConfig cfg;   // 默认情况下所有第一级家庭
+    // agentty 自己的方向盘,是 库 描述每个工具的用途; 哪个工具
+    // agentty 想要一个模型 找到的是 agentty's 调用.
     cfg.description_notes = {
         {"shell", "Use for builds, tests, git, etc. Do NOT use for file IO — use "
                   "the write/edit/read tools instead (no cat/echo/sed/heredoc "
                   "to create or modify files)."},
     };
-    // AGENTTY_NO_TRANSFORMS=1 sheds the transform/aggregate/structured-data
-    // family (extract/aggregate/replace/read_filter/json_query) — ~5 KB of
-    // schema off every request — for a minimal or latency-sensitive profile,
-    // WITHOUT losing grep/read/edit. Mirrors AGENTTY_NO_HOOKS's convention.
+    // AGENTTY_NO_TRANSFORMS =1 个 transform/aggregate/structured-data
+    // 家庭( extract/aggregate/replace/read_filter/json_query)
+    // — ~5 KB 备注 模式定义 取消每一项要求——最低或暂时性要求 -sensitive 剖析器,
+    // 无需 输 grep/read/edit. 镜像 AGENTTY_NO_HOOKS 公约
     if (const char* v = std::getenv("AGENTTY_NO_TRANSFORMS");
         v && v[0] && v[0] != '0' && v[0] != 'f' && v[0] != 'F' && v[0] != 'n' && v[0] != 'N')
         cfg.transforms = false;
-    // AGENTTY_NO_JINA=1 stops web_fetch re-rendering SPA shells via r.jina.ai.
+    // AGENTTY_NO_JINA =1个站点 web_fetch 内容 -rendering SPA 弹壳通过 r.jina.ai.
     if (const char* v = std::getenv("AGENTTY_NO_JINA"); v && v[0] && v[0] != '0')
         cfg.jina = false;
     auto provider = mt::make_provider(svc, cfg, "local");
@@ -538,16 +538,16 @@ std::vector<ToolDef> build_mcp_tool_defs() {
         def.description  = spec.description.has_value() ? *spec.description : std::string{};
         def.input_schema = ::mcp::to_json(spec.inputSchema);
         def.origin = ToolOrigin::Native;
-        // Effects: agentty's spec catalog is the AUTHORITY for built-in
-        // tools — the permission policy reads ToolDef::effects, the parallel
-        // scheduler reads spec::lookup()->effects, and the catalog's
-        // compile-time proofs (only_known_exec_tools, no_writefs_and_exec_
-        // combo, readonly_invariants) are stated against it. mcp-cpp's
-        // effects_for_builtin table had drifted (remember/forget/wipe were
-        // "pure" there — no prompt despite writing memory.jsonl — and task
-        // lacked Exec despite a subagent being able to run bash), which
-        // split the gate from the scheduler. Prefer the catalog; the mcp
-        // table only covers tools the catalog doesn't know.
+        // 副作用: agentty 光谱 目录 是那个 AUTHORITY 用于建造
+        // -in 工具—— 权限 政策为: ToolDef::effects ,
+        // 平行调度器读取 spec::lookup()->副作用 ,并显示 目录'
+        // s 编译-time 证明( E) only_known_exec_tools,
+        // no_writefs_and_exec_ 组合 readonly_invariants
+        // ) 被指为反对。 mcp-cpp's effects_for_builtin
+        // 表格漂移( 上下) remember/forget/wipe 曾经
+        // "pure" 那儿 - 没有 提示词 尽管写了 memory.jsonl
+        // ——而且任务缺乏Exec,尽管有副代理能够运行狂轰滥炸,它把门从排程器中分割开来。
+        // 目录 ; Mcp 表格只包含工具 目录 不知所终.
         if (const auto* sp = tools::spec::lookup(spec.name)) {
             def.effects                = sp->effects;
             def.scheduling_effects     = tools::spec::sched_effects(*sp);
@@ -564,7 +564,7 @@ std::vector<ToolDef> build_mcp_tool_defs() {
             def.effects = from_mcp(*fx);
             def.scheduling_effects = def.effects;
         } else {
-            // Not a built-in: treat as a writer, like the scheduler does.
+            // 不是一个建的-in:像排程器一样对待写作者.
             def.effects = EffectSet{Effect::WriteFs};
             def.scheduling_effects = def.effects;
         }
@@ -573,34 +573,34 @@ std::vector<ToolDef> build_mcp_tool_defs() {
         def.execute = [provider, tool_name](const maya::unlocked& cap,
                                             const nlohmann::json& args_in,
                                             const CallContext& ctx) -> ExecResult {
-            // Canonify alias keys HERE, at the dispatch boundary.
+            // 标记别名密钥 此处 ,在 分派 边界。
             //
-            // PR #66 canonified at every stream-parse site, which fixes the
-            // reported bug (a `cmd`-shaped call failing the required-field
-            // guard) but leaves the property depending on where the args came
-            // from. Any path that does not pass through those parsers --
-            // a replayed thread, a tool call injected by the ACP client, a
-            // future transport -- reaches this lambda with `cmd` set and
-            // `command` absent, and mcp-cpp's ArgReader has NO alias table
-            // (it is str(key)/require_str(key), nothing more), so the
-            // executor reads an empty command and runs it.
+            // PR 66号被封禁 数据流-parse 站点,用于修复已报告
+            // 的错误(a) `cmd`-shaped 调用 未达到要求
+            // -field 依星格的来历,而留下财产。任何不能经过的路,
+            // 解析器 - 重播的游戏 线程 ,工具 调用 由该定义注入
+            // ACP 客户端, 一个未来 传输层 - 到达这个羊肉田
+            // `cmd` 设置和 `command` 缺席,
+            // 以及 mcp-cpp's ArgReader 已经 NO 化
+            // 名表(它是 str( key)/) require_str (键,
+            // 无更),所以执行者读取一个空命令并运行.
             //
-            // Doing it at the single point every path funnels through makes
-            // the invariant "the executor always sees `command`" hold by
-            // construction rather than by having remembered to call it at N
-            // call sites. The parse-site calls stay: the permission card, the
-            // live output panel and the shell-detour check all read
-            // tc.args["command"] BEFORE dispatch, so they need the canonical
-            // key too. This is the backstop, not a replacement.
+            // 单点做,每条径道漏斗 不变量
+            // 执行器始终能够看到 command 字段。
+            // 建筑而不是记忆中的 调用 N 调用 网站。
+            // 解析-site 调用 停留: 权限 纸牌、
+            // 活输出面板和外壳 -detour 检查全部
+            // 已读 tc.args["command"] 之前
+            // 分派 需要警犬钥匙,这是支援,不是替补
             nlohmann::json args = args_in;
             (void)::agentty::app::detail::canonify_tool_args(tool_name, args);
 
-            // Settings → Web Search. The wire seam already keeps web_search
-            // off the request when it is disabled; this is the backstop for
-            // every call that did not come from one — a replayed thread, a
-            // tool call an ACP client injects, a model that remembers the
-            // tool from earlier in the session. Read per call, so a pane edit
-            // reaches the next search with no catalog rebuild.
+            // 设置 ~ 网络搜索。 Name 传输 接口边界 已经保存
+            // web_search 取消请求, 取消请求;
+            // 这是每个请求的后台 调用 而不是从一个——重播 线程 ,
+            // 工具 调用 a 数据为: ACP 客户端注入,
+            // 一种会话中较早时记得工具的模型。 调用 ,所以一个 面板 编辑到达
+            // 下一个搜索时没有 目录 重建,我们把整个工程都重建了
             if (tool_name == "web_search") {
                 const auto policy = tools::web_search_policy::current();
                 if (web_search_cfg::mode(policy) == web_search_cfg::Mode::Off)
@@ -611,12 +611,12 @@ std::vector<ToolDef> build_mcp_tool_defs() {
                 args = web_search_cfg::rewrite_args(policy, std::move(args));
             }
 
-            // LEARNING LOOP (win side): the agent ACTING on a file shortly
-            // after search_docs surfaced a passage from it is the implicit
-            // relevance signal — the passage pointed somewhere worth acting
-            // on. `read` is the baseline signal; `edit`/`write` are STRONGER
-            // (a confirmed mutation, not just a look), so credit those paths
-            // too. Sub-microsecond no-op when nothing was recently surfaced.
+            // LEARNING LOOP (双侧):代理人 ACTING 不久后,
+            // 文件上就写着 search_docs 从中浮出一段是隐含的
+            // 关联信号——这一段指向值得采取行动的某个地方。 `read`
+            // 是基线信号; `edit`/`write` 已经 STRONGER
+            // (一个确认的突变, 不只是一看),所以信用这些路径。
+            // -microsecond 无 -op 那时,最近没有露出什么。
             if (tool_name == "read" || tool_name == "edit" ||
                 tool_name == "write") {
                 if (auto it = args.find("path"); it != args.end() && it->is_string())
@@ -625,27 +625,27 @@ std::vector<ToolDef> build_mcp_tool_defs() {
                          fp != args.end() && fp->is_string())
                     rag::feedback::note_file_opened(cap, fp->get_ref<const std::string&>());
             }
-            // TRUST HANDOFF GATE. Before the bytes land, not after.
+            // TRUST HANDOFF GATE。在 字节 土地,不是后。
             //
-            // This is the enforcement half of the Sandbox pane's "Agent writes
-            // host-executed files" row, which until now persisted a policy
-            // that nothing read. It sits here rather than inside the sandbox
-            // because the sandbox is the wrong altitude: writing
-            // .vscode/tasks.json is an ordinary write to a path the agent is
-            // allowed to write, and the escape happens later, outside, when
-            // VS Code runs it. No mount namespace sees that.
+            // 这是执行的一半 沙箱 面板's
+            // "Agent writes host-executed files" 排队,
+            // 它一直坚持一项不读的政策。它坐在这里而不是坐在里面。
+            // 沙箱 因为 沙箱 错误的高度: 写入
+            // .vscode/tasks.json 是一个普通的写到一个
+            // 路径的文字, 代理者被允许写, 越狱发生在以后, 外面,
+            // 当 VS 密码运行,没有挂载的命名空间看到
             //
-            // All four authoring tools, not just `write`: `edit` can add a
-            // credential helper to an existing .git/config, `apply_patch` can
-            // do it in a diff, and `move` can walk an inert file into a
-            // trusted name -- which is the Cursor 3.0.0 bug (a .git directory
-            // under another name) in reverse. Gating only `write` would leave
-            // three doors open and read as covered.
+            // 所有四个编写工具,而不仅仅是`write`:`edit`
+            // 可以在现有的.git/config中添加凭据的帮助器,
+            // `apply_patch`可以在diff中完成,`move`
+            // 可以将一个惰性文件行走到一个可信任的名称中——这是Cursor 3.0.0
+            // bug(一个.git目录在另一个名称下)倒置. Gating只留下
+            // `write`会打开三个门并读作覆盖.
             if (tool_name == "write" || tool_name == "edit" ||
                 tool_name == "apply_patch" || tool_name == "move") {
-                // `move` names its target `destination`; the rest use `path`
-                // or `file_path`. Checking the DESTINATION is the point for a
-                // move -- the source being inert is exactly the attack.
+                // `move` 命名目标 `destination` ;
+                // 其余使用时 `path` 或 或 时 间 `file_path` 中
+                // 检查 DESTINATION 是一个移动点-- 源是惰性就是攻击。
                 for (const char* key : {"destination", "path", "file_path"}) {
                     auto it = args.find(key);
                     if (it == args.end() || !it->is_string()) continue;
@@ -654,27 +654,27 @@ std::vector<ToolDef> build_mcp_tool_defs() {
                     if (!v.allowed)
                         return std::unexpected(
                             ToolError::denied(std::move(v.reason)));
-                    break;   // one path per call; first key present wins
+                    break;   // 每调用有一个路径;第一个键位获得胜利
                 }
             }
 
-            // SHELL-PATH DETECTION. The gate above needs a path argument, and
-            // `shell` has none -- it hands over an opaque string, which is how
-            // `cat > .vscode/tasks.json` walked past a policy that correctly
-            // knew the path was dangerous.
+            // SHELL-PATH DETECTION。上面的大门需要一个路径参数,
+            // `shell` 没有--它把不透明的绳子交出来,这就是如何
+            // `cat > .vscode/tasks.json` 穿过了一条
+            // 正确知道这条路很危险的政策。
             //
-            // Parsing the command was rejected (grammar arms race; see
-            // docs/design/shell-write-gate.md and the long note in
-            // handoff_gate.hpp). So instead: observe the FILESYSTEM. Snapshot
-            // the trusted-shape paths, run the call, compare. No quoting trick
-            // evades it because it never looks at the command.
+            // 解析 命令被拒绝(语法武器) 竞态 ;
+            // 见 docs/design/shell-write-gate.md
+            // 和长音符在 handoff_gate.hpp。所以,相反:观察
+            // FILESYSTEM. 快照 信任的那个人 -shape 路径,运行 调用
+            // 比较一下,没有引用的诡计可以逃避它,因为它从来不看命令。
             //
-            // Detection, not prevention: by the time we can compare, the bytes
-            // are written. Refusing afterwards would be theatre -- the honest
-            // outcome is a loud, attributable event on the feed the Sandbox
-            // pane already renders. A read-only bind is the prevention half
-            // and needs a mount namespace, so it cannot be the only answer on
-            // the hardened hosts claybin exists to serve.
+            // 侦测,而不是预防:在我们能够比较的时候,
+            // 字节 拒绝之后将是戏剧 - 诚实的结果是响亮的,
+            // 可归结于 事件 上,在饲料 沙箱 面板 已经 渲染。
+            // 读数 -only 绑定是预防的一半,
+            // 需要挂载命名空间,所以它不能成为硬化主机的唯一答案
+            // claybin 已经存在以服务。
             const bool watchable =
                 tool_name == "shell" || tool_name == "process_start" ||
                 tool_name == "test" || tool_name == "diagnostics";
@@ -684,9 +684,9 @@ std::vector<ToolDef> build_mcp_tool_defs() {
                     ctx.workspace.empty() ? tools::util::workspace_root().string()
                                           : ctx.workspace);
 
-            // The call's context rides along: mcp-cpp hands `host` back to
-            // agentty's Exec / SkillResolver / SubagentRunner untouched. The
-            // snapshot goes with it so the sandbox doesn't walk again.
+            // 电话 调用 上下文的顺序 : mcp-cpp 手执 `host` 返回到
+            // agentty '是执行 / SkillResolver /
+            // SubagentRunner 还没被察觉 快照 随它去,所以 沙箱 不会再走动了
             const HostCall host{&ctx, watchable && !before.empty() ? &before : nullptr};
             ::mcp::cap::Request req{tool_name, args};
             req.progress = ctx.progress;
@@ -698,14 +698,14 @@ std::vector<ToolDef> build_mcp_tool_defs() {
             const auto merged = ctx.merged_stop();
             req.stop      = merged->get_token();
             req.cancelled = [&ctx] { return ctx.cancelled(); };
-            // Write lanes are taken by the dispatcher, around this whole call
-            // (tool.hpp, write_lanes.hpp), not here.
+            // Write 车道由 分派器 ,围绕整个 调用 (tool.hpp,
+            // write_lanes.hpp ),不是这里。
             auto r = provider->execute(req);
 
             if (watchable && !before.empty()) {
-                // Name the command, not the tool: "shell" tells a user nothing
-                // about what happened. This is the one place the opaque string
-                // earns its keep -- explaining after the fact, never deciding.
+                // 命令的名称,而不是工具:"shell"对一个
+                // 用户没有说明发生了什么。这是不透明的字符串能
+                // 保持它的地方 — 事后解释,永远不要决定。
                 std::string who = tool_name;
                 if (auto c = args.find("command");
                     c != args.end() && c->is_string())
@@ -718,12 +718,12 @@ std::vector<ToolDef> build_mcp_tool_defs() {
         defs.push_back(std::move(def));
     }
 
-    // Reorder to agentty's recall-bias layout: the direct working tools
-    // first (edit ahead of write — the cheapest nudge against whole-file
-    // rewrites), the host-coupled tools (memory/task/skill/search_docs) last
-    // so the model's strong first-listed bias stays on read/edit/bash. The
-    // provider lists host-coupled shells first (registration order), so
-    // without this the working tools sink to the bottom of the wire payload.
+    // 重排为 agentty 记得 -bias 布局:直接工作工具先行(
+    // 编辑在写作前——最便宜的反整块) -file 重写,
+    // 主机 -coupled 工具( 工具) memory/task/skill/search_docs
+    // ) 最后,所以模型的强先 -listed 偏差保持在边
+    // read/edit/bash. 提供者列表主机 -coupled
+    // 贝壳先(登记顺序),所以没有这个操作工具将沉入底部 传输 载荷.
     static const std::vector<std::string_view> kOrder = {
         "read", "edit", "apply_patch", "write", "move", "remove", "shell",
         "process_start", "process_poll", "process_stop",
@@ -742,7 +742,7 @@ std::vector<ToolDef> build_mcp_tool_defs() {
     auto rank = [](std::string_view n) -> std::size_t {
         for (std::size_t i = 0; i < kOrder.size(); ++i)
             if (kOrder[i] == n) return i;
-        return kOrder.size();   // unknown → after the known set, stable
+        return kOrder.size();   // 未知 = 已知的一组之后,稳定
     };
     std::stable_sort(defs.begin(), defs.end(),
         [&](const ToolDef& a, const ToolDef& b) {

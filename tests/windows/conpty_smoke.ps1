@@ -1,8 +1,8 @@
-# Run agentty under a real Windows pseudo console (ConPTY), wait for a frame,
-# press Esc and type /quit, and expect a clean exit. Proves the TUI starts,
-# draws, reads keys and shuts down on a real console, not just that main()
-# gets far.
-#   pwsh tests/windows/conpty_smoke.ps1 <agentty.exe>
+# 在真正的Windows伪控制台(ConPTY)下运行agentty,
+# 等待帧,按Esc和type /quit,并期望有一个干净的出口.
+# 证明TUI开始,绘制,读取密钥,关闭在真正的控制台上,而不仅仅是main()
+# 走得很远.
+#   tests/windows/conpty_smoke.ps1 <agentty.exe> 维基月球在线解说-维基百科中的相关条目: 维基语录链接:名人名言 - 文学作品 - 谚语 - 谚文 - 谚語 - 谚言 - 谚音 - 谚剧 - 谚调
 param([Parameter(Mandatory)] [string] $Exe)
 $ErrorActionPreference = 'Stop'
 
@@ -112,7 +112,7 @@ public static class ConPty {
 
 $exe = (Resolve-Path $Exe).Path
 $screen = ''; $steps = ''
-# A fresh home has no account, so the login picker opens first: Esc closes it.
+# 新鲜的家没有帐号 所以登录 选择面板 打开第一个 : Esc 关上它。
 $rc = [ConPty]::Run("`"$exe`"", 30000, "`e/quit`r", 20000, [ref]$screen, [ref]$steps)
 $plain = [regex]::Replace($screen, "`e\[[0-9;?]*[ -/]*[@-~]|`e\][^`a]*`a|`e.", '')
 Write-Host "steps: $steps"

@@ -1,15 +1,15 @@
 #pragma once
-// agentty::stats — the tab table. THE SSOT for what the panel shows.
+// agentty::stats——选项卡表。 该 SSOT 用于面板显示的内容。
 //
-// `kTabs` is the single source for order, titles, subtitles, availability
-// and count. Everything else is derived from it: tab_title(), tab_step(),
-// kTabCount. The version this replaces had four parallel switch statements
-// over one enum, which is four places to forget a case and four chances
-// for them to disagree — the same argument that put ProviderDescriptor and
-// kCommands on tables.
+// `kTabs`是订单、标题、字幕、可用性和计数的单一来源。
+// 其他一切都源自它：tab_title()、tab_step()、
+// kTabCount。此替换的版本在一个 枚举 上有四个并行 switch 语句，
+// 这是四个忘记案例的地方，并且有四个机会让他们不同意 - 同样
+// 的论点将 ProviderDescriptor 和 kCommands
+// 放在表上。
 //
-// Adding a tab is: an enumerator, a row here, and an extractor. The
-// compiler names anything you forgot.
+// 添加选项卡为：枚举器、此处为行、提取器。
+// 编译器 列出了您忘记的任何内容。
 
 #include <array>
 #include <cstdint>
@@ -37,17 +37,17 @@ enum class Tab : std::uint8_t {
 
 struct TabDesc {
     Tab              id;
-    std::string_view title;      // the strip chip
-    std::string_view subtitle;   // the panel's subtitle line
+    std::string_view title;      // 条标签
+    std::string_view subtitle;   // 面板的字幕行
     std::span<const Section> sections;
-    // Hide a tab with nothing to say. A session that ran no tools should
-    // not show a Tools tab explaining that it ran no tools — an empty
-    // state is a tab admitting it should not have been drawn.
+    // 隐藏无话可说的选项卡。未运行任何工具的会话不应
+    // 显示“工具”选项卡，解释它未运行任何工具 -
+    // 空状态是一个承认不应该绘制它的选项卡。
     bool (*available)(const Facts&);
 };
 
-// Sections per tab. Declared out-of-line so kTabs stays readable as a
-// table; each `extract` is one function in extract.cpp.
+// 每个选项卡的部分。声明 out-of-line，以便 kTabs 保持作为表格可读；
+// 每个 `extract` 都是 extract.cpp 中的一项功能。
 namespace sections {
 extern const std::array<Section, 4> session;
 extern const std::array<Section, 2> models;
@@ -111,18 +111,18 @@ inline constexpr int kTabCount = static_cast<int>(kTabs.size());
     return d.available && d.available(f);
 }
 
-// The visible tabs, in table order. The panel renders exactly this.
+// 可见选项卡，按表格顺序。面板渲染正是这个。
 [[nodiscard]] inline std::vector<Tab> visible_tabs(const Facts& f) {
     std::vector<Tab> out;
     out.reserve(kTabs.size());
     for (const auto& d : kTabs)
         if (d.available && d.available(f)) out.push_back(d.id);
-    if (out.empty()) out.push_back(Tab::Session);   // Session is always available
+    if (out.empty()) out.push_back(Tab::Session);   // 会话始终可用
     return out;
 }
 
-// Step within the VISIBLE set, so Tab/Shift-Tab can never land on a tab
-// that is not drawn. Wraps in both directions.
+// 在VISIBLE集合内步进，因此Tab/Shift-Tab永远不能落在未绘制的选项卡上。
+// 双向缠绕。
 [[nodiscard]] inline Tab tab_step(Tab cur, int delta, const Facts& f) {
     const auto vis = visible_tabs(f);
     const int n = static_cast<int>(vis.size());

@@ -1,4 +1,4 @@
-// provider::auth_state — see auth_state.hpp.
+// provider::auth_state —参见 auth_state.hpp。
 
 #include "agentty/provider/auth_state.hpp"
 
@@ -22,22 +22,22 @@ bool env_has(std::string_view name) {
     return v != nullptr && *v != '\0';
 }
 
-} // namespace
+} // 命名空间结束。
 
 bool provider_is_authed(Io io, const ProviderDescriptor& p,
                         const store::Settings& settings) {
-    // Local / no-auth backends are always usable.
+    // 本地/no-auth后端始终可用。
     if (p.is_local || p.auth == AuthStyle::None) return true;
 
-    // Dispatch on the vault DESCRIPTOR (which store family this provider
-    // uses) but answer the SettingsKey question from the INJECTED settings —
-    // this function is a pure query over its inputs (tests inject an
-    // in-memory Settings; the vault's own accessor reads disk and would
-    // break that hermeticity and the DI discipline).
+    // 保险库DESCRIPTOR上的分派（该提供者使用哪个
+    // 存储系列），但从INJECTED设置回答SettingsKey
+    // 问题——该函数是对其输入的纯粹查询（测试注入
+    // in-memory设置；保险库自己的访问器读取磁盘，
+    // 并且会破坏该密封性和DI规则）。
     switch (auth::vault::of(p.id).kind) {
         case auth::vault::Kind::AnthropicFile:
             if (auth::anthropic_signed_in(io)) return true;
-            // Pasted-key overlap: provider_keys["anthropic"].
+            // 粘贴的-key重叠：provider_keys["anthropic"]。
             return settings.provider_keys.count(std::string{p.id}) != 0;
         case auth::vault::Kind::OAuthFile:
             return auth::vault::signed_in(io, std::string{p.id});
@@ -45,7 +45,7 @@ bool provider_is_authed(Io io, const ProviderDescriptor& p,
         case auth::vault::Kind::None:
             break;
     }
-    // Hosted key: saved entry in the injected settings, or an env var.
+    // 托管密钥：注入设置中的已保存条目，或环境变量。
     if (auto it = settings.provider_keys.find(std::string{p.id});
         it != settings.provider_keys.end() && !it->second.empty())
         return true;
@@ -57,17 +57,17 @@ bool provider_is_authed(Io io, const ProviderDescriptor& p,
 bool provider_is_authed(Io io, std::string_view id, const store::Settings& settings) {
     if (const ProviderDescriptor* p = preset_for(id))
         return provider_is_authed(io, *p, settings);
-    // Not a registry preset ⇒ a saved custom host. Authed iff it has a
-    // provider_keys entry at all (a keyless local host is saved with an empty
-    // value and is still usable).
+    // 不是 注册表 预设 ⇒ 已保存 自定义主机。已验证，
+    // 当且仅当它具有 provider_keys 条目（无密钥本地主机是 已保存，
+    // 具有空值并且仍然可用）。
     return settings.provider_keys.count(std::string{id}) != 0;
 }
 
 AuthSource auth_source(Io io, const ProviderDescriptor& p,
                        const store::Settings& settings) {
     if (p.is_local || p.auth == AuthStyle::None) return AuthSource::Local;
-    // Same dispatch discipline as provider_is_authed: vault kind selects
-    // the store family; SettingsKey answers come from the INJECTED settings.
+    // 与provider_is_authed相同的分派规则：库类型选择存储族；
+    // SettingsKey 答案来自 INJECTED 设置。
     switch (auth::vault::of(p.id).kind) {
         case auth::vault::Kind::AnthropicFile:
             if (auth::anthropic_signed_in(io)) return AuthSource::Saved;
@@ -85,7 +85,7 @@ AuthSource auth_source(Io io, const ProviderDescriptor& p,
     if (auto it = settings.provider_keys.find(std::string{p.id});
         it != settings.provider_keys.end() && !it->second.empty())
         return AuthSource::Saved;
-    // Env-only credential: usable but NOT removable in-app.
+    // Env-only 凭据：可用，但NOT可在-app中移除。
     for (auto env : p.auth_env)
         if (env_has(env)) return AuthSource::Env;
     return AuthSource::None;
@@ -98,9 +98,9 @@ AuthSource auth_source(const ProviderDescriptor& p,
     const std::string id{p.id};
     switch (auth::vault::of(p.id).kind) {
         case auth::vault::Kind::AnthropicFile:
-            // Non-empty, same rule as the SettingsKey branch below. count()
-            // counted an empty-string entry as a credential, the exact
-            // empty-key shape a keyless custom host writes.
+            // Non-empty，与下面的SettingsKey分支规则相同。
+            // count() 将空-string 条目计为凭据，
+            // 即无钥匙自定义主机写入的确切空-key 形状。
             if (view.stored(id)) return AuthSource::Saved;
             if (auto it = settings.provider_keys.find(id);
                 it != settings.provider_keys.end() && !it->second.empty())
@@ -129,8 +129,8 @@ bool provider_is_authed(std::string_view id, const store::Settings& settings,
 bool signed_in(std::string_view id, const store::Settings& settings,
                const auth::AuthView& view) {
     const std::string pid{id};
-    // A custom host has no registry row. Saving it at all (even with an
-    // empty key, for a server that needs none) is what makes it usable.
+    // 自定义主机没有注册表行。保存它（即使使用空密钥，
+    // 对于不需要任何密钥的服务器）是使它可用的原因。
     const ProviderDescriptor* row = preset_for(id);
     if (!row && !id.empty()) return settings.provider_keys.count(pid) != 0;
     if (row && (row->is_local || row->auth == AuthStyle::None)) return true;
@@ -149,9 +149,9 @@ bool signed_in(std::string_view id, const store::Settings& settings,
 auth::AuthView load_auth_view(Io io, const store::Settings& settings) {
     auth::AuthView v;
     v.loaded = true;
-    // One registry read for every provider, and the settings we were given
-    // for custom-host keys. Per-provider calls re-read (and unsealed) both
-    // files each time: ~1.8 ms a provider, ~25 ms of every startup.
+    // 为每个提供商读取一个注册表，以及为自定义-host密钥提供的设置。
+    // Per-provider 调用 每次重新-read（并解封）两个
+    // 文件：提供程序约 1.8 毫秒，每次启动约 25 毫秒。
     const auto reg = auth::accounts::snapshot(io);
     auto fill = [&](const std::string& id, const ProviderDescriptor* p) {
         auth::ProviderAuth a;

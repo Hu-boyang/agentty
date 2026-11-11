@@ -1,16 +1,16 @@
-// tool_call_identity_test — WHO does this chunk belong to?
+// tool_call_identity_test — WHO 这块是属于你的吗?
 //
-// Every case here is a shape some provider actually sends, taken from a bug
-// report in this project or another harness. The point of the seam is that
-// a new report becomes four lines rather than an SSE fixture: no HTTP, no
-// JSON, no event plumbing — just "the chunk said this, which call is it?".
+// 这里每个案例都是某个提供者从项目中的错误报告或其他工具中实际发送的形状。
+// 接口边界 新的报告变成四行而不是 SSE 固定图:无 HTTP ,
+// 没有 JSON ,没有 事件 管道 - 只是,
+// 我刚开始 "the chunk said this, which call is it?".
 //
-// The rule being pinned: identity is (id, index) JOINTLY, and when a chunk
-// carries neither, attribution FAILS rather than guesses. A wrong guess
-// appends one call's bytes to another and yields JSON that still parses, so
-// the corruption is silent and reaches a tool invocation. An explicit
-// failure is one visibly broken turn. Nothing about the wire lets you avoid
-// choosing between those.
+// 标注的规则:身份是(id,索引) JOINTLY 当
+// 一个块没有带, FAILS 而不是猜。错误的猜错会
+// 附加一个 调用's 字节 给另一个,和产量 JSON
+// 仍然这样 解析 ,因此腐败是沉默的,并达到一种工具的引用。
+// 明显的失败就是明显的破裂。 传输 让你避免在
+// 其中做出选择。
 
 #include <string>
 
@@ -22,13 +22,13 @@ using namespace agentty::provider::wire;
 
 namespace {
 
-// Shorthand: a chunk carrying both halves, id only, index only, or neither.
+// 简写:一个块,既包含一半,仅包含id,仅包含索引,或者没有。
 ChunkIdentity both(std::string_view id, std::size_t ix) { return {id, ix}; }
 ChunkIdentity id_only(std::string_view id)              { return {id, std::nullopt}; }
 ChunkIdentity index_only(std::size_t ix)                { return {"", ix}; }
 ChunkIdentity nothing()                                 { return {"", std::nullopt}; }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("identity: the ordinary case — open by index, continue by index") {
     ToolCallTracker t;
@@ -38,7 +38,7 @@ TEST_CASE("identity: the ordinary case — open by index, continue by index") {
     CHECK(a->is_new);
     CHECK(!a->displaced.has_value());
 
-    // A continuation chunk carries index only. Same call.
+    // 续块只携带指数, 相同 调用。
     auto b = t.attribute(index_only(0));
     REQUIRE(b.has_value());
     CHECK(!b->is_new);
@@ -55,7 +55,7 @@ TEST_CASE("identity: parallel calls stay apart") {
     CHECK(a->call != b->call);
     CHECK(t.size() == 2);
 
-    // Interleaved continuations land on the right call.
+    // 中间延伸的右侧土地 调用.
     auto a2 = t.attribute(index_only(0));
     auto b2 = t.attribute(index_only(1));
     REQUIRE(a2.has_value());
@@ -65,13 +65,13 @@ TEST_CASE("identity: parallel calls stay apart") {
 }
 
 TEST_CASE("identity: a reused index with a new id is a NEW call") {
-    // THE BUG WE SHIPPED. A server finishes the call at index 0 and starts
-    // another one there, distinguishing them only by id. Keying on index
-    // alone merged them and corrupted both sets of arguments.
+    // 该 BUG WE SHIPPED。服务器完成 调用 以
+    // 索引 0 键入,然后在那里开始另一个,仅用 ID 来区分它们。
+    // 单凭索引键入,它们合并并损坏了两组参数。
     //
-    // Zed's ToolCallAccumulator states the rule this test exists for:
-    // "either value alone is unreliable because some providers omit
-    // indices, reuse indices, or repeat IDs across parallel calls."
+    // Zed的ToolCallAccumulator 声明了这个测试规则,用于:
+    // 单独依赖任一值都不可靠，因为部分提供方会省略索引、
+    // 复用索引，或在并行调用之间重复使用标识。
     ToolCallTracker t;
     auto a = t.attribute(both("call_a", 0));
     REQUIRE(a.has_value());
@@ -81,22 +81,22 @@ TEST_CASE("identity: a reused index with a new id is a NEW call") {
     REQUIRE(b.has_value());
     CHECK(b->is_new);
     CHECK(b->call != a->call);
-    // And the displaced call is reported, because the caller MUST close it:
-    // an unclosed call leaves a tool_use with no tool_result and hangs the
-    // turn. Splitting without closing trades one bug for a worse one.
+    // 和流离失所者, 调用 被举报,因为打电话者 必须 关上它:
+    // 未关闭 调用 离开a tool_use 没有 tool_result
+    // 并挂转弯。不关闭交易则分拆一个错误来换一个更糟糕的错误。
     REQUIRE(b->displaced.has_value());
     CHECK(*b->displaced == a->call);
 
-    // An anonymous continuation now belongs to the call holding that index,
-    // which is the NEW one.
+    // 匿名续作现在属于 调用 持有该指数,
+    // 即 新 一个
     auto c = t.attribute(index_only(0));
     REQUIRE(c.has_value());
     CHECK(c->call == b->call);
 }
 
 TEST_CASE("identity: a known id continues its call even if the index moves") {
-    // The id is the stronger handle. A server that renumbers indices
-    // mid-stream must not fork a call that has a stable id.
+    // ID 是更强的控件。 服务器会重新编号 : -stream
+    // 不得叉开一个 调用 有个稳定的身份证明
     ToolCallTracker t;
     auto a = t.attribute(both("call_a", 0));
     REQUIRE(a.has_value());
@@ -107,15 +107,15 @@ TEST_CASE("identity: a known id continues its call even if the index moves") {
     CHECK(moved->call == a->call);
     CHECK(t.size() == 1);
 
-    // And the new index now routes to it.
+    // 新的指数现在也通向它。
     auto by_new = t.attribute(index_only(3));
     REQUIRE(by_new.has_value());
     CHECK(by_new->call == a->call);
 }
 
 TEST_CASE("identity: id-only providers (no usable index)") {
-    // MiniMax, via zed #42584: calls are identified by id and the index
-    // field is absent entirely. Two calls must still stay apart.
+    // MiniMax ,通过zed #42584: 调用 由 id 识别,
+    // 而索引字段完全不存在。 调用 仍然必须分开。
     ToolCallTracker t;
     auto a = t.attribute(id_only("call_a"));
     auto b = t.attribute(id_only("call_b"));
@@ -123,7 +123,7 @@ TEST_CASE("identity: id-only providers (no usable index)") {
     REQUIRE(b.has_value());
     CHECK(a->call != b->call);
 
-    // A repeated id is the SAME call continuing, not a third one.
+    // 重复的编号是 相同 调用 持续,不是第三。
     auto a2 = t.attribute(id_only("call_a"));
     REQUIRE(a2.has_value());
     CHECK(!a2->is_new);
@@ -132,10 +132,10 @@ TEST_CASE("identity: id-only providers (no usable index)") {
 }
 
 TEST_CASE("identity: an empty id is absent, not a value") {
-    // Several proxies RESTATE id as "" on continuations rather than
-    // omitting it (llm-gateway #136). Treating "" as an identity opens a
-    // second call whose id is empty — and the end-of-turn sweep skips
-    // empty-id calls, so it is never closed and the turn hangs.
+    // 几个代理 RESTATE 编号为 "" 继续而不是省略(
+    // 将) -gateway #136),治疗. "" 以身份打开
+    // 秒 调用 其编号是空的——和结束 -of-turn 扫描跳
+    // 过空 -id 调用 ,所以它永远不会关闭 和转弯挂。
     ToolCallTracker t;
     auto a = t.attribute(both("call_a", 0));
     REQUIRE(a.has_value());
@@ -148,8 +148,8 @@ TEST_CASE("identity: an empty id is absent, not a value") {
 }
 
 TEST_CASE("identity: no id and no index is legal for a single call") {
-    // Some servers send the opening chunk with neither field. With exactly
-    // one call in flight there is no ambiguity to resolve.
+    // 有些服务器发送的开口块没有字段。 飞行中只有
+    // 调用 , 并不存在任何模糊性。
     ToolCallTracker t;
     auto a = t.attribute(nothing());
     REQUIRE(a.has_value());
@@ -163,13 +163,13 @@ TEST_CASE("identity: no id and no index is legal for a single call") {
 }
 
 TEST_CASE("identity: no id and no index with several calls FAILS") {
-    // The load-bearing case. Two calls in flight and a chunk with no
-    // evidence: any choice is a coin flip, and the losing side silently
-    // corrupts a tool invocation with JSON that still parses.
+    // 电话 加载-bearing 案件数量。 调用 在一个
+    // 没有证据的飞船中:任何选择都是硬币翻转,而输家则默默地
+    // 破坏一种工具的引用。 JSON 仍然这样 解析.
     //
-    // So it is an error value, not a guess. The caller can then say
-    // something true — "the server sent an argument fragment we cannot
-    // attribute" — instead of dispatching a tool with another call's bytes.
+    // 所以这是一个错误的值,不是猜测。打电话者可以说出一些真实的话。
+    // "the server sent an argument fragment we cannot attribute"（服务器发送了无法归属到具体调用的参数片段。）
+    // - 而不是与另一个工具一起发送工具 调用's 字节.
     ToolCallTracker t;
     (void)t.attribute(both("call_a", 0));
     (void)t.attribute(both("call_b", 1));
@@ -188,8 +188,8 @@ TEST_CASE("identity: reset clears every handle") {
     t.reset();
     CHECK(t.empty());
 
-    // The index map went with it — index 0 must open a fresh call, not
-    // resolve to a stale slot from the previous turn.
+    // 索引地图随它而去——索引 0 必须打开新 调用 ,
+    // 而不是决心 过期 上一转的插槽。
     auto a = t.attribute(index_only(0));
     REQUIRE(a.has_value());
     CHECK(a->is_new);

@@ -1,26 +1,26 @@
 #pragma once
-// agentty::mcp::oauth — interactive OAuth 2.1 login for MCP servers (spec
-// 2026-07-28 authorization). Drives the full browser flow and persists an
-// issuer-bound token per server, refreshed on expiry.
+// agentty::mcp::oauth-MCP服务器的交互式OAuth
+// 2.1登录（规范2026-07-28授权）。驱动完整的浏览器流程并在每个
+// 服务器上保留一个颁发者-bound令牌，并在到期时刷新。
 //
-//   The PROTOCOL LOGIC lives in mcp-cpp's <mcp/auth.hpp> (PKCE, RFC 9207 iss
-//   validation, DCR/CIMD, token parsing) — pure + unit-tested. THIS module is
-//   the agentty-side I/O + lifecycle: agentty's HTTP client for every GET/POST,
-//   a cross-platform loopback callback server, the default browser open, and
-//   an at-rest-encrypted token store (auth::crypt, chmod 600) keyed by server.
+//   PROTOCOL LOGIC存在于mcp-cpp的<mcp/auth.hpp>(PKCE、
+//   RFC 9207 iss验证、DCR/CIMD、令牌解析)中——纯+单元-tested。
+//   此 模块是 agentty-side I/O + 生命周期：每个 GET/POST 的 agentty
+//   的 HTTP 客户端、跨-platform 环回 回调 服务器、默认浏览器打开以及由服务器键入
+//   的 at-rest-encrypted 令牌存储（auth::crypt，chmod 600）。
 //
-//   Flow (agentty mcp-login <server>):
-//     1. resolve <server> → endpoint URL from .agentty/mcp.json
-//     2. probe the endpoint → 401 → RFC 9728 resource-metadata URL
-//        (or accept an explicit --metadata URL)
-//     3. GET resource metadata → authorization server → GET its metadata
-//     4. Dynamic Client Registration (application_type=native) [or CIMD]
-//     5. open browser at the PKCE authorize URL; catch the loopback redirect
-//     6. validate state + RFC 9207 iss, exchange code → issuer-bound token
-//     7. seal + persist under ~/.agentty/mcp_tokens/<server>.json
+//   流量（agentty mcp-login <server>):
+//     1.从.agentty/mcp.json解析<server>→端点URL
+//     2.探测端点→401→RFC 9728资源-metadata URL
+//        （或接受明确的 --metadata URL）
+//     3、GET资源元数据→授权服务器→GET其元数据
+//     4.动态客户端注册（application_type=本机）[或CIMD]
+//     5.打开浏览器在PKCE处授权URL；捕获环回重定向
+//     6.验证状态+RFC 9207 iss，兑换码→发行者-bound代币
+//     7.密封+保留下~/.agentty/mcp_tokens/<server>.JSON
 //
-//   At call time the HTTP transport asks bearer_for(server) for a fresh
-//   Authorization header; an expired token is transparently refreshed.
+//   在调用时间，HTTP 传输层向bearer_for(
+//   服务器)请求新的授权头文件；过期的令牌会被透明地刷新。
 
 #include <chrono>
 #include <cstdint>
@@ -33,16 +33,16 @@
 
 namespace agentty::mcp::oauth {
 
-// One persisted, issuer-bound token record for a server (mirrors
-// mcp::auth::AccessToken + refresh bookkeeping).
+// 服务器的一个持久的、发行者-bound令牌记录（镜像mcp::
+// auth::AccessToken+刷新簿记）。
 struct StoredToken {
     std::string  access_token;
     std::string  token_type = "Bearer";
     std::string  refresh_token;
-    std::string  issuer;            // AS that minted it (replay guard)
-    std::string  resource;          // aud
-    std::string  client_id;         // for refresh
-    std::int64_t expires_at_ms = 0; // 0 ⇒ no expiry known
+    std::string  issuer;            // AS 铸造了它（重放守卫）
+    std::string  resource;          // 音频
+    std::string  client_id;         // 用于刷新
+    std::int64_t expires_at_ms = 0; // 0 ⇒ 无已知期限
 
     [[nodiscard]] std::string authorization_header() const {
         return token_type + " " + access_token;
@@ -54,45 +54,45 @@ struct StoredToken {
     static std::int64_t now_ms() noexcept;
 };
 
-// Result of a login attempt.
+// 登录尝试的结果。
 struct LoginResult {
     bool        ok = false;
-    std::string message;   // human-readable success/failure detail
+    std::string message;   // 人类-readable success/failure细节
 };
 
-// Run the interactive login for `server_name` (must exist in mcp.json as an
-// http/url server). If `metadata_url` is non-empty it's used directly instead
-// of probing for a 401 challenge. `client_id`, if set, is used when the
-// authorization server offers no Dynamic Client Registration endpoint: an
-// https:// value is treated as a CIMD (Client ID Metadata Document) URL
-// — the 2026-07-28 preferred path — anything else as a pre-registered public
-// client_id. Blocks on the browser round-trip up to `timeout_s`. Persists the
-// token on success. Never throws.
+// 对`server_name`运行交互式登录(必须作为http/url服务器存在于mcp.json中)。
+// 如果 `metadata_url` 不是 -empty，则直接使用它而不是
+// 探测 401 质询。 `client_id`（如果设置）在授权服务器
+// 不提供动态客户端注册端点时使用：https:// 值被视为 CIMD
+// （客户端 ID 元数据文档）URL — 2026-07-28 首选
+// 路径 — 其他任何内容都被视为 pre-registered 公共
+// client_id。浏览器上的阻止范围从 -trip 到 `timeout_s`。
+// 成功时保留令牌。从不抛出。
 [[nodiscard]] LoginResult login(Io, const std::string& server_name,
                                 const std::string& endpoint_url,
                                 const std::string& metadata_url,
                                 const std::string& client_id = {},
                                 int timeout_s = 300);
 
-// Return a fresh "Bearer <token>" header for `server_name`, refreshing a token
-// that's within the expiry skew. std::nullopt if no token is stored (caller
-// proceeds unauthenticated) or a refresh failed with no usable stale token.
-// Refreshes run one at a time on the auth_refresh lane.
+// 为 `server_name` 返回新的 "Bearer <token>"
+// 头文件，刷新在到期偏差内的令牌。 std::nullopt 如果没有存储
+// 令牌（调用者未经身份验证继续进行）或刷新失败且没有可用的 过期 令牌。
+// 刷新在 auth_refresh 通道上一次运行一个。
 [[nodiscard]] std::optional<std::string> bearer_for(const locks::below_auth_refresh& cap,
                                                     const std::string& server_name);
 
-// Remove a stored token. Returns true if a file was removed or none existed.
+// 移除存储的令牌。如果文件已删除或不存在，则返回 true。
 bool logout(const std::string& server_name);
 
-// True iff a token is currently stored for the server.
+// 当且仅当当前为服务器存储了令牌时为真。
 [[nodiscard]] bool has_token(const std::string& server_name);
 
-// CLI entry points (agentty mcp-login <server> / mcp-logout <server>). They
-// resolve the server's endpoint URL from .agentty/mcp.json themselves and
-// print human-readable progress. Return a process exit code (0 = success).
+// CLI入口点(agentty mcp-login <server>/mcp-logout
+// <server>)。他们自己从 .agentty/mcp.json 解析服务器的端点
+// URL 并打印 human-readable 进度。返回进程退出代码（0 = 成功）。
 int cmd_mcp_login(Io, const std::string& server_name, const std::string& metadata_url = {},
                   const std::string& client_id = {});
 int cmd_mcp_logout(const std::string& server_name);
-int cmd_mcp_status();   // list servers + which have a stored token
+int cmd_mcp_status();   // 列出具有存储的令牌的服务器+
 
 } // namespace agentty::mcp::oauth

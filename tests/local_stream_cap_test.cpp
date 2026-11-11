@@ -1,8 +1,8 @@
-// local_stream_cap_test — #108: a local model server can stream one reply for
-// longer than the hosted 30-minute cap. Drives the real HTTP client against a
-// loopback server that trickles SSE, with the clock shrunk to seconds: the
-// hosted ladder shape (a total cap) cuts it, the local ladder (no total cap)
-// lets it finish.
+// local_stream_cap_test ——108:本地模式服务
+// 器可以 数据流 一份答复,答复时间超过主办日期30次 -minute
+// 打开真实的 HTTP 客户端对接一个微调的回转服务器 SSE ,
+// 随着时钟缩成秒:主机梯形(一个总盖)将其剪切,局部梯形(没有总
+// 盖)让其完成.
 
 #include "agtest.hpp"
 
@@ -41,7 +41,7 @@ constexpr socket_t kInvalid = -1;
 void close_socket(socket_t s) { if (s != kInvalid) ::close(s); }
 #endif
 
-// One connection: answers 200 and sends a token every `gap`, `n` times.
+// 连接: 回答 200 个, 并发送一个符号 `gap`, `n` 时间。
 class TrickleServer {
 public:
     TrickleServer(int n, std::chrono::milliseconds gap) : n_(n), gap_(gap) {
@@ -71,7 +71,7 @@ public:
     }
     ~TrickleServer() {
         stop_.store(true);
-        close_socket(fd_);   // unblocks accept() if the client never came
+        close_socket(fd_);   // 如果客户端从未来过, 则解锁accept()
         if (worker_.joinable()) worker_.join();
 #if defined(_WIN32)
         ::WSACleanup();
@@ -87,8 +87,8 @@ private:
 #if defined(_WIN32)
             const auto r = ::send(c, s.data() + off, static_cast<int>(s.size() - off), 0);
 #else
-            // The capped client hangs up mid-stream; that must not SIGPIPE
-            // the whole test binary.
+            // 被封顶的客户端在中途挂断 -stream ;这不能 SIGPIPE
+            // 整个测试 二进制程序.
             const auto r = ::send(c, s.data() + off, s.size() - off, MSG_NOSIGNAL);
 #endif
             if (r <= 0) return;
@@ -99,7 +99,7 @@ private:
         const socket_t c = ::accept(fd_, nullptr, nullptr);
         if (c == kInvalid) return;
         char buf[8192];
-        (void)::recv(c, buf, sizeof(buf), 0);   // the request; content is irrelevant
+        (void)::recv(c, buf, sizeof(buf), 0);   // 请求; 内容无关
         send_all(c, "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n"
                     "Transfer-Encoding: chunked\r\nConnection: close\r\n\r\n");
         auto chunk = [](const std::string& s) {
@@ -108,8 +108,8 @@ private:
             return std::string{hex} + "\r\n" + s + "\r\n";
         };
         for (int i = 0; i < n_; ++i) {
-            // Sleep in steps so a test whose client already gave up doesn't
-            // hold the destructor's join for the whole gap.
+            // 睡在台阶上 这样一个测试 客户已经放弃了
+            // 并不会让毁灭者加入整个缺口
             const auto until = std::chrono::steady_clock::now() + gap_;
             while (!stop_.load() && std::chrono::steady_clock::now() < until)
                 std::this_thread::sleep_for(20ms);
@@ -150,19 +150,19 @@ Outcome run(std::uint16_t port, http::Timeouts tos) {
     return {bool(r), tokens, r ? std::string{} : r.error().render()};
 }
 
-// The real ladders, with every duration scaled from minutes to tenths of a
-// second so the test runs in about a second. idle stays well above the gap.
+// 真正的梯子,每段时间从分钟缩到十分之一秒,
+// 所以测试在一秒左右进行。闲置的时间远远超过差距。
 http::Timeouts shrink(http::Timeouts t) {
-    if (t.total.count() > 0) t.total = 600ms;   // "30 min" -> 0.6 s
+    if (t.total.count() > 0) t.total = 600ms;   // "30 min" - > 0.6 s
     t.idle = 2s;
     t.ping = 0ms;
     return t;
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("local stream: no total cap, so a long reply finishes (#108)") {
-    // 10 tokens, 0.1 s apart: ~1 s of streaming, past the shrunk 0.6 s cap.
+    // 10个符,0.1个差:~1 s of 流式传输,通过缩窄的0.6 s 盖.
     TrickleServer s(10, 100ms);
     REQUIRE(s.valid(), "loopback server starts");
     const auto out = run(s.port(), shrink(provider::local_stream_timeouts()));
@@ -171,7 +171,7 @@ TEST_CASE("local stream: no total cap, so a long reply finishes (#108)") {
 }
 
 TEST_CASE("local stream: the hosted ladder's cap would have cut it") {
-    // The control: same server, hosted ladder shape. This is what #108 hit.
+    // 控制器: 相同的服务器, 托管的梯形。 这就是 # 108 击中的。
     TrickleServer s(10, 100ms);
     REQUIRE(s.valid(), "loopback server starts");
     const auto out = run(s.port(), shrink(provider::stream_timeouts()));
@@ -181,8 +181,8 @@ TEST_CASE("local stream: the hosted ladder's cap would have cut it") {
 }
 
 TEST_CASE("local stream: a silent server is still caught by idle") {
-    // No total cap must not mean hanging forever. The server goes quiet for
-    // 5 s; the 2 s idle guard has to end it, well before the server would.
+    // 任何总的盖子都不得意味着永远挂起。 服务器会静静地运行 5 s;
+    // 2 s 闲置的守护者必须结束它, 远在服务器会关闭之前。
     TrickleServer s(1, 5000ms);
     REQUIRE(s.valid(), "loopback server starts");
     const auto t0 = std::chrono::steady_clock::now();

@@ -1,59 +1,59 @@
 #pragma once
-// agentty::util::home_dir — ONE resolution of the user's home directory,
-// shared by every path root (data_dir, config_dir, ~ expansion in tool
-// arguments). Before this existed the two roots disagreed under MSYS2/mintty:
-// persistence.cpp preferred $USERPROFILE (the native-Windows value, e.g.
-// C:\Users\me) while auth.cpp preferred $HOME (the MSYS value, e.g.
-// /home/me → C:\msys64\home\me). Under mintty BOTH are set, so credentials
-// landed under one root and threads/settings under the other — a silent
-// split-brain where a fresh `agentty login` under one shell wouldn't be seen
-// by a run under the other.
+// agentty::util::home_dir：统一解析用户主目录。
+// 所有路径根都共享此规则，包括数据目录、配置目录以及工具参数中的主目录展开。
+// 过去两套路径根在同一台机器的不同终端中可能给出不同结果。
+// persistence.cpp：曾优先使用原生系统的用户配置文件目录。
+// auth.cpp：曾优先使用类 Unix 环境中的主目录。
+// MSYS2/mintty：通常同时设置两种环境变量，导致凭据与会话设置写到不同位置。
+// agentty login：在一个终端登录后，另一个终端可能看不到凭据。
 //
-// Precedence (highest first), chosen so a single agentty install behaves the
-// same across cmd.exe, PowerShell, and mintty on one machine:
-//   1. $HOME            — set by MSYS2/mintty/Cygwin and by every POSIX shell;
-//                         honouring it FIRST keeps a `~` the user typed in a
-//                         mintty prompt pointing at the same place agentty
-//                         writes, and keeps Linux/macOS behaviour unchanged
-//                         (there $USERPROFILE is unset anyway).
-//   2. $USERPROFILE     — native-Windows home (cmd.exe / PowerShell, where
-//                         $HOME is usually unset).
-//   3. current_path()   — last-ditch fallback so we never throw.
+// 为使同一安装在不同终端下保持一致，采用以下优先级：
+// $HOME：最高优先级，由类 Unix 环境和标准系统终端设置。
+// ~：优先尊重用户输入的主目录，使手动路径与程序实际写入位置相同。
+// Linux/macOS：保留现有行为，这些环境通常没有另一个原生目录变量。
+// $USERPROFILE：其次使用原生系统的用户主目录。
+// cmd.exe/PowerShell：通常未设置第一项，此时使用第二项。
+// current_path()：最终回退到当前工作目录，保证不抛出异常。
 //
-// Returning the SAME directory from every caller is the whole point; do not
-// reintroduce a second precedence order in any path root.
+// 所有调用方必须返回同一个目录，不能在其他路径根中另设优先级。
 //
-// ── WHICH `util` IS THIS? ──────────────────────────────────────────
-// This is agentty::util — APP-WIDE PLUMBING with no notion of a tool call:
-// logging, home/root resolution, base64, teardown ordering, the self-updater,
-// the models.dev cache. Callable from anywhere.
+// 这里的通用工具层负责什么？
+// agentty::util：供整个应用使用的基础能力，不涉及工具调用边界。
+// 包括日志、主目录解析、编码、关闭顺序、自更新和模型目录缓存。
+// 这些能力可以从应用任意位置调用。
 //
-// The other one is agentty::tools::util (include/agentty/tool/util/), the TOOL
-// BOUNDARY: workspace clamping, subprocess spawning, the sandbox, the trust
-// handoff gate, argument parsing. Its unifying property is UNTRUSTED INPUT —
-// it is the set of walls between a model's request and the machine.
+// agentty::tools::util：另一个命名空间，负责模型与机器之间的工具边界。
+// include/agentty/tool/util/：保存工作区约束、子进程启动和沙箱等能力。
+// 其共同特点是处理不可信输入，还包括信任交接防护与参数解析。
 //
-// The dependency runs ONE WAY: tools::util may use util (fs_helpers calls
-// home_dir() below), never the reverse. Verified: nothing under src/util/ or
-// include/agentty/util/ mentions tools::util, and nothing here should start,
-// because a wall that depends on the thing it is protecting is not a wall.
-// The fuller version of this note lives in tool/util/fs_helpers.hpp.
+// 依赖方向必须单向：工具边界可以使用应用基础能力。
+// tools::util：可以依赖通用工具层，反向依赖则被禁止。
+// fs_helpers：调用此处的主目录函数就是正确方向的例子。
+// src/util/：不得反过来引用工具边界。
+// include/agentty/util/：同样不得反向依赖。
+// 如果保护边界依赖它要保护的对象，两层就失去了隔离意义。
+// tool/util/fs_helpers.hpp：提供这段说明的完整版本。
+//
+//
+//
+//
+//
 
 #include <filesystem>
 
 namespace agentty::util {
 
-// The user's home directory (see header comment for precedence). Never throws;
-// falls back to the current working directory if nothing is set.
+// 用户主目录，优先级见头文件说明。不会抛出异常；
+// 如果未设置任何内容，则返回到当前工作目录。
 std::filesystem::path home_dir();
 
-// Same $HOME → $USERPROFILE precedence, but returns an EMPTY path (not the
-// cwd) when neither is set. This is the contract for callers that treat "no
-// home" as "skip this optional feature" — e.g. loading ~/.agentty/hooks.json
-// or writing a user-level plugin config: falling back to the cwd there would
-// scatter dotfiles into whatever directory agentty happened to launch from.
-// Use home_dir() when you need a guaranteed-usable path; use this when empty
-// is a meaningful "unavailable" signal.
+// $HOME → $USERPROFILE：沿用相同优先级，但两者都未设置时返回空路径。
+// 不回退到当前目录，供允许跳过可选功能的调用方使用。
+// 例如，没有主目录时可以跳过用户钩子或插件配置的读写。
+// 否则回退到当前目录，会把配置文件散落在程序启动的位置。
+// home_dir()：需要保证得到可用路径时使用。
+// home_dir_or_empty()：空值可以表示不可用时使用。
+//
 std::filesystem::path home_dir_or_empty();
 
 } // namespace agentty::util

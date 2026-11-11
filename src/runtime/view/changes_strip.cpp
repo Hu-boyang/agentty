@@ -10,8 +10,8 @@ maya::ChangesStrip::Config changes_strip_config(const Model& m) {
     cfg.text_color   = fg;
     cfg.accept_color = success;
     cfg.reject_color = danger;
-    // Hidden by setting (Ctrl+K → "Changes strip") — edits still queue for
-    // Ctrl+R review, just without the always-on banner.
+    // 隐藏在设置中( N) Ctrl+K → "Changes strip" )——编辑
+    // 时仍然排队 Ctrl +R 复检, 总是没有 -on 标语。
     if (!m.d.show_changes_strip) return cfg;
     if (m.d.pending_changes.empty()) return cfg;
 

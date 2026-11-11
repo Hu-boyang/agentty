@@ -1,8 +1,8 @@
-// md_shape_sweep — hunt for streaming height-shrink (composer flicker) across
-// a corpus of tricky markdown shapes. Any frame where the rendered height
-// DECREASES while live is a composer bounce: the widget got taller then
-// shorter, dragging the composer up and back down. Streams each shape at
-// several chunk sizes; reports shrink events with the offending byte window.
+// md_shape_sweep ——追寻. 流式传输 高度
+// -shrink 穿过一系列棘手的减记形状。 帧 在那里,
+// 造化的高度, DECREASES 现场直播是作曲家的反弹:部件高了,
+// 然后缩短了,将作曲家拖上拉下拉下拉. 数据流 以若干块大小的形状;
+// 报表缩水 事件 与犯罪 字节 窗口中选择一个窗口。
 #include <algorithm>
 #include <cstdio>
 #include <string>
@@ -18,7 +18,7 @@
 
 using namespace maya;
 
-namespace {  // fold: TU-local (bundled into agentty_standalone_tests)
+namespace {  // 归并: TU-local (捆绑成 agentty_standalone_tests)
 static constexpr int kWidth = 80;
 static constexpr int kTermH = 40;
 
@@ -70,11 +70,11 @@ static std::vector<Shape> corpus() {
     s.push_back({"table_alignment",
         "| L | C | R |\n|:--|:-:|--:|\n| a | b | c |\n\nafter\n"});
     s.push_back({"strikethrough", "~~struck~~ text and more\n\nafter\n"});
-    // Real-world regression (user report): paragraph with inline code, a
-    // "Summary:" lead-in, bold-lead-in bullets carrying multibyte chars
-    // (→, —) and inline code, then a trailing paragraph + question. The
-    // first paragraph stayed hidden during streaming and burst in later;
-    // the composer bounced while the list streamed.
+    // 真实 -world 回归(用户报告):带内含代码的段落,
+    // a "Summary:" 牵头 -in 粗体显示
+    // -lead-in 带有多字节字符( ) 和内置码的子弹,
+    // 然后是后缀段落 + 问题。 第一段隐藏在 流式传输
+    // 之后又爆出;作曲家在列表流出时反弹.
     s.push_back({"push_summary_report",
         "Master pushed cleanly (`0b34b32..2528c70`).\n"
         "\n"
@@ -95,7 +95,7 @@ static std::vector<Shape> corpus() {
 
 static int rows_of(const Canvas& c) { return c.max_content_row() + 1; }
 
-}  // namespace (fold)
+}  // 名称空间( 归并)
 
 int main() {
     StylePool pool_dummy;
@@ -138,7 +138,7 @@ int main() {
                 }
                 prev = r;
             }
-            // drain
+            // 排水量
             int guard = 0;
             while ((md.is_live() || md.is_finalizing()) && guard++ < 400) {
                 md.request_finalize(200);
@@ -158,7 +158,7 @@ int main() {
                 ++total_fail;
                 std::printf("SHRINK %-28s chunk=%d events=%d worst=-%d rows near byte %zu\n",
                             sh.name, chunk, shrinks, worst_delta, worst_at);
-                // print the byte window for diagnosis
+                // 打印 字节 诊断窗口
                 std::size_t a = worst_at > 24 ? worst_at - 24 : 0;
                 std::size_t b = std::min(sh.body.size(), worst_at + 8);
                 std::string win{sh.body.substr(a, b - a)};

@@ -1,10 +1,10 @@
-// src/tool/util/exec.cpp — one loop, over jaal.
+// src/tool/util/exec.cpp - 一次循环,结束 jaal.
 //
-// The shape is a reactor wait with two deadlines. What makes it short is
-// that none of the hard parts are here: spawning, making an exit watchable,
-// and the handle lifetimes are jaal's, and they are covered by a conformance
-// suite that runs on every backend. What is left is the policy, and policy
-// is the part that should be readable.
+// 形状是反应堆,有两个期限。
+// 最短的就是没有硬部件在这里:产卵、
+// 使出口可以观察、
+// 把手 生命周期 已经 jaal
+// 政策是应该读的。
 
 #include "agentty/tool/util/exec.hpp"
 
@@ -25,7 +25,7 @@
 
 #include "agentty/tool/util/sandbox.hpp"
 #include "agentty/tool/util/sandbox_claybin.hpp"
-#include "agentty/tool/host_call.hpp"   // the dispatcher's per-call data
+#include "agentty/tool/host_call.hpp"   // 编号 分派器 单位 -call 数据
 
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
@@ -58,8 +58,8 @@ constexpr std::uint64_t kOutToken  = 2;
 constexpr std::uint64_t kBrokerToken = 3;
 constexpr std::uint64_t kInToken   = 4;
 
-// AGENTTY_STOP_TRACE=1 logs the exec stop sequence to stderr, each line
-// prefixed with ms since `since`.
+// AGENTTY_STOP_TRACE =1 日志执行停止序列为 stderr,
+// 每行前缀有 ms 之后 `since`.
 bool stop_trace_on() {
     static const bool on = [] {
         const char* v = std::getenv("AGENTTY_STOP_TRACE");
@@ -83,14 +83,14 @@ void stop_trace(clock_t_::time_point since, const char* fmt, ...) {
 
 
 #if defined(__linux__) || defined(_WIN32)
-/// The sandbox's way in, or empty when no sandbox is active. Linux and
-/// Windows only: adopting a foreign child needs a pidfd or a process handle.
-/// Darwin confines by wrapping the argv instead (see JaalExec::confine).
+/// 电话 沙箱 进入,或空,当没有 沙箱 正在激活。 Linux 财务报告
+/// 和已审计财务报表 Windows 仅:收养外国儿童需要一个临时的或程序处理器。
+/// 达尔文通过包扎方格来限制(见JaalExec::confine).
 ///
-/// claybin clones with namespace flags, installs a seccomp filter and enters
-/// a cgroup -- none of it expressible as "fork then exec" -- so it spawns,
-/// and run_child adopts the result. After that line the two paths are the
-/// same object with the same conformance suite behind it.
+/// 使用命名空间的claybin克隆人 标志 安装了seccomp 过滤器,
+/// 并进入一个croup- 没有一个可以表示为"fork then exec"
+/// - 从而产生结果, run_child 采纳结果。 在那条线之后,
+/// 两条路径是同一个对象, 后面有相同的符合套件。
 [[nodiscard]] std::function<AdoptedChild(int)>
 sandbox_spawner(const std::vector<std::string>& argv, const std::string& cwd,
                 std::vector<std::string> extra_roots = {},
@@ -98,8 +98,8 @@ sandbox_spawner(const std::vector<std::string>& argv, const std::string& cwd,
                 std::vector<std::pair<std::string, std::string>> env = {}) {
     namespace sb = agentty::tools::util::sandbox;
     if (sb::is_active() && sb::detected_backend() == sb::Backend::Claybin) {
-        // `trusted` is the dispatcher's, alive for the whole call; the spawn
-        // runs inside that call (start_child), never later.
+        // `trusted` 是那个 分派器 活下来的 调用 产卵在其中运行
+        // 调用 (start_child ),以后也不会.
         return [argv, cwd, extra_roots, trusted, env = std::move(env)](int out_fd) {
             auto r = sb::spawn_in_sandbox(argv, cwd, out_fd, extra_roots, trusted, env);
             AdoptedChild c;
@@ -122,13 +122,13 @@ struct started {
     int                  supervisor_fd = -1;
     std::function<bool()> service_broker;
     std::function<bool()> kill_tree;
-    // Whatever the sandbox needs kept alive while the child runs (the
-    // filtered network proxy owns the guest's listening socket).
+    // 无论沙箱需要什么在孩子运行时保持生命力(
+    // 过滤过的网络代理拥有客人的监听套接字).
     std::shared_ptr<void> keepalive;
 };
 
-/// Spawn, or let the sandbox spawn and adopt. stdout and stderr share one
-/// pipe: the interleaving a terminal would show.
+/// 生了,还是让 沙箱 产卵和收养。 Stdout和stderr
+/// 共用一个管道: 交接a 终端 就会显示
 [[nodiscard]] std::expected<started, std::string>
 start_child(const ChildRun& run) {
     if (run.argv.empty()) return std::unexpected(std::string{"empty command"});
@@ -139,9 +139,9 @@ start_child(const ChildRun& run) {
         if (::pipe2(fds, O_CLOEXEC) != 0)
             return std::unexpected(std::string{"pipe: "} + std::strerror(errno));
 #else
-        // No pipe2 on macOS/BSD: set CLOEXEC after the fact. The race with a
-        // concurrent fork is the same one every non-Linux spawner accepts;
-        // jaal closes every fd above stderr in the child anyway.
+        // 没有管子2 macOS/BSD 设置 CLOEXEC 事实之后 竞
+        // 态 与叉并排的,每非叉子相同 -Linux 产卵人接受;
+        // jaal 关闭所有fd以上 的 Stderr 的孩子反正。
         if (::pipe(fds) != 0)
             return std::unexpected(std::string{"pipe: "} + std::strerror(errno));
         ::fcntl(fds[0], F_SETFD, FD_CLOEXEC);
@@ -169,10 +169,10 @@ start_child(const ChildRun& run) {
 
 #if defined(_WIN32)
     if (run.spawn_adopted) {
-        // One anonymous pipe; the sandbox gets the write end duplicated
-        // inheritable, we keep the read end. Same shape as the posix arm --
-        // one merged stream, the interleaving a terminal would show -- but
-        // with HANDLEs, because that is what every windows API takes.
+        // 一种匿名烟斗; 沙箱 得到可继承的写入端,
+        // 我们保留读端。 形状与 posix 臂相同 -- -
+        // - 一个合并 数据流 , 交替脱落的a 终端 将会显示,
+        // 但手掌, 因为这就是每个窗口 API 带子
         SECURITY_ATTRIBUTES sa{sizeof(sa), nullptr, TRUE};
         HANDLE out_r = nullptr, out_w = nullptr;
         if (!::CreatePipe(&out_r, &out_w, &sa, 0))
@@ -180,8 +180,8 @@ start_child(const ChildRun& run) {
                                    std::to_string(::GetLastError()));
         auto a = run.spawn_adopted(
             static_cast<int>(reinterpret_cast<intptr_t>(out_w)));
-        // the spawner duplicated what it needed; OUR write end goes now, or
-        // the reader below never sees EOF.
+        // 产卵人重复它所需要的; OUR 写完就走 否则下面
+        // 的读者就看不到 EOF.
         ::CloseHandle(out_w);
         if (a.error.empty() && a.pid <= 0) a.error = "sandbox did not start";
         if (!a.error.empty()) {
@@ -197,7 +197,7 @@ start_child(const ChildRun& run) {
             ::CloseHandle(out_r);
             return std::unexpected(std::string{adopted.error().what});
         }
-        return started{std::move(*adopted), -1 /*no seccomp on windows*/,
+        return started{std::move(*adopted), -1 /*窗口上没有 seccomp*/,
                        std::move(a.service_broker), std::move(a.kill_tree),
                        std::move(a.keepalive)};
     }
@@ -217,7 +217,7 @@ start_child(const ChildRun& run) {
     return started{std::move(*p), -1, nullptr, nullptr};
 }
 
-/// Read up to `cap` bytes without blocking. 0 with `eof` = the writer closed.
+/// 读至`cap`XXXX 字节而不封堵. 0与`eof`=写手关闭.
 std::size_t read_ready(pf::borrowed_handle h, char* buf, std::size_t cap, bool& eof) {
 #if defined(_WIN32)
     return pf::read_some(h, buf, cap, eof);
@@ -228,12 +228,12 @@ std::size_t read_ready(pf::borrowed_handle h, char* buf, std::size_t cap, bool& 
         if (n > 0) return static_cast<std::size_t>(n);
         if (n < 0 && errno == EINTR) continue;
         if (n == 0) eof = true;
-        return 0;   // EAGAIN: nothing left
+        return 0;   // EAGAIN : 无剩
     }
 #endif
 }
 
-/// Write without blocking past what the pipe takes. `closed` = reader gone.
+/// Write 并且不会挡住管子的路 `closed` 读者不见了
 std::size_t write_ready(pf::borrowed_handle h, const char* buf, std::size_t len, bool& closed) {
 #if defined(_WIN32)
     return pf::write_some(h, buf, len, closed);
@@ -250,9 +250,9 @@ std::size_t write_ready(pf::borrowed_handle h, const char* buf, std::size_t len,
 #endif
 }
 
-/// Read everything currently available. Never blocks: the handles are
-/// non-blocking and we only get here because the reactor said ready.
-/// `closed` (optional) is set when the writer has closed the pipe.
+/// 读一下所有现有的信息。永远不要挡道: 把手是非-blocking,
+/// 我们只因为反应堆说准备好了才到这里。
+/// `closed`(可选)是当编剧关闭管子时设定的.
 std::size_t drain_into(pf::borrowed_handle h, std::string& out, std::size_t cap,
                        bool& truncated, bool* closed = nullptr) {
     char buf[64 * 1024];
@@ -263,10 +263,10 @@ std::size_t drain_into(pf::borrowed_handle h, std::string& out, std::size_t cap,
         if (eof && closed) *closed = true;
         if (n > 0) {
             got += n;
-            // Past the cap we keep READING and discard. Stopping the drain
-            // would leave the child blocked on a full pipe, which is how a
-            // command that produced too much output became a command that
-            // never finished.
+            // 过了我们所保持的帽子 READING
+            // 停止排水管会使孩子被堵在一条满管上,
+            // 这就是一个产生过多输出的命令变成一个从未完成
+            // 的命令。
             if (out.size() < cap) {
                 const auto room = cap - out.size();
                 const auto take = std::min(room, n);
@@ -277,7 +277,7 @@ std::size_t drain_into(pf::borrowed_handle h, std::string& out, std::size_t cap,
             }
             continue;
         }
-        break;   // nothing left, or EOF
+        break;   // 什么都没有,或者 EOF
     }
     return got;
 }
@@ -291,36 +291,36 @@ std::optional<std::chrono::seconds> env_wall_override() {
     return std::chrono::seconds{v};
 }
 
-class JaalSession;   // below
+class JaalSession;   // 下面
 
 namespace session_detail {
-// What the sandbox handed back with the child: the seccomp listener the pump
-// must answer, and cgroup.kill. Empty when there's no sandbox.
+// 或 沙箱 与孩子一起返回: seccomp 听者必须回答,
+// 而且 cgroup.kill。没有时空 沙箱.
 struct SandboxHooks {
     int                   supervisor_fd = -1;
-    std::function<bool()> service_broker;   // answer one notification
-    std::function<bool()> kill_tree;        // false = fall back to the group
-    std::shared_ptr<void> keepalive;        // the sandbox's own resources
+    std::function<bool()> service_broker;   // 答复 1 通知
+    std::function<bool()> kill_tree;        // 假 = 返回组
+    std::shared_ptr<void> keepalive;        // 编号 沙箱 自己的资源
 };
 }  // namespace session_detail
-}  // namespace
+}  // 命名空间结束。
 }  // namespace agentty::tools::util
-// Moved once into the pump, never shared: the closures own what they
-// capture (the listener and the cgroup, by shared_ptr only they hold).
+// 曾经移动到泵中,从未共享:关闭拥有他们捕获的东西(
+// 听众和croup,到shared_ptr只持有).
 MAYA_SENDABLE(agentty::tools::util::session_detail::SandboxHooks);
 namespace agentty::tools::util {
 namespace {
 
 namespace session_detail {
-// A background session's reactor, split by who may touch what:
-//   * adopt(): once, by the session's constructor, before the pump exists
-//     (so before any other thread can see it). Needs a PumpKey too.
-//   * wake(): any thread, any time (the Reactor concept makes it
-//     thread-safe and async-signal-safe)
-//   * drive(): needs a PumpKey, and only JaalSession can make one, which
-//     it does in pump() alone. So registering and waiting happen on the
-//     pump's thread and nowhere else.
-// That split is what makes it Sync (the opt-in below the namespace).
+// 由谁可以触摸什么来划分背景反应器:
+//   * adopt():一次,由会话构造器在泵存在前进行
+//     (因此,在任何其他会议之前) 线程 需要一个 PumpKey 也一样。
+//   * wake() : 任意 线程 ,随时(反应堆概念使其
+//     线程-safe 自动同步 -signal-safe)
+//   * drive() 需要一个 PumpKey ,并且仅 JaalSession 能够制造一个,
+//     它确实在 pump() 所以登记和等待 发生在泵的 线
+//     程 和其他地方,没有其他。
+// 分裂就是它同步的原因(名称空间下的Otto-in)。
 class PumpKey {
     PumpKey() = default;
     friend class ::agentty::tools::util::JaalSession;
@@ -328,7 +328,7 @@ class PumpKey {
 class PumpReactor {
   public:
     PumpReactor() = default;
-    // Never copied or reseated.
+    // 从未复制或重播。
     PumpReactor(const PumpReactor&)            = delete;
     PumpReactor& operator=(const PumpReactor&) = delete;
     void adopt(PumpKey, reactor_t r) { r_.emplace(std::move(r)); }
@@ -339,48 +339,48 @@ class PumpReactor {
     std::optional<reactor_t> r_;
 };
 }  // namespace session_detail
-}  // namespace
+}  // 命名空间结束。
 }  // namespace agentty::tools::util
-// wake() is thread-safe; drive() is reachable only from the pump (PumpKey).
+// wake() 谓 线程-safe; drive() 只能从泵中达到( PumpKey).
 MAYA_SYNC(agentty::tools::util::session_detail::PumpReactor);
 namespace agentty::tools::util {
 namespace {
 
-/// A started program, polled for later: an actor.
+/// 开始的节目,为后期的民意调查:演员.
 ///
-/// ONE thread, the pump, owns the child, the pipe and the reactor. It is the
-/// only writer of the output. The handle (this class) and the pump share one
-/// `Core`: a guarded Stream (the only copy of the output, plus the read
-/// cursor and the end state), a stop flag, and the reactor's waker. Core is
-/// co_owned and Sync, so the handle and the pump can each outlive the other
-/// and nothing is freed under either.
+/// 一个 线程, 泵拥有孩子, 管道和反应堆。 它是输出的唯一写法。
+/// 手柄( 本类) 和泵共享 `Core` : 一个被守卫的
+/// 数据流( 输出的唯一副本, 加上读光标和末端状态) ,
+/// 一个停机的标志, 以及反应堆的醒钟。 Core是
+/// co_owned 和 Sync, 因此手柄和泵可以互相比对方活,
+/// 任何东西都不能在其中释放。
 ///
-///   * read(): one exclusive section takes what's new and moves the cursor,
-///     so concurrent reads get disjoint bytes.
-///   * stop(): sets the flag and wakes the pump through the waker. Never
-///     blocks. The pump sends SIGTERM, then SIGKILL after a grace.
-///   * destruction: stop(), and that's all. The pump finishes the kill, keeps
-///     draining to EOF, reaps, and exits on its own. It runs as an isolated
-///     background job, so it never ties up a pool worker, and agentty's
-///     teardown bounds it at exit.
+///   * read():一个独家的区段取新东西,移动光标,
+///     并列读数会分解 字节。
+///   * stop() : 设置 标志 并唤醒泵通过醒悟器。
+///     块,泵送 SIGTERM ,则 SIGKILL 以恩典为后.
+///   * 销毁: stop() 泵完成杀,保持
+///     排水到 EOF ,收成,然后自己退出,它作为孤立的背景工作运行,
+///     所以它从不与一个 池 工作线程 ,和 agentty
+///     拆卸在出口处就被束缚了
 ///
-/// Lock order: the Stream is a LEAF whose bodies only move bytes and flags.
-/// read() is an mcp-cpp virtual whose signature the library fixes, so it
-/// re-states `unlocked` with thread_root at that one entry (listed in
-/// tests/lint/allowlist.txt); sound because mcp-cpp calls it only from a
-/// tool body, outside every agentty lock. stop() takes no capability at all:
-/// a leaf lock is the only thing it touches.
+/// 锁令:数据流是LEAF,其正文只移动字节和标志.
+/// read() 是一个 mcp-cpp 虚拟签名 库 修正,所以它 -states
+/// `unlocked` 与 thread_root 条目(列于
+/// tests/lint/allowlist.txt ); 声音因为 mcp-cpp
+/// 调用 只能从工具中 正文 , 外边 agentty 锁. stop() 完全没有能力:
+/// 叶子 锁 唯一能触摸的东西
 class JaalSession final : public mt::Session {
   public:
     JaalSession(process_t p, std::size_t window, session_detail::SandboxHooks hooks = {}) {
-        // Core owns the reactor: the handle and the pump both co-own Core,
-        // so the reactor (and the eventfd behind its waker) lives until the
-        // last of them is gone. stop() can never wake a closed fd. It is
-        // handed in here, before the pump exists, so nothing races it.
+        // 核心拥有反应堆: 把手和泵 -own 核心,
+        // 所以反应器(以及它的醒士背后的事件)一直存在,
+        // 直到最后的它们消失. stop() 永远也醒不过
+        // 来了 关上电源的电源就交给了这里 竞态 就是这样
         if (auto r = reactor_t::create()) core_->reactor.adopt(PumpKey{}, std::move(*r));
         if (!core_->reactor.valid()) {
-            // No reactor: nothing can watch the child. Kill it and report
-            // the end straight away, so a caller isn't left polling forever.
+            // 没有反应器:没有什么东西可以看着孩子。杀了它,
+            // 立即报告结局,所以一个打电话的人不会永远离开投票。
             (void)p.stop(pf::stop_mode::forceful, pf::stop_scope::tree);
             mt::ExecOutcome oc = mt::StartFailed{"no reactor"};
             if (auto st = p.reap()) oc = mt::Signalled{st->code};
@@ -419,28 +419,28 @@ class JaalSession final : public mt::Session {
     }
 
     void stop() noexcept override {
-        // One atomic flag and one eventfd write: both are safe from any
-        // thread, under any lock, at any time. That's why stop and the
-        // destructor never block.
+        // 一个原子 标志 和一则事件fd写道: 两者都安全,
+        // 不会有任何 线程 ,在任意 锁 所以
+        // 它永远不会挡住
         if (core_->stop.exchange(true)) return;
         core_->reactor.wake();
     }
 
   private:
-    // The pump's reactor: see PumpReactor above the class.
+    // 泵式反应堆:见舱位上方的PumpReactor.
     using PumpKey = session_detail::PumpKey;
     using PumpReactor = session_detail::PumpReactor;
 
-    // The output, the cursor, and the end: everything read() and the pump
-    // both touch. guarded<T>: reachable only inside a lock body, nothing
-    // escapes but owned values.
+    // 输出、光标和结束:所有 read() 和泵两个触摸,
+    // 守卫 <T> : 仅在a内可达到 锁 正文 ,没有东西可以逃脱,
+    // 只有拥有价值。
     struct Stream {
-        std::string  window;            // the newest `cap` bytes
-        std::size_t  base = 0;          // absolute offset of window[0]
-        std::size_t  seen = 0;          // absolute offset read() has handed out
+        std::string  window;            // `cap` 字节 最新版本
+        std::size_t  base = 0;          // 窗口绝对值的冲抵[0]
+        std::size_t  seen = 0;          // 决 议 read() 已经发出
         std::size_t  cap  = 128 * 1024;
-        bool         eof   = false;     // pipe closed: no more output
-        bool         ended = false;     // child reaped
+        bool         eof   = false;     // 管道关闭: 不再输出
+        bool         ended = false;     // 儿童收获
         mt::ExecOutcome outcome = mt::Exited{0};
         clock_t_::time_point ended_at{};
 
@@ -460,7 +460,7 @@ class JaalSession final : public mt::Session {
             ended_at = clock_t_::now();
         }
 
-        // What read() takes: plain owned values.
+        // read()需要的:普通的拥有价值。
         struct Taken {
             std::string  output;
             std::size_t  dropped = 0;
@@ -474,7 +474,7 @@ class JaalSession final : public mt::Session {
             Taken r;
             const auto end = base + window.size();
             auto from = std::max(seen, base);
-            r.dropped = from - seen;                      // scrolled out unseen
+            r.dropped = from - seen;                      // 向外滚动
             if (end - from > max) { r.dropped += (end - from) - max; from = end - max; }
             r.output  = window.substr(from - base, end - from);
             seen      = end;
@@ -486,12 +486,12 @@ class JaalSession final : public mt::Session {
         }
     };
 
-    // What the handle and the pump share, co_owned by both, and Sync:
-    //   s        the output stream: guarded, a leaf
-    //   stop     set by the handle, read by the pump
-    //   reactor  the pump's reactor, owned HERE so the eventfd behind its
-    //            waker lives as long as anyone can call stop()
-    // An aggregate, so jaal walks it and checks every field is Sync.
+    // 手柄和泵都分享什么, 双双的 co_owned, 和Sync:
+    //   输出 数据流 : 被看守,
+    //   一个叶子停在柄边, 读到泵反应堆 泵
+    //   的反应堆,拥有 此处 所以,事件 背后的醒悟 生命,
+    //            只要任何人都可以 调用 stop() 总计,
+    // 所以 jaal 检查每个字段都是Sync.
     struct Core {
         maya::guarded<Stream>              s;
         std::atomic<bool>                  stop{false};
@@ -502,14 +502,14 @@ class JaalSession final : public mt::Session {
 
     static void pump(const maya::unlocked& cap, std::stop_token pool_stop, process_t proc,
                      std::size_t window, core_t core, session_detail::SandboxHooks hooks) {
-        // The pump is the only thread that waits on or registers with the
-        // reactor; Core owns it so the waker stays valid for stop().
+        // 泵是唯一的,我只知道这个 线程 等待或登记在反应堆上;
+        // 核心拥有它,所以醒悟器仍然有效,用于 stop().
         auto& reactor = core->reactor.drive(PumpKey{});
         core->s.with(cap, [](Stream& s, std::size_t w) { s.cap = w; }, window);
         auto exit_reg = reactor.watch(proc.exit_handle().get(), pf::interest::read, kExitToken);
         if (!exit_reg) {
-            // Same rule as run_child: an exit nobody watches is a session
-            // that never ends. Stop it and end the stream now.
+            // 规则与 run_child : 没人看的退出是永
+            // 无止境的会话。停止它并结束 数据流 现在
             (void)proc.stop(pf::stop_mode::forceful, pf::stop_scope::tree);
             core->stop.store(true);
         }
@@ -517,17 +517,17 @@ class JaalSession final : public mt::Session {
         if (auto h = proc.stdout_handle())
             if (auto r = reactor.watch(h->get(), pf::interest::read, kOutToken))
                 out_reg = std::move(*r);
-        // The seccomp listener. The kernel parks a guest thread on every
-        // brokered syscall until it's answered, so this has to be watched
-        // for as long as the child lives, same as run_child does. A POSIX fd:
-        // Windows has no broker, and its reactor watches HANDLEs, not ints.
+        // 电话 seccomp 听者,内核会给客人停车 线程 每一个中介的
+        // syscall直到它得到答案, 所以这必须被监视 只要孩子活着,
+        // 和 run_child 已经这样做。 POSIX fd: 数据输入系统
+        // Windows 没有经纪人,它的反应堆 手表,不是内幕。
 #if !defined(_WIN32)
         if (hooks.supervisor_fd >= 0 && hooks.service_broker)
             if (auto r = reactor.watch(hooks.supervisor_fd, pf::interest::read, kBrokerToken))
                 broker_reg = std::move(*r);
 #endif
-        // SIGKILL for the whole tree: cgroup.kill when the sandbox gave us
-        // one (a setsid() descendant can't leave it), else the group.
+        // SIGKILL 整个 源码树: cgroup.kill 当 沙箱 给
+        // 我们一个(a) setsid() 后代不能离开它),否则就是群体.
         auto kill_all = [&] {
             if (!(hooks.kill_tree && hooks.kill_tree()))
                 (void)proc.stop(pf::stop_mode::forceful, pf::stop_scope::tree);
@@ -536,17 +536,17 @@ class JaalSession final : public mt::Session {
         constexpr auto kGrace = std::chrono::seconds{2};
         bool exited = false, eof = !out_reg;
         std::optional<clock_t_::time_point> kill_at;
-        // After a stop, the pipe can stay open forever if a descendant left
-        // the process group. Stop waiting for EOF this long after the exit.
+        // 停止后, 如果有后代离开进程组, 管道可以永远打开。
+        // 退出后这么长时间, 不要等待EOF。
         std::optional<clock_t_::time_point> give_up_eof;
 
         while (!(exited && eof)) {
-            // Stop: asked by the handle, or the process is shutting down.
+            // 停止: 由手柄询问, 否则进程正在关闭。
             const bool stopping = core->stop.load() || pool_stop.stop_requested();
             if (stopping && !kill_at && !exited) {
 #if defined(_WIN32)
-                // A graceful stop only ends the leader here, and a surviving
-                // grandchild holds stdout open, so kill the job first.
+                // 优雅的停机只结束了这里的领导, 一个幸存的孙子
+                // 坚持stdout打开, 所以先杀了工作。
                 if (hooks.kill_tree) (void)hooks.kill_tree();
 #endif
                 (void)proc.stop(pf::stop_mode::graceful, pf::stop_scope::tree);
@@ -554,13 +554,13 @@ class JaalSession final : public mt::Session {
             }
             if (kill_at && !exited && clock_t_::now() >= *kill_at) {
                 kill_all();
-                kill_at = clock_t_::time_point::max();   // once
+                kill_at = clock_t_::time_point::max();   // 一次
             }
             if (exited && stopping && !give_up_eof)
                 give_up_eof = clock_t_::now() + std::chrono::milliseconds{500};
             if (give_up_eof && clock_t_::now() >= *give_up_eof) break;
 
-            std::optional<std::chrono::milliseconds> wait;   // none: until an event
+            std::optional<std::chrono::milliseconds> wait;   // 无:直到事件
             if (kill_at && *kill_at != clock_t_::time_point::max())
                 wait = std::chrono::ceil<std::chrono::milliseconds>(*kill_at - clock_t_::now());
             if (give_up_eof)
@@ -579,28 +579,28 @@ class JaalSession final : public mt::Session {
                     if (!chunk.empty())
                         core->s.with(cap, [](Stream& s, std::string c) { s.append(c); },
                                      std::move(chunk));
-                    // Drained and closed: stop watching, or the reactor
-                    // reports the hangup on every wait and the loop spins.
+                    // 排水和闭塞:停止观看,
+                    // 或者反应堆报告每个等待和循环旋转上的悬浮.
                     if (closed) { out_reg.reset(); eof = true; }
                 } else if (r.token == kExitToken && (r.readable || r.hangup)) {
                     exited = true;
                     exit_reg = {};
                 } else if (r.token == kBrokerToken && (r.readable || r.hangup)) {
-                    // false: the listener is done (guest gone). Stop watching
-                    // it, or a hung-up fd wakes this loop forever.
+                    // 假: 听者已经玩完了( 客人已经走了 )。 停止观看,
+                    // 或者一个 hung-up 的 fd 永远唤醒这个循环。
                     if (!hooks.service_broker()) broker_reg.reset();
                 }
             }
             if (exited && !eof) {
-                // Publish the end now; output may keep coming from a child
-                // that inherited the pipe, and read() reports both.
+                // 现在公布结尾;输出可能来自继承管子的孩子,
+                // 而read()则同时报告.
                 publish_exit(cap, proc, core);
             }
         }
         if (!exited) {
-            // Reactor failure, or the EOF give-up with the child alive: make
-            // sure it's dead, then give the kernel a moment to make it
-            // reapable (reap() refuses rather than block).
+            // 反应堆故障,或 EOF 给 -up 与孩子活着:
+            // 确保它死了,然后给内核一个时间使它可以收获(
+            // reap() 拒绝而不是封锁)。
             kill_all();
             for (int i = 0; i < 100; ++i) {
                 publish_exit(cap, proc, core);
@@ -611,13 +611,13 @@ class JaalSession final : public mt::Session {
         publish_exit(cap, proc, core);
         core->s.with(cap, [](Stream& s) {
             s.eof = true;
-            // Still not reapable after 2 s of SIGKILL: report it ended
-            // anyway, so no caller waits on it forever.
+            // 仍然无法收获 超过2秒 SIGKILL 报告
+            // 结局了 所以没有打电话的人会永远等待
             if (!s.ended) s.end(mt::ExecOutcome{mt::Signalled{9}});
         });
     }
 
-    // Reap once and publish the outcome. Idempotent.
+    // 复试一次并公布结果. 幂等.
     static void publish_exit(const maya::unlocked& cap, process_t& proc, const core_t& core) {
         if (core->s.read(cap, [](const Stream& s) { return s.ended; })) return;
         mt::ExecOutcome oc = mt::Signalled{0};
@@ -626,7 +626,7 @@ class JaalSession final : public mt::Session {
                      ? mt::ExecOutcome{mt::Exited{s->code}}
                      : mt::ExecOutcome{mt::Signalled{s->code}};
         else
-            return;   // not reapable yet
+            return;   // 尚未可收获
         core->s.with(cap, [](Stream& s, mt::ExecOutcome o) { s.end(std::move(o)); },
                      std::move(oc));
     }
@@ -638,12 +638,12 @@ class JaalExec final : public mt::Exec {
   public:
     explicit JaalExec(ExecDefaults d) : d_(d) {}
 
-    // Put the sandbox on a child about to start, the same way for run and
-    // start. The call's extra roots (an editor session's folders) are
-    // writable inside the sandbox too. On darwin jaal can't adopt a foreign
-    // child (no pidfd), so the sandbox goes into the argv instead
-    // (sandbox-exec, same posture). Returns why it couldn't: fail closed, a
-    // profile we can't build must not become an unconfined run.
+    // 放下枪 沙箱 和跑步和开始一样 调用 额外的根
+    // ( 一个编辑器会话文件夹) 可以在 沙箱 也一样,
+    // 在达文 jaal 不能收养外国孩子(没有婴儿),
+    // 所以 沙箱 转而进入方格( 转录为
+    // 4) ( 沙箱-exec 返回它为什么不能:
+    // 失败关闭, 我们不能建立一个配置。
     [[nodiscard]] static std::optional<std::string> confine(const mt::Call& call, ChildRun& run) {
         std::vector<std::string> roots;
         for (const auto& r : call.scope_extra_roots) roots.push_back(r.string());
@@ -686,9 +686,9 @@ class JaalExec final : public mt::Exec {
             er.outcome = mt::StartFailed{std::move(*bad)};
             return er;
         }
-        // The tool call's live output and cancel: where its output goes and
-        // whether its user hit Esc. Only the tail a card shows is copied and
-        // checked, so a long command doesn't re-scan megabytes every tick.
+        // 工具调用的活输出和取消:其输出到哪里,
+        // 用户是否点击Esc. 只有末尾的卡片显示被复制和检查,
+        // 所以长指令不会每勾点一次re-scan兆字节.
         if (call.progress)
             run.on_progress = [&call](std::string_view raw) {
                 call.progress(::mcp::tools::util::to_valid_utf8(
@@ -725,7 +725,7 @@ class JaalExec final : public mt::Exec {
 
         auto st = start_child(run);
         if (!st) return std::unexpected(st.error());
-        // The pump answers the broker and owns cgroup.kill, as run_child does.
+        // 泵回答经纪人,并拥有 cgroup.kill ,作为 run_child 已经。
         session_detail::SandboxHooks hooks{st->supervisor_fd, std::move(st->service_broker),
                                            std::move(st->kill_tree),
                                            std::move(st->keepalive)};
@@ -737,8 +737,8 @@ class JaalExec final : public mt::Exec {
     }
 
     [[nodiscard]] bool stops_whole_tree() const noexcept override {
-        // Windows: a job object holds the tree. POSIX: a process group is not
-        // a tree, since a descendant that calls setsid() leaves it.
+        // Windows : 工作对象持有 源码树. POSIX : 进程组不是
+        // 源码树 ,因为一个后裔 调用 setsid() 离开它。
 #if defined(_WIN32)
         return true;
 #else
@@ -750,7 +750,7 @@ class JaalExec final : public mt::Exec {
     ExecDefaults d_;
 };
 
-}  // namespace
+}  // 命名空间结束。
 
 std::shared_ptr<mt::Exec> make_exec(ExecDefaults defaults) {
     return std::make_shared<JaalExec>(defaults);
@@ -776,10 +776,10 @@ ChildResult run_child(const ChildRun& run) {
     }
     r.started = true;
 
-    // The exit MUST be watched: the loop below only learns of it through
-    // this registration, so without it every run would sit until its
-    // deadline. jaal never returns a process whose exit can't fire, so this
-    // failing means the reactor itself refused; say so and stop the child.
+    // 出口 出口 门 必须 被监视:下面的循环只是通过
+    // 这个注册得知的,所以没有它,每次跑步都会一直到最后期限.
+    // jaal 永远不要返回一个不能发射的流程,
+    // 所以这种失败意味着反应堆本身拒绝了;说到做到,阻止孩子.
     auto exit_reg = reactor->watch(proc.exit_handle().get(), pf::interest::read, kExitToken);
     if (!exit_reg) {
         (void)proc.stop(pf::stop_mode::forceful, pf::stop_scope::tree);
@@ -790,22 +790,22 @@ ChildResult run_child(const ChildRun& run) {
     }
     std::optional<reactor_t::registration> out_reg, in_reg, broker_reg;
 #if defined(_WIN32)
-    ::agentty::util::WorkerGroup feeder{"exec.stdin_feed"};   // destroyed after the reap
-    bool feeder_started = false;   // a feeder job is running, so there's something to join
+    ::agentty::util::WorkerGroup feeder{"exec.stdin_feed"};   // 收获后就被摧毁了
+    bool feeder_started = false;   // 一条支线工作正在运行,所以有东西可以加入
 #endif
     if (auto h = proc.stdout_handle())
         if (auto reg = reactor->watch(h->get(), pf::interest::read, kOutToken))
             out_reg = std::move(*reg);
 #if !defined(_WIN32)
-    // The seccomp broker, when the policy delegates syscalls. It MUST be
-    // serviced: the kernel blocks the guest until someone answers.
+    // 电话 seccomp 经纪人,当政策代表 调用。
+    // 必须 服务:内核屏蔽客人直到有人回答.
     if (st->supervisor_fd >= 0 && st->service_broker)
         if (auto reg = reactor->watch(st->supervisor_fd, pf::interest::read, kBrokerToken))
             broker_reg = std::move(*reg);
 #endif
 
-    // stdin is fed from this loop, a chunk per wake, so a child that writes
-    // before it reads cannot deadlock against us.
+    // 斯丁从这个循环中被喂食,一个块每醒, 所以一个孩子
+    // 在读之前写作不能 死锁 对抗我们
     std::size_t fed = 0;
     auto feed = [&] {
         const auto h = proc.stdin_handle();
@@ -815,18 +815,18 @@ ChildResult run_child(const ChildRun& run) {
             const auto n = write_ready(*h, run.stdin_data.data() + fed,
                                        run.stdin_data.size() - fed, closed);
             if (n > 0) { fed += n; continue; }
-            if (!closed) return;   // full: wait to be writable again
-            break;                 // it closed its stdin, nothing more to give
+            if (!closed) return;   // 满: 等待再次被写入
+            break;                 // 关闭了它的臭味,没有更多的可以给
         }
         in_reg.reset();
         proc.close_stdin();
     };
     if (auto h = proc.stdin_handle()) {
 #if defined(_WIN32)
-        // No writable readiness for an anonymous pipe, so the feed runs as a
-        // job with its own copy of the handle. The loop keeps draining output
-        // meanwhile; once the child ends, the write fails and the job ends.
-        // feeder.stop() after the reap is the join.
+        // 无法写出匿名管道, 因此该种子会作为工作运行,
+        // 并带有它自己的手柄副本。 循环会同时排出输出;
+        // 一旦孩子结束, 写不出来, 任务结束。
+        // 收获后的feeder.stop()为加盟.
         if (auto dup = maya::platform::duplicate_handle(h->get())) {
             proc.close_stdin();
             feeder_started = true;
@@ -841,7 +841,7 @@ ChildResult run_child(const ChildRun& run) {
                     if (closed || n == 0) break;
                     off += n;
                 }
-            }, maya::platform::owned_handle{*dup}, run.stdin_data);   // `own` closes at the end: EOF for the child
+            }, maya::platform::owned_handle{*dup}, run.stdin_data);   // `own` 关闭结尾 : EOF 儿童事务
         } else {
             proc.close_stdin();
         }
@@ -862,18 +862,18 @@ ChildResult run_child(const ChildRun& run) {
         run.on_progress(r.output);
     };
 
-    // ── the two clocks ──────────────────────────────────────────────────
+    // ── 两个钟 ──────────────────────────────────────────────────
     const bool has_idle = run.idle.count() > 0;
     const bool has_wall = run.wall.count() > 0;
     const auto wall_at  = started_at + run.wall;
     auto       idle_at  = started_at + run.idle;
-    // Cancel has no wake source of its own, so wake at least this often to
-    // ask; without a stop_requested the deadlines alone decide.
+    // 取消 自己没有唤醒来源,所以至少唤醒这个经常问;
+    // 没有 stop_requested 期限由自己决定。
     constexpr std::chrono::milliseconds kCancelTick{100};
 
-    bool stopping = false;   // SIGTERM sent
+    bool stopping = false;   // 已发出SIGTERM
     std::optional<clock_t_::time_point> kill_at;
-    std::optional<clock_t_::time_point> give_up_at;   // after SIGKILL
+    std::optional<clock_t_::time_point> give_up_at;   // 之后 SIGKILL
     constexpr std::chrono::seconds kAfterKill{5};
     bool exited = false;
 
@@ -899,8 +899,8 @@ ChildResult run_child(const ChildRun& run) {
                 if (auto h = proc.stdout_handle())
                     got = drain_into(*h, r.output, run.max_output_bytes, r.truncated);
                 if (got > 0) saw_output = true;
-                // Hung up and drained: stop watching, or the reactor reports
-                // the hangup on every wait and this loop spins until exit.
+                // 吊起来排水:停止监视,否则反应堆报告每个
+                // 等待时间的吊挂,这个循环旋转直到退出.
                 else if (e.hangup) out_reg.reset();
             } else if (e.token == kExitToken && (e.readable || e.hangup)) {
                 exited = true;
@@ -910,8 +910,8 @@ ChildResult run_child(const ChildRun& run) {
                 if (st->service_broker && !st->service_broker()) broker_reg.reset();
             }
         }
-        // Output resets the idle clock and only the idle clock: a chatty
-        // runaway keeps that one moving forever, so the wall clock ends it.
+        // 输出重排闲置时钟,只排闲置的时钟:
+        // 聊天的跑步让那个永远移动,所以墙钟结束.
         if (saw_output) {
             idle_at = clock_t_::now() + run.idle;
             progress(false);
@@ -929,13 +929,13 @@ ChildResult run_child(const ChildRun& run) {
             else if (has_idle && t >= idle_at)              r.timed_out_idle = true;
             else if (has_wall && t >= wall_at)              r.timed_out_wall = true;
             if (r.cancelled || r.timed_out_idle || r.timed_out_wall) {
-                // A graceful stop only ends the leader on Windows, and a
-                // surviving grandchild holds stdout open, so kill the job first.
+                // 优雅的停机只结束领导者在Windows,
+                // 一个幸存的孙子 持有sdout打开, 所以先杀死工作。
                 bool tree_killed = false;
 #if defined(_WIN32)
                 tree_killed = st->kill_tree && st->kill_tree();
 #endif
-                // Ask first: a shell given SIGTERM reaps its own children.
+                // Ask 首选项: 给定的 shell SIGTERM 收其子孙.
                 (void)proc.stop(pf::stop_mode::graceful, pf::stop_scope::tree);
                 stopping = true;
                 kill_at  = t + run.kill_grace;
@@ -946,17 +946,17 @@ ChildResult run_child(const ChildRun& run) {
             }
         }
         if (kill_at && t >= *kill_at) {
-            // The whole tree. kill_tree is claybin's cgroup.kill, which a
-            // setsid() in a grandchild cannot escape; the group signal is
-            // the fallback.
+            // 整个源码树. kill_tree是claybin的cgroup.kill,
+            // 孙子中的setsid()是无法逃脱的;
+            // 群信号是回退.
             const bool kt = st->kill_tree && st->kill_tree();
             stop_trace(started_at, "force tree_kill=%d", int(kt));
             if (!kt)
                 (void)proc.stop(pf::stop_mode::forceful, pf::stop_scope::tree);
             kill_at.reset();
-            // SIGKILL is sent; the exit should follow at once. If it doesn't
-            // (a task in D state, a kill that didn't land), stop waiting
-            // rather than sleep in the reactor with no deadline at all.
+            // SIGKILL被发送;出口应该随即出现。
+            // 如果它不(在D州的任务,一个没有降落的杀手),
+            // 就停止等待,而不是在反应堆里睡觉,而根本没有最后期限。
             give_up_at = t + kAfterKill;
         }
         if (give_up_at && t >= *give_up_at) {
@@ -965,7 +965,7 @@ ChildResult run_child(const ChildRun& run) {
         }
     }
 
-    // The exit says the bytes are done, not that we have them.
+    // 出口说 字节 已经办好了,不是说我们有他们。
     stop_trace(started_at, "loop ended");
     if (auto h = proc.stdout_handle())
         drain_into(*h, r.output, run.max_output_bytes, r.truncated);
@@ -976,20 +976,20 @@ ChildResult run_child(const ChildRun& run) {
         if (status->how == pf::exit_status::kind::exited) { r.exited = true; r.exit_code = status->code; }
         else                                              { r.signalled = true; r.signal = status->code; }
     } else {
-        r.signalled = true;   // gone, and nothing to tell us how
+        r.signalled = true;   // 不见了,没有告诉我们如何
     }
     stop_trace(started_at, "reaped");
 #if defined(_WIN32)
-    // A grandchild can still hold the stdin pipe's read end, leaving the
-    // feeder blocked in WriteFile. Ending the job closes every copy, so the
-    // write fails and the barrier below can't hang.
+    // 孙子仍能持住stdin管的读端,
+    // 使支线在WriteFile中被屏蔽. 结束工作关闭每份拷贝,
+    // 所以写作失败,下面的屏障无法挂.
     (void)proc.stop(pf::stop_mode::forceful, pf::stop_scope::tree);
-    // run_child is a blocking leaf helper (it locks nothing of ours). Its
-    // callers are tool bodies, mcp-cpp's Exec, the keystore/clipboard CLI
-    // probes, and the RAG docs converter. That last one runs inside the RAG
-    // index lock, where a join can't be re-stated (#112), but it passes no
-    // stdin, so there is no feeder to join. Only a run that started one joins
-    // it, and those all come from outside every agentty lock.
+    // run_child 是阻叶辅助器(它 锁 其呼唤者是工具 正文,
+    // mcp-cpp 执行, keystore/clipboard CLI
+    // 探测器,还有 RAG 文档转换器。最后一个在 RAG 指数 锁 ,
+    // 不能重新加入 ,无法重新加入 -stated (# 112) ,
+    // 但不会通过 stdin, 所以没有支线可以加入。 只有启动的运行会加入它,
+    // 而所有来自外部的都来自每个 agentty 锁.
     if (feeder_started) {
         maya::thread_root([&](const maya::unlocked& c) { feeder.stop(c); });
         stop_trace(started_at, "feeder joined");
@@ -999,20 +999,20 @@ ChildResult run_child(const ChildRun& run) {
     return r;
 }
 
-// The scan fan-out mcp-cpp's and rag-cpp's search tools call through their
-// Splitter (a std::function whose signature those libraries fix). Joining
-// helpers needs `unlocked`; it is re-stated here, the one reviewed root for
-// the splitter (tests/lint/allowlist.txt). Sound: the libraries call it from
-// a tool body, never from inside an agentty lock body, and `fn` (their
-// per-share scan) takes no agentty lock.
+// 扫描风扇 -out mcp-cpp 和 时 rag-cpp '搜索工具' 调用 通过
+// 其分拆器(a) std::function 其签名 库。 加入帮助者需要 `unlocked` ;
+// 内容是 -stated 这里,一个是审查的 root 用于拆分器( )
+// tests/lint/allowlist.txt。声音: 库 调用 工具上的这个 正文
+// 永远不要从里面 agentty 锁 正文 ,和 `fn` (按每笔捐款计)
+// -share 扫描)不 agentty 锁.
 //
-// Never hand this splitter to an object that runs inside a lock body: the
-// RAG index builds and searches holding rag_index, so its engines get an
-// inline Splitter{} (rag/adapter.cpp make_engine_config, #112).
+// 永远不要将这个分解器交给在内部运行的物体 锁 正文 : 数据 RAG 索引构建和
+// 搜索控件 rag_index ,所以它的引擎得到内置的分解器( )
+// rag/adapter.cpp make_engine_config, #112).
 void scope_fan_out(std::size_t n, const std::function<void(std::size_t)>& fn) {
     if (n <= 1) { if (n) fn(0); return; }
     maya::thread_root([&](const maya::unlocked& cap) {
-        maya::parallel_for(cap, n, n, fn);   // joins every share before returning
+        maya::parallel_for(cap, n, n, fn);   // 返回前加入每股
     });
 }
 

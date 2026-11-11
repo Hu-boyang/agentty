@@ -1,12 +1,12 @@
-// smart_form.cpp — Smart Mode's row model.
+// smart_form.cpp — Smart Mode的行型.
 //
-// Pure: no catalogue lookups, no IO, no chrome. The pane resolves each role
-// (which needs the model catalogue and the active provider) and hands the
-// resulting labels in; this file only decides what the rows ARE.
+// 纯度: 不检查目录, 不 IO ,没有铬。 面板 解决
+// 每个角色(需要模型目录和主动提供者),并将由此产生的
+// 标签交接进去;此文件只决定行中的内容 ARE.
 
 #include "agentty/runtime/panel/smart_form.hpp"
 
-#include "agentty/runtime/settings_registry.hpp"   // row ranges
+#include "agentty/runtime/settings_registry.hpp"   // 行范围
 
 namespace agentty::smart_form {
 
@@ -15,20 +15,20 @@ namespace {
 void add_slot(form::Builder& b, const char* id, std::string label,
               const SlotView& v, std::string help) {
     b.pick(id, std::move(label), v.label, std::move(help));
-    // Provenance, the same column the embeddings pane uses for
-    // "settings.json" / "env: …". A pinned slot is a deliberate user choice;
-    // an auto one is the catalogue's pick. Saying which is the difference
-    // between "why is it using that model?" and an answer.
+    // 证明, 嵌入式 面板 用于 "settings.json"
+    // / "env: …" 的同一栏。 固定槽是有意选择的用户;
+    // 自动槽是目录的选取。 说这是 "why is it using that model?"
+    // 和 答案的区别。
     b.origin(v.pinned ? "pinned" : "auto");
 }
 
-} // namespace
+} // 命名空间结束。
 
 form::Form build_form(const Inputs& in) {
     form::Builder b{" Smart Mode "};
-    // Group-header bookkeeping for the registry walk below. The slot rows are
-    // hand-written (they are model pickers, not table rows), so the walk starts
-    // fresh and emits its own header.
+    // 下方的注册表行的Group-header簿记.
+    // 槽行是手-written(它们是型号为选择面板,不是桌行),
+    // 所以行走开始新鲜,并发出自己的头文件.
     bool first = true;
     auto last_group = settings::registry::Group::Sources;
     b.subtitle(in.enabled
@@ -39,9 +39,9 @@ form::Form build_form(const Inputs& in) {
              "route by role instead of sending everything to one model");
     if (!in.enabled_lock.empty()) b.lock(in.enabled_lock);
 
-    // The slots only mean something while routing is on. Locked rather than
-    // hidden: a pane whose contents appear and vanish is disorienting, and the
-    // rows are exactly what explains what the switch above would DO.
+    // 插槽只在路由开启时表示某种意思。
+    // 锁定而非隐藏: a 面板 内容出现和消失 令人
+    // 不适 整行正是解释 上面开关会是什么 DO.
     const bool live = in.enabled;
 
     add_slot(b, kFieldStrategic, "Strategic", in.strategic,
@@ -56,25 +56,25 @@ form::Form build_form(const Inputs& in) {
              "summaries, titles, cheap mechanical work");
     if (!live) b.lock("Smart Mode off");
 
-    // ── Advanced: the numeric policy ────────────────────────────────
-    // WALKED from the settings registry, exactly as the Retrieval pane walks
-    // its half. Label, help, control kind, range, group header, env lock and
-    // provenance all come from the row — this pane contributes only "the
-    // Settings-owned rows are mine".
+    // ── 高级:数字政策 ────────────────────────────────
+    // WALKED 从设置中 注册表 ,完全作为检索 面板 标记、帮助、
+    // 控制类型、范围、组 头文件 环境 锁 和来源都来自排行——这个
+    // 面板 仅贡献
+    // 由 Settings 管理的行属于此面板。
     //
-    // These were hand-rolled here first: three labels, three help strings and
-    // three ranges retyped out of the table that already declared them, plus a
-    // second implementation of the env-lock rule. Everything the registry
-    // exists to prevent.
+    // 这些都是手 -rolled 在此首先: 三个标签、
+    // 三个帮助字符串和三个区域从已经声明的表格中重新打印出来,
+    // 加上第二个执行内存 -lock 规则,一切 注册表 已经存在,
+    // 以预防。
     settings::registry::add_rows(b, in.smart, in.env,
                                  settings::registry::Owner::Smart,
                                  in.advanced, first, last_group);
 
-    // The affordance has to be ON SCREEN. Advanced rows are hidden by default,
-    // and a key nobody can see is exactly the discoverability failure these
-    // knobs were moved out of an env var to fix.
-    // Pane-specific note only — the shared key grammar comes from
-    // form_config (SSOT). ^E toggles the advanced rows (pane state).
+    // 付得起的必须 ON SCREEN。高级行默认被隐藏,
+    // 没有人能看见的密钥就是这些旋钮被移出env
+    // var以修复的可发现性故障。
+    // 面板-specific 注释中只有 – 共享密钥语法来自 form_config
+    // (SSOT). ^E 切换 高级行( 面板 ) ,"国家".
     b.note(in.advanced ? "^E  hide advanced" : "^E  advanced");
 
     return b.build();

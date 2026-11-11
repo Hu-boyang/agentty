@@ -1,5 +1,5 @@
 #include "agentty/runtime/view/status_bar/token_stream_sparkline.hpp"
-#include <maya/core/anim_clock.hpp>   // anim_now: the frame clock
+#include <maya/core/anim_clock.hpp>   // anim_now : 数据 帧 时钟
 
 #include <algorithm>
 #include <chrono>
@@ -11,7 +11,7 @@ namespace agentty::ui {
 
 namespace {
 
-// Pull the rate ring buffer out in chronological (oldest → newest) order.
+// 按时间顺序(最老 ) 将 缓冲区 调出。
 std::vector<float> ordered_rate_history(const StreamState& s) {
     std::vector<float> out;
     out.reserve(StreamState::kRateSamples);
@@ -27,16 +27,16 @@ std::vector<float> ordered_rate_history(const StreamState& s) {
     return out;
 }
 
-} // namespace
+} // 命名空间结束。
 
 maya::TokenStreamSparkline::Config token_stream_sparkline_config(const Model& m) {
     const bool is_streaming = m.s.is_streaming() && m.s.active();
 
     auto hist = ordered_rate_history(m.s);
     auto now  = maya::anim_now();
-    // Reach into the active ctx for the current sub-turn's live
-    // counters; nullptr means "no active stream" → we'll fall back
-    // to the historical sparkline.
+    // 联系当前子的活跃 ctx -turn 现场柜台;
+    // nullptr 表示 "no active stream"
+    // 回到历史的火花线上
     const phase::Active* a = active_ctx(m.s.phase);
     bool ever_streamed =
         a && a->first_delta_at.time_since_epoch().count() != 0;
@@ -46,13 +46,13 @@ maya::TokenStreamSparkline::Config token_stream_sparkline_config(const Model& m)
         : 0;
     double approx_tok = a ? static_cast<double>(a->live_delta_bytes) / 4.0 : 0.0;
 
-    // Pick the displayed rate: live during streaming (after a 250 ms
-    // warm-up so the first frame isn't a divide-by-tiny-time spike),
-    // freeze on most recent sample otherwise (so the number doesn't
-    // decay during tool execution), 0 before any data. While streaming
-    // we show the Motion-smoothed value — .get() self-ticks on the shared
-    // frame clock and keeps frames armed while gliding — so the readout
-    // glides instead of strobing frame-to-frame.
+    // 选择显示的速率: 活在 流式传输 (在250毫秒的温暖之后)
+    // -up 所以第一个 帧 不是一个鸿沟 -by-tiny-time ,
+    // 在最近样本中另作选择(这样数字在工具执行中不会衰减),
+    // 0在任何数据之前。 流式传输 我们展示的是动画
+    // -smoothed 价值——。 get() 自己 -ticks
+    // 共享的 帧 钟表和保持 帧 滑翔时武装着——所以读取滑翔器
+    // 而不是滑翔器 帧-to-frame.
     float disp_rate;
     if (is_streaming && ts_ms >= 250) {
         disp_rate = static_cast<float>(m.s.disp_rate.get());

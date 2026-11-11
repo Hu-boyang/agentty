@@ -1,9 +1,9 @@
-// paste_cli.cpp — `agentty paste …`, drawn with maya.
+// paste_cli.cpp — `agentty paste …` ,并绘制 maya.
 //
-// richpaste does the work and hands back data (rp/report.hpp); this file only
-// decides how it looks. Commands whose output is meant for a pipe (`paste`,
-// `page`, `encode`, `decode`, the snippets) and the background ones (`agent`,
-// `ssh-hook`) still go straight to richpaste's plain command line.
+// richpaste 工作时和手回放数据时( rp/report.hpp ); ;
+// 此文件只决定它看起来如何。 输出用于管道的命令( 命令)。 `paste`,
+// `page`, `encode`, `decode` ,片段)和背景片段( `agent`,
+// `ssh-hook` 仍然直接去 richpaste 简单的命令线
 
 #include "agentty/runtime/paste_cli.hpp"
 
@@ -29,7 +29,7 @@
 #include <vector>
 
 #ifdef _WIN32
-#include <io.h>        // _isatty, _fileno: MSVC has no <unistd.h>
+#include <io.h>        // _isatty, _ fileno : (英语). MSVC 没有 <unistd.h>
 #define isatty _isatty
 #define fileno _fileno
 #else
@@ -44,7 +44,7 @@ using namespace maya::dsl;
 
 namespace {
 
-// ── drawing ──────────────────────────────────────────────────────────────
+// ── 绘图 ──────────────────────────────────────────────────────────────
 
 bool painted(FILE* f) {
     return ::isatty(fileno(f)) == 1 && maya::theme::detect_tier(true) != maya::theme::ColorTier::Mono;
@@ -60,8 +60,8 @@ int width_of(FILE* f) {
 void emit(const Element& e, FILE* f = stdout) {
     const int w = width_of(f);
     std::string s = painted(f) ? maya::render_to_string_ansi(e, w) : maya::render_to_string(e, w);
-    // Rendered rows are padded to the width; trailing blanks only get in the
-    // way of a copy. In styled output the padding sits before closing resets.
+    // 宽度上加了编织的行; 后面的空白只阻碍复制。
+    // 在样式输出中, 粘贴坐落于关闭重排之前。
     constexpr std::string_view reset = maya::ansi::reset;
     const std::string double_reset = std::string{reset} + std::string{reset};
     std::string out;
@@ -102,7 +102,7 @@ Element fixed(Element e, int w) {
     return box(std::move(e));
 }
 
-// A label in a fixed gutter and its value wrapping beside it.
+// 固定沟槽里的标签 和它旁边的值
 Element row(Element label, Element value, int gutter) {
     auto right = maya::hstack();
     right.grow();
@@ -128,7 +128,7 @@ Element stack(std::vector<Element> rows) {
 
 const char* dot() { return "\xc2\xb7"; }   // ·
 
-// ── help ─────────────────────────────────────────────────────────────────
+// ── 帮助 ─────────────────────────────────────────────────────────────────
 
 int help() {
     constexpr int g = 26;
@@ -159,7 +159,7 @@ int help() {
     return 2;
 }
 
-// ── doctor ───────────────────────────────────────────────────────────────
+// ── 医生 ───────────────────────────────────────────────────────────────
 
 std::string route_label(rp::Route r) {
     switch (r) {
@@ -183,7 +183,7 @@ std::string route_what(rp::Route r) {
     return "";
 }
 
-// What to do about a failed route, in a few plain words. Empty: nothing to add.
+// 失败的路径, 以几个简单的词来表达。 空的: 无任何添加。
 std::string route_hint(const rp::Error& e) {
     using rp::Code;
     if (!e.route) return {};
@@ -216,7 +216,7 @@ int doctor() {
     rows.push_back(line({title("agentty paste doctor")}));
     rows.push_back(blank());
 
-    // Where we are decides the plan, so say that first.
+    // 我们决定计划的地方,先说吧。
     rows.push_back(heading("where you are"));
     std::string where = d.situation.ssh ? "over ssh" : "on this machine";
     if (d.tmux) where += d.situation.tmux ? ", in a tmux pane" : ", tmux set but not answering";
@@ -241,13 +241,13 @@ int doctor() {
     kv("local agent", d.agent_alive ? ok("running") : dim("not running"));
     rows.push_back(blank());
 
-    // The plan, with each route's outcome if this paste reached it.
+    // 计划,如果这个糊子到达,每个路线的结果都会有.
     rows.push_back(heading("routes, in order"));
     if (d.plan.empty()) rows.push_back(indent(warn("every route is turned off in the settings")));
     bool reached_end = false;
     for (std::size_t i = 0; i < d.plan.size(); ++i) {
         const auto r = d.plan[i];
-        Element mark = dim("\xc2\xb7");   // not tried
+        Element mark = dim("\xc2\xb7");   // 未尝试
         std::vector<Element> detail;
         if (reached_end) {
             mark = dim("\xc2\xb7");
@@ -268,7 +268,7 @@ int doctor() {
     }
     rows.push_back(blank());
 
-    // The result.
+    // 果报.
     if (d.paste) {
         rows.push_back(line({ok("\xe2\x9c\x93 paste works"), dim(std::string{"via "} + d.paste->source)}));
         for (auto& it : d.paste->items) {
@@ -298,7 +298,7 @@ int doctor() {
     }
     rows.push_back(blank());
 
-    // Settings, compact, last.
+    // 设置,紧凑,最后。
     rows.push_back(heading("settings"));
     kv("routes", dim(std::format("forwards {} {} display {} {} server display {} {} terminal {}", onoff(c.forwards), dot(),
                                  onoff(c.display), dot(), onoff(c.server_display), dot(),
@@ -313,7 +313,7 @@ int doctor() {
     return d.paste || d.paste.error().code == rp::Code::empty ? 0 : 1;
 }
 
-// ── setup ────────────────────────────────────────────────────────────────
+// ── 设置 ────────────────────────────────────────────────────────────────
 
 int setup() {
     auto r = rp::setup();
@@ -354,9 +354,9 @@ int setup() {
     return 0;
 }
 
-// ── config ───────────────────────────────────────────────────────────────
+// ── 配置 ───────────────────────────────────────────────────────────────
 
-// Accepts "max_mb" or "paste.max_mb".
+// 接受( E) "max_mb" 或 或 时 间 "paste.max_mb".
 const reg::SettingDef* find_row(std::string_view key) {
     std::string id{key};
     if (!id.starts_with("paste.")) id = "paste." + id;
@@ -424,7 +424,7 @@ int config(Io io, const maya::unlocked& cap, std::span<const std::string> args) 
     if (verb == "get" && args.size() == 2) {
         const auto* d = find_row(args[1]);
         if (!d) return fail("there is no setting " + args[1] + " (see `agentty paste config`)");
-        std::printf("%s\n", reg::get(s.paste, *d).c_str());   // plain: scripts read this
+        std::printf("%s\n", reg::get(s.paste, *d).c_str());   // 平方: 脚本读取此
         return 0;
     }
     if (verb == "set" && (args.size() == 3 || args.size() == 2)) {
@@ -458,7 +458,7 @@ int config(Io io, const maya::unlocked& cap, std::span<const std::string> args) 
     return config_usage();
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 int run(Io io, const maya::unlocked& cap, std::span<const std::string> args) {
     if (!args.empty() && args[0] == "config") return config(io, cap, args.subspan(1));

@@ -1,8 +1,8 @@
 #!/bin/sh
-# Does the default cpu.weight slow a build when nothing else wants the CPU?
+# 默认值是否 cpu.weight 慢一点,别无他法 CPU?
 #
-# It must not: a weight only decides who loses under CONTENTION. 12 jobs on
-# 12 cores, timed. Compare against the same script run outside a box.
+# 不可更改: 重心只决定谁在 CONTENTION 下输掉。
+# 12 个核心上的工作, 计时。 与同一个脚本相比, 运行在框外。
 start=$(date +%s%N)
 i=0
 while [ $i -lt 12 ]; do

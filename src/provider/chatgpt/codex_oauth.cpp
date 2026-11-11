@@ -53,7 +53,7 @@ std::int64_t now_ms() {
         .count();
 }
 
-// RFC-3986 unreserved passthrough, everything else %HH.
+// RFC-3986无保留直通，​​其他一切%HH。
 std::string url_escape(std::string_view s) {
     static const char* hex = "0123456789ABCDEF";
     std::string out;
@@ -83,9 +83,9 @@ std::string form_encode(const std::vector<std::pair<std::string, std::string>>& 
     return out;
 }
 
-// A single POST to auth.openai.com. `json_body` chooses application/json vs
-// x-www-form-urlencoded (the Codex refresh uses JSON, the code+key exchanges
-// use form). Returns {status, body} or a transport error string.
+// 单个POST至auth.openai.com。 `json_body`选择application/json
+// vs x-www-form-urlencoded（Codex刷新使用JSON，
+// 代码+密钥交换使用形式）。返回 {status, 正文} 或 传输层 错误字符串。
 struct PostResult {
     int status = 0;
     std::string body;
@@ -123,21 +123,21 @@ PostResult post(std::string_view path, std::string body, bool json_body) {
     return r;
 }
 
-// Pull one claim out of a JWT (middle segment, base64url). Best-effort: any
-// malformed input returns empty so the caller degrades to no account_id.
+// 从 JWT (中间段，base64url)中提取一项声明。 Best-effort：
+// 任何格式错误的输入都会返回空，因此调用者将降级为无 account_id。
 std::string jwt_claim(const std::string& jwt, const char* key) {
     const auto a = jwt.find('.');
     if (a == std::string::npos) return {};
     const auto b = jwt.find('.', a + 1);
     if (b == std::string::npos) return {};
     std::string payload = jwt.substr(a + 1, b - a - 1);
-    // base64url → standard base64 for the decoder.
+    // base64url→解码器的标准base64。
     for (auto& c : payload) { if (c == '-') c = '+'; else if (c == '_') c = '/'; }
     while (payload.size() % 4) payload.push_back('=');
     try {
         auto raw = util::base64_decode(payload);
         auto j = json::parse(raw);
-        // account id can live directly or under auth.chatgpt_account_id.
+        // 账户id可以直接存在或者在auth.chatgpt_account_id下。
         if (j.contains(key) && j[key].is_string()) return j[key].get<std::string>();
         if (j.contains("https://api.openai.com/auth")) {
             const auto& o = j["https://api.openai.com/auth"];
@@ -151,7 +151,7 @@ std::string jwt_claim(const std::string& jwt, const char* key) {
     return {};
 }
 
-// The `exp` claim (seconds since epoch) of a JWT, or 0.
+// JWT 的 `exp` 声明（自纪元以来的秒数）或 0。
 std::int64_t jwt_exp_seconds(const std::string& jwt) {
     const auto a = jwt.find('.');
     if (a == std::string::npos) return 0;
@@ -176,15 +176,15 @@ parse_tokens(const std::string& body, int status,
             std::string{"json parse failed: "} + e.what()});
     }
     if (status >= 400) {
-        // Keep the server's error code in the detail so the caller can tell
-        // "sign in again" from "try again later".
+        // 详细保存服务器的错误代码，以便调用者可以区分"sign in again"
+        // 和"try again later"。
         const std::string code = j.contains("error") && j["error"].is_object()
             ? j["error"].value("code", std::string{}) : j.value("error", std::string{});
         std::string desc = j.contains("error") && j["error"].is_object()
             ? j["error"].value("message", std::string{})
             : j.value("error_description", std::string{});
         if (desc.empty()) desc = "HTTP " + std::to_string(status);
-        // "status=NNN " leads so a refresh failure can be classified on it.
+        // "status=NNN "引出，因此可以对其分类刷新失败。
         return std::unexpected(OAuthError{OAuthErrorKind::ApiError,
             "status=" + std::to_string(status) + " "
             + (code.empty() ? desc : code + ": " + desc)});
@@ -200,15 +200,15 @@ parse_tokens(const std::string& body, int status,
     if (const auto secs = j.value("expires_in", std::int64_t{0}); secs > 0)
         c.expires_at_ms = now_ms() + secs * 1000;
     else if (const auto exp = jwt_exp_seconds(c.access_token); exp > 0)
-        c.expires_at_ms = exp * 1000;   // the token says when it dies
+        c.expires_at_ms = exp * 1000;   // 令牌表示它何时死亡
     c.last_refresh_ms = now_ms();
     if (!c.id_token.empty())
         c.account_id = jwt_claim(c.id_token, "chatgpt_account_id");
     return c;
 }
 
-// RFC-8693 token-exchange: id_token → usable OpenAI api key. Best-effort;
-// login still succeeds (with just the bearer token) if this fails.
+// RFC-8693令牌-exchange:id_token→可用的OpenAI API密钥。
+// 最佳-effort；如果失败，登录仍然会成功（仅使用不记名令牌）。
 std::string mint_api_key(const std::string& id_token) {
     if (id_token.empty()) return {};
     auto r = post("/oauth/token", form_encode({
@@ -292,8 +292,8 @@ poll_device_authorization(const maya::unlocked& cap, const DeviceAuthorization& 
     const auto timeout = std::chrono::seconds{std::max(timeout_s, 1)};
     const auto deadline = clock::now() + timeout;
     const auto was_cancelled = [&] { return cancelled.stop_requested(); };
-    // The server's interval (or what is left of the deadline), cut short the
-    // moment the login is cancelled.
+    // 服务器的时间间隔(或者说截止时间所剩的时间)，
+    // 在登录时刻被缩短为已取消。
     const auto wait_for_next_poll = [&] {
         const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - clock::now());
         (void)maya::delay_for(cap, cancelled,
@@ -310,8 +310,8 @@ poll_device_authorization(const maya::unlocked& cap, const DeviceAuthorization& 
             {"user_code", device.user_code},
         }.dump(), /*json_body=*/true);
         if (!r.transport_error.empty()) {
-            // A device authorization remains valid across transient network
-            // failures. Retry at the server cadence until its deadline.
+            // 设备授权在瞬时网络故障期间保持有效。
+            // 重试 的服务器节奏直到截止日期。
             wait_for_next_poll();
             continue;
         }
@@ -342,7 +342,7 @@ poll_device_authorization(const maya::unlocked& cap, const DeviceAuthorization& 
             }
         }
 
-        // OpenAI currently uses 403/404 for "authorization pending".
+        // OpenAI当前使用403/404作为"authorization pending"。
         if (r.status != 403 && r.status != 404) {
             return std::unexpected(OAuthError{OAuthErrorKind::ApiError,
                 response_error(r, "device-code polling failed (HTTP "
@@ -354,20 +354,20 @@ poll_device_authorization(const maya::unlocked& cap, const DeviceAuthorization& 
         "device-code login timed out; start sign-in again for a new code"});
 }
 
-// ── Loopback callback server (blocking, single connection) ─────────────────
+// ── 循环后退回调服务器( 屏蔽, 单连接) ─────────────────
 //
-// OpenAI pins the redirect to http://localhost:1455/auth/callback, so we bind
-// that port, accept one request, extract ?code=&state=, and reply with a
-// browser-friendly page. Returns the raw query on success. Cross-platform via
-// Winsock / BSD sockets; no framework needed for a one-shot local exchange.
+// OpenAI将重定向固定到
+// http://localhost:1455/auth/callback,，因此我们绑定该端口，接受一个请求，提取？code=&state=，并用浏览器-friendly页面进行回复。成功时返回原始查询。通过
+// Winsock / BSD 套接字 Cross-platform；
+// one-shot 本地交换不需要框架。
 struct CallbackResult {
     std::string code;
     std::string state;
-    std::string error;   // non-empty on failure (bind/accept/timeout)
+    std::string error;   // 失败时为非-empty (bind/accept/timeout)
 };
 
 std::string query_param(std::string_view target, std::string_view key) {
-    // target is the request-target, e.g. /auth/callback?code=X&state=Y
+    // 目标是请求-target、e.g。 /auth/callback?代码=X&状态=Y
     const auto q = target.find('?');
     if (q == std::string_view::npos) return {};
     std::string_view qs = target.substr(q + 1);
@@ -381,7 +381,7 @@ std::string query_param(std::string_view target, std::string_view key) {
                                                     : amp - pos);
         if (pair.substr(0, want.size()) == want) {
             std::string_view raw = pair.substr(want.size());
-            // Minimal %XX / '+' decode — sufficient for OAuth code/state.
+            // Minimal%XX/'+'解码——足以用于OAuth code/state.
             std::string out;
             for (std::size_t i = 0; i < raw.size(); ++i) {
                 if (raw[i] == '%' && i + 2 < raw.size()) {
@@ -404,13 +404,13 @@ std::string query_param(std::string_view target, std::string_view key) {
     return {};
 }
 
-// The sockets a cancel should shut down, so a blocked select() wakes at once.
-// -1 = none. Read by the cancel callback, written by the waiting thread.
-// Lock-free: the cancel callback runs on whichever thread requests the stop
-// (it cannot carry a capability), so it must not take a guarded. `busy`
-// counts callbacks mid-shutdown; the waiter clears the fds and then waits
-// for `busy` to drain before it closes a socket, so the number cannot be
-// reused between the callback's read and its shutdown. (All seq_cst.)
+// 取消的套接字应当关闭，因此阻塞的select()立即唤醒。
+// -1=无。由取消读取回调，由等待线程写入。
+// 锁-free:取消 回调在线程请求停止的任何一个上运行(它不能
+// 承载能力)，因此它不能采取防护。 `busy` 计数 回调
+// mid-shutdown；服务员会清除 fds，
+// 然后等待 `busy` 耗尽，然后再关闭套接字，因此在 回调 的
+// 读取和关闭之间该数字不能重复使用。 （全部 seq_cst。）
 struct WakeFds {
     std::atomic<std::intptr_t> srv{-1};
     std::atomic<std::intptr_t> cli{-1};
@@ -452,7 +452,7 @@ CallbackResult wait_for_callback_impl(int timeout_s, const CodexCancelProbe& can
 
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);   // bind 127.0.0.1 only
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);   // 仅绑定127.0.0.1
     addr.sin_port = htons(static_cast<uint16_t>(port));
     if (::bind(srv, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
         close_sock(srv);
@@ -462,14 +462,14 @@ CallbackResult wait_for_callback_impl(int timeout_s, const CodexCancelProbe& can
     }
     if (::listen(srv, 1) != 0) { close_sock(srv); out.error = "listen failed"; return out; }
 
-    // Wait for the browser up to the deadline. A cancel shuts the client
-    // socket down, which wakes its select() at once. The LISTENER is another
-    // matter: shutdown() on a listening socket only wakes select() on Linux.
-    // On darwin/BSD it fails with ENOTCONN and wakes nothing (verified), and
-    // Winsock behaves the same way, so a cancelled login would keep its
-    // stream thread and port 1455 until the 15-minute deadline (and a retry
-    // would see "port 1455 is busy"). So the listener waits in short slices
-    // and re-checks the token; the shutdown still makes Linux instant.
+    // 等待浏览器截止时间。 取消 关闭客户端套接字，从而立即唤醒其
+    // select()。 LISTENER 是另一回事：侦听套接字上的
+    // shutdown() 只能唤醒 Linux 上的 select()。
+    // 在 darwin/BSD 上，它以 ENOTCONN 失败并且什么也唤醒（已验证），
+    // 并且 Winsock 的行为方式相同，因此 已取消 登录将保留其 数据
+    // 流 线程 和端口 1455，直到 15-minute 截止日期（并且 重试
+    // 将看到 "port 1455 is busy"）。因此，侦听器会等待很短的
+    // 时间并 re-checks 令牌；关机仍然使 Linux 立即发生。
     constexpr auto kListenSlice = std::chrono::milliseconds(200);
     const auto deadline = std::chrono::steady_clock::now()
                         + std::chrono::seconds(timeout_s);
@@ -486,7 +486,7 @@ CallbackResult wait_for_callback_impl(int timeout_s, const CodexCancelProbe& can
         drain();
     };
     arm(srv, kInvalid);
-    // A cancel that landed before arming would otherwise be missed.
+    // 否则，在武装之前着陆的取消将会被错过。
     if (cancelled.stop_requested()) shut_read(static_cast<std::intptr_t>(srv));
     const auto until_deadline = [&] {
         const auto left = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -522,8 +522,8 @@ CallbackResult wait_for_callback_impl(int timeout_s, const CodexCancelProbe& can
         if (cli == kInvalid) continue;
         arm(srv, cli);
 
-        // Read through short select() slices so a local peer that connects and
-        // stalls cannot pin port 1455 or defeat cancellation/the deadline.
+        // 通读短select()片，
+        // 使得连接和停止的本地对端不能固定端口1455或超过cancellation/the最后期限。
         std::string req;
         char buf[4096];
         while (req.size() <= 16384) {
@@ -552,7 +552,7 @@ CallbackResult wait_for_callback_impl(int timeout_s, const CodexCancelProbe& can
             if (req.find("\r\n\r\n") != std::string::npos) break;
         }
 
-        // Parse "GET /auth/callback?code=...&state=... HTTP/1.1".
+        // 解析 "GET /auth/callback?code=...&state=... HTTP/1.1"。
         std::string target;
         if (const auto sp = req.find(' '); sp != std::string::npos) {
             const auto sp2 = req.find(' ', sp + 1);
@@ -587,8 +587,8 @@ CallbackResult wait_for_callback_impl(int timeout_s, const CodexCancelProbe& can
 CallbackResult wait_for_callback(int timeout_s, const CodexCancelProbe& cancelled, int port) {
     WakeFds wake;
     std::stop_callback on_cancel(cancelled, [&wake] {
-        // Announce ourselves before reading, so the waiter's disarm() waits
-        // for this shutdown before it closes (and frees) the fd number.
+        // 在阅读之前声明我们自己，因此服务员的disarm
+        // ()在关闭（并释放）fd号之前等待这次关闭。
         wake.busy.fetch_add(1);
         shut_read(wake.srv.load());
         shut_read(wake.cli.load());
@@ -597,9 +597,9 @@ CallbackResult wait_for_callback(int timeout_s, const CodexCancelProbe& cancelle
     return wait_for_callback_impl(timeout_s, cancelled, wake, port);
 }
 
-// The callback port to use: 1455, or 1457 when something holds 1455 (a
-// Codex login left running). Both are on OpenAI's redirect allow-list for
-// this client; codex-rs falls back the same way. 0 = neither is free.
+// 要使用的 回调 端口：1455，或当某些内容保持 1455 时为 1457（
+// Codex 登录仍在运行）。两者都位于该客户端的 OpenAI 重定向allow
+// -list上； codex-rs 以同样的方式回落。 0 = 两者都不是免费的。
 int pick_callback_port() {
 #if defined(_WIN32)
     WSADATA wsa;
@@ -629,7 +629,7 @@ std::string redirect_uri_for(int port) {
     return "http://localhost:" + std::to_string(port) + OAuthConfig::callback_path;
 }
 
-// ── Credential (de)serialization ───────────────────────────────────────────
+// ── 凭据 (德) 序列化 ───────────────────────────────────────────
 json to_json(const CodexCredentials& c) {
     return json{
         {"access_token",  c.access_token},
@@ -651,15 +651,15 @@ CodexCredentials from_json(const json& j) {
     c.api_key       = j.value("api_key", std::string{});
     c.expires_at_ms = j.value("expires_at_ms", std::int64_t{0});
     c.last_refresh_ms = j.value("last_refresh_ms", std::int64_t{0});
-    // Saved before expires_in was always set: the token itself knows.
+    // 已保存总是在expires_in之前被设置：令牌本身知道。
     if (c.expires_at_ms == 0)
         if (const auto exp = jwt_exp_seconds(c.access_token); exp > 0) c.expires_at_ms = exp * 1000;
     return c;
 }
 
-// The creds file. Every read and write runs inside store().with; the
-// generation bumps on each save or clear, so a refresh can tell whether the
-// file changed under it while the network call was out.
+// 信用文件。每次读写都在store().with内部运行；
+// 每个 保存 或清除上的生成都会发生冲突，因此刷新可以判断在
+// 网络 调用 断开时，其下的文件是否发生更改。
 struct Store { std::uint64_t generation = 0; };
 maya::guarded<Store>& store() { static maya::guarded<Store> s; return s; }
 
@@ -705,15 +705,15 @@ Loaded load_with_generation(const maya::below<maya::leaf>& cap) {
     });
 }
 
-} // namespace
+} // 命名空间结束。
 
 bool CodexCredentials::expired(std::int64_t skew_ms) const noexcept {
     return expires_at_ms != 0 && now_ms() >= expires_at_ms - skew_ms;
 }
 
 bool CodexCredentials::needs_refresh() const noexcept {
-    constexpr std::int64_t kWindowMs = 5LL * 60 * 1000;         // codex-rs: 5 minutes
-    constexpr std::int64_t kMaxAgeMs = 8LL * 24 * 3600 * 1000;  // codex-rs: 8 days
+    constexpr std::int64_t kWindowMs = 5LL * 60 * 1000;         // codex-rs：5分钟
+    constexpr std::int64_t kMaxAgeMs = 8LL * 24 * 3600 * 1000;  // 代码-rs：8天
     if (expired(kWindowMs)) return true;
     return last_refresh_ms != 0 && now_ms() - last_refresh_ms > kMaxAgeMs;
 }
@@ -722,9 +722,9 @@ fs::path codex_credentials_path() {
     return auth::config_dir() / "codex_credentials.json";
 }
 
-// Lock-free: saves publish by atomic rename and clears by remove, so a reader
-// sees the old file, the new file, or none — never a torn one. The store
-// lock only orders writers (and the refresh's generation check).
+// 锁-free:保存通过原子重命名发布并通过删除清除，
+// 因此读者可以看到旧文件、新文件或没有——从来没有撕破的文件。
+// 商店 锁 仅命令写入器（以及刷新的生成检查）。
 std::optional<CodexCredentials> load_codex_credentials() {
     return load_codex_credentials_unlocked();
 }
@@ -789,7 +789,7 @@ codex_refresh(const CodexCredentials& current) {
     if (current.refresh_token.empty())
         return std::unexpected(OAuthError{OAuthErrorKind::ApiError,
             "no refresh_token — sign in again"});
-    // Codex refresh uses a JSON body (not form-encoded).
+    // Codex刷新使用JSON 正文 (不是形式-encoded)。
     const std::string body = json{
         {"client_id",     OAuthConfig::client_id},
         {"grant_type",    "refresh_token"},
@@ -803,7 +803,7 @@ codex_refresh(const CodexCredentials& current) {
     if (!c) return c;
     if (c->account_id.empty()) c->account_id = current.account_id;
     c->api_key = mint_api_key(c->id_token.empty() ? current.id_token : c->id_token);
-    if (c->api_key.empty()) c->api_key = current.api_key;   // keep the old key on mint failure
+    if (c->api_key.empty()) c->api_key = current.api_key;   // 保留旧钥匙以防止损坏
     return c;
 }
 
@@ -886,8 +886,8 @@ codex_login(Io io, const maya::unlocked& cap, int timeout_s, CodexDeviceCodeSink
     if (!cb.error.empty())
         return std::unexpected(OAuthError{OAuthErrorKind::Network, cb.error});
 
-    // Anti-CSRF: require the IdP to echo our state and compare it in constant
-    // time. Missing state is a mismatch, never an optional compatibility path.
+    // Anti-CSRF:要求IdP回显我们的状态并在恒定
+    // 时间内进行比较。缺少状态是不匹配，而不是可选的兼容性路径。
     const std::string& want = state.value;
     bool ok = cb.state.size() == want.size();
     unsigned char diff = ok ? 0 : 1;
@@ -909,8 +909,8 @@ namespace {
 RefreshOutcome refresh_locked(const maya::held<locks::auth_refresh>& cap,
                               std::string_view rejected);
 
-// Last refresh failure, for the request path to report. Written only under
-// the refresh lane; an atomic so readers don't need it.
+// 上次刷新失败，针对请求路径进行报告。只写在刷新通道下；
+// 一个原子，所以读者不需要它。
 std::atomic<std::uint8_t>& last_failure() {
     static std::atomic<std::uint8_t> v{0};
     return v;
@@ -920,12 +920,12 @@ maya::guarded<bool, locks::auth_refresh>& refresh_lane() {
     static maya::guarded<bool, locks::auth_refresh> lane;
     return lane;
 }
-}  // namespace
+}  // 命名空间结束。
 
 std::optional<CodexCredentials> codex_fresh_credentials(const locks::below_auth_refresh& cap) {
-    // One refresh at a time. The store is only held for file IO, never
-    // across the network call, so sign-out and a new login stay responsive.
-    // Lock order: refresh lane (auth_refresh), then store (leaf).
+    // 一次刷新一次。该商店仅保存文件 IO，绝不会通过网络 调用，
+    // 因此 Sign-out 和新登录保持响应。
+    // 锁顺序：刷新车道(auth_refresh)，然后存储(叶子)。
     return refresh_lane().with(cap, [](const maya::held<locks::auth_refresh>& h, bool&) {
         return refresh_locked(h, {}).creds;
     });
@@ -949,7 +949,7 @@ RefreshFailure classify_refresh_failure(int status, std::string_view body) noexc
     if (body.find("refresh_token_reused") != std::string_view::npos)  return RefreshFailure::Reused;
     if (body.find("refresh_token_invalidated") != std::string_view::npos
      || body.find("invalid_grant") != std::string_view::npos)          return RefreshFailure::Revoked;
-    // Any other 4xx from the token endpoint won't fix itself either.
+    // 来自令牌端点的任何其他4xx也不会自行修复。
     return status == 401 || status == 400 ? RefreshFailure::Revoked : RefreshFailure::Transient;
 }
 
@@ -970,14 +970,14 @@ std::string_view refresh_failure_message(RefreshFailure f) noexcept {
 }
 
 namespace {
-// Refresh with the credential file locked against other agentty processes.
-// `rejected` is the access token a server just refused, for a forced refresh.
+// 使用针对其他 agentty 进程锁定的 凭据 文件进行刷新。
+// `rejected`是服务器刚刚拒绝的用于强制刷新的访问令牌。
 RefreshOutcome
 refresh_in_section(const maya::held<locks::cred_file>& cap, bool cross,
                    CodexCredentials loaded, std::uint64_t source_generation,
                    std::string rejected) {
-    // Re-read under the lock: a peer that refreshed first has saved its
-    // token, and Codex rotates refresh tokens, so adopt it instead.
+    // 锁下的Re-read:先刷新的对端其令牌为已保存，
+    // Codex轮换刷新令牌，所以采用它。
     if (cross) {
         auto [disk, gen] = load_with_generation(cap);
         source_generation = gen;
@@ -996,7 +996,7 @@ refresh_in_section(const maya::held<locks::cred_file>& cap, bool cross,
         if (refreshed.error().kind != OAuthErrorKind::Network && d.starts_with("status="))
             status = std::atoi(d.c_str() + 7);
         else if (refreshed.error().kind == OAuthErrorKind::BadResponse)
-            status = 502;   // an HTML error page from a proxy, not a verdict on the token
+            status = 502;   // 来自代理的 HTML 错误页面，而不是对令牌的判决
         const RefreshFailure why = classify_refresh_failure(status, d);
         util::dbglog("codex.refresh_failed", std::to_string(static_cast<int>(why)) + " " + d.substr(0, 200));
         return {std::move(loaded), why};
@@ -1010,8 +1010,8 @@ refresh_in_section(const maya::held<locks::cred_file>& cap, bool cross,
             && current->refresh_token == source.refresh_token
             && current->account_id == source.account_id;
         if (st.generation != source_gen || !source_unchanged) {
-            // Sign-out, account activation, another process, or a new login
-            // won the race. Never resurrect/overwrite it from the stale snapshot.
+            // Sign-out，账户激活，另一个进程，或者新的登录获得了竞态。
+            // 从来没有从 resurrect/overwrite 到 过期 快照。
             return current;
         }
         if (!save_codex_credentials_unlocked(fresh)) return source;
@@ -1027,7 +1027,7 @@ RefreshOutcome refresh_locked(const maya::held<locks::auth_refresh>& cap,
     if (!loaded) return {};
     RefreshOutcome out;
     if (!rejected.empty() && loaded->access_token != rejected) {
-        // Someone already replaced the token the server refused.
+        // 有人已经替换了服务器拒绝的令牌。
         out = {std::move(loaded), RefreshFailure::None};
     } else if (rejected.empty() && !loaded->needs_refresh()) {
         return {std::move(loaded), RefreshFailure::None};
@@ -1044,6 +1044,6 @@ RefreshOutcome refresh_locked(const maya::held<locks::auth_refresh>& cap,
     last_failure().store(static_cast<std::uint8_t>(out.failure), std::memory_order_relaxed);
     return out;
 }
-} // namespace
+} // 命名空间结束。
 
 } // namespace agentty::provider::chatgpt

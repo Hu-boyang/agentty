@@ -1,30 +1,30 @@
-// dirs_test.cpp — agentty::dirs, the write-side storage primitive.
+// dirs_test.cpp — agentty::dirs ,写 -side 存储原始。
 //
-// The properties worth pinning, and the bug each one guards:
+// 值得打针的属性,以及每个守卫的虫子:
 //
-//   1. default resolution + provenance (Origin::Default)
-//   2. an absolute override wins                      (#58's whole point)
-//   3. a RELATIVE override resolves against the ROOT, not the cwd — the
-//      "one directory, not one per launch dir" rule
-//   4. an EMPTY override counts as unset (exported-but-blank is a common
-//      shell accident and must relocate nothing)
-//   5. an UNUSABLE override warns and falls back, reporting
-//      Origin::OverrideFellBack rather than silently papering over it
-//   6. a non-overridable Spec ignores the environment entirely (credentials
-//      must not relocate because of a line in a shell profile)
-//   7. owner_only forces 0700 even when the override points at a 0755 dir
-//   8. project_anchor() WALKS UP to a marker — the `cd src/ && agentty`
-//      duplicate-index bug (#61). This is the one project_root() cannot do,
-//      since it is the cwd clamped, and the reason dirs has its own anchor.
-//   9. a markerless tree falls back to the cwd, so behaviour is unchanged
-//      from before this primitive existed
-//  10. Root::Project hangs off <anchor>/.agentty
-//  11. resolve_dry() creates nothing
-//  12. Lifecycle::sweeps() is the structural gate for #62
-//  13. sweep: keep_last + live-variant protection + sidecars + the legacy
-//      untagged file, and a bounded blast radius
-//  14. a NON-rebuildable store is never swept, whatever keep_last says
-//  15. min_age holds back variants a concurrent process may still be writing
+//   1. 默认分辨率+来源(Origin::Default)
+//   2. 绝对胜负(# 58的整点)
+//   3. a RELATIVE 覆盖解析 ROOT ,而不是阴茎 -
+//      "one directory, not one per launch dir" 规则
+//   4. 一种情况 空 覆盖计数为未设置( 导出) -but-blank 是一个常见
+//      炮弹事故,必须无动于衷)
+//   5. UNUSABLE 的操作会发出警告,并会退后,报告
+//      Origin::OverrideFellBack 而不是默默地把它贴在上面
+//   6. 非 国 家 -overridable Spec完全忽略环境( . 凭据
+//      不可因为 shell 配置文件中的行而移动)
+//   7. owner_only 迫使 0700,即使超过 07555 dir的点
+//   8. project_anchor() WALKS UP 标记的标记—— `cd src/ && agentty`
+//      重复-index bug (# 61. 这是project_root ()
+//      无法做到的, 因为它是 cwd 夹住的, 也是 dirs 拥有自己的锚的原因。
+//   9. 无标记的源码树 回到 cwd,所以行为不变
+//      在那原始人存在之前
+//  10. Root::Project 挂断 <anchor>/.agentty
+//  11. resolve_dry() 没有任何结果
+//  12. Lifecycle::sweeps ()是62号的结构性大门
+//  13. 扫射: keep_last + 现场 -variant 保护+侧车+遗产
+//      未标记的文件, 和有界限的爆炸半径
+//  14. a NON-rebuildable 商店从不扫荡,不管什么 keep_last 说
+//  15. min_age 退后,别走 变体 并行进程可能仍在写作中
 #include <array>
 #include <chrono>
 #include <cstdio>
@@ -69,7 +69,7 @@ unsigned mode_of(const fs::path& p) {
 }
 #endif
 
-}  // namespace
+}  // 命名空间结束。
 
 int main() {
     g_sandbox = fs::temp_directory_path() /
@@ -86,7 +86,7 @@ int main() {
 
     const fs::path root = home / ".agentty";
 
-    // ── 1. default resolution ────────────────────────────────────────────
+    // ── 1. 默认解决 ────────────────────────────────────────────
     {
         const Spec s{.root = Root::User, .leaf = "widgets", .env = "AGENTTY_TEST_DIR"};
         auto r = resolve(s);
@@ -100,7 +100,7 @@ int main() {
         }
     }
 
-    // ── 2. absolute override wins ────────────────────────────────────────
+    // ── 2. 绝对胜负 ────────────────────────────────────────
     {
         const fs::path elsewhere = g_sandbox / "elsewhere";
         ::setenv("AGENTTY_TEST_DIR", elsewhere.c_str(), 1);
@@ -114,9 +114,9 @@ int main() {
         }
     }
 
-    // ── 3. a relative override resolves against the ROOT, not the cwd ────
-    // The rule that makes an override mean ONE directory rather than a
-    // different one for every directory agentty is launched from.
+    // ── 3. 相对的推翻解决了ROOT而不是cwd ────
+    // 规则,使一个压倒性 一个 目录而不是每个
+    // 目录的不同目录 agentty 发射开始
     {
         ::setenv("AGENTTY_TEST_DIR", "widgets2", 1);
         const fs::path cwd_before = fs::current_path();
@@ -134,7 +134,7 @@ int main() {
         fs::current_path(cwd_before);
     }
 
-    // ── 4. empty means unset ─────────────────────────────────────────────
+    // ── 4. 空表示未设置 ─────────────────────────────────────────────
     {
         ::setenv("AGENTTY_TEST_DIR", "", 1);
         const Spec s{.root = Root::User, .leaf = "widgets", .env = "AGENTTY_TEST_DIR"};
@@ -146,10 +146,10 @@ int main() {
         }
     }
 
-    // ── 5. unusable override warns + falls back, and SAYS so ─────────────
-    // A file in the way is the single most likely mistake. The warning text
-    // is checked by eye; what the test pins is that we fall back AND report
-    // it, rather than silently serving the default as if nothing happened.
+    // ── 5. 无法使用超载警告+后退,SAYS后退 ─────────────
+    // 一条在路上的文件是最有可能的错误。 警告文本会被
+    // 眼睛检查; 测试的针头是, 我们倒下 和 报告它,
+    // 而不是默默地为默认服务, 好像什么都没发生一样。
     {
         const fs::path blocker = g_sandbox / "a-file-not-a-dir";
         touch(blocker);
@@ -166,10 +166,10 @@ int main() {
         ::unsetenv("AGENTTY_TEST_DIR");
     }
 
-    // ── 6. a non-overridable Spec ignores the environment ────────────────
+    // ── 6. 一个非-overridable光谱忽略了环境 ────────────────
     {
         ::setenv("AGENTTY_TEST_DIR", (g_sandbox / "ignored").c_str(), 1);
-        const Spec s{.root = Root::User, .leaf = "secrets"};  // no .env
+        const Spec s{.root = Root::User, .leaf = "secrets"};  // 无 .env
         auto r = resolve(s);
         check(r.has_value(), "no-env: resolved");
         if (r) {
@@ -179,7 +179,7 @@ int main() {
         ::unsetenv("AGENTTY_TEST_DIR");
     }
 
-    // ── 7. owner_only forces 0700 on an override we did not create ───────
+    // ── 7. owner_only 7: 00 的超载力,我们没有创建 ───────
 #ifndef _WIN32
     {
         const fs::path loose = g_sandbox / "loose";
@@ -197,9 +197,9 @@ int main() {
     }
 #endif
 
-    // ── 8. the anchor WALKS UP to a marker ───────────────────────────────
-    // The #61 duplicate-index bug, and the whole reason this is not
-    // project_root(): launch from a subdir and the anchor must NOT move.
+    // ── 8. 锚 WALKS UP 标记 ───────────────────────────────
+    // #61重复-indexbug, 以及这个不是project_root
+    // ( ) 的全部原因: 从子目录发射, 锚不得 移动。
     {
         const fs::path proj = g_sandbox / "proj";
         const fs::path deep = proj / "src" / "runtime";
@@ -222,7 +222,7 @@ int main() {
         check(from_top == from_deep,
               "anchor: stable regardless of launch dir (the #61 fix)");
 
-        // And the storage path that follows from it.
+        // 以及从它走来的存储路径.
         const Spec s{.root = Root::Project, .leaf = "rag"};
         auto r = resolve(s);
         check(r.has_value(), "project: resolved");
@@ -235,19 +235,19 @@ int main() {
         fs::current_path(cwd_before);
     }
 
-    // ── 9. a markerless tree falls back to the cwd ───────────────────────
-    // Behaviour must be unchanged from before this primitive existed, so a
-    // tree with no .git still stores rather than refusing.
+    // ── 9. 无标记的 源码树 回到 cwd ───────────────────────
+    // 行为必须从原始存在之前就改变,所以没有.
+    // git的源码树仍然存储而不是拒绝.
     {
         const fs::path bare = g_sandbox / "bare";
         fs::create_directories(bare);
         const fs::path cwd_before = fs::current_path();
 
-        // The premise is "no marker anywhere above". The sandbox lives in
-        // the temp dir, so a marker on one of ITS ancestors (a dev box with
-        // TEMP=C:\Develop\Temp next to C:\Develop\.agentty) makes the
-        // walk-up legitimately stop there; that's the environment, not a
-        // bug, so the case can't be built and is skipped.
+        // 前提是 "no marker anywhere above"。
+        // 该词 沙箱 住在临时的迪尔, 所以一个标记在其中之一 ITS 祖先(一个
+        // 带有 TEMP =C:\ 开发\ Temp 旁边的 C:\ 发展\。
+        // agentty ) 使行走(行走) ) -up 合法地停下来;
+        // 这是环境,不是虫子, 所以这个案子不能建起来,被跳过。
         fs::path marked_ancestor;
         for (fs::path p = fs::weakly_canonical(bare); ; p = p.parent_path()) {
             for (std::string_view m : project_markers()) {
@@ -270,7 +270,7 @@ int main() {
         fs::current_path(cwd_before);
     }
 
-    // ── 10. resolve_dry creates nothing ──────────────────────────────────
+    // ── 10. resolve_dry 没有任何结果 ──────────────────────────────────
     {
         const Spec s{.root = Root::User, .leaf = "never-made"};
         auto r = resolve_dry(s);
@@ -281,8 +281,8 @@ int main() {
         }
     }
 
-    // ── 11. Lifecycle is the gate for #62 ────────────────────────────────
-    // Pure, so it is checked by value rather than against the disk.
+    // ── 11. 生命周期是62号的大门 ────────────────────────────────
+    // 纯,所以通过数值而不是对磁盘进行检查.
     {
         check(!Lifecycle{}.sweeps(), "lifecycle: default never sweeps");
         check(!Lifecycle{.rebuildable = true}.sweeps(),
@@ -294,11 +294,11 @@ int main() {
               "lifecycle: rebuildable + keep_last sweeps");
     }
 
-    // ── 12. the RAG Spec shape: empty leaf + override ────────────────────
-    // rag's Specs use leaf="" (they want the .agentty root itself, then add
-    // their own filename) and share $AGENTTY_RAG_DIR. Pinned here because an
-    // empty leaf is an easy thing to break with a stray path join, and
-    // because this is the exact shape #61's fix ships.
+    // ── 12. RAG 光谱形状:空叶+覆盖 ────────────────────
+    // 抹布的斑点使用叶= "" (他们想要. agentty 根本身,
+    // 然后添加自己的文件名)和共享 $AGENTTY_RAG_DIR
+    // 被固定在这里 因为空叶很容易与一条迷路连接
+    // 因为这是61号固定船的确切形状
     {
         const fs::path proj = g_sandbox / "ragproj";
         const fs::path deep = proj / "src" / "rag";
@@ -324,7 +324,7 @@ int main() {
                   "rag spec: ONE index dir from root and from src/rag (#61)");
         }
 
-        // And the override relocates it, which is the #61 feature half.
+        // 并且它被移动, 61号的功能一半。
         const fs::path moved = g_sandbox / "ragmoved";
         ::setenv("AGENTTY_RAG_DIR", moved.c_str(), 1);
         auto over = resolve(rag);
@@ -335,7 +335,7 @@ int main() {
                   "rag spec: each project gets its own subfolder under the override");
             check(over->origin == Origin::Override, "rag spec: origin is Override");
         }
-        // A second project under the same override must not share it.
+        // 在同一控制下的第二个项目不得共享。
         {
             const fs::path other = g_sandbox / "otherproj";
             fs::create_directories(other / ".git");
@@ -350,7 +350,7 @@ int main() {
         fs::current_path(cwd_before);
     }
 
-    // ── 13. sweep: the #62 lifecycle, enforced ───────────────────────────
+    // ── 13. 扫荡:62号生命周期,强制实施 ───────────────────────────
     {
         const fs::path proj = g_sandbox / "sweepproj";
         fs::create_directories(proj / ".git");
@@ -366,7 +366,7 @@ int main() {
         check(dir.has_value(), "sweep: dir resolved");
         const fs::path d = dir->path;
 
-        // Four variants + a live one + sidecars + a legacy untagged file.
+        // 4变体+活1+侧车+遗存未标记文件.
         auto mk = [&](const std::string& n, int age_days) {
             touch(d / n);
             touch(d / (n + ".meta.json"));
@@ -376,11 +376,11 @@ int main() {
             fs::last_write_time(d / n, t, tec);
         };
         mk("rag_code.live.ragdb", 0);
-        mk("rag_code.aaaa.ragdb", 1);   // newest stale → kept by keep_last=1
+        mk("rag_code.aaaa.ragdb", 1);   // 最新数据 过期 —— 由 . keep_last=1
         mk("rag_code.bbbb.ragdb", 5);
         mk("rag_code.cccc.ragdb", 9);
-        touch(d / "rag_code.ragdb");               // legacy, untagged
-        touch(d / "rag_docs.other.ragdb");         // different stem, untouched
+        touch(d / "rag_code.ragdb");               // 遗留, 未标记
+        touch(d / "rag_docs.other.ragdb");         // 不同茎,没有被污染
         touch(d / "unrelated.txt");
 
         const std::array<std::string, 1> keep{"rag_code.live.ragdb"};
@@ -390,8 +390,8 @@ int main() {
             .keep = keep, .sidecar_suffixes = side, .include_untagged = true,
         };
 
-        // DRY RUN first: reports, touches nothing. The property that makes
-        // this safe to develop against a real store.
+        // DRY RUN 首先,报告,什么也碰不到, 能够让这个
+        // 安全发展起来的地产, 与真正的商店相对。
         auto dry = sweep(req, /*dry_run=*/true);
         check(dry.deleted == 3, "sweep dry: would delete 3 (bbbb, cccc, legacy)");
         check(fs::exists(d / "rag_code.cccc.ragdb"), "sweep dry: deleted nothing");
@@ -401,33 +401,33 @@ int main() {
         check(st.deleted == 3, "sweep: deleted 3");
         check(st.failed == 0, "sweep: no failures");
 
-        // The live one and the newest stale variant survive.
+        // 活的和最新的一个 过期 变体 活下来了
         check(fs::exists(d / "rag_code.live.ragdb"), "sweep: live kept");
         check(fs::exists(d / "rag_code.aaaa.ragdb"),
               "sweep: newest stale kept (keep_last=1 keeps the A/B warm)");
         check(!fs::exists(d / "rag_code.bbbb.ragdb"), "sweep: older deleted");
         check(!fs::exists(d / "rag_code.cccc.ragdb"), "sweep: oldest deleted");
 
-        // Sidecars go with their principal.
+        // 侧车随主.
         check(!fs::exists(d / "rag_code.cccc.ragdb.meta.json"),
               "sweep: sidecar deleted with its principal");
         check(fs::exists(d / "rag_code.live.ragdb.meta.json"),
               "sweep: live sidecar kept");
 
-        // The legacy untagged file: #62's actual 47 MB.
+        // 遗存未标记文件:#62实际47 MB.
         check(!fs::exists(d / "rag_code.ragdb"), "sweep: legacy untagged deleted");
 
-        // Blast radius: a different stem and an unrelated file are untouched.
+        // 爆破半径:不同干线和无关文件未受影响.
         check(fs::exists(d / "rag_docs.other.ragdb"), "sweep: other stem untouched");
         check(fs::exists(d / "unrelated.txt"), "sweep: unrelated file untouched");
 
         fs::current_path(cwd_before);
     }
 
-    // ── 14. a non-rebuildable store is NEVER swept ───────────────────────
-    // The blobs::gc asymmetry, enforced. keep_last alone must do nothing:
-    // feedback data is accumulated from real usage and nothing regenerates
-    // it, so no sweep may ever collect it.
+    // ── 14. 非 国 -rebuildable 存储为 绝不 扫荡 ───────────────────────
+    // 电话 blobs::gc 不对称,强制。 keep_last 单凭自己就无所事事:
+    // 反馈数据是从实际使用中积累出来的,没有东西再生,
+    // 所以任何扫描都不可能收集到。
     {
         const fs::path proj = g_sandbox / "nosweep";
         fs::create_directories(proj / ".git");
@@ -437,7 +437,7 @@ int main() {
 
         const Spec precious{
             .root = Root::Project, .leaf = "",
-            .life = {.rebuildable = false, .keep_last = 1},   // NOT rebuildable
+            .life = {.rebuildable = false, .keep_last = 1},   // 不 可重建
         };
         auto dir = resolve(precious);
         check(dir.has_value(), "no-sweep: resolved");
@@ -456,9 +456,9 @@ int main() {
         fs::current_path(cwd_before);
     }
 
-    // ── 15. min_age holds back a fresh variant ───────────────────────────
-    // Another process may be mid-save; a concurrent one may legitimately be
-    // running a different embedder.
+    // ── 15. min_age 挡住新鲜的 变体 ───────────────────────────
+    // 另外一个过程可能是中期 -save ;
+    // 同时运行的嵌入器可能是合法的。
     {
         const fs::path proj = g_sandbox / "graceproj";
         fs::create_directories(proj / ".git");
@@ -466,10 +466,10 @@ int main() {
         fs::current_path(proj);
         agentty::tools::util::set_workspace_root(::agentty::IoAccess::grant(), proj);
 
-        // keep_last must be >0 or sweeps() is false and this test would
-        // pass vacuously -- it would be measuring the gate, not the grace
-        // window. Two fresh variants with keep_last=1: without min_age the
-        // older would be deleted, so holding BOTH proves the window works.
+        // keep_last 必须是 > 0 或 sweeps()
+        // 测试是虚假的,而且会空虚地通过 -- -- 它会测量大门,
+        // 而不是优雅的窗户。 变体 与 keep_last =1 :没有
+        // min_age 年长者将被删除,所以持有 两者 证明窗口有用。
         const Spec graced{
             .root = Root::Project, .leaf = "",
             .life = {.rebuildable = true, .keep_last = 1,
@@ -494,17 +494,17 @@ int main() {
         fs::current_path(cwd_before);
     }
 
-    // ── resolve_dry agrees with resolve ─────────────────────────────────
+    // ── resolve_dry 决心同意 ─────────────────────────────────
     //
-    // The observer must predict the writer. `agentty config` resolves dry so
-    // that asking where the logs go does not MAKE a logs directory -- but a
-    // dry resolve that skips the viability checks reports a path the writer
-    // would reject, which is worse than creating the directory: the user is
-    // told a location that can never exist.
+    // 观察者必须预测作者. `agentty config`
+    // 解析干燥, 以便询问日志去向不 MAKE 一个日志
+    // 目录——但是一个跳过可行性检查的干燥解析度报告着
+    // 一个编目器会拒绝的路径,这比创建目录更糟糕: 用户
+    // 被告知一个永远不存在的地方.
     //
-    // The case that caught it: $AGENTTY_HOME naming a FILE. `<file>/threads`
-    // is merely ABSENT, which reads as "fine, we'll create it" unless you
-    // walk up to the nearest existing ancestor and find a file in the way.
+    // 抓住它的案子是: $AGENTTY_HOME 命名为 a FILE.
+    // `<file>/threads` 仅仅是 ABSENT ,其内容为:
+    // "fine, we'll create it" 除非你走到最近的祖先 找到一个文件在路上。
     {
         const fs::path base = g_sandbox / "dry";
         fs::create_directories(base);
@@ -514,8 +514,8 @@ int main() {
         const Spec s{.root = Root::User, .leaf = "threads",
                      .env = "AGENTTY_TEST_DRY"};
 
-        // Override points at a FILE -> the writer warns and falls back, so
-        // the dry answer must be the fallback, flagged as such.
+        // 超过点 a FILE - > 作者警告并退后,
+        // 所以干答案必须是: 回退 标记为此。
         ::setenv("AGENTTY_TEST_DRY", afile.string().c_str(), 1);
         auto dry = resolve_dry(s);
         auto wet = resolve(s);
@@ -530,8 +530,8 @@ int main() {
         }
         ::unsetenv("AGENTTY_TEST_DRY");
 
-        // And a dry resolve still creates NOTHING -- that is the whole
-        // reason it exists.
+        // 和干燥的意志 仍然产生 无内容 - 这就是它
+        // 存在的全部原因。
         const fs::path probe = base / "never-made";
         const Spec q{.root = Root::User, .leaf = "", .env = "AGENTTY_TEST_DRY2"};
         ::setenv("AGENTTY_TEST_DRY2", probe.string().c_str(), 1);
@@ -540,13 +540,13 @@ int main() {
         ::unsetenv("AGENTTY_TEST_DRY2");
     }
 
-    // ── the project root ignores itself ───────────────────────────────
+    // ── 工程根忽略了自身 ───────────────────────────────
     //
-    // <project>/.agentty holds derived state -- tens of MB of retrieval index
-    // -- next to a user's source. agentty's own .gitignore protects agentty's
-    // repo and nobody else's: in any other checkout, the first `git add -A`
-    // after a warm index stages the lot. Shipping the rule INSIDE the
-    // directory makes it structural instead of folklore.
+    // <project>/agentty持有衍生状态 -- -- 数十个
+    // MB检索指数 -- -- 旁边是一个用户的来源。
+    // agentty自己的.gitignore保护agentty的仓库和没有人:
+    // 在任何其他的检查中,在热指数分期后的第一个`git add -A`,
+    // 运输规则INSIDE的目录使它成为结构而不是民俗。
     {
         const fs::path proj = g_sandbox / "ignoreproj";
         fs::create_directories(proj / ".git");
@@ -567,9 +567,9 @@ int main() {
                       || body.rfind("*\n") != std::string::npos,
                   "ignore: the rule ignores everything in here");
 
-            // NEVER clobbered. A user who wants to commit part of .agentty
-            // (a shared skills/ dir is a real use) edits this file, and a
-            // tool that rewrote it every launch would be a tool that argues.
+            // 绝不 被打中了,一个想做一部分的用户 agentty (
+            // 单位:千美元) skills/ dir是真实的用途)编辑此文件,
+            // 并且每次发布时重制它的工具都会成为论证的工具.
             {
                 std::ofstream out(ig, std::ios::trunc);
                 out << "# mine\n*.ragdb\n";
@@ -582,8 +582,8 @@ int main() {
                   "ignore: a user-edited file is left alone");
         }
 
-        // The USER root gets no such file -- ~/.agentty is not inside a
-        // repository, so the rule would be noise.
+        // 电话 USER root 无法获得此文件...
+        // ~/.agentty 内不在内 仓库 规则是噪音
         const Spec u{.root = Root::User, .leaf = "threads"};
         if (auto ud = resolve(u))
             check(!fs::exists(ud->root / ".gitignore"),
@@ -592,12 +592,12 @@ int main() {
         fs::current_path(cwd_before);
     }
 
-    // ── one override location, many projects ────────────────────────────
+    // ── 一个超能力定位, 很多项目 ────────────────────────────
     //
-    // #61's worry: point two checkouts at one directory and they land on
-    // the same filenames. Nothing corrupts -- the index meta records its
-    // corpus root and refuses a foreign one -- but each switch then costs a
-    // full re-index, which is worse than the disk it saved.
+    // #61的担心:在同一个目录上点出两次检票,
+    // 然后降落在同一文件名上。没有腐败——索引元记录其实体
+    // 根并拒绝一个外国的。但每个切换都花费一个完整的重置成本
+    // -index ,比磁盘还糟糕 已保存.
     {
         const fs::path p1 = g_sandbox / "shareda";
         const fs::path p2 = g_sandbox / "sharedb";
@@ -626,13 +626,13 @@ int main() {
                   "the basename stays readable");
         }
 
-        // And the DEFAULT keeps no hash -- each project already has its own
-        // .agentty, so there is nothing to disambiguate.
+        // 还有 DEFAULT 保持不散 -- 每个项目已经有自己的项目。
+        // agentty ,所以没有什么可以分解的。
         fs::current_path(p1);
         agentty::tools::util::set_workspace_root(::agentty::IoAccess::grant(), p1);
         if (auto d = resolve(s)) {
-            // Canonical on both sides: on macOS the temp dir lives under
-            // /var, a symlink to /private/var, and the resolver canonicalises.
+            // 双侧加冕:在 macOS 临时目录生活在/var,
+            // 与/var的连结 private/var 和解脱者 坎尼卡利兹。
             std::error_code ec1, ec2;
             const auto want = fs::weakly_canonical(p1 / ".agentty" / "cache", ec1);
             const auto got  = fs::weakly_canonical(d->path, ec2);
@@ -642,7 +642,7 @@ int main() {
         fs::current_path(cwd_before);
     }
 
-    // ── markers are non-empty and include the common case ────────────────
+    // ── 标记为非-empty,包括普通案件 ────────────────
     {
         auto m = project_markers();
         check(!m.empty(), "markers: non-empty");

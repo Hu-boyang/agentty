@@ -1,10 +1,10 @@
 #pragma once
-// agentty/util/gen_cache.hpp — a cached value that a slow refill can't
-// overwrite after it was cleared.
+// agentty/util/gen_cache.hpp — 被清除
+// 后慢速填充无法覆盖的缓存值。
 //
-// A fetch reads gen() before going to the network and stores with
-// store_if(value, gen). If clear() ran in between, the store is dropped, so
-// a list fetched before an invalidation never lands after it.
+// 获取在进入网络之前读取gen()并用store_if(值，
+// gen)存储。如果 clear() 在两者之间运行，则存储将被删除，
+// 因此在失效之前获取的列表永远不会落在其之后。
 
 #include <cstdint>
 #include <utility>
@@ -19,18 +19,18 @@ public:
     [[nodiscard]] T get() const { return slot_.load()->value; }
     [[nodiscard]] std::uint64_t gen() const { return slot_.load()->gen; }
 
-    // Store `v` only if nothing cleared the cache since `seen` was read.
-    // Returns whether it landed.
+    // Store `v` 仅当自读取 `seen` 以来没有任何内容清除 缓存 时。
+    // 返回是否着陆。
     bool store_if(T v, std::uint64_t seen) {
-        // update() may retry the body, so the result comes from the cell it
-        // finally stored, not from a flag set inside the body.
+        // update()可能是重试和正文，所以结果来自于它最终
+        // 存储的存储单元，而不是来自于正文内设置的标志。
         auto stored = slot_.update([](const Cell& cur, const T& next, std::uint64_t g) {
             return cur.gen == g ? Cell{next, g, true} : Cell{cur.value, cur.gen, false};
         }, std::move(v), seen);
         return stored->landed;
     }
 
-    // Empty the cache and invalidate every fetch already in flight.
+    // 清空缓存并且使已经在进行中的每个提取无效。
     void clear() {
         slot_.update([](const Cell& cur) { return Cell{T{}, cur.gen + 1, false}; });
     }

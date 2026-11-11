@@ -1,28 +1,28 @@
-// web_search.cpp — Settings → Web Search: the web_search tool's policy.
+// web_search.cpp ——设置 ——网络搜索: web_search 工具政策。
 //
-// Open descends from the settings list (Esc walks back), keys go through the
-// shared form layer, and a committed edit writes m.d.persisted.web_search,
-// returns the save, and rebuilds the rows from the Model so the pane can
-// never show a value it did not save. Telling the TOOL LAYER is not this
-// file's job: publish_derived sees the record move and returns
-// PublishWebSearchPolicy (update.cpp), the same way Smart Mode's config reaches
-// the subagent router.
+// 打开设置列表的降序( E) Esc 返回, 键会通过共享窗体层,
+// 并进行承诺的编辑 m.d.persisted.web_search 返回 保存 ,
+// 并重建从 Model 所以,我们 面板 永远不能显示它没有的值 保存
+// 告诉 TOOL LAYER 此文件的任务不是 : publish_derived
+// 查看记录移动和返回 PublishWebSearchPolicy
+// (update.cpp ),同样,Smart Mode的配置也
+// 达到了子剂路由器.
 //
-// WHEN an edit commits is the form layer's answer, not this file's:
-//   * toggles and ←/→ on a number   — on the keystroke (`changed`, browsing)
-//   * typed numbers and text        — on leaving the field (`left_field`)
-// Committing a text row per keystroke would rebuild the form under the caret
-// and save "p", "pi", "pin", … to settings.json on the way to "pinterest.com".
+// 编辑承诺的WHEN是表层的答案,而不是这个文件的:
+//   * 切换 和 QQ/_____在数字上——按键键(按键) `changed` ,浏览)
+//   * 带类型的 数字和文本—— 离开字段时( `left_field`)
+// 每按键提交一个文本行将重建下方的窗体 光标 财务报告和已审计财务报表 保存 "p",
+// "pi", "pin" ,改为 settings.json 前往 "pinterest.com".
 //
-// API keys are the one thing here that is not Model state. The key store is
-// IO (a sealed file, and a `secret-tool` / Keychain call when the OS keystore
-// is on), so this reducer never touches it: reading which keys exist, storing
-// a typed key and removing one each run as a task on a worker
-// (Cmd::task_isolated), and the outcome comes back as WebSearchKeysRead /
-// WebSearchKeySaved / WebSearchKeyRemoved. Same shape as the embeddings key in
-// the Retrieval pane. No message, toast or Model field ever carries a key; the
-// typed text lives only in the Secret row until the field is left, and in the
-// task that stores it.
+// API 钥匙是这里唯一没有的东西 Model 状态。密钥存储是 IO (
+// 密封文件,和 `secret-tool` / 键链 调用 当 OS 键盘打开了,
+// 所以这个 状态更新函数 永远不要碰它:读取存在哪一个密钥,存储一个 带
+// 类型的 键并删除每个键作为任务运行于 a 工作线程 (
+// Cmd::task_isolated ),结果又回到
+// WebSearchKeysRead / WebSearchKeySaved /
+// WebSearchKeyRemoved 中键的嵌入形状 面板 没有留言,
+// 祝酒或 Model 字段中始终带有键; 带类型的 文本只存在于密列中,直到字段被留下,
+// 并且保存它的任务中。
 
 #include "agentty/runtime/app/update/internal.hpp"
 #include "agentty/runtime/app/update.hpp"
@@ -51,8 +51,8 @@ using maya::overload;
 
 namespace {
 
-// The pane's view of where each key comes from, as last read off the UI
-// thread. Until the first read answers, every key row says so.
+// 电话 面板 每一个键的来历, 上次读取 UI 线程。
+// 直到第一个读到答案,每个键行都这么说。
 [[nodiscard]] web_search_form::KeyOrigin key_origin(const pn::WebSearch& o) {
     if (!o.keys_read)
         return [](std::string_view) { return std::string{"checking\xe2\x80\xa6"}; };
@@ -63,9 +63,9 @@ namespace {
     };
 }
 
-// Rebuild the rows from the Model, the cursor kept on the same row (a rebuild
-// can add and remove rows: choosing a service for a slot replaces the rows
-// under it), or on `prefer_id` when given.
+// 从“从”重建行 Model ,光标保留在同一行上(重建
+// 可以添加和删除行:选择服务以替换其下行),
+// 或打开 `prefer_id` 给与时。
 void rebuild(const Model& m, pn::WebSearch& o, std::string_view prefer_id = {}) {
     o.rows_stale = false;
     form::rebuild(o.form,
@@ -74,12 +74,12 @@ void rebuild(const Model& m, pn::WebSearch& o, std::string_view prefer_id = {}) 
                   prefer_id);
 }
 
-// Ask a worker which services have a key, and from where. Every keyed service
-// in the catalogue, not only the ones in a slot: choosing a service for a slot
-// must not need another read.
+// Ask a 工作线程 哪些服务有键,从何处得到。
+// 目录中每一个按键服务,不仅包括插槽中的服务:选择一个服务插槽,
+// 一定不需要再读一次。
 //
-// Each read takes a new generation, so of two reads in flight only the newer
-// one's answer is shown.
+// 每个读数需要新一代,所以在飞行中两个读数中,
+// 只有更新的答案被显示.
 [[nodiscard]] Cmd read_key_origins(pn::WebSearch& o) {
     ++o.keys_gen;
     std::vector<std::string> services;
@@ -99,8 +99,8 @@ void rebuild(const Model& m, pn::WebSearch& o, std::string_view prefer_id = {}) 
         o.keys_gen, std::move(services));
 }
 
-// Trim what a paste drags along: surrounding whitespace, and a "Bearer " the
-// vendors' docs print in front of the key.
+// 将粘贴拖动的粘贴物剪裁: 周围的白空间,以及一个 "Bearer "
+// 卖家的证件在钥匙前打印
 [[nodiscard]] std::string clean_typed_key(std::string key) {
     while (!key.empty() && std::isspace(static_cast<unsigned char>(key.back()))) key.pop_back();
     while (!key.empty() && std::isspace(static_cast<unsigned char>(key.front()))) key.erase(0, 1);
@@ -113,11 +113,11 @@ void rebuild(const Model& m, pn::WebSearch& o, std::string_view prefer_id = {}) 
     return svc ? svc->label : std::string{service};
 }
 
-// A key typed into a Secret row leaves the form here: the row is emptied (and
-// the text overwritten first, so it does not linger in freed memory), and the
-// key goes to a worker that stores it -- never to the Model or settings.json.
-// Returns the store task (or a toast for a key that is plainly not a key), or
-// none when no key was typed.
+// 键 带类型的 将表格留在此处: 字行是空的( 文本先覆盖,
+// 以免在自由中停留) 内存 ),键将转到一个 工作线程 永远
+// 不要 Model 或 或 时 间 settings.json.
+// 返回存储任务(或一个显然不是密钥的祝酒词),或者在没有密
+// 钥为带类型的时没有.
 [[nodiscard]] Cmd take_typed_keys(Model& m, pn::WebSearch& o) {
     std::vector<Cmd> out;
     for (auto& row : o.form.fields) {
@@ -135,7 +135,7 @@ void rebuild(const Model& m, pn::WebSearch& o, std::string_view prefer_id = {}) 
                 + ": that does not look like an API key (8+ characters, no spaces)"));
             continue;
         }
-        ++o.keys_gen;   // a read already in flight must not undo this
+        ++o.keys_gen;   // 已经读到的飞行中, 决不能取消它
         out.push_back(cmd::io_task_isolated(
             [](Io io, const maya::unlocked& cap, maya::Sink<Msg> sink, std::stop_token,
                std::string svc, std::string k) {
@@ -150,18 +150,18 @@ void rebuild(const Model& m, pn::WebSearch& o, std::string_view prefer_id = {}) 
     return Cmd::batch(std::move(out));
 }
 
-// Persist `cfg` and rebuild the pane around it, the cursor kept on the same
-// row (a rebuild can add and remove rows; form::rebuild keeps the place).
+// 坚持主义 `cfg` 重建联合国 面板 周围,光标保留在同一行上(
+// 重建可以添加和删除行); form::rebuild 保持这个地方。
 [[nodiscard]] Cmd commit(Model& m, pn::WebSearch& o, web_search_cfg::Config cfg) {
     const auto was = web_search_cfg::mode(m.d.persisted.web_search);
     m.d.persisted.web_search = cfg;
     Cmd out = save_record(m);
 
     rebuild(m, o);
-    o.form.dirty = false;   // just saved: don't say "unsaved"
+    o.form.dirty = false;   // 只是已保存:不要说"unsaved"
 
-    // The one change worth a toast: the mode itself. Auto is the quiet
-    // default; naming it keeps "why are the counts locked?" answerable.
+    // 值得敬酒的更改:模式本身。 Auto 是静默的默认; 命名它保持
+    // "why are the counts locked?" 的可答性。
     const auto now = web_search_cfg::mode(cfg);
     if (now != was) {
         const char* text = now == web_search_cfg::Mode::On   ? "Web search on"
@@ -172,10 +172,10 @@ void rebuild(const Model& m, pn::WebSearch& o, std::string_view prefer_id = {}) 
     return out;
 }
 
-} // namespace
+} // 命名空间结束。
 
 form::Form web_search_form_for_search(const Model& m) {
-    // No key origins: building them reads the keystore. Key rows still index.
+    // 没有密钥来源: 构建它们读取密钥。 key lines still index.
     return web_search_form::build_form(m.d.persisted.web_search, m.env.settings);
 }
 
@@ -183,25 +183,25 @@ Cmd web_search_update(Model& m, msg::WebSearchMsg wm) {
     return std::visit(overload{
         [&](OpenWebSearch& e) -> Cmd {
             pn::WebSearch o;
-            // Built synchronously (a pane must never own the keyboard with no
-            // form to act on); the key rows say "checking…" until the read
-            // below answers.
+            // 同步建造(a) 面板 决不能拥有没有形式可操作的键盘;
+            // 键行表示 "checking…" 直至
+            // 下面的答案。
             o.form = web_search_form::build_form(m.d.persisted.web_search, m.env.settings, key_origin(o));
-            // Opens on the first real row (build() puts it there), unless a
-            // search asked for a row.
+            // 打开第一真行(build()将其放在那里),
+            // 除非搜索请求一行.
             (void)form::focus_row(o.form, e.focus);
             m.ui.panel.descend(std::move(o));
             return read_key_origins(*m.ui.panel.get<pn::WebSearch>());
         },
         [&](WebSearchKeysRead& e) -> Cmd {
             auto* o = m.ui.panel.get<pn::WebSearch>();
-            // Closed since, or overtaken by a store/removal: a newer read is
-            // on its way.
+            // 关闭以来,或因 store/removal :新读的书
+            // 即将上路.
             if (!o || e.gen != o->keys_gen) return Cmd::none();
             o->key_origins = std::move(e.origins);
             o->keys_read   = true;
-            // Mid-edit, a rebuild would throw away what is being typed: mark
-            // the rows stale and rebuild the moment the edit or dropdown ends.
+            // 中间 -edit 重建会把现在的 带类型的
+            // : 标记行 过期 并重建编辑或下拉结束的瞬间。
             if (o->form.editing() || o->form.choosing()) o->rows_stale = true;
             else rebuild(m, *o);
             return Cmd::none();
@@ -228,7 +228,7 @@ Cmd web_search_update(Model& m, msg::WebSearchMsg wm) {
         },
         [&](WebSearchPaste& e) -> Cmd {
             if (auto* o = m.ui.panel.get<pn::WebSearch>())
-                (void)form::paste_into_focused(o->form, e.text);   // guard + dirty; starts the edit like typing
+                (void)form::paste_into_focused(o->form, e.text);   // 守护 + 脏; 开始编辑如打字
             return Cmd::none();
         },
         [&](WebSearchKey& e) -> Cmd {
@@ -239,17 +239,17 @@ Cmd web_search_update(Model& m, msg::WebSearchMsg wm) {
             if (applied.close)
                 return web_search_update(m, msg::WebSearchMsg{CloseWebSearch{}});
 
-            // "Remove key" is an Action row; Enter on it fires it.
+            // "Remove key" 是一个动作行; Enter 火烧它。
             if (applied.fired) {
                 if (const auto* row = o->form.focused()) {
-                    // A COPY: key_clear_service returns a view into the row's
-                    // id, and the row dies with the form rebuilt below.
+                    // A COPY: key_clear_service
+                    // 返回行的 ID 视图,行随下面重建的窗体而死。
                     std::string service{web_search_form::key_clear_service(row->id)};
                     if (!service.empty()) {
-                        // Show the result at once (the row goes, the key row
-                        // says "not set") and land on the key row; the
-                        // removal itself, and the re-read that confirms it,
-                        // run on a worker.
+                        // 立即显示结果( 行走, 键行说)
+                        // "not set" 并降落在键行上;
+                        // 清除本身,以及 -read 证明这一点,
+                        // 运行在 工作线程.
                         ++o->keys_gen;
                         bool found = false;
                         for (auto& [id, origin] : o->key_origins)
@@ -260,8 +260,8 @@ Cmd web_search_update(Model& m, msg::WebSearchMsg wm) {
                             [](Io io, const maya::unlocked& cap, maya::Sink<Msg> out,
                                std::stop_token, std::string svc) {
                                 (void)tools::web_search_secret::erase(io, cap, svc);
-                                // Judged by what is left, not by erase()'s
-                                // return: "nothing was there" is a success.
+                                // 由剩下的来判断,而不是由 erase() '返回 :
+                                // "nothing was there" 是个成功。
                                 const bool ok =
                                     tools::web_search_secret::origin(svc) != "stored";
                                 out.send(Msg{msg::WebSearchMsg{
@@ -274,18 +274,18 @@ Cmd web_search_update(Model& m, msg::WebSearchMsg wm) {
             }
 
             const bool settled = applied.settled >= 0;
-            // Mid-edit keystrokes (Insert, Backspace, Delete, caret moves)
-            // report `changed` while the field is still EDITING. They must
-            // return here and leave the form alone: rebuilding would reset
-            // the row to the saved value and drop Editing focus, which
-            // erased every keystroke after the first — a number row took
-            // one digit, and Backspace/Delete in a text row appeared to do
-            // nothing because the deleted character was restored at once.
-            // web_search_pane_test pins this.
+            // 中间 -edit 键盘键(插入 Backspace,
+            // Delete, 光标 移动)报告 `changed`
+            // 田间静静 EDITING。他们必须返回这里,
+            // 留下表格:重建将重设行到 已保存 值和删除编辑焦点,
+            // 它删除了第一个键盘之后的每一个键盘——一个数字行需要
+            // 一位数字,以及 Backspace/Delete 文本
+            // 行中似乎没有做任何事情,因为被删除的字符被立即恢复。
+            // web_search_pane_test 针这个。
             if (!settled) {
-                // Key origins arrived mid-edit: show them now that the edit
-                // or dropdown is over (Esc out of an unchanged field settles
-                // nothing, so this is the only place that would notice).
+                // 关键来源于中途 -edit : 让他们现在看到编辑
+                // 或降级已经结束( ) Esc 在一个没有变化的字段里,
+                // 没有解决任何问题,所以这是唯一会注意到的地方。
                 if (o->rows_stale && !o->form.editing() && !o->form.choosing()) {
                     o->rows_stale = false;
                     rebuild(m, *o);
@@ -293,17 +293,17 @@ Cmd web_search_update(Model& m, msg::WebSearchMsg wm) {
                 return Cmd::none();
             }
 
-            // A typed API key leaves the form (and goes to a worker) before
-            // anything else reads it. The key store is not part of the Model,
-            // so this is not a settings change and is not compared below.
+            // A 带类型的 API 键离开窗体(并转到 工作线程
+            // )在读到之前。键盘商店不是其中的一部分。 Model ,
+            // 因此这不是设置变化,也不在下面进行比较。
             Cmd keys = take_typed_keys(m, *o);
 
             web_search_cfg::Config cfg = m.d.persisted.web_search;
             web_search_form::apply_form(o->form, cfg);
-            // Settled on the value already on record (typed and put back, a
-            // toggle flipped twice): nothing to save. Rebuild anyway so the
-            // row shows what the registry accepted (clamped, cleaned) and
-            // its provenance column is current.
+            // 已记录的数值( 带类型的 并放回,
+            // 一个 切换 翻转两次: 无 保存 重建,
+            // 所以该行显示 注册表 已接受(已密闭、
+            // 清理),其出处栏为时态。
             if (cfg == m.d.persisted.web_search) {
                 rebuild(m, *o);
                 return keys;

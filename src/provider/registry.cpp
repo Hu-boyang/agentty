@@ -1,19 +1,19 @@
-// agentty::provider — registry helpers that need a .cpp.
+// agentty::provider — 注册表 helpers that need a .cpp.
 //
-// wire_streams_reasoning_text() is the one that matters: it decides whether
-// the UI may offer the ^R thinking affordance for a (provider, model) pair.
+// wire_streams_reasoning_text()是重要
+// 的：它决定UI是否可以为（提供商、模型）对提供^R思维可供性。
 //
-// It used to answer that question ITSELF, from the row's `wire` field plus a
-// per-provider special case for Copilot. That was a SECOND guess at a
-// question the transport also answers when it picks a URL, and the two
-// drifted — the `openai` row claimed Wire::OpenAIResponses while dialling
-// /v1/chat/completions, so the dialect-only predicate said "yes, reasoning"
-// for a wire that never sends any.
+// 此前它会自行根据当前条目的
+// wire 字段和各提供方特例回答该问题。
+// for Copilot.这是对 第二 的猜测，当 传输层 选择 URL 时，它也会回答这个问题，
+// 并且两者发生了漂移 - `openai` 行在拨打 /v1/chat/completions 时
+// 声明了 Wire::OpenAIResponses，因此方言 -only 谓词对从不发送任何内容的
+// 传输 表示 "yes, reasoning"。
 //
-// The question now has exactly one authority: provider::dialect_for() in
-// dialect.cpp, which both this predicate and the transports consult. This
-// function is kept as the public spelling (callers and tests use this name)
-// but is now a thin forward, so the UI and the wire cannot disagree.
+// 该问题现在恰好具有一个权威：dialect.cpp中的provider::
+// dialect_for()，该谓词和传输层都参考该权威。
+// 此函数保留为公共拼写（调用者和测试使用此名称），
+// 但现在是一个精简的前向，因此 UI 和 传输 不能不一致。
 
 #include "agentty/provider/registry.hpp"
 

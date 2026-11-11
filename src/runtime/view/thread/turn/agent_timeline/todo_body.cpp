@@ -1,12 +1,12 @@
-// tool_body_preview — `todo` tool body.
+// tool_body_preview — `todo` 工具 正文.
 //
-// Structured checkbox list (TodoList owns the icons). Returns false when
-// the args don't carry a non-empty `todos` array, letting the dispatcher
-// leave Kind::None.
+// 结构化复选框列表( E) TodoList 拥有图标。当参数不携带非
+// 时返回假 -empty `todos` 数组,让 分派器 离职
+// Kind::None.
 //
-// NOTE on ordering: in the dispatcher this is checked AFTER the shared
-// Failure fallback, so a FAILED todo renders as a plain error body, not a
-// checkbox list — matching the original monolithic control flow.
+// NOTE 命令时: 在 分派器 选中此选项 之后 共享失败
+// 回退 ,所以一个 FAILED 待办事宜 渲染 是一个普通
+// 错误 正文 ,而不是复选框列表——匹配原始的单曲控制流.
 
 #include "tool_body_common.hpp"
 

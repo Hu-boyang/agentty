@@ -1,12 +1,12 @@
-// tool_body_preview — `bash` / `diagnostics` tool body.
+// tool_body_preview — `bash` / `diagnostics` 工具 正文.
 //
-// BashOutput (tail-oriented, structured-extraction fallback chain in maya
-// picks up gtest-style `N tests passed` summaries and compiler-error rows,
-// otherwise falls back to a dim 4-row tail). `failed` is wired for the
-// inline `· exit N` suffix on the last line of failed output. We keep
-// BashOutput on failure (instead of routing to Kind::Failure) so the
-// timeline card border + status icon carry the failure signal and the body
-// stays calm — agent_session.cpp's "no double-flagging" discipline.
+// BashOutput (末尾-oriented 结构 -extraction 回
+// 退 链条 maya 捡起口香糖 -style `N tests passed`
+// 提要和 编译器-error 排队,否则掉到4号深处 -row 末尾).
+// `failed` 被线用于内线 `· exit N` 后缀, 位于失败输出的最后一行。
+// BashOutput 故障时(而不是去向) Kind::Failure ),
+// 所以时间卡边框+状态图标上带有故障信号和 正文 保持冷静...
+// agent_session.cpp's "no double-flagging" 纪律。
 
 #include "tool_body_common.hpp"
 
@@ -24,7 +24,7 @@ bool bash_body(const ToolUse& tc, maya::ToolBodyPreview::Config& out) {
     if (tc.is_running() && !tc.progress_text().empty()) {
         out.kind = Kind::BashOutput;
         out.text = clean_output(tc.progress_text());
-        out.text_color = text_primary;   // plain output reads as normal text
+        out.text_color = text_primary;   // 纯输出读作普通文本
         out.is_streaming = true;
         return true;
     }
@@ -35,7 +35,7 @@ bool bash_body(const ToolUse& tc, maya::ToolBodyPreview::Config& out) {
         if (!stripped.empty()) {
             out.kind = Kind::BashOutput;
             out.text = std::move(stripped);
-            out.text_color = text_primary;   // plain output reads as normal text
+            out.text_color = text_primary;   // 纯输出读作普通文本
             out.failed = tc.is_failed();
         }
         return true;

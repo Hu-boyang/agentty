@@ -1,34 +1,34 @@
 #pragma once
-// Stats viewer — a tabbed, read-only window onto what the session did.
+// 统计查看器——一个选项卡式、read-only窗口，显示会话所做的事情。
 //
-// Open it from the command palette (Ctrl+K → "Stats"). Tab/Shift-Tab (or
-// ←/→) switch tabs, Esc closes. Nothing here mutates anything: the panel
-// is a projection of the transcript, so there is no state to get wrong
-// and no confirmation to design.
+// 从命令选项板(Ctrl+K→"Stats")打开它。
+// Tab/Shift-Tab（或←/→）切换选项卡，Esc关闭。
+// 这里没有任何东西会改变任何东西：面板是转录本的投影，
+// 所以没有出错的状态，也没有设计的确认。
 //
-// ── What lives where ─────────────────────────────────────────────────────
+// ── 住在哪里吗? ─────────────────────────────────────────────────────
 //
-//   domain/stats/facts.hpp   the counters + the incremental fold
-//   domain/stats/unit.hpp    the ONE number→text function
-//   domain/stats/metric.hpp  the row vocabulary
-//   domain/stats/tabs.hpp    kTabs — THE SSOT for order/titles/availability
-//   view/panels/stats.cpp    the panel: table-driven, no per-tab branches
+//   domain/stats/facts.hpp计数器+增量归并
+//   domain/stats/unit.hpp ONE数字→
+//   文本函数domain/stats/metric.hpp行词汇domain/stats/tabs.hpp
+//   kTabs-THE SSOT用于order/titles/availability
+//   view/panels/stats.cpp面板：表-driven，无per-tab分支
 //
-// Adding a tab is an enumerator, a row in kTabs, and an extractor. It
-// touches no view code, no key handling and no panel code.
+// 添加选项卡是枚举器、kTabs中的行和提取器。
+// 它不涉及视图代码、按键处理和面板代码。
 //
-// ── Why the projection lives on the open panel ───────────────────────────
+// ── 为什么投影会停留在公开的面板上 ───────────────────────────
 //
-// It is a CACHE, not a second source of truth: every number in it is
-// derived from the transcript and can be rebuilt from it at any time. It
-// sits here because its lifetime is exactly the panel's — opening the
-// panel starts folding, closing it frees everything — and because a
-// projection that outlived the panel would be a background cost paid by
-// users who never open it.
+// 它是CACHE，而不是第二个事实来源：其中的
+// 每个数字都源自转录本并且可以随时从中重建。
+// 它之所以坐在这里，是因为它的 生命周期 正是面板
+// 的——打开面板开始折叠，关闭它可以释放一切——
+// 而且因为比面板寿命更长的投影将成为从未打开它的
+// 用户支付的后台成本。
 //
-// `mutable` because the view refreshes it during render, which is a const
-// operation on the model by construction: refresh() only ever recomputes
-// what the transcript already says.
+// `mutable`，因为视图在 渲染 期间刷新它，
+// 这是通过构造对模型进行常量操作：refresh()仅
+// 重新计算记录已经说过的内容。
 
 #include "agentty/domain/stats/facts.hpp"
 #include "agentty/domain/stats/tabs.hpp"
@@ -38,47 +38,47 @@
 namespace agentty::stats_panel {
 
 struct Open {
-    // Which tab is live. Mutable because the view corrects it when the
-    // selected tab becomes unavailable (the last tool call was rewound
-    // away) — landing on a tab that is no longer drawn would show an
-    // empty panel with no way to understand why.
+    // 哪个选项卡是活动的。 可变，因为当所选选项
+    // 卡不可用时视图会更正它（最后一个工具 调用
+    // 已回退） - 登陆不再绘制的选项卡将显示
+    // 一个空面板，无法理解原因。
     mutable stats::Tab tab = stats::Tab::Session;
 
-    // The body's scroll offset, OWNED BY THE PANEL.
+    // 正文的滚动偏移，OWNED BY 该 PANEL。
     //
-    // It used to live on Model::UI beside sixteen siblings, and that bag
-    // is what made the "panel ignored me, then caught up when I typed"
-    // bug possible. Two things fall out of moving it here:
+    // 它曾经和十六个兄弟姐妹一起生活在Model::UI上，并且那个包使得
+    // 面板没有响应，直到输入文字后才追上。
+    // 错误成为可能。将其移至此处会产生两件事：
     //
-    //   • The frame gate sees it for free. visual_parts(Open) below must
-    //     account for every member, and parts_cover_all proves it at the
-    //     type — so a scroll the view reads can no longer be a scroll the
-    //     gate ignores. On Model::UI it was reachable only by a
-    //     hand-written mix() line in program.hpp, and a hand-written line
-    //     is a line someone forgets. This panel is where they did.
+    //   ·帧门免费看到它。 visual_parts(开盘)以下必须
+    //     每个成员的帐户，并且 parts_cover_all 在类型上证明
+    //     了这一点 - 因此视图读取的卷轴不能再是门忽略的卷轴。
+    //     在 Model::UI 上，只能通过 program.hpp
+    //     中的 hand-written mix() 线路到达，而 hand
+    //     -written 线路是有人忘记的线路。这个面板就是他们所做的。
     //
-    //   • Its lifetime becomes the panel's. A scroll that outlived the
-    //     panel meant reopening the viewer restored the offset from the
-    //     last close — against a different tab, a different transcript,
-    //     and a max_y describing neither. That bug needed an explicit
-    //     reset in the Open arm; now it cannot be written.
+    //   ·其生命周期成为面板的。一个比过去更长久的卷轴
+    //     面板意味着重新打开查看器恢复了自上次关闭的
+    //     偏移量——针对不同的选项卡、
+    //     不同的文字记录和描述两者的max_y。
+    //     该错误需要在开臂中进行显式重置；现在不能写了。
     //
-    // Mutable for the same reason as `tab`: the renderer's writeback
-    // publishes max_y during paint, which is a const operation on the
-    // model by construction.
+    // 可变与`tab`的原因相同：渲染器的写回在
+    // 绘制期间发布max_y，这是通过构造对模型
+    // 进行的常量操作。
     mutable maya::ScrollState scroll = [] {
-        // auto_dispatch off: the reducer owns this offset (StatsScroll),
-        // and letting maya ALSO feed raw arrows into it means two writers
-        // racing over one field — the "press it four times, it moves
-        // once" symptom the pickers hit.
+        // auto_dispatch关闭：状态更新函数拥有该偏移量(StatsScroll)，
+        // 并且让maya ALSO将原始箭头送入其中意味着两个写入器在一个字段上
+        // 竞速——"press it four times, it moves once"
+        // 症状与选择面板命中。
         maya::ScrollState s;
         s.auto_dispatch = false;
         return s;
     }();
 
-    // The incremental fold. Amortised O(1) per frame: a settled thread
-    // folds nothing, a streaming one folds exactly the live tail. See
-    // domain/stats/facts.hpp for the cursor and the epoch guard.
+    // 增量归并。每 帧 摊销 O(1)：一个已结算的 线程 归并 什么都没有，
+    // 一个 流式传输 一个 归并 正是实时的 末尾。有关光标和纪元保护，
+    // 请参阅 domain/stats/facts.hpp。
     mutable stats::Projection projection;
 };
 

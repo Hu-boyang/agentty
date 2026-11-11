@@ -1,16 +1,16 @@
-// settings_rows_input_test — every editable row on every settings pane takes
-// input through the real key path (on_key -> update), not just the reducer.
+// settings_rows_input_test ——每个设置上的每一个可编辑行 面板
+// 通过真实的密钥路径获取输入( E) on_key - > 更新),而不仅仅是 状态更新函数.
 //
-// For each row: an in-place kind (toggle, choice, slider, number) must change
-// on → or ←; a text kind must enter an edit on a typed letter, keep the edit
-// across several keys, and leave it on Enter. A row that ignores all of that
-// is a dead field.
+// 每行: -place 类型( 切换, 选择, 滑块, 数字) 必须在
+// Q 或 Q 上更改; 文本类型必须在 带类型的 字母上输入编辑,
+// 将编辑保留在多个键上, 并保留在 Enter 上。 忽略所有字段
+// 的行是死字段。
 
 #include "agtest.hpp"
 
 #include "agentty/runtime/app/deps.hpp"
 #include "agentty/runtime/app/cmd_factory.hpp"   // generate_thread_title
-#include "agentty/runtime/app/program.hpp"   // AgenttyApp::visual_hash (the render gate)
+#include "agentty/runtime/app/program.hpp"   // AgenttyApp::visual_hash (无) 渲染 门)
 #include "agentty/runtime/app/subscribe.hpp"
 #include "agentty/runtime/app/update.hpp"
 #include "agentty/runtime/panel/form.hpp"
@@ -20,7 +20,7 @@
 #include "agentty/runtime/panel/step.hpp"
 #include "agentty/runtime/panel/thread_filter.hpp"
 #include "agentty/runtime/panel/top.hpp"
-#include "agentty/io/persistence.hpp"   // kTitleMaxBytes
+#include "agentty/io/persistence.hpp"   // k 标签Max 字节
 #include "agtest_fx.hpp"
 
 #include <maya/terminal/input.hpp>
@@ -74,7 +74,7 @@ std::string show(const form::FieldValue& v) {
     }, v);
 }
 
-// Visit every row in turn and exercise each one.
+// 依次访问每行,每行都锻炼.
 void exercise(const std::string pane, Msg open, const FormOf& form_of,
               const std::vector<std::string>& skip = {}, Model start = {}) {
     install_stub_deps();
@@ -96,8 +96,8 @@ void exercise(const std::string pane, Msg open, const FormOf& form_of,
 
         const bool skipped = std::find(skip.begin(), skip.end(), id) != skip.end();
         if (row->is_pick() && !skipped) {
-            // A pick hands off on Enter: something else must take the
-            // keyboard, and Esc must come back to this pane.
+            // 手拿开 Enter : 键盘必须另加一个东西,
+            // Esc 一定要回来 面板.
             m = press(std::move(m), sk(maya::SpecialKey::Enter));
             const bool moved = pn::top(m) != kind || [&] {
                 auto* g = form_of(m);
@@ -122,7 +122,7 @@ void exercise(const std::string pane, Msg open, const FormOf& form_of,
         if (row->editable() && !skipped) {
             const std::string before = show(row->value);
             if (row->is_text_like()) {
-                // Type-to-edit, two more keys, then Enter leaves the edit.
+                // 类型 -to-edit 再来两把钥匙 Enter 离开编辑。
                 m = press(std::move(m), ch(U'7'));
                 m = press(std::move(m), ch(U'x'));
                 m = press(std::move(m), sk(maya::SpecialKey::Backspace));
@@ -139,7 +139,7 @@ void exercise(const std::string pane, Msg open, const FormOf& form_of,
                 f = form_of(m);
                 REQUIRE(f != nullptr);
                 std::string after = f->find(id) ? show(f->find(id)->value) : before;
-                if (after == before) {   // already at max: try the other way
+                if (after == before) {   // 已经最大值 : 尝试其他方式
                     m = press(std::move(m), sk(maya::SpecialKey::Left));
                     f = form_of(m);
                     REQUIRE(f != nullptr);
@@ -149,17 +149,17 @@ void exercise(const std::string pane, Msg open, const FormOf& form_of,
                 ++checked;
             }
         }
-        // Still on this pane, cursor still where we left it?
+        // 还在这上面 面板 光标还留在我们留下的地方吗?
         REQUIRE_MESSAGE(pn::top(m) == kind, pane << " / " << id << ": a key left the pane");
     }
     CHECK_MESSAGE(checked > 0, pane << ": no editable rows exercised");
     MESSAGE(pane << ": " << checked << " rows exercised");
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("settings rows: every plugin add-form row takes input") {
-    // The add form opens from the Plugins list with `a`.
+    // 添加表单从插件列表中以`a`打开.
     install_stub_deps();
     Model m = app::update(Model{}, Msg{OpenSettingsList{settings::Category::Plugins}}).first;
     m = press(std::move(m), ch(U'a'));
@@ -192,9 +192,9 @@ TEST_CASE("settings rows: list keys move, open and come back") {
 }
 
 TEST_CASE("settings rows: a paste lands in the open pane, never the composer") {
-    // Appearance and Sandbox were missing from the paste router, and RAG,
-    // Smart Mode and Plugin only took a paste mid-edit; the rest fell
-    // through to the composer hidden behind the pane.
+    // 外观和 沙箱 被丢失在粘贴路由器,和 RAG ,
+    // 智能模式和插件仅用糊口 -edit 剩下的人 都
+    // 掉进隐藏在后面的作曲家的脑海里 面板.
     install_stub_deps();
     const auto composer_after = [](Msg open, Model start = {}) {
         Model m = app::update(std::move(start), std::move(open)).first;
@@ -213,12 +213,12 @@ TEST_CASE("settings rows: a paste lands in the open pane, never the composer") {
 }
 
 TEST_CASE("lists: a single step wraps, a page step stops at the end") {
-    CHECK(ui::step(4, +1, 5) == 0);    // ↓ on the last row → first
-    CHECK(ui::step(0, -1, 5) == 4);    // ↑ on the first row → last
-    CHECK(ui::step(2, +10, 5) == 4);   // PgDn stops at the bottom
+    CHECK(ui::step(4, +1, 5) == 0);    // ~ 在最后一行 ~ 第一条 ~
+    CHECK(ui::step(0, -1, 5) == 4);    // ⁇ 材行  ⁇ 程
+    CHECK(ui::step(2, +10, 5) == 4);   // PgDn 停止在底部
     CHECK(ui::step(2, -10, 5) == 0);
-    CHECK(ui::step(0, +1, 0) == 0);    // empty list
-    // Skipping headers still wraps.
+    CHECK(ui::step(0, +1, 0) == 0);    // 空列表
+    // 跳过头文件仍然包着.
     const auto hdr = [](int i) { return i == 0 || i == 3; };
     CHECK(ui::step_over(4, +1, 5, hdr) == 1);
     CHECK(ui::step_over(1, -1, 5, hdr) == 4);
@@ -231,7 +231,7 @@ TEST_CASE("settings search: finds a setting in any pane and opens it on that row
     REQUIRE(hub != nullptr);
     REQUIRE_FALSE(hub->index_rows.empty());
 
-    // Typing goes into the search, not to row shortcuts.
+    // 打字进入搜索,而不是排行捷径.
     for (char32_t c : std::u32string{U"prose"}) m = press(std::move(m), ch(c));
     hub = m.ui.panel.get<pn::SettingsList>();
     REQUIRE(hub != nullptr);
@@ -241,15 +241,15 @@ TEST_CASE("settings search: finds a setting in any pane and opens it on that row
     const auto& top = hub->index_rows[static_cast<std::size_t>(hits.front())];
     CHECK(top.pane == settings::ListOpen::Pane::Appearance);
 
-    // Enter opens that pane with the cursor on the matched row.
+    // Enter 打开 面板 与匹配行上的光标。
     m = press(std::move(m), sk(maya::SpecialKey::Enter));
     auto* ap = m.ui.panel.get<pn::Appearance>();
     REQUIRE(ap != nullptr);
     REQUIRE(ap->pane.form.focused() != nullptr);
     CHECK(ap->pane.form.focused()->id == top.row);
 
-    // Esc comes back to the search, query intact; Esc again clears it;
-    // a third Esc closes.
+    // Esc 回到搜索, 查询完整; Esc 重新清除;
+    // 第三个 Esc 关上
     m = press(std::move(m), sk(maya::SpecialKey::Escape));
     hub = m.ui.panel.get<pn::SettingsList>();
     REQUIRE(hub != nullptr);
@@ -273,8 +273,8 @@ TEST_CASE("settings search: an advanced row opens with advanced rows shown") {
 }
 
 TEST_CASE("settings search: every indexed row exists in the pane it names") {
-    // The index is built from the panes' own forms, so each hit must open on
-    // a real row. Catches a pane whose open path builds a different form.
+    // 指数是建立在 面板 ' 自己的表格, 所以每个击球必须打开真正的一行。
+    // catch a 面板 其开放的道路造就了不同的形态.
     install_stub_deps();
     Model base = app::update(Model{}, Msg{OpenSettingsList{settings::Category::General}}).first;
     const auto rows = base.ui.panel.get<pn::SettingsList>()->index_rows;
@@ -319,11 +319,11 @@ TEST_CASE("threads: typing filters by title, Enter opens the filtered row") {
     CHECK(p->query == "login");
     const auto vis = ui::visible_threads(m.d.threads, p->query);
     REQUIRE(vis.size() == 2);
-    // ↓ then ↓ wraps back to the first match.
+    // 然后, \\\\ \ \\ 包装回第一对比赛。
     m = press(std::move(m), sk(maya::SpecialKey::Down));
     m = press(std::move(m), sk(maya::SpecialKey::Down));
     CHECK(m.ui.panel.get<pn::ThreadList>()->index == 0);
-    // Esc clears the filter but stays open.
+    // Esc清除过滤器,但保持开放.
     m = press(std::move(m), sk(maya::SpecialKey::Escape));
     p = m.ui.panel.get<pn::ThreadList>();
     REQUIRE(p != nullptr);
@@ -334,24 +334,24 @@ TEST_CASE("settings search: blank, backspace and paste behave") {
     install_stub_deps();
     Model m = app::update(Model{}, Msg{OpenSettingsList{settings::Category::General}}).first;
     const int hub_rows = static_cast<int>(settings::items_for(m, settings::Category::General).size());
-    // A leading space is ignored, so the hub rows stay.
+    // 领先空间被忽略,所以枢机行会留下.
     m = press(std::move(m), ch(U' '));
     CHECK(m.ui.panel.get<pn::SettingsList>()->query.empty());
-    // Paste lands in the search, not the composer.
+    // 将土地贴在搜索中,而不是作曲家身上.
     { auto msg = app::on_paste(m, maya::PasteEvent{"port\n"}); m = app::update(std::move(m), std::move(msg)).first; }
     auto* hub = m.ui.panel.get<pn::SettingsList>();
     REQUIRE(hub != nullptr);
     CHECK(hub->query == "port");
     CHECK(m.ui.composer.text.empty());
     CHECK_FALSE(settings::search(hub->index_rows, hub->query).empty());
-    // Backspace to empty returns to the hub on a row you can act on.
+    // Backspace 空返回到行中的中枢,您可以操作.
     for (int i = 0; i < 4; ++i) m = press(std::move(m), sk(maya::SpecialKey::Backspace));
     hub = m.ui.panel.get<pn::SettingsList>();
     REQUIRE(hub != nullptr);
     CHECK(hub->query.empty());
     CHECK(hub->index >= 0);
     CHECK(hub->index < hub_rows);
-    // No match: Enter does nothing and the hub stays open.
+    // 无对:Enter无所作为,枢纽保持开放.
     for (char32_t c : std::u32string{U"zzqqxx"}) m = press(std::move(m), ch(c));
     m = press(std::move(m), sk(maya::SpecialKey::Enter));
     CHECK(m.ui.panel.get<pn::SettingsList>() != nullptr);
@@ -378,7 +378,7 @@ maya::KeyEvent ctrl(char32_t c) {
     return ev;
 }
 
-// What a key returned for the host to run, through the real key path.
+// 键怎么返回主机运行, 穿过真正的键路径。
 agtest::fx::Store press_fx(Model& m, const maya::KeyEvent& ev) {
     agtest::fx::Store s;
     if (auto msg = app::on_key(m, ev)) {
@@ -400,19 +400,19 @@ Model two_threads_open() {
     m.d.current.id = ThreadId{"other"};
     return app::update(std::move(m), Msg{OpenThreadList{}}).first;
 }
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("threads: ^R renames the focused row, pre-filled") {
     install_stub_deps();
     Model m = two_threads_open();
-    m = press(std::move(m), sk(maya::SpecialKey::Down));   // focus p2
+    m = press(std::move(m), sk(maya::SpecialKey::Down));   // 焦点p2
     m = press(std::move(m), ctrl(U'r'));
     auto* p = m.ui.panel.get<pn::ThreadList>();
     REQUIRE(p != nullptr);
     CHECK(p->renaming == "p2");
     CHECK(p->rename_input == m.d.threads[1].title);
 
-    // Letters edit the draft, not the filter; ^D does nothing mid-edit.
+    // 信件编辑草稿,而不是过滤器; ^D 中点没有做任何工作 -edit.
     for (int i = 0; i < 64; ++i) m = press(std::move(m), sk(maya::SpecialKey::Backspace));
     for (char32_t c : std::u32string{U"auth fix"}) m = press(std::move(m), ch(c));
     CHECK(press_fx(m, ctrl(U'd')).deleted_threads.empty());
@@ -429,7 +429,7 @@ TEST_CASE("threads: ^R renames the focused row, pre-filled") {
     CHECK(m.d.threads[1].title == "auth fix");
     CHECK(m.d.threads[0].title != "auth fix");
     p = m.ui.panel.get<pn::ThreadList>();
-    REQUIRE(p != nullptr);             // Enter saved; it did not open the thread
+    REQUIRE(p != nullptr);             // Enter 已保存;没有打开线程
     CHECK(p->renaming.empty());
 }
 
@@ -449,15 +449,15 @@ TEST_CASE("threads: a reload read before the rename landed keeps it") {
     };
     CHECK(row(m).renamed_at == at);
 
-    // The list comes back from disk with the old title: the writer hasn't
-    // stored the rename yet. The newer rename in memory wins.
+    // 列表从旧标题的磁盘中返回:作者尚未存储重命名,
+    // 内存中较新的重命名获胜.
     std::vector<Thread> from_disk = m.d.threads;
     for (auto& t : from_disk)
         if (t.id == id) { t.title = "[Pasted text \xc2\xb7 3 lines \xc2\xb7 99 B]"; t.renamed_at = 0; }
     m = app::update(std::move(m), Msg{ThreadsLoaded{std::move(from_disk)}}).first;
     CHECK(row(m).title == "mine");
 
-    // A rename from disk that is newer (another agentty) does replace it.
+    // 从较新的磁盘(另一个为agentty)重命名确实可以替换它.
     from_disk = m.d.threads;
     for (auto& t : from_disk)
         if (t.id == id) { t.title = "theirs"; t.renamed_at = at + 10; }
@@ -473,7 +473,7 @@ TEST_CASE("threads: a generated title names the open thread, cleaned") {
     m.d.threads.push_back(m.d.current);
     m.s.titling = m.d.current.id;
 
-    // Quotes, a trailing period and a line break are stripped.
+    // 引文 后期和换行时间被剥离.
     agtest::fx::Store fx;
     auto [next, cmd] = app::update(std::move(m),
         Msg{ThreadTitleGenerated{ThreadId{"t-auto"}, "\"Fix the login bug.\"\n"}});
@@ -486,8 +486,8 @@ TEST_CASE("threads: a generated title names the open thread, cleaned") {
     REQUIRE(fx.saved_threads.size() == 1);
     CHECK(fx.saved_threads[0].title == "Fix the login bug");
 
-    // A failed request (empty title) keeps the name it has, and isn't
-    // asked again: a model that can't answer would cost a request a turn.
+    // 一个失败的请求(空标题)保留它拥有的名称,
+    // 而不再被问到:一个无法回答的模型会花费一个请求转弯.
     m.d.current.title = "kept"; m.d.current.auto_titled = false;
     m = app::update(std::move(m), Msg{ThreadTitleGenerated{ThreadId{"t-auto"}, ""}}).first;
     CHECK(m.d.current.title == "kept");
@@ -507,7 +507,7 @@ TEST_CASE("threads: a generated title never replaces a chosen name") {
     CHECK(m.d.current.title == "my name");
     CHECK(m.d.threads[0].title == "my name");
 
-    // Nor one for a thread you switched away from.
+    // 一个人也不行 线程 你转身离开。
     m.d.current.id = ThreadId{"elsewhere"};
     m.d.threads[0].renamed_at = 0;
     m = app::update(std::move(m),
@@ -519,28 +519,28 @@ TEST_CASE("threads: a title is asked for once, after the first reply") {
     install_stub_deps();
     Model m;
     m.d.current.id = ThreadId{"t-ask"};
-    m.d.current.auto_title_ok = true;   // a thread started since titling
+    m.d.current.auto_title_ok = true;   // a 线程 开始于授权
     Message u; u.role = Role::User; u.text = "how do I fix the login bug";
     m.d.current.messages.push_back(u);
-    CHECK(app::detail::maybe_auto_title(m).is_none());   // no reply yet
+    CHECK(app::detail::maybe_auto_title(m).is_none());   // 尚未回复
 
     Message a; a.role = Role::Assistant; a.text = "Check the session cookie.";
     m.d.current.messages.push_back(a);
     CHECK_FALSE(app::detail::maybe_auto_title(m).is_none());
     CHECK(m.s.titling == m.d.current.id);
-    CHECK(app::detail::maybe_auto_title(m).is_none());   // already asked
+    CHECK(app::detail::maybe_auto_title(m).is_none());   // 已询问
 
     m.s.titling = {};
     m.d.current.auto_titled = true;
-    CHECK(app::detail::maybe_auto_title(m).is_none());   // already titled
+    CHECK(app::detail::maybe_auto_title(m).is_none());   // 已标题
 
     m.d.current.auto_titled = false;
     m.d.current.renamed_at  = 1;
-    CHECK(app::detail::maybe_auto_title(m).is_none());   // the user named it
+    CHECK(app::detail::maybe_auto_title(m).is_none());   // 用户命名它
 
     m.d.current.renamed_at = 0;
     m.d.persisted.auto_title = false;
-    CHECK(app::detail::maybe_auto_title(m).is_none());   // turned off
+    CHECK(app::detail::maybe_auto_title(m).is_none());   // 关机
 }
 
 TEST_CASE("threads: old threads and forks are never auto-titled") {
@@ -550,11 +550,11 @@ TEST_CASE("threads: old threads and forks are never auto-titled") {
     Message u; u.role = Role::User; u.text = "an old chat";
     Message a; a.role = Role::Assistant; a.text = "a reply";
     m.d.current.messages = {u, a};
-    // Saved before titling existed: no flag, so continuing it keeps its name.
+    // 已保存 存在所有权之前:否 标志 继续它的名字。
     CHECK(app::detail::maybe_auto_title(m).is_none());
 
-    // A fork: its first User message is the fork note, and it's named after
-    // its parent. It starts with the flag off.
+    // 叉:它的首个用户消息是叉音符,
+    // 以它的母词命名,它从标志关起.
     Model f;
     f.d.current.id = ThreadId{"t-fork"};
     f.d.current.title = "Fork: an old chat";
@@ -577,23 +577,23 @@ TEST_CASE("threads: clearing a rename goes back to the automatic name") {
     Model m;
     m.d.current.id = ThreadId{"t-c"};
     m.d.current.title = "my name";
-    m.d.current.renamed_at = 1'700'000'000;   // a rename from 2023
+    m.d.current.renamed_at = 1'700'000'000;   // 2023年的重命名
     Message u; u.role = Role::User; u.text = "fix the login bug\nand more";
     Message a; a.role = Role::Assistant; a.text = "ok";
     m.d.current.messages = {u, a};
     m.d.threads.push_back(m.d.current);
     m = app::update(std::move(m), Msg{OpenThreadList{}}).first;
 
-    // ^R, empty the draft, Enter.
+    // ^R ,把草稿清空, Enter.
     m = press(std::move(m), ctrl(U'r'));
     for (int i = 0; i < 64; ++i) m = press(std::move(m), sk(maya::SpecialKey::Backspace));
     const auto fx = press_fx(m, sk(maya::SpecialKey::Enter));
     REQUIRE(fx.renamed_threads.size() == 1);
     CHECK(fx.renamed_threads[0].name_is_auto);
-    CHECK(fx.renamed_threads[0].renamed_at > 1'700'000'000);   // beats the old rename
-    CHECK(m.d.current.title == "fix the login bug and more");   // the first-line name
+    CHECK(fx.renamed_threads[0].renamed_at > 1'700'000'000);   // 击败旧的重命名
+    CHECK(m.d.current.title == "fix the login bug and more");   // 首个-line名称
     CHECK_FALSE(m.d.current.user_named());
-    // And it gets an auto title after the next reply.
+    // 并在下次回复后获得汽车标题.
     CHECK_FALSE(app::detail::maybe_auto_title(m).is_none());
 }
 
@@ -613,7 +613,7 @@ TEST_CASE("threads: the title prompt skips the fork note and injected context") 
     Message mine; mine.role = Role::User; mine.text = "the real question";
     Message a; a.role = Role::Assistant; a.text = "an answer";
     m.d.current.messages = {note, mine, a};
-    // Not empty: it found a typed message to title from.
+    // 不空: 它找到一个 带类型的 信件可标题。
     CHECK_FALSE(app::cmd::generate_thread_title(m).is_none());
     Model only_note;
     only_note.d.current.messages = {note, a};
@@ -646,7 +646,7 @@ TEST_CASE("threads: rename Esc, empty and unchanged write nothing") {
     Model m = two_threads_open();
     const std::string before = m.d.threads[0].title;
 
-    // Esc cancels the edit and keeps the picker open.
+    // Esc 取消编辑并保留 选择面板 打开。
     m = press(std::move(m), ctrl(U'r'));
     m = press(std::move(m), ch(U'x'));
     m = press(std::move(m), sk(maya::SpecialKey::Escape));
@@ -654,12 +654,12 @@ TEST_CASE("threads: rename Esc, empty and unchanged write nothing") {
     CHECK(m.ui.panel.get<pn::ThreadList>()->renaming.empty());
     CHECK(m.d.threads[0].title == before);
 
-    // Enter on the untouched draft is a no-op.
+    // Enter 草案没有被修改,就是没有 -op.
     m = press(std::move(m), ctrl(U'r'));
     CHECK(press_fx(m, sk(maya::SpecialKey::Enter)).renamed_threads.empty());
 
-    // A blank draft on a thread you never named is a no-op (clearing a
-    // name there has nothing to clear).
+    // 空白的草稿在A 线程 你从来没有命名是没有 -op (澄清一个名字,
+    // 那里没有什么可澄清的)
     m = press(std::move(m), ctrl(U'r'));
     for (int i = 0; i < 64; ++i) m = press(std::move(m), sk(maya::SpecialKey::Backspace));
     m = press(std::move(m), ch(U' '));
@@ -685,13 +685,13 @@ TEST_CASE("threads: rename paste is one line, capped, and renames the open threa
     p = m.ui.panel.get<pn::ThreadList>();
     REQUIRE(p != nullptr);
     CHECK(p->rename_input.size() == persistence::kTitleMaxBytes);
-    m = press(std::move(m), ch(U'q'));   // typing past the cap is refused
+    m = press(std::move(m), ch(U'q'));   // 拒绝在封顶上输入
     CHECK(m.ui.panel.get<pn::ThreadList>()->rename_input.size() == persistence::kTitleMaxBytes);
 
     const auto fx = press_fx(m, sk(maya::SpecialKey::Enter));
     REQUIRE(fx.renamed_threads.size() == 1);
-    // The open thread is re-saved from m.d.current every turn, so it must
-    // carry the new title too or the next save writes the old one back.
+    // 开阔 线程 重新为 -saved 发件人 m.d.current 转弯,
+    // 所以它必须背着 新标题,或者下一个 保存 写回旧的
     CHECK(m.d.current.title == fx.renamed_threads[0].title);
 }
 
@@ -700,16 +700,16 @@ TEST_CASE("threads: rename edits at the caret, and arrows, Home/End and Delete w
     Model m;
     Thread th;
     th.id = ThreadId{"c1"};
-    th.title = "caf\xc3\xa9 bug";          // a 2-byte code point mid-title
+    th.title = "caf\xc3\xa9 bug";          // a 2-byte 中间代码点 -title
     m.d.threads.push_back(th);
     m.d.current.id = ThreadId{"other"};
     m = app::update(std::move(m), Msg{OpenThreadList{}}).first;
     m = press(std::move(m), ctrl(U'r'));
     auto draft = [&] { return m.ui.panel.get<pn::ThreadList>()->rename_input; };
     auto caret = [&] { return m.ui.panel.get<pn::ThreadList>()->rename_cursor; };
-    CHECK(caret() == static_cast<int>(th.title.size()));   // opens at the end
+    CHECK(caret() == static_cast<int>(th.title.size()));   // 结尾打开
 
-    // Home, then fix the first letter: Delete forward, type the new one.
+    // Home ,然后修正第一个字母: Delete 向前,输入新的。
     m = press(std::move(m), sk(maya::SpecialKey::Home));
     CHECK(caret() == 0);
     m = press(std::move(m), sk(maya::SpecialKey::Delete));
@@ -717,29 +717,29 @@ TEST_CASE("threads: rename edits at the caret, and arrows, Home/End and Delete w
     CHECK(draft() == "Caf\xc3\xa9 bug");
     CHECK(caret() == 1);
 
-    // Right steps over the whole code point, never into the middle of it.
+    // 正确的步骤超过整个代码点, 从来没有进入它的中间。
     for (int i = 0; i < 3; ++i) m = press(std::move(m), sk(maya::SpecialKey::Right));
-    CHECK(caret() == 5);                     // past "af" and the 2-byte e
+    CHECK(caret() == 5);                     // 过去 "af" 和2号 -byte e
     m = press(std::move(m), sk(maya::SpecialKey::Left));
     CHECK(caret() == 3);
-    m = press(std::move(m), sk(maya::SpecialKey::Delete));   // removes e-acute whole
+    m = press(std::move(m), sk(maya::SpecialKey::Delete));   // 删除 e-acute 整段
     CHECK(draft() == "Caf bug");
-    m = press(std::move(m), sk(maya::SpecialKey::Backspace)); // removes 'f'
+    m = press(std::move(m), sk(maya::SpecialKey::Backspace)); // 删除'f'
     CHECK(draft() == "Ca bug");
     CHECK(caret() == 2);
 
-    // Delete at the end, Backspace at the start: nothing to remove.
+    // Delete 最终 Backspace 起始时:无任何要删除。
     m = press(std::move(m), sk(maya::SpecialKey::End));
     m = press(std::move(m), sk(maya::SpecialKey::Delete));
     m = press(std::move(m), sk(maya::SpecialKey::Home));
     m = press(std::move(m), sk(maya::SpecialKey::Backspace));
     CHECK(draft() == "Ca bug");
 
-    // A paste lands at the caret.
+    // 贴贴在地上 光标.
     { auto msg = app::on_paste(m, maya::PasteEvent{"[x] "}); m = app::update(std::move(m), std::move(msg)).first; }
     CHECK(draft() == "[x] Ca bug");
     CHECK(caret() == 4);
-    // Alt+Left (thread quick-cycle elsewhere) only moves the caret here.
+    // Alt +Left (帮助) +Left (帮助 线程 快点 -cycle 仅移动 光标 给
     maya::KeyEvent alt_left{maya::SpecialKey::Left, {}, {}};
     alt_left.mods.alt = true;
     m = press(std::move(m), alt_left);
@@ -775,9 +775,9 @@ TEST_CASE("threads: opening a renamed thread before the rename lands keeps it") 
     m = press(std::move(m), sk(maya::SpecialKey::Enter));
     REQUIRE(m.d.threads[0].title == "kept");
 
-    // The disk read raced the writer and still has the old title. A load
-    // result only lands while it is the pending one (ThreadListSelect sets
-    // that), so stand it up the same way.
+    // 磁盘读取的字形为作者的种族,仍然有旧标题。 A 加载 只会
+    // 在土地是 待处理 一项( ThreadListSelect 设置它,
+    // 所以站起来 同样的方式。
     Thread loaded;
     loaded.id = ThreadId{"p1"};
     loaded.title = "[Pasted text \xc2\xb7 3 lines \xc2\xb7 99 B]";
@@ -789,12 +789,12 @@ TEST_CASE("threads: opening a renamed thread before the rename lands keeps it") 
 }
 
 TEST_CASE("settings rows: a cleared Embeddings port takes any number (#97)") {
-    // The report: RAG > Embeddings > Port, Backspace to empty, then type a
-    // number. Only numbers starting with 1 went in. Through the real pane,
-    // real keys, and the render gate: every keystroke must also repaint.
+    // 报告: RAG > 嵌入 > 端口, Backspace
+    // 中输入数字。只有从 1 开始的数字才输入。通过真实数字 面板 ,
+    // 真实的键,和 渲染 门: 每一个键盘键必须也 重绘.
     install_stub_deps();
     Model start;
-    start.d.persisted.rag.embed_backend = "ollama";   // has a Port row
+    start.d.persisted.rag.embed_backend = "ollama";   // 有端口行
     Model m = app::update(std::move(start),
                           Msg{OpenRag{std::string{rag_settings::kFieldPort}}}).first;
     auto* rag = m.ui.panel.get<pn::Rag>();
@@ -822,7 +822,7 @@ TEST_CASE("settings rows: a cleared Embeddings port takes any number (#97)") {
 }
 
 TEST_CASE("settings rows: every Appearance row takes input") {
-    // The theme row hands off to a browser (Enter), not arrows.
+    // 主题行将手移到浏览器(Enter),而不是箭头.
     exercise("Appearance", Msg{OpenAppearance{}},
              [](Model& m) -> form::Form* {
                  auto* o = m.ui.panel.get<pn::Appearance>();
@@ -831,8 +831,8 @@ TEST_CASE("settings rows: every Appearance row takes input") {
 }
 
 TEST_CASE("settings rows: every Sandbox row takes input") {
-    // Under bwrap most rows are locked on purpose. Pick claybin the way a
-    // user does, then every row it unlocks must take input.
+    // 在 brap 下, 大多数行都是故意锁定的。 选择 claybin ,
+    // 选择用户的操作方式, 然后它解锁的每行必须输入。
     Model m;
     m.d.persisted.sandbox.backend = sandbox_cfg::LinuxBackend::Claybin;
     m.d.persisted.sandbox.configured = true;

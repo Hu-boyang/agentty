@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run a command with this workspace's user-local compiler and dependencies.
+# 使用当前工作区用户目录中的编译器和依赖库运行命令。
 set -euo pipefail
 
 deps_root="${HOME}/.local/agentty-deps"

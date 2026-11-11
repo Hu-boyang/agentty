@@ -1,10 +1,10 @@
-// real_thread_frame_probe — per-frame cost on a REAL long thread.
+// real_thread_frame_probe ——按 -frame a 费用 真实 长 线程.
 //
-// The synthetic long_session_bench says a frame costs 1-3 ms, but the live
-// log of a 760-message session shows 17-33 ms views. This loads the actual
-// thread, freezes it the way the TUI does, and times view() (the real
-// AgenttyApp::view, every widget) plus the paint, repeatedly, so the gap
-// can be attributed. BENCH_PERF_LOOPS=N repeats for perf sampling.
+// 合成人 long_session_bench 说 帧 760的活记录
+// -message 显示 17-33 ms 视图。 加载 实际数 线程
+// 冻结它的方式 TUI 已经,和时间 view() (真实的)
+// AgenttyApp::view ,每个部件)加上颜料,反复,所以缺口可以归结.
+// BENCH_PERF_LOOPS =N 重复为perf采样.
 //
 //   ./build/agentty_standalone_tests real_thread_frame_probe <thread> [width]
 
@@ -35,7 +35,7 @@ static double ms(Clock::duration d) {
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        // ctest runs it with no thread: nothing to probe, so succeed.
+        // ctest 不传会话时，没有可探测内容，直接成功。
         std::printf("usage: %s <thread> [width]\n", argv[0]);
         return 0;
     }
@@ -56,7 +56,7 @@ int main(int argc, char** argv) {
     m.ui.term_rows = 50;
     m.d.current = std::move(*loaded);
     app::detail::rehydrate_frozen(m);
-    // Bound the frozen prefix the way a running session does.
+    // 以运行会话的方式锁定被冻结的前缀。
     for (int g = 0; g < 64; ++g)
         if (app::detail::trim_frozen_if_oversized(m).is_none()) break;
     std::printf("messages=%zu frozen=%zu frozen_through=%zu\n",

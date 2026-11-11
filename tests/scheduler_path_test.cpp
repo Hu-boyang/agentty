@@ -1,12 +1,12 @@
-// scheduler_path_test — path-aware parallel tool scheduling
-// (cmd::schedule_parallel_batch in cmd_factory.cpp).
+// scheduler_path_test 路径 -aware 并行工具列表( Q)
+// cmd::schedule_parallel_batch 输入 cmd_factory.cpp).
 //
-//   agentty already gates parallel tool execution by EffectSet (read/net
-//   compose; write/exec demand exclusive access). This test pins the PATH-
-//   AWARE refinement: two writers to disjoint files run in the same wave, a
-//   read alongside an unrelated write runs concurrently, and overlapping /
-//   exec / blind-writer cases still serialise. Pure planner — no maya, no
-//   phase machinery.
+//   agentty 已经打开并行工具执行 EffectSet (
+//   read/net 作曲; write/exec 要求独家访问。
+//   此测试将锁定 PATH- AWARE 改进:两个作者将文件解开,
+//   在同一波中运行,一个读取与一个无关的写同时运行,以及重叠 /
+//   exec / 盲 -writer 案件仍按序列排列。 maya ,
+//   没有阶段机械。
 
 #include "agtest.hpp"
 
@@ -38,7 +38,7 @@ void expect(const char* name, bool cond, const std::string& detail = {}) {
     CHECK_MESSAGE(cond, msg);
 }
 
-// A PENDING tool call with the given name + args.
+// A PENDING 工具 调用 ,并带有给定名称+参数。
 ToolUse pending(const char* name, nlohmann::json args) {
     ToolUse t;
     static int c = 0;
@@ -64,7 +64,7 @@ bool has(const std::vector<std::size_t>& v, std::size_t i) {
     for (auto x : v) if (x == i) return true;
     return false;
 }
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("scheduler path") {
     std::printf("scheduler_path_test — path-aware parallel scheduling\n\n");
@@ -73,7 +73,7 @@ TEST_CASE("scheduler path") {
     const fs::path workspace = fs::temp_directory_path() / "agentty_scheduler_workspace";
     agentty::tools::util::set_workspace_root(::agentty::IoAccess::grant(), workspace);
 
-    // (a) Two writes to DISJOINT files → BOTH promoted (run concurrently).
+    // (a) 两次写信给: DISJOINT 文档 – 两者 升职( 同时运行).
     {
         std::vector<ToolUse> b = {
             pending("write", {{"file_path", "a.cpp"}, {"content", "x"}}),
@@ -84,7 +84,7 @@ TEST_CASE("scheduler path") {
               promoted_str(d.promote));
     }
 
-    // (b) Two writes to the SAME file → only the FIRST runs (serialise).
+    // (b) 两名代表致函 相同 文档 = 首次 运行(序列化)。
     {
         std::vector<ToolUse> b = {
             pending("write", {{"file_path", "same.cpp"}, {"content", "x"}}),
@@ -95,8 +95,8 @@ TEST_CASE("scheduler path") {
               promoted_str(d.promote));
     }
 
-    // (c) Read of a.cpp + write of b.cpp → BOTH run (disjoint, even though
-    //     one writes — the coarse effect rule would have serialised them).
+    // (c) 读取 a.cpp + 写入 b.cpp → 两者 运行
+    //     ( 脱节, 虽写着粗糙的 ) 副作用 规则会把它们串起来的。
     {
         std::vector<ToolUse> b = {
             pending("read",  {{"path", "a.cpp"}}),
@@ -107,7 +107,7 @@ TEST_CASE("scheduler path") {
               promoted_str(d.promote));
     }
 
-    // (d) Read of a.cpp + write of a.cpp → only the read runs (overlap).
+    // (d) 读取 a.cpp + 写入 a.cpp ——只读数运行(重叠).
     {
         std::vector<ToolUse> b = {
             pending("read",  {{"path", "a.cpp"}}),
@@ -118,7 +118,7 @@ TEST_CASE("scheduler path") {
               promoted_str(d.promote));
     }
 
-    // (e) Directory-prefix overlap: edit "src/a.c" vs write "src/" → serialise.
+    // (e) 目录 -prefix 重叠:编辑 "src/a.c" vs 写入 "src/" ~ 串行记.
     {
         std::vector<ToolUse> b = {
             pending("edit",  {{"path", "src/a.c"}}),
@@ -129,7 +129,7 @@ TEST_CASE("scheduler path") {
               promoted_str(d.promote));
     }
 
-    // (f) "srcfoo" is NOT under "src" → boundary-correct, both run.
+    // (f) "srcfoo" 谓 不 下级 "src" − 边界 -correct 都跑开
     {
         std::vector<ToolUse> b = {
             pending("write", {{"file_path", "src"}, {"content", "x"}}),
@@ -139,8 +139,8 @@ TEST_CASE("scheduler path") {
         expect("srcfoo not under src", d.promote.size() == 2, promoted_str(d.promote));
     }
 
-    // (g) bash (Exec) anywhere in the batch → it serialises against everything.
-    //     A read emitted BEFORE bash runs; bash + the later read stay pending.
+    // (g) 批次中任何地方的批次(Exec) ——它按序逐一地与一切进行对比。
+    //     已发售的读数 之前 击打运行; 击打+ 后读停留 待处理.
     {
         std::vector<ToolUse> b = {
             pending("read", {{"path", "a.cpp"}}),
@@ -148,25 +148,25 @@ TEST_CASE("scheduler path") {
             pending("read", {{"path", "b.cpp"}}),
         };
         auto d = schedule_parallel_batch(b);
-        // 0 (read) runs; 1 (bash) conflicts with the running read → stays
-        // pending; 2 (read) would be read-safe but bash hasn't run — it's
-        // read-compatible with the active read so it ALSO runs. bash alone defers.
+        // 0( 读) 运行; 1( bash) 与运行中读 − 冲突。
+        // 待处理 ; 2 (已读) 读 -safe 但拍拍没有跑——
+        // 读了 -compatible 正在读的,所以它 ALSO 跑步,单打独斗
         expect("bash defers, reads run", has(d.promote, 0) && has(d.promote, 2)
               && !has(d.promote, 1), promoted_str(d.promote));
     }
 
-    // (h) Blind writer (no extractable path) → exclusive, serialises.
+    // (h) 盲作家(无可提取路径) 独家的系列剧。
     {
         std::vector<ToolUse> b = {
             pending("read",  {{"path", "a.cpp"}}),
-            pending("write", {{"content", "no path here"}}),   // no file_path
+            pending("write", {{"content", "no path here"}}),   // 无file_path
         };
         auto d = schedule_parallel_batch(b);
         expect("blind writer serialises", d.promote.size() == 1 && has(d.promote, 0),
               promoted_str(d.promote));
     }
 
-    // (i) Many disjoint reads → all run (the common fan-out case).
+    // (i) 许多不相连的读物 – 全部运行(常见的fan-out案例)。
     {
         std::vector<ToolUse> b = {
             pending("read", {{"path", "a"}}),
@@ -178,22 +178,22 @@ TEST_CASE("scheduler path") {
         expect("read fan-out all parallel", d.promote.size() == 4, promoted_str(d.promote));
     }
 
-    // (j) A RUNNING write to a.cpp blocks a pending read of a.cpp but not a
-    //     pending read of b.cpp.
+    // (j) A RUNNING 写到 a.cpp 块a 待处理 读取 a.cpp 但不是,
+    //     没有 待处理 读取 b.cpp.
     {
         std::vector<ToolUse> b = {
             running("write", {{"file_path", "a.cpp"}, {"content", "x"}}),
-            pending("read",  {{"path", "a.cpp"}}),   // blocked
-            pending("read",  {{"path", "b.cpp"}}),   // free
+            pending("read",  {{"path", "a.cpp"}}),   // 已封锁
+            pending("read",  {{"path", "b.cpp"}}),   // 免费
         };
         auto d = schedule_parallel_batch(b);
         expect("running write blocks overlapping read only",
               !has(d.promote, 1) && has(d.promote, 2), promoted_str(d.promote));
     }
 
-    // (k) task FAN-OUT: several subagents in one wave ALL run concurrently.
-    //     This is the tool's whole point — sched_effects maps task to
-    //     {ReadFs, Net} (composable) while its PERMISSION gate stays Exec.
+    // (k) 任务 FAN-OUT : 在一个波中的若干副剂 全部 运行同时。
+    //     这就是工具的全部要点—— sched_effects 将任务映射到 { ReadFs ,
+    //     Net ) (可合并),而其 PERMISSION 大门继续开 Exec.
     {
         std::vector<ToolUse> b = {
             pending("task", {{"prompt", "explore module A"}}),
@@ -205,7 +205,7 @@ TEST_CASE("scheduler path") {
               promoted_str(d.promote));
     }
 
-    // (l) task + reads compose (a subagent runs alongside direct reads).
+    // (l) 任务+读作组曲(副代理机与直接读作组一起运行)。
     {
         std::vector<ToolUse> b = {
             pending("task", {{"prompt", "map the codebase"}}),
@@ -217,8 +217,8 @@ TEST_CASE("scheduler path") {
               promoted_str(d.promote));
     }
 
-    // (m) task does NOT ride alongside bash: Exec is exclusive and task's
-    //     sched view still carries ReadFs/Net which conflict with Exec.
+    // (m) 任务确实 不 专机是独家的,任务悬浮的视野仍然
+    //     随身携带 ReadFs/Net 与Exec冲突。
     {
         std::vector<ToolUse> b = {
             pending("shell", {{"command", "make -j8"}}),
@@ -229,9 +229,9 @@ TEST_CASE("scheduler path") {
               promoted_str(d.promote));
     }
 
-    // (m2) WAITS are sequential. A batch of "sleep; check" shells and
-    //      process_polls means "wait, look, wait again": run together they all
-    //      started at once. Only the first wait may run; nothing jumps it.
+    // (m2) WAITS 连续排列。 "sleep; check" 炮弹和
+    //      process_polls 表示 "wait, look, wait again"
+    //      : 一起运行, 它们都从头开始。 只有第一个等待才能运行; 没有跳过它。
     {
         std::vector<ToolUse> b = {
             pending("shell", {{"command", "sleep 270; tail -1 build.log"}}),
@@ -244,7 +244,7 @@ TEST_CASE("scheduler path") {
               promoted_str(d.promote));
     }
     {
-        // With the first wait running, the poll after it still waits its turn.
+        // 随着第一场等待的进行,之后的民意调查仍然在等待轮到它.
         std::vector<ToolUse> b = {
             running("shell", {{"command", "sleep 270; tail -1 build.log"}}),
             pending("process_poll", {{"id", "proc-1"}, {"wait_ms", 250000}}),
@@ -255,7 +255,7 @@ TEST_CASE("scheduler path") {
               promoted_str(d.promote));
     }
     {
-        // Reads in the same batch are not waits and still fan out.
+        // 同一批次的读物不等待,仍会扇出.
         std::vector<ToolUse> b = {
             pending("process_poll", {{"id", "proc-1"}}),
             pending("read", {{"path", "a.cpp"}}),
@@ -267,8 +267,8 @@ TEST_CASE("scheduler path") {
               && !has(d.promote, 2), promoted_str(d.promote));
     }
 
-    // (m3) process_start then process_poll in one batch: the poll names the
-    //      session the start creates, so it must not run beside it.
+    // (m3) process_start 那样 process_poll 一
+    //      组: 民意测验名称 开始时的会话, 所以它不能运行在它旁边。
     {
         std::vector<ToolUse> b = {
             pending("process_start", {{"command", "make"}}),
@@ -289,8 +289,8 @@ TEST_CASE("scheduler path") {
               promoted_str(d.promote));
     }
 
-    // (n) Lexical aliases and absolute-vs-relative spellings name the same
-    //     resource and therefore serialise.
+    // (n) 语法别名和绝对-vs-relative拼写法将同一资源命名,
+    //     因此序列化。
     {
         std::vector<ToolUse> b = {
             pending("write", {{"file_path", "src/./nested/../a.cpp"}, {"content", "x"}}),
@@ -301,7 +301,7 @@ TEST_CASE("scheduler path") {
               d.promote.size() == 1 && has(d.promote, 0), promoted_str(d.promote));
     }
 
-    // (o) Normalisation uncertainty fails closed once a writer is active.
+    // (o) 一旦作者活动,正常化的不确定性即告失效。
     {
         std::vector<ToolUse> b = {
             pending("write", {{"file_path", "a.cpp"}, {"content", "x"}}),
@@ -312,9 +312,9 @@ TEST_CASE("scheduler path") {
               d.promote.size() == 1 && has(d.promote, 0), promoted_str(d.promote));
     }
 
-    // (p) Safe two-phase permission behavior: discovering a later permission
-    //     prompt must happen before an earlier dispatchable call is mutated to
-    //     Running (its Cmd would otherwise be discarded by the early return).
+    // (p) 安全二号 -phase 权限 行为:发现后期
+    //     权限 提示词 必须在更早的可发送之前发生 调用 已变异
+    //     为运行( its) Cmd 否则,将因提前返回而放弃。
     {
         Model m;
         m.d.profile = Profile::Ask;

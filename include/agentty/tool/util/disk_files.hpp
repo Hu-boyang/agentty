@@ -1,7 +1,7 @@
 #pragma once
-// The disk, as mcp-cpp's FileSystem. mcp-cpp does no IO; agentty hands it
-// this. Writes are atomic (sibling temp, fsync, rename), keep the target's
-// mode, and go through a symlink to its target instead of replacing it.
+// 该盘为mcp-cpp的FileSystem。 mcp-cpp 没有 IO；
+// agentty 递给它这个。写入是原子的（同级临时、fsync、
+// 重命名），保持目标的模式，并通过符号链接到达其目标而不是替换它。
 
 #include <mcp/tools/files.hpp>
 

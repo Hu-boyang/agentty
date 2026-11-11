@@ -1,133 +1,133 @@
-# AgenttyStandalone.cmake — the pre-submodule setup phase: standalone/static
-# link knobs, CPU ISA baseline, LTO/IPO gating, mimalloc/maya toggles, and the
-# platform aliases (macOS-GCC _Static_assert, Android/Termux deployment). ALL
-# of this must run BEFORE add_subdirectory(maya/...) — it is included as one
-# contiguous block from the root to preserve that ordering exactly.
+# AgenttyStandalone.cmake--submodule前设置阶段：
+# standalone/static 链接旋钮、CPU ISA基线、LTO/IPO门控、
+# mimalloc/maya 切换和平台别名(macOS-GCC _Static_assert、
+# Android/Termux部署)。其中的 全部 必须运行 之前 add_subdirectory
+# (maya/...) — 它作为从根开始的一个连续块包含在内，以准确保留该顺序。
 
-# ── Standalone binary plumbing ─────────────────────────────────────────
-# AGENTTY_STANDALONE=ON produces a binary with no third-party shared-library
-# dependencies — drop it on any compatible machine (matching libc
-# version) and it runs. On every platform it forces the right static-
-# linking knobs:
+# ── 独立式的二进制程序管道 ─────────────────────────────────────────
+# AGENTTY_STANDALONE=ON产生没有第三
+# -party共享-library依赖性的二进制程序——将其放在任何兼容
+# 机器上（匹配libc版本）并且它运行。在每个平台上，它都会强制使用正确的
+# 静态 链接 旋钮：
 #
-#   Linux      OpenSSL + nghttp2 statically linked. libstdc++ and libgcc
-#              folded in via -static-libstdc++ / -static-libgcc. libc
-#              stays dynamic (fully-static glibc breaks the NSS resolver
-#              and DNS lookups; if you need a 100% static binary, build
-#              against musl with -DAGENTTY_FULLY_STATIC=ON).
-#   macOS      OpenSSL + nghttp2 statically linked. libSystem stays
-#              dynamic (the only ABI Apple supports for distribution).
-#   Windows    Forces AGENTTY_STATIC_RUNTIME=ON (/MT) so the MSVC CRT is
-#              statically embedded; nghttp2 + OpenSSL come from the
-#              x64-windows-static vcpkg triplet.
+#   Linux OpenSSL + nghttp2 静态链接。 libstdc++ 和 libgcc
+#              通过 -static-libstdc++ / -static-libgcc 合并。
+#              libc 保持动态（完全-static glibc 破坏了 NSS 解析器和
+#              DNS 查找；如果您需要 100% 静态 二进制程序，
+#              请使用 -DAGENTTY_FULLY_STATIC=ON 针对 musl 进行构建）。
+#   macOS OpenSSL + nghttp2 静态链接。
+#              libSystem 保持动态（Apple 支持分发的唯一 ABI）。
+#   Windows强制AGENTTY_STATIC_RUNTIME=ON(/MT)，因此MSVC
+#              CRT是静态嵌入的； nghttp2 + OpenSSL 来自 x64
+#              -windows-static vcpkg 三元组。
 #
-# Build with `cmake -B build-rel -DCMAKE_BUILD_TYPE=Release -DAGENTTY_STANDALONE=ON`.
+# 用 `cmake -B build-rel -DCMAKE_BUILD_TYPE=Release -DAGENTTY_STANDALONE=ON` 构建。
 option(AGENTTY_STATIC_RUNTIME "Link the MSVC runtime statically (/MT)" OFF)
 option(AGENTTY_STANDALONE     "Produce a standalone binary with no third-party shared-library deps" OFF)
 option(AGENTTY_FULLY_STATIC   "Fully static link (Linux only, requires musl toolchain)" OFF)
-# By default a fully-static Linux build is `-static -no-pie` (ET_EXEC): a true
-# standalone binary that runs on every Linux userland (glibc, musl, Pi OS).
-# Flip this ON only to target Android/Bionic (Termux), which refuses ET_EXEC
-# and needs a PIE — but ONLY on a musl toolchain whose -static-pie genuinely
-# links libc statically (Alpine's default-PIE GCC does NOT; it produces the
-# v0.2.7 crasher, which the build-time guard then rejects).
+# 默认情况下，完全-static Linux构建是`-static -no-pie` (ET_EXEC)：
+# 在每个Linux用户区(glibc、musl、Pi OS)上运行的真正独立的二进制程序。
+# 仅翻转此 ON 到目标 Android/Bionic (Termux)，
+# 它拒绝 ET_EXEC 并需要 PIE — 但 musl 工具链上的 仅 其 -static-pie
+# 真正静态 链接 libc (Alpine 的默认 -PIE GCC 不执行；
+# 它生成 v0.2.7 crasher，build-time 守卫随后拒绝）。
 option(AGENTTY_STATIC_PIE      "Emit a static-PIE (ET_DYN) instead of ET_EXEC for the fully-static build — Termux/Android only" OFF)
 
-# mimalloc override — Microsoft's production allocator, fetched by CMake from
-# upstream main. agentty churns std::string everywhere (RenderOp, SSE parsing,
-# JSON, and the Element view tree), which benefits from mimalloc's sharded
-# free lists and eager page purging. The static library overrides malloc/free
-# and global C++ new/delete.
-# Default ON; turn OFF to build against the plain system allocator.
+# mimalloc覆盖-微软的产品分配器，由CMake从上游主获取。
+# agentty 到处搅动 std::string（RenderOp、SSE 解析、
+# JSON 和元素视图 源码树），这受益于 mimalloc 的分片空闲列表
+# 和 提前加载 页面清除。静态 库 覆盖 malloc/free 和全局 C+
+# + new/delete.
+# 默认ON；转动 OFF 来构建普通系统 分配器。
 option(AGENTTY_USE_MIMALLOC   "Route malloc/free and operator new/delete through CMake-fetched mimalloc" ON)
 
-# CPU ISA baseline. Default avx2 (Haswell+/Zen1+, ~2013), which covers ~every
-# desktop/laptop in use. Drop to "avx" for Sandy/Ivy Bridge (2011–2012) or
-# older VM hosts, "sse2" for truly ancient, "native" to let the compiler pick
-# based on the build machine. MSVC only exposes a handful of /arch values;
-# GCC/Clang understand -march= directly.
+# CPU ISA基线。默认 avx2（Haswell+/Zen1+，~2013），涵盖~每个正在
+# 使用的 desktop/laptop。对于 Sandy/Ivy Bridge (2011-
+# 2012) 或更旧的 VM 主机，下降到 "avx"；对于真正古老的主机，下降到 "sse2"；
+# 对于让 编译器 根据构建机器进行选择的 "native"。 MSVC 仅公开少量 /arch 值；
+# GCC/Clang直接理解-march=。
 set(AGENTTY_ARCH "avx2" CACHE STRING
     "CPU baseline: native, avx2 (default), avx, or sse2.")
 set_property(CACHE AGENTTY_ARCH PROPERTY STRINGS native avx2 avx sse2)
 
 if(AGENTTY_STANDALONE AND MSVC)
-    # On Windows, standalone implies static MSVC runtime — there's no
-    # other way to ship a "drop it on any machine" .exe.
+    # 在 Windows 上，独立意味着静态 MSVC 运行时 — 没有其他方法来传送
+    # 可复制到任意机器上运行的可执行文件。
     set(AGENTTY_STATIC_RUNTIME ON CACHE BOOL "" FORCE)
 endif()
 if(AGENTTY_STATIC_RUNTIME AND MSVC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
-# Tell find_package(OpenSSL) to prefer .a over .so/.dylib when standalone
-# is requested. We try static first (QUIET so a missing .a doesn't error
-# out); if that fails we silently fall back to the dynamic variant later
-# and warn the user that one runtime dep slipped through. Most distros
-# (Arch, Debian default, Fedora) only package OpenSSL as .so; users on
-# Alpine, vcpkg-static, or who installed openssl-static get the full
-# standalone build.
+# 当请求独立时，告诉find_package(OpenSSL)
+# 更喜欢.a而不是.so/.dylib。我们首先尝试静态（QUIET，这样丢失的 .
+# a 就不会出错）；如果失败，我们稍后会默默地回退到动态 变体 并警告用户有
+# 一个 运行时 dep 漏掉了。大多数发行版（Arch、Debian 默认、
+# Fedora）仅将 OpenSSL 打包为 .so； Alpine、
+# vcpkg-static 或安装 openssl-static 的用户可以
+# 获得完整的独立版本。
 set(AGENTTY_STANDALONE_OPENSSL_FALLBACK FALSE)
 if(AGENTTY_STANDALONE)
     set(OPENSSL_USE_STATIC_LIBS TRUE)
 endif()
 
-# Link-time optimization — enabled by default in Release/RelWithDebInfo, off
-# in Debug (would drag build times without shipping value). Supported by
-# GCC, Clang, MSVC, and AppleClang; CMake picks the right flag per toolchain.
-# Set before the maya/acp-cpp/mcp-cpp subdirectories so the whole tree LTO-
-# links as one unit on the platforms where it pays off.
+# 链接-time 优化 — 在 Release/RelWithDebInfo 中默认启用，
+# 在调试中关闭（会拖慢构建时间而没有交付价值）。由 GCC、Clang、
+# MSVC 和 AppleClang 支持； CMake 为每个工具链选择正确的 标志。
+# 在 maya/acp-cpp/mcp-cpp 子目录之前设置，
+# 以便整个 源码树 LTO-链接 在平台上作为一个单元而得到回报。
 include(CheckIPOSupported)
 check_ipo_supported(RESULT AGENTTY_HAS_IPO OUTPUT AGENTTY_IPO_ERR)
 
-# macOS + GCC is the one toolchain where LTO is all cost and no benefit.
-# Apple's ld can't consume GCC's LTO bytecode, so `-flto` does NOT optimize
-# across modules — the fat objects' per-TU -O3 code is what actually links —
-# yet the GIMPLE IR rides along as a dead __GNU_LTO LOAD segment (tens of MB)
-# that `strip`/`strip -x` cannot remove (it's a load command, not symbols).
-# check_ipo_supported() passes (its probe link "works"), so without this
-# guard the macOS release ships ~3x its real size with zero speed gain.
-# Disable IPO for this combo only: the binary drops to its true code size and
-# is byte-for-byte as optimized. Linux GCC/Clang (where the shipping static
-# binaries are built — full LTO + maya's heavy flag set) and MSVC (/GL+/LTCG)
-# are unaffected. macOS's real ceiling is AppleClang+ThinLTO, which can't
-# build this tree yet (no cxx_std_26 advertised), so -O3 is the macOS max.
+# macOS+GCC是一个工具链，其中LTO全是成本，没有效益。
+# Apple 的 ld 无法消耗 GCC 的 LTO 字节码，因此 `-flto`
+# 会跨模块优化 不 — 胖对象的 per-TU -O3 代码实际上是 链接 —
+# 然而 GIMPLE IR 作为死 __GNU_LTO LOAD 段（数十个MB），
+# `strip`/`strip -x` 无法删除（这是 加载 命令，而不是 符号）。
+# check_ipo_supported()通过（其探针链接 "works"），
+# 因此如果没有该防护装置，macOS释放装置以零速度增益运送约3倍其实际尺寸。
+# 仅针对该组合禁用IPO：二进制程序下降到其真实代码大小并且是优化后的字节-for-byte。
+# Linux GCC/Clang（其中构建了运输静态 二进制程序 — 完整的
+# LTO + maya 的重型 标志 套装）和 MSVC (/GL+/LTCG) 不受影响。
+# macOS的真正上限是AppleClang+ThinLTO，
+# 还不能构建这个源码树（没有宣传cxx_std_26），所以-O3是macOS的最大值。
 set(AGENTTY_IPO_OK ${AGENTTY_HAS_IPO})
 if(APPLE AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     set(AGENTTY_IPO_OK FALSE)
     message(STATUS "agentty: LTO disabled on macOS+GCC "
                    "(Apple ld can't consume GCC LTO IR — would only bloat the binary)")
 endif()
-# MinGW / MSYS2 GCC (ucrt64) is an LTO minefield on GCC 16.x: linking the full
-# agentty.exe partitions whole-program GIMPLE into ~200 LTRANS jobs and lto1.exe
-# then dies mid-stream with an internal compiler error —
-#   "cannot read 'LTO_section_decls' from …ltransNN.o"
-# — a toolchain regression, NOT our code (every one of the 476 TUs compiles
-# clean; only the final -flto=auto whole-program link stage crashes). It's
-# non-deterministic in which partition trips, so there's no single TU to blame
-# or split out. The Windows release binary we actually ship is the MSVC build
-# (/GL+/LTCG, unaffected); the MSYS2 job is a *compile-only* portability gate.
-# Per-TU -O3 code is what links here anyway (MinGW gains little from cross-TU
-# LTO), so dropping IPO for this combo makes the gate pass with byte-identical
-# optimization and zero risk to any shipped artifact.
+# MinGW / MSYS2 GCC (ucrt64) 是 GCC 16.x 上的 LTO 雷区：
+# 链接 完整的 agentty.exe 将整个 -program GIMPLE 分区为约 200 个
+# LTRANS 作业，然后 lto1.exe 在 -stream 中死亡，
+#   并带有内部编译器 错误 —
+# "cannot read 'LTO_section_decls' from …ltransNN.o"
+# — 工具链回归，不 我们的代码（476 编译单元 编译 中的每一个都是干净的；只有最后的
+# -flto=auto 整个 -program 链接 阶段崩溃）。分区跳闸的是非 -deterministic，
+# 因此没有单一的 TU 可以归咎或分裂。我们实际发布的 Windows 版本 二进制程序 是
+# MSVC 版本（/GL+/LTCG，不受影响）； MSYS2 作业是 *编译-only* 可移植性门。
+# Per-TU -O3代码无论如何就是这里的链接（MinGW从cross
+# -TU LTO获得很少），所以为这个组合放弃IPO使得通过字节
+# -identical优化的门通过并且对任何运送工件的风险为零。
 if(MINGW OR (WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
     set(AGENTTY_IPO_OK FALSE)
     message(STATUS "agentty: LTO disabled on MinGW/MSYS2 GCC "
                    "(GCC 16 lto1 ICE 'cannot read LTO_section_decls' on the "
                    "whole-program link — toolchain bug, not code)")
 endif()
-# Whole-tree sanitizer builds (-DAGENTTY_SANITIZE_ALL=...) must also disable
-# LTO here, BEFORE add_subdirectory(maya) below compiles maya's objects.
-# AGENTTY_SANITIZE_ALL is read early on purpose: a `-D` on the cmake command
-# line (which is how CI and every documented sanitizer invocation set it) is
-# visible from the very start of script evaluation, long before its own
-# `set(... CACHE STRING ...)` declaration later in this file runs — so this
-# check is not a forward reference, it sees the real value. Without this
-# guard, maya compiled here with IPO=TRUE produces GCC slim-LTO bytecode
-# objects in libmaya.a; the sanitizer flags added later apply `-fno-lto` at
-# LINK time only (with no matching `-flto`), so the linker can't consume
-# those bytecode objects: "plugin needed to handle lto object". LTO buys
-# sanitizer builds nothing anyway (they're a correctness gate, not a
-# release artifact), so turning it off here is strictly a win.
+# Whole-tree消毒剂构建(-DAGENTTY_SANITIZE_ALL=...)还必须禁用此处的LTO、
+# 编译 maya的对象下方的BEFORE add_subdirectory(maya)。
+# AGENTTY_SANITIZE_ALL 是有意提前读取的：cmake 命令
+# 行上的 `-D`（这就是 CI 和每个记录的清理程序调用如何设置它的方式）从
+# 脚本评估一开始就可见，远早于该文件稍后运行的其自己的
+# `set(... CACHE STRING ...)` 声明 - 因此此检查
+# 不是前向引用，它看到的是真实值。如果没有这个保护，这里使用 IPO=TRUE
+# 编译的 maya 会在 libmaya.a 中生成 GCC slim
+# -LTO 字节码对象；稍后添加的清理程序 标志 仅在 LINK 时间应用
+# `-fno-lto`（没有匹配的 `-flto`），因此 链接器 无法使用
+# 这些字节码对象："plugin needed to handle lto object"。
+# LTO 购买的消毒剂无论如何都不会生成任何东西（它们是正确性门，
+# 而不是发布工件），因此在这里将其关闭完全是一场胜利。
 if(AGENTTY_SANITIZE_ALL)
     set(AGENTTY_IPO_OK FALSE)
     message(STATUS "agentty: LTO disabled for sanitizer build "
@@ -135,10 +135,10 @@ if(AGENTTY_SANITIZE_ALL)
                    "LTO-bytecode/-fno-lto link mismatch in libmaya.a)")
 endif()
 if(DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION)
-    # A packager/user set it explicitly on the command line (e.g. the AUR
-    # agentty-git PKGBUILD passes OFF because GCC 16's LTO streamer ICEs on
-    # C++26 decltype in main.cpp: "tree code 'decltype_type' is not supported
-    # in LTO streams"). Their word is final — don't re-derive it.
+    # packager/user在命令行上显式地设置它（e.g。AUR agentty-git
+    # PKGBUILD传递OFF，因为GCC 16的LTO流媒体ICE在main.cpp中的C++26
+    # decltype上："tree code 'decltype_type' is not supported in LTO streams"）。
+    # 他们的话语是最终的——不要重新-derive。
     message(STATUS "agentty: CMAKE_INTERPROCEDURAL_OPTIMIZATION="
                    "${CMAKE_INTERPROCEDURAL_OPTIMIZATION} (user-set, respected)")
 elseif(AGENTTY_IPO_OK AND (CMAKE_BUILD_TYPE STREQUAL "Release"
@@ -146,59 +146,59 @@ elseif(AGENTTY_IPO_OK AND (CMAKE_BUILD_TYPE STREQUAL "Release"
                      OR CMAKE_BUILD_TYPE STREQUAL "MinSizeRel"))
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 else()
-    # Set a DEFINED false value, not just "leave it unset". third_party/maya/CMakeLists.txt
-    # has its own `if(NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION) set(...
-    # ON)` fallback (so a bare `add_subdirectory(maya)` from an external
-    # project still gets LTO) — if we only skip the TRUE branch above without
-    # ever defining the variable, that fallback fires inside
-    # add_subdirectory(maya) below and silently re-enables LTO out from under
-    # a build we deliberately turned it off for (sanitizer link mismatch,
-    # macOS+GCC bloat, or the MinGW lto1 ICE above), producing GCC slim-LTO
-    # bytecode objects in libmaya.a that the later `-fno-lto`-only link flags
-    # can't consume ("plugin needed to handle lto object"). Defining it FALSE
-    # here is the actual override maya's guard is designed to respect.
+    # 明确设置为 FALSE，不能仅保留未定义状态。
+    # third_party/maya/CMakeLists.txt 有自己的回退逻辑：
+    #   if(NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION)
+    #     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+    #   endif()
+    # 这样，外部项目单独添加 maya 时仍可以使用 LTO。
+    # 若仅跳过前面的 TRUE 分支而不定义变量，maya 会重新开启 LTO。
+    # 这会破坏当前构建中显式关闭 LTO 的要求，涉及 sanitizer 链接匹配、
+    # macOS 与 GCC 的体积问题，或上文 MinGW 编译器内部错误。
+    # libmaya.a 会因此包含精简 LTO 字节码，后续 -fno-lto 链接无法处理，
+    # 并报错 plugin needed to handle lto object。
+    # 在这里显式设为 FALSE，maya 才会尊重已经定义的值。
     #
-    # This `else` used to be `elseif(NOT AGENTTY_IPO_OK)`, which left DEBUG in
-    # exactly the hole the paragraph above describes: IPO_OK is true and the
-    # build type is not a release one, so neither branch ran, the variable
-    # stayed undefined, and maya's fallback turned LTO ON for the debug build.
-    # A whole-program LTO link in the edit-build loop is the single most
-    # expensive thing it could have been doing — and it also made every debug
-    # object slim-LTO bytecode, which is why no fast linker could be used.
+    # 这里过去是 elseif(NOT AGENTTY_IPO_OK)，导致 Debug 落入相同漏洞：
+    # 编译器支持 IPO，但构建类型不是发布配置时，两个分支都不执行。
+    # 变量未定义导致 maya 为 Debug 开启 LTO，显著拖慢编辑构建循环，
+    # 还让调试目标变成精简 LTO 字节码，从而无法使用快速链接器。
+    #
+    #
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION FALSE)
 endif()
 
-# ── PIE relocation fix (issue #20 + the mold/objlib R_X86_64_32 failure) ──
-# On modern Linux distros (Fedora, Arch, …) the compiler DRIVER defaults to
-# building a PIE executable. agentty compiles its shared TUs once into OBJECT
-# libraries and links those objects into the PIE exe AND every test. If those
-# objects are not position-independent, linking the PIE fails with:
-#     relocation R_X86_64_32 against `<sym>' can not be used when making a PIE
-#     object; recompile with -fPIC
-# This bites in several independent ways, so gating it narrowly (as we did for
-# just GNU+LTO) left real toolchains broken:
-#   • GCC LTO leaks a 32-bit abs reloc against a hidden static-local guard that
-#     ld.bfd can't place in a PIE (the original issue #20).
-#   • NON-LTO GCC/Clang + `mold` (which is STRICTER than ld.bfd about abs
-#     relocs) rejects the objlib objects outright — the failure reported by a
-#     Fedora 44 / GCC 16 / clang 22 contributor building the default dynamic
-#     tree with mold.
-#   • -fPIE alone is NOT enough: GCC/Clang emit a direct 32-bit reloc for
-#     symbols they assume live in the main exe, which breaks the moment an
-#     object is reused in a different link (test exes) or the linker is picky.
-# Compiling the WHOLE program -fPIC (not just -fPIE) forces PIC-safe
-# (GOT/PC-relative) relocations for every symbol, which every linker
-# (ld.bfd / gold / lld / mold) accepts in a PIE. It's the portable fix: no
-# dependency on which linker is installed, works identically on GCC and Clang,
-# and costs a TUI nothing measurable. So apply it to the ENTIRE Linux dynamic
-# (PIE) path — every compiler, LTO or not.
+# ── PIE 迁移固定(问题20+ mold/objlib R_X86_64_32 失败) ──
+# 在现代 Linux 发行版（Fedora、Arch 等）上，编译器 DRIVER
+# 默认构建 PIE 可执行文件。 agentty 编译其共享的编译单元一次进入
+# OBJECT 库和链接这些对象进入PIE exe AND每次测试。如果这些对象不是
+# position-independent、链接，则 PIE 会失败并显示：
+#     在制作PIE对象时，不能使用针对“<sym>”的重定位R_X86_64_32；
+#     使用 -fPIC 重新编译
+# 这会以几种独立的方式进行，因此对其进行狭窄的控制（就像我们对 GNU+LTO
+# 所做的那样）导致真正的工具链被破坏：
+#   ·GCCLTO针对隐藏的static-local防护泄漏了32-bitabs重新定位，
+#     ld.bfd 无法放入 PIE (原始问题 #20)。
+#   ·NON-LTO GCC/Clang + `mold` (关于abs，STRICTER比ld.bfd
+#     relocs)完全拒绝objlib对象——由Fedora
+#     44/GCC 16/clang 22贡献者报告的使用模具构建默认动态
+#     源码树的失败。
+#   ·单独的-fPIE就足够NOT:GCC/Clang发出直接32-bit重定位
+#     符号 他们假设存在于主 exe 中，这会在对象在不同的
+#     ​​ 链接（测试 exe）中重用或 链接器 挑剔时中断。
+# 编译WHOLE程序-fPIC(不仅仅是-fPIE)强制对每个符号进行
+# PIC-safe (GOT/PC-relative)重定位，
+# 每个链接器(ld.bfd/金/lld/模具)在PIE中接受该重定位。
+# 这是可移植的修复：不依赖于安装哪个 链接器，在 GCC 和 Clang 上工作相同，
+# 并且花费 TUI 无可测量。因此，将其应用于 整个 Linux 动态 (PIE)
+# 路径 — 每个 编译器、LTO 或不是。
 #
-# Scope guard: the fully-static release build links -no-pie (ET_EXEC) and must
-# stay non-PIC (that's what keeps the GitHub-release standalone bins a true
-# static ET_EXEC), so it is EXCLUDED here. Apple/MSVC handle PIC/PIE their own
-# way and are excluded too. Belt-and-suspenders: also set the CMake property so
-# targets defined without agentty's helpers (imported/fetched deps that we
-# link) inherit PIC on this path.
+# 范围保护：完全-static版本构建链接 -no-pie (ET_EXEC)并且必须保持非
+# -PIC（这就是使GitHub-release独立箱保持真正静态ET_EXEC的原因），
+# 所以这里是EXCLUDED。 Apple/MSVC 以自己的方式处理 PIC/PIE，
+# 也被排除在外。 Belt-and-suspenders：还设置 CMake 属性，
+# 以便在没有 agentty 帮助器的情况下定义的目标（imported/fetched
+# 取决于我们 链接）在此路径上继承 PIC。
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux"
         AND NOT (AGENTTY_FULLY_STATIC AND NOT AGENTTY_STATIC_PIE))
     message(STATUS "agentty: compiling -fPIC for the Linux dynamic (PIE) build "
@@ -213,58 +213,58 @@ include(FetchContent)
 set(MAYA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(MAYA_BUILD_TESTS    OFF CACHE BOOL "" FORCE)
 
-# STANDALONE builds must be portable across every chip of the target arch.
-# Maya's default `-march=native -mtune=native` would otherwise bake the
-# producing host's microarchitecture into libmaya.a (most visible on
-# aarch64 — a Graviton3-built binary SIGILLs on a Cortex-A72). Force the
-# native-tuning gate off so maya falls back to the compiler's default
-# baseline (`-march=x86-64` / `armv8-a`).
+# STANDALONE构建必须可跨目标架构的每个标签移植。
+# Maya 的默认 `-march=native -mtune=native` 否则会将
+# 生产主机的微架构烘焙为 libmaya.a (在 aarch64 上最明显 —
+# Cortex-A72 上的 Graviton3-built 二进制程序 SIGILL)。
+# 强制关闭 native-tuning 门，以便 maya 回落到 编译器 的默认基线 (
+# `-march=x86-64` / `armv8-a`)。
 if(AGENTTY_STANDALONE)
     set(MAYA_NATIVE_TUNING OFF CACHE BOOL "" FORCE)
 endif()
 
-# macOS SDK + GCC, catch-all: the macOS 26 SDK's <mach/*.h> arm64
-# size-assert macros expand to `_Static_assert(...)`, a C keyword g++
-# rejects in C++ mode (only clang accepts it as an extension). ANY TU
-# pulling in mach headers (subprocess.cpp via <spawn.h>, tls.cpp, etc.)
-# trips it. Alias it directory-wide HERE — before every add_subdirectory
-# below (maya, acp-cpp, mcp-cpp) and before the agentty / test targets —
-# so all of them, including future submodules, inherit it from one place
-# instead of each re-discovering the breakage. AppleClang doesn't need it
-# (and can't build this tree — it doesn't advertise cxx_std_26).
+# macOS SDK 与 GCC 的兜底情况，特别是 macOS 26 SDK。
+# 的<mach/*.h> arm64 size-assert宏扩展为
+# `_Static_assert(...)`，C关键字g++在C++模式下拒绝(只有
+# clang接受它作为扩展)。 任意 TU 拉入马赫 头文件（subprocess.cpp
+# 通过 <spawn.h>、tls.cpp 等）使其脱扣。别名目录-wide 此处 -
+# 在下面的每个add_subdirectory（maya，acp-cpp，
+# mcp-cpp）之前和agentty /测试目标之前 - 所以所有这些，包括未来的子模块，
+# 都从一个地方继承它，而不是每个re-discovering破损。 AppleClang
+# 不需要它（并且无法构建此 源码树 — 它不会宣传 cxx_std_26）。
 if(APPLE AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     add_compile_definitions(_Static_assert=static_assert)
 endif()
 
-# ── Android / Termux: raise the deployment API to 28 ───────────────────────
-# Two Bionic symbols agentty's dependency graph needs are API-gated:
-#   • <spawn.h> / posix_spawn*   → __INTRODUCED_IN(28)
-#   • strtod_l / strtof_l        → __INTRODUCED_IN(26)   (libc++ <locale>
-#     calls these UNCONDITIONALLY, pulled in transitively via <iostream> /
-#     <format>, so the whole C++ standard library fails to compile below 26)
+# ── 机器人/ 双层 Termux :增加部署 API 改为28国 ───────────────────────
+# 两个 Bionic 符号 agentty 的依赖图需求为 API-gated:
+#   ·<spawn.h>/posix_spawn*→__INTRODUCED_IN(28)
+#   ·strtod_l/strtof_l→__INTRODUCED_IN(26)(libc++<locale>
+#     调用这些UNCONDITIONALLY，通过<iostream>/
+#     <format>传递地拉进来，所以整个C++标准库无法在26以下的编译)
 #
-# It is NOT enough to -D__ANDROID_API__=28: that only moves the preprocessor
-# macro, while clang's __attribute__((availability)) diagnostics compare
-# against the DEPLOYMENT TARGET baked into the target triple's API suffix
-# (e.g. aarch64-linux-android24). If that stays below the symbol's
-# introduction level you get:
-#     error: 'strtod_l' is unavailable: introduced in Android 26
-#     fatal error: 'spawn.h' file not found
-# even with the macro raised. The sanctioned Termux fix (termux-packages
-# #23401) is to pass --target=<arch>-linux-android28 so the deployment
-# target itself moves up. Modern Termux always runs on API ≥ 28 devices, so
-# deploying at 28 is safe.
+# NOT足以使-D__ANDROID_API__=28:仅移动预处理器宏，而clang的__attribute__((可用性))
+# 诊断与烘焙到目标三元组的API后缀（e.g.aarch64
+# -linux-android24)中的DEPLOYMENT
+# TARGET进行比较。如果该级别低于 符号 的
+# 介绍级别，您将获得：
+#     错误：'strtod_l'不可用：在Android 26中引入致命
+#     错误：即使引发了宏，也找不到'spawn.h'文件。
+# 批准的 Termux 修复（termux-packages #23401）是通过
+# --target=<arch>-linux-android28，以便部署目标本身向上移动。现代
+# Termux 始终在 API ≥ 28 台设备上运行，因此在 28
+# 台设备上部署是安全的。
 #
-# Derive <arch> from the compiler's own default triple so this works on
-# aarch64 / arm / x86_64 without hardcoding. Applied to BOTH compile and link
-# (the CRT objects carry the API level too). Directory-wide + before every
-# add_subdirectory so maya / acp-cpp / mcp-cpp and the agentty/test targets
-# all inherit it. No-op on every non-Android platform.
+# 从 编译器 自己的默认三元组导出 <arch>，因此这无需硬编码即可在
+# aarch64/arm/x86_64 上工作。适用于 两者 编译 和 链接（CRT 对象也具有
+# API 级别）。 Directory-wide + 每个 add_subdirectory 之前，
+# 因此 maya / acp-cpp / mcp-cpp 和 agentty/test
+# 目标都继承它。每个非 -Android 平台上都没有 -op。
 if(ANDROID OR CMAKE_SYSTEM_NAME STREQUAL "Android"
            OR DEFINED ENV{TERMUX_VERSION}
            OR EXISTS "/data/data/com.termux/files/usr")
-    # Ask the compiler for its default target triple (e.g.
-    # "aarch64-linux-android24") and rewrite the trailing API number to 28.
+    # Ask 编译器为其默认目标三元组(e.g.
+    # "aarch64-linux-android24")并将尾随API号重写为28。
     execute_process(
         COMMAND ${CMAKE_CXX_COMPILER} -dumpmachine
         OUTPUT_VARIABLE _agentty_android_triple
@@ -275,30 +275,30 @@ if(ANDROID OR CMAKE_SYSTEM_NAME STREQUAL "Android"
     elseif(_agentty_android_triple MATCHES "android")
         set(_agentty_android_target "${_agentty_android_triple}")
     else()
-        # Fallback: derive from the processor if -dumpmachine gave us nothing
-        # android-shaped (unusual). aarch64 is the overwhelming Termux case.
+        # 回退:如果-dumpmachine没有给我们任何android-shaped(
+        # 不寻常的)，则从处理器导出。 aarch64 是压倒性的 Termux 案例。
         set(_agentty_android_target "aarch64-linux-android28")
     endif()
     message(STATUS "agentty: Android/Termux detected — deploying at "
                    "${_agentty_android_target} (exposes spawn.h + strtod_l)")
     add_compile_options("--target=${_agentty_android_target}")
     add_link_options("--target=${_agentty_android_target}")
-    # Keep the preprocessor macro in lock-step for any code that reads it
-    # directly (undef first so the toolchain's own -D doesn't conflict).
+    # 将预处理器宏保留在 锁-step 中，以便任何直接读取它的
+    # 代码（首先取消定义，以便工具链自己的 -D 不会冲突）。
     add_compile_options(
         "$<$<COMPILE_LANGUAGE:C,CXX>:-U__ANDROID_API__>"
         "$<$<COMPILE_LANGUAGE:C,CXX>:-D__ANDROID_API__=28>")
 
-    # BELT-AND-SUSPENDERS: also bake the target + API macro straight into
-    # CMAKE_<LANG>_FLAGS. add_compile_options() only reaches targets defined
-    # in THIS directory and subdirectories added AFTER the call; anything
-    # that slips in via a different mechanism (a FetchContent project that
-    # resets flags, a submodule that calls project() and re-detects the
-    # compiler, an out-of-order add_subdirectory) can miss it. CMAKE_*_FLAGS
-    # is string-prepended to EVERY compile in EVERY (sub)directory
-    # unconditionally, so mcp-cpp / maya / acp-cpp all get the deployment
-    # target no matter how their own CMake is structured. Idempotent: guard
-    # against double-append on reconfigure.
+    # BELT-AND-SUSPENDERS：还将目标+API宏直接烘焙到
+    # CMAKE_<LANG>_FLAGS中。 add_compile_options
+    # () 仅到达 此 目录中定义的目标以及添加 之后 和 调用 的子目录；
+    # 任何通过不同机制（重置 标志 的 FetchContent 项目、
+    # 重置 调用 project() 的 子模块 和 re-detects 编译器、
+    # out-of-order add_subdirectory）都可能会错过它。
+    # CMAKE_*_FLAGS无条件地是EVERY（子）目录中的字符
+    # 串-prepended到EVERY 编译，因此mcp-cpp / maya
+    # / acp-cpp无论自己的CMake如何构造，都将获得部署目标。
+    # 幂等：防止重新配置时出现双-append。
     set(_agentty_android_flags
         "--target=${_agentty_android_target} -U__ANDROID_API__ -D__ANDROID_API__=28")
     if(NOT CMAKE_CXX_FLAGS MATCHES "--target=${_agentty_android_target}")

@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
-"""The libraries agentty vendors hold no runtime (docs/PROTOCOL_LIBRARIES.md).
+"""agentty 引入的库不持有运行时，规则见 docs/PROTOCOL_LIBRARIES.md。
 
-  submodule_purity  R1-R5 over each library's src/ and include/, no allowlist
-  no_duplication    R7: mcp-cpp and acp-cpp don't copy jsonrpc-cpp or each other
-  jsonrpc_leaf      jsonrpc-cpp includes only std, nlohmann and itself; in
-                    agentty only the rpc/mcp/acp integration modules include it
-  spawn_via_jaal    agentty starts no process by hand: no fork, exec*,
-                    posix_spawn, popen, system or waitpid outside _WIN32
-                    branches (jaal has no Windows backend yet)
-  no_sleep_poll     agentty waits on events, never sleep_for/usleep, outside
-                    _WIN32 branches
+  submodule_purity  对各库 src/ 和 include/ 执行 R1-R5，无允许清单。
+  no_duplication    R7：mcp-cpp 与 acp-cpp 不复制 jsonrpc-cpp 或彼此的实现。
+  jsonrpc_leaf      jsonrpc-cpp 只包含标准库、nlohmann 和自身头文件；
+                    agentty 中仅 rpc/mcp/acp 集成模块可以包含它。
+  spawn_via_jaal    _WIN32 分支之外，禁止手动使用 fork、exec*、posix_spawn、
+                    popen、system 或 waitpid；jaal 当时尚无 Windows 后端。
+  no_sleep_poll     _WIN32 分支之外，只等待事件，禁止 sleep_for/usleep 轮询。
 
-Comments and string literals are stripped before matching, so docs and error
-messages may name anything.
+匹配前移除注释和字符串字面量，因此文档和错误消息可以提及任何名称。
 
-Usage: protocol_libraries.py ROOT {purity|duplication|jsonrpc_leaf|spawn_via_jaal|no_sleep_poll}
+用法：protocol_libraries.py ROOT {purity|duplication|jsonrpc_leaf|spawn_via_jaal|no_sleep_poll}
 """
 import os
 import re
@@ -25,13 +22,12 @@ EXTS = (".cpp", ".hpp", ".h", ".c", ".mm", ".cc")
 
 
 def relpath(path, start):
-    """os.path.relpath with '/' separators on every OS. The prefix tables
-    below are written POSIX-style; on Windows relpath returns backslashes and
-    every prefix silently missed."""
+    """为 os.path.relpath 在所有系统上统一使用 / 分隔符。
+    下方前缀表采用 POSIX 写法；Windows 原本返回反斜杠，导致所有前缀无声失配。"""
     return os.path.relpath(path, start).replace(os.sep, "/")
 
-# rule -> regex over stripped code. A leading space is added to every line so
-# "not preceded by an identifier" can be written as [^\w.>:].
+# 规则 - > regex 超过已剥离的代码。每行都添加一个前置空间,
+# 所以"not preceded by an identifier"可以写为 [ ⁇ w. >:]。
 RULES = {
     "R1 thread":  r"std::j?thread\b(?!::)|\.detach\(\)|std::async\b|\bpthread_create\b|\bCreateThread\b"
                   r"|\b_beginthread(ex)?\b|#\s*pragma\s+omp\b|std::execution::par\b|\bdispatch_async\b",
@@ -53,33 +49,33 @@ RULES = {
     "R5 env":     r"\b(secure_)?getenv\b|\b_wgetenv\b|[^\w.>]environ\b",
 }
 
-# R6: the protocol libraries do no file IO. mcp-cpp's tools reach the disk only
-# through the host's FileSystem (mcp/tools/files.hpp). Not applied to rag-cpp
-# (a storage engine: its index files and WAL are its job) or claybin (a jail
-# that mounts things).
+# R6 : 协议 库 没有文件 IO. mcp-cpp '工具只通过主机到达磁盘'
+# FileSystem (mcp/tools/files.hpp。不适用。
+# rag-cpp (一个存储引擎:其索引文件及 WAL 或 工作),或 claybin (
+# 一个监狱,它能容纳东西)
 FILE_IO = re.compile(
     r"std::(i|o)?fstream\b|std::filesystem::(exists|status|symlink_status|is_regular_file|is_directory"
     r"|is_symlink|is_empty|file_size|last_write_time|weakly_canonical|canonical|absolute|relative"
     r"|current_path|temp_directory_path|read_symlink|create_director(y|ies)|remove(_all)?|rename|copy"
     r"|copy_file|resize_file|permissions|space)\s*\(|std::filesystem::(recursive_)?directory_iterator\b"
-    # A C call: not a member (.x / ->x), and not a declaration's own name (a
-    # return type before it, as in `std::optional<Json> open(...)`).
+    # AC 调用:非成员(.x / - >x),而非声明本身名称(其前作的回转类型,
+    # 如`std::optional<Json> open(...)`).
     r"|(^|[;{(,=!&|?:]|\breturn)\s*(fopen|open|creat|unlink|mkdir|rmdir|fsync|opendir)\s*\("
     r"|(^|[^\w])::(open|unlink|mkdir|rmdir|fsync)\s*\("
     r"|\bCreateFile[AW]?\b|\bFindFirstFile|#\s*include\s*<fstream>")
 FILE_IO_LIBS = {"mcp-cpp", "acp-cpp", "jsonrpc-cpp"}
 
-# claybin's job is to fork/exec into a jail, handing the guest an environment:
-# R5's process rule (and passing environ to exec) is its purpose.
+# claybin 工作是: 做点什么? fork/exec 将一个环境交给客人:
+# R5的流程规则(和传递环境到执行)是它的宗旨.
 EXEMPT = {("claybin", "R5 process"), ("claybin", "R5 env")}
 
-# A mutable static / namespace-scope variable (R3). Matched per statement on a
-# line starting with `static`; const/constexpr ones and functions are fine.
+# A 可变 静态/ 命名空间 -scope 变量( 以 R3。从此开始,
+# 每个语句都匹配 `static`; const/constexpr 和功能是好的。
 STATIC_RE = re.compile(r"^\s*static\s+(?!(inline\s+)?(const|constexpr|consteval)\b|_assert\b)")
 
 
 def strip(text):
-    """Blank out comments and string/char literals, keeping line numbers."""
+    """将注释及字符串、字符字面量置空，保留行号。"""
     out = []
     i, n = 0, len(text)
     while i < n:
@@ -141,8 +137,8 @@ def purity(root):
                 if (lib in FILE_IO_LIBS
                         and FILE_IO.search(padded.replace(" fs::", " std::filesystem::"))):
                     hits.append(f"{rel}:{no}: R6 file io: {line.strip()}")
-                # R3: a mutable static anywhere on the line, statement by
-                # statement (`{ static int n = 0;` used to slip through).
+                # R3: a 可变 在线上的任何静态,逐个声明(第1段)
+                # `{ static int n = 0;` )),曾为滑行.
                 for stmt in re.split(r"[;{}]", line):
                     if STATIC_RE.match(stmt):
                         head = re.split(r"[=({]", stmt, maxsplit=1)[0]
@@ -156,14 +152,14 @@ def purity(root):
     return hits
 
 
-# Names jsonrpc-cpp owns; mcp-cpp and acp-cpp must use them, not redefine them.
+# 名称 jsonrpc-cpp 拥有; mcp-cpp 财务报告和已审计财务报表 acp-cpp 一定要用它们,而不是重新定义它们。
 CORE_NAMES = ["Engine", "RpcEngine", "Codec", "RpcError", "Newtype", "RequestId",
               "Router", "LineSplitter", "Message", "Phantom", "StaticString"]
-DUP_WINDOW = 12   # identical normalised lines in a row that count as a copy
+DUP_WINDOW = 12   # 数为副本的行中相同的正则行
 
 
 def normalise(code):
-    """Lines of code with namespaces and blank lines dropped, spaces folded."""
+    """去掉命名空间和空白行，并折叠空格后的代码行。"""
     out = []
     for line in code.split("\n"):
         s = re.sub(r"\s+", " ", line).strip()
@@ -178,7 +174,7 @@ def normalise(code):
 def duplication(root):
     hits = []
     redefine = re.compile(r"\b(struct|class|using|enum\s+class|concept)\s+(" + "|".join(CORE_NAMES) + r")\b")
-    windows = {}   # hash of DUP_WINDOW lines -> (lib, rel, line)
+    windows = {}   # 散列时速 DUP_WINDOW 线条 - > ( 库 ,rel,线).
     for lib in ["jsonrpc-cpp", "mcp-cpp", "acp-cpp"]:
         for path in lib_files(root, lib, ("include",) if lib == "jsonrpc-cpp" else ("src", "include")):
             rel = relpath(path, os.path.join(root, "third_party"))
@@ -191,27 +187,27 @@ def duplication(root):
             lines = normalise(code)
             for i in range(len(lines) - DUP_WINDOW + 1):
                 chunk = lines[i:i + DUP_WINDOW]
-                # Skip chunks that are mostly punctuation or one-word lines.
+                # 跳过大多是圆点或1-word线的块。
                 if sum(len(x) for x in chunk) < 40 * DUP_WINDOW // 2:
                     continue
                 key = "\n".join(chunk)
                 prev = windows.get(key)
                 if prev and prev[0] != lib:
                     hits.append(f"{rel}: {DUP_WINDOW} lines match {prev[1]}: {chunk[0][:60]}")
-                    break   # one report per file is enough
+                    break   # 每个文件一个报告就够了
                 windows.setdefault(key, (lib, rel))
     print("no_duplication: jsonrpc-cpp, mcp-cpp, acp-cpp")
     return hits
 
 
-# agentty modules that integrate a JSON-RPC library (docs/PROTOCOL_LIBRARIES.md §6).
+# agentty 模块集成a JSON-RPC 库 (docs/PROTOCOL_LIBRARIES.md §6).
 JSONRPC_USERS = ("src/rpc/", "include/agentty/rpc/", "src/mcp/", "include/agentty/mcp/",
                  "src/acp/", "include/agentty/acp/", "src/provider/external_acp",
                  "include/agentty/provider/external_acp", "src/tool/mcp_")
 
 
-# Standard headers jsonrpc-cpp may use: no threads, futures or io. <chrono> is
-# here for durations and time points it is handed; reading a clock is R4.
+# 标准头文件XXjsonrpc-cpp可使用: no 线程,期货或I/O.
+# <chrono>在此为交接的时长和时点;读钟为R4.
 STD_OK = {
     "algorithm", "array", "cassert", "cctype", "charconv", "chrono", "compare", "concepts",
     "cstddef", "cstdint", "cstring", "deque", "expected", "functional",
@@ -253,8 +249,8 @@ def jsonrpc_leaf(root):
 
 
 def drop_win32(code):
-    """Blank lines inside #if/#ifdef _WIN32 branches (and #else of #if !_WIN32)."""
-    out, stack = [], []   # stack of (is_win_branch_now, kind)
+    """将 #if/#ifdef _WIN32 分支，以及 #if !_WIN32 的 #else 分支内部行置空。"""
+    out, stack = [], []   # 堆栈( is_win_branch_now, 类型)
     for line in code.split("\n"):
         s = line.strip()
         m = re.match(r"#\s*(if|ifdef|ifndef|elif|else|endif)\b(.*)", s)
@@ -276,9 +272,9 @@ def drop_win32(code):
 
 
 def spawn_via_jaal(root):
-    # Windows branches are scanned too: that's where a bare CreateProcess hid.
-    # ShellExecute is left out on purpose: it hands a URL to the user's
-    # browser and returns, it doesn't give us a child to own.
+    # Windows 树枝也被扫描了: 在那里,一个赤裸的 CreateProcess 藏起来
+    # ShellExecute 故意忽略: 它手握一个 URL
+    # 给用户浏览器并返回, 它不给我们一个孩子拥有。
     return scan_agentty(root, re.compile(
         r"[^\w.>:]v?fork\s*\(|::v?fork\s*\(|\bexec[lv]p?e?\s*\(|\bposix_spawnp?\b"
         r"|[^\w.>]_?popen\s*\(|\bpclose\s*\(|\bwaitpid\s*\(|[^\w.>]system\s*\("
@@ -289,28 +285,28 @@ def spawn_via_jaal(root):
 
 
 def no_sleep_poll(root):
-    # A wait is on the event: maya::delay_for on a stop_token, a reactor, or
-    # guarded::wait_with(_for). A sleep in a loop that rechecks a flag is a
-    # poll, and it is how cancel ended up taking a second to land.
+    # 等待在进行中 事件: maya::delay_for 时间: stop_token ,
+    # 反应堆,或 guarded::wait_with (为_for). 循环中睡眠,
+    # 重新检查 a 标志 民意调查,这是如何 取消 最终用一秒钟时间降落。
     return scan_agentty(root, re.compile(r"\bsleep_for\b|\bsleep_until\b|[^\w.>:]usleep\s*\("),
         "no_sleep_poll: agentty waits on events, not sleeps")
 
 
 def setenv_in_main(root):
-    # setenv racing a getenv on another thread is undefined, so the process
-    # environment is written only at the top of main(), before any thread.
+    # setenv 竞速在另一个游戏上获得一个 getenv 线程 未定义,
+    # 所以进程环境只写在顶端 main() ,在任何时间之前 线程.
     hits = scan_agentty(root, re.compile(r"[^\w.>]_?(setenv|unsetenv|putenv|putenv_s)\s*\("),
         "setenv_in_main: only main() writes the environment, before threads start")
     return [h for h in hits if "runtime/main.cpp" not in h.split(":", 1)[0]]
 
 
 def tool_boundary(root):
-    # Every tool call goes through tool::DynamicDispatch::execute_with, where
-    # the per-call rules live (capability, write lanes, exception containment,
-    # output budget). tools::ToolBody makes a direct call a compile error; this
-    # catches the ways around the type: minting a DispatchKey anywhere else,
-    # taking the write lanes anywhere else, or a module keeping a private copy
-    # of them.
+    # 每个工具 调用 穿过 tool::DynamicDispatch::execute_with ,
+    # 以每张 -call 规则现场直播(能力、写道、例外限制、
+    # 产出预算)。 tools::ToolBody 直接的 直接的 调
+    # 用 a 编译 错误; 此抓取类型周围的路 : 刻录 a
+    # DispatchKey 或一个保存这些东西的私人副本的模块 或一个
+    # 小小小小的
     rules = (
         (r"(?<!class )\bDispatchKey\s*\{", ("include/agentty/tool/tool.hpp",)),
         (r"\bwrite_lanes::Hold\b", ("include/agentty/tool/tool.hpp",)),

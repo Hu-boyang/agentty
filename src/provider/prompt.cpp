@@ -1,17 +1,17 @@
-// agentty::provider — the SHARED system-prompt + memory assembly (SSOT for
-// every provider). Moved out of provider::anthropic, where it was misfiled as
-// a Claude-only asset. Pure string building: CLAUDE.md tiers, learned-memory
-// blocks, the OS/shell environment stanza, and the full vs lean (subagent)
-// instruction text, plus the per-provider overlay seam. Baked into the binary.
+// agentty::provider-SHARED系统-prompt+内存组件(
+// SSOT针对每个提供商)。移出 provider::anthropic，
+// 该资产被错误归档为 Claude-only 资产。纯字符串构建：CLAUDE.md 层、
+// learn-memory 块、OS/shell 环境节、完整 vs 精益（子
+// 代理）说明文本，以及 per-provider 覆盖面板 接口边界。烘烤成二进制程序。
 
 #include "agentty/provider/prompt.hpp"
 
-#include "agentty/provider/msg_shared.hpp"   // wire::read_capped_file / resolve_user_claude_md
+#include "agentty/provider/msg_shared.hpp"   // wire::read_capped_file/resolve_user_claude_md
 #include "agentty/tool/memory_store.hpp"
 #include "agentty/tool/registry.hpp"
 #include "agentty/tool/skills.hpp"
-#include "agentty/tool/util/fs_helpers.hpp"   // util::workspace_root/project_root — AGENTS.md anchor + walk start
-#include "agentty/tool/util/sandbox.hpp"      // is_active/config_snapshot — the <environment> sandbox stanza
+#include "agentty/tool/util/fs_helpers.hpp"   // util::workspace_root/project_root — AGENTS.md锚定+步行开始
+#include "agentty/tool/util/sandbox.hpp"      // is_active/config_snapshot — <environment> 沙箱 节
 #include "agentty/domain/sandbox_config.hpp"  // NetMode
 #include "agentty/util/dbglog.hpp"
 
@@ -29,41 +29,41 @@ namespace agentty::provider {
 
 namespace {
 
-// Read a text file, swallowing any I/O error — returns empty string on
-// missing file or unreadable. Capped at 64 KiB (shared wire::read_capped_file,
-// which also trims trailing whitespace so the wrapper tag isn't jammed against
-// a blank line).
+// 读取文本文件，吞掉任何 I/O 错误 — 在丢失文件或不可
+// 读时返回空字符串。上限为 64 KiB（共享 wire::read_capped_file，
+// 它还会修剪尾随空白，以便包装标签不会挤在空
+// 行上）。
 [[nodiscard]] std::string read_optional_memory(const std::filesystem::path& p) noexcept {
     return wire::read_capped_file(p);
 }
 
-// mtime-keyed cache wrapper around read_optional_memory. The CLAUDE.md
-// hierarchy is read on every turn (3 files: ~/CLAUDE.md, ./CLAUDE.md,
-// ./CLAUDE.local.md), each capped at 64 KiB. Per-turn that's:
+// mtime-keyed 缓存 围绕 read_optional_memory 的包装器。每次都会读取
+// CLAUDE.md 层次结构（3 个文件：~/CLAUDE.md、./CLAUDE.md、./CLAUDE.local.md），
+// 每个文件的上限为 64 KiB。 Per-turn 是：
 //
-//   • on a local SSD: ~3 × stat+open+read = sub-millisecond
-//   • on an NFS home: ~3 × roundtrip ≈ 30-100 ms before the worker
-//     even starts building the request
+//   ·在本地SSD上：~3×stat+open+read=sub-millisecond
+//   ·在NFS家：工作线程之前〜3×往返≈30-100毫秒
+//     甚至开始构建请求
 //
-// The contents change between turns at most rarely (the user editing
-// their CLAUDE.md mid-session). Cache by filesystem mtime: stat once
-// to get last_write_time; if it matches the cached entry, hand back
-// the cached body. Process-lifetime cache; bounded by the 3 paths
-// collect_memory_blocks looks at and the 64 KiB-per-file content cap,
-// so worst case ~192 KiB of process memory.
+// 内容在回合之间变化的情况很少（用户编辑他们的CLAUDE.md mid
+// -session）。 缓存 通过文件系统 mtime: stat 一次得到
+// last_write_time;如果与缓存的条目匹配，则交回缓存的正文。
+// 进程-lifetime 缓存；以 collect_memory_blocks
+// 所查看的 3 个路径和 64 KiB-per-file 内容上限为界，
+// 因此最坏情况是进程 内存 的 ~192 KiB。
 //
-// Concurrency: the system prompt is built on the stream worker thread
-// (Cmd::stream's task body); the cache is a lock-free snapshot.
+// 并发性：系统提示词建立在数据流 工作线程 线程（
+// Cmd::stream的任务正文）之上； 缓存 是 锁-free 快照。
 [[nodiscard]] std::string read_memory_cached(const std::filesystem::path& p) {
-    // Keyed on plain values (path string, mtime ticks) so they cross into
-    // guarded<T> as Sendable arguments.
+    // 以纯值(路径字符串、实时时间刻度)为键，因此它们作为可发送
+    // 参数进入guarded<T>。
     struct Entry {
         std::int64_t mtime = 0;
         std::string  content;
     };
     using Cache = std::unordered_map<std::string, Entry>;
-    // Read-mostly, replaced per entry: a lock-free snapshot, so building a
-    // prompt needs no capability.
+    // 读取-mostly，每个条目替换：锁-free 快照，
+    // 因此构建提示词不需要能力。
     static maya::snapshot<Cache> cache;
 
     std::string     key = p.string();
@@ -71,8 +71,8 @@ namespace {
     const auto      mt = std::filesystem::last_write_time(p, ec);
 
     if (ec) {
-        // File missing / unreadable — drop any previous cache entry so
-        // a re-creation later is observed.
+        // 文件丢失/不可读-删除任何先前的缓存条目，以便观察到稍
+        // 后的re-creation。
         if (cache.load()->contains(key))
             (void)cache.update([](const Cache& old, const std::string& k) {
                 Cache c = old;
@@ -89,8 +89,8 @@ namespace {
         if (it != c->end() && it->second.mtime == now_mtime) return it->second.content;
     }
 
-    // Cache miss or stale — read with no lock held so a slow NFS read
-    // doesn't block other paths' cache hits.
+    // 缓存未命中或过期 —在没有保存锁的情况下读取，
+    // 因此缓慢的NFS读取不会阻止其他路径的缓存命中。
     std::string body = read_optional_memory(p);
     (void)cache.update([](const Cache& old, const std::string& k, const Entry& e) {
         Cache c = old;
@@ -100,19 +100,19 @@ namespace {
     return body;
 }
 
-// CLAUDE.md memory hierarchy, same paths as Claude Code (see
-// wire::resolve_user_claude_md):
+// CLAUDE.md 内存层次结构，与Claude代码相同的路径(参见wire::
+// resolve_user_claude_md)：
 //
-//   User    ~/.claude/CLAUDE.md     personal, all projects (~/CLAUDE.md fallback)
-//   Project <cwd>/CLAUDE.md + <cwd>/.claude/CLAUDE.md
-//   Local   <cwd>/CLAUDE.local.md   gitignored, personal-to-this-project
+//   用户~/.claude/CLAUDE.md个人，所有项目(~/CLAUDE.md 回退)项目<cwd>/
+//   CLAUDE.md + <cwd>/.claude/CLAUDE.md本地
+//   <cwd>/CLAUDE.local.md gitignored，个人-to-this-project
 //
-// Each tier is wrapped in its own tag so the model can tell them apart.
-// Empty / missing tiers are silently elided. The wire cost is paid once
-// per ~5 min cache_control TTL window regardless (the system-prompt
-// cache_control breakpoint catches the result); the disk cost is
-// memoized through read_memory_cached so the per-turn footprint is
-// 3× stat() + memcpy of the cached body, not 3× full read.
+// 每层都包裹在其自己的标签中，因此模型可以区分它们。
+// 空的/缺失的层被默默地省略。无论如何，传输 成本每约 5 分钟 cache_control
+// TTL 窗口支付一次（系统-prompt cache_control
+// 断点捕获结果）；磁盘成本通过 read_memory_cached
+// 进行记忆，因此每个 -turn 占用空间是 3× stat() +
+// 缓存的 正文 的 memcpy，而不是 3× 完整读取。
 [[nodiscard]] std::string collect_memory_blocks(Io) {
     const auto user_path = wire::resolve_user_claude_md();
     std::string user    = user_path.empty() ? std::string{} : read_memory_cached(user_path);
@@ -121,9 +121,9 @@ namespace {
         read_memory_cached(std::filesystem::path{wire::kProjectClaudeMd[1]}));
     std::string local   = read_memory_cached(std::filesystem::path{"CLAUDE.local.md"});
 
-    // Agent-authored memory (written by the `remember` tool, removed by
-    // `forget`). Loaded as tail-N from the per-scope JSONL stores so the
-    // prompt stays bounded even if the on-disk files grow.
+    // Agent-authored 内存(由`remember`工具编写，
+    // 由`forget`删除)。 已加载 与 per-scope JSONL 存储中的 末尾-N 相同，
+    // 因此即使 on-disk 文件增长，提示词 仍保持有限状态。
     auto learned_user    = tools::memory::load_recent_user();
     auto learned_project = tools::memory::load_recent_project();
 
@@ -140,12 +140,12 @@ namespace {
     if (!local.empty())   m << "<local-memory>\n"   << local   << "\n</local-memory>\n";
     auto emit_learned = [&](const char* tag, std::vector<tools::memory::Record> rs) {
         if (rs.empty()) return;
-        // Budget the block so a large memory store can't inflate every
-        // system prompt. select_for_prompt keeps all pinned records +
-        // the highest-signal remainder within kPromptByteBudget, clipping
-        // any over-long record; the rest stay on disk (recallable, still
-        // editable) and we note the elided count so the model knows the
-        // store holds more than what's shown.
+        // 对块进行预算，以便大型 内存 商店无法使每个系统 提示词 膨胀。
+        // select_for_prompt 保留所有固定记录
+        // + kPromptByteBudget 内最高的 -signal 余数，
+        // 剪掉任何超过 -long 的记录；其余的保留在磁盘上
+        // （可调用，仍然可编辑），我们记下省略的计数，
+        // 以便模型知道存储的内容比显示的要多。
         auto picked = tools::memory::select_for_prompt(std::move(rs));
         if (picked.records.empty() && picked.dropped == 0) return;
         m << "<learned-memory scope=\"" << tag << "\">\n"
@@ -167,32 +167,32 @@ namespace {
     return m.str();
 }
 
-// AGENTS.md — the open AAIF/Linux-Foundation standard for project-scoped
-// agent guidance (https://agents.md). Project-scoped only per the published
-// spec: no user tier, no local tier. The root file lives at
-// <project_root>/AGENTS.md.
+// AGENTS.md —用于project-scoped代理指导的开放AAIF/Linux-Foundation标准
+// （https://agents.md). Project-scoped仅根据已发布的规范：
+// 无用户层，无本地层。根文件位于<project_root>
+// /AGENTS.md。
 //
-// This is a thin adapter over the shared wire::agents_md_block helper — the
-// SINGLE source of truth for the 3-tier resolution (global → root → nearest
-// nested) and the monorepo walk, shared with the OpenAI/Ollama prompts. The
-// only Anthropic-specific bit is the file-reader we inject: read_memory_cached
-// (a generic mtime-cached reader — the cache key is the path string, so each
-// AGENTS.md tier gets its own entry independent of the CLAUDE.md tiers). That
-// keeps every tier served from cache, so rebuilding the system prompt on every
-// turn costs a handful of stat()s + a memcpy of the cached body rather than N
-// full file reads.
+// 这是共享 wire::agents_md_block 帮助程序上的瘦适配器
+// — 3-tier 分辨率（全局 → 根 → 最近嵌套）和 monorepo
+// 遍历的 唯一 事实来源，与 OpenAI/Ollama 提示词 共享。
+// 唯一的 Anthropic-specific 位是我们注入的文件
+// -reader：read_memory_cached（通用 mtime-cached
+// 读取器 - 缓存 键是路径字符串，因此每个 AGENTS.md 层都有自己独立于
+// CLAUDE.md 层的条目）。这使得每个层都从 缓存 开始提供服务，因此每次重建系统
+// 提示词 都会花费一些 stat() + 缓存的 正文 的 memcpy，
+// 而不是 N 个完整文件读取。
 //
-// Wire shape (precedence low → high): <agents-md-global> (~/.agentty/AGENTS.md,
-// optional) → <agents-md> (<workspace_root>/AGENTS.md) → <agents-md-package>
-// (nearest nested file, optional; skipped when it is the root file). All are
-// injected BEFORE the <memory> block so the standardized public project
-// guidance stays visually distinct from the personal CLAUDE.md tiers and the
-// model can apply precedence correctly. Sits behind the same Anthropic
-// cache_control breakpoint as collect_memory_blocks.
+// 传输形状(优先级低→高)：<agents-md-global>(~/.agentty/AGENTS.md，
+// 可选)→<agents-md>(<workspace_root>/AGENTS.md)
+// →<agents-md-package>(最近的嵌套文件，可选；为根文件时跳过)。
+// 所有这些都被注入 之前 和 <memory> 块，因此标准化公共项目
+// 指南在视觉上与个人 CLAUDE.md 层保持不同，并且模型可以正确应用优先级。
+// 位于与 collect_memory_blocks 相同的
+// Anthropic cache_control 断点后面。
 [[nodiscard]] std::string collect_agents_md_block(Io) {
-    // workspace_root() is the fixed access boundary (where the root AGENTS.md
-    // lives); project_root() is the agent's cwd clamped inside that boundary
-    // — the walk start point for finding the nearest nested AGENTS.md.
+    // workspace_root()是固定访问边界（根AGENTS.md
+    // 所在的位置）； project_root() 是固定在该边界内的代理的
+    // cwd — 用于查找最近的嵌套 AGENTS.md 的步行起点。
     return wire::agents_md_block(
         "Project guidance following the open AGENTS.md standard "
         "(agents.md, stewarded by the Agentic AI Foundation under the "
@@ -204,34 +204,34 @@ namespace {
         &read_memory_cached);
 }
 
-// What the model needs to know about the sandbox, or "" when there is none.
+// 模型需要了解关于 沙箱 或 ""（当不存在时）的信息。
 //
-// ── Why the model is told at all ───────────────────────────────────
+// ── 为什么模特儿会被告知 ───────────────────────────────────
 //
-// Because a model that does not know it is sandboxed MISDIAGNOSES every wall
-// it hits. The failure is well documented across agents: EPERM on a path
-// becomes "your corporate proxy is blocking this", a blocked connect becomes
-// "check your firewall / CrowdStrike", and the agent either sends the user on
-// a wild goose chase or retries the same denied call in a loop. Both waste a
-// turn and neither can succeed, because the boundary is a kernel decision and
-// no amount of retrying moves it.
+// 因为不知道它的模型在它撞到的每堵墙上都被沙箱化了MISDIAGNOSES。
+// 该故障在各个代理中均有详细记录：路径上的 EPERM 变为
+// 公司代理阻止了此访问。
+// 阻塞的连接变为 "check your firewall / CrowdStrike"，
+// 代理要么向用户发送徒劳无功的信息，要么在循环中向 重试 发送相同的拒绝
+// 的 调用。两者都浪费了一个回合，而且都无法成功，因为边界是内核决定的，
+// 没有多少 重试 可以移动它。
 //
-// The fix every mature implementation lands on is the same: say the boundary
-// exists, say where it is, and say what to do instead. Then a denial is a
-// FACT the model can route around rather than a mystery to investigate.
+// 每个成熟实现所解决的问题都是相同的：说边界存在，
+// 说它在哪里，然后说要做什么。那么否认就是模型
+// 可以绕过的 FACT，而不是需要调查的谜团。
 //
-// ── Why it is in <environment> ─────────────────────────────────────
+// ── 为何在 <environment> ─────────────────────────────────────
 //
-// It is an environment fact, exactly like the OS and the shell: the same class
-// of thing as "you are on Windows, do not write `ls`". Putting it in its own
-// section would make it read as policy to be reasoned about; putting it here
-// makes it a constraint to be worked within.
+// 这是一个环境事实，就像OS和外壳一样：与
+// 当前在 Windows 上，请不要使用 ls。
+// 是同一类东西。将其放在单独的部分中会使其被视为需要推理的政策；
+// 把它放在这里使它成为一个需要在其中工作的约束。
 //
-// ── Why it says what is ALLOWED, not just what is blocked ───────────────
+// ── 为什么它说什么 ALLOWED 不只是被封锁的东西 ───────────────
 //
-// A denial list invites probing the edges. Stating the workspace is writable
-// and the rest is read-only tells the model where to work on the FIRST try,
-// which is the whole point: fewer walls hit, not better explanations after.
+// 拒绝列表邀请探测边缘。声明 工作区 是可写的，
+// 其余部分是可读取的。-only 告诉模型在 首次 尝试中应该
+// 在哪里工作，这就是重点：更少的撞墙，而不是之后更好的解释。
 [[nodiscard]] std::string sandbox_stanza() {
     namespace sb = tools::util::sandbox;
     if (!sb::is_active()) return {};
@@ -240,8 +240,8 @@ namespace {
     std::string out = "  sandbox: ON \xe2\x80\x94 shell commands run inside an "
                       "OS-level sandbox\n";
 
-    // The workspace is the one thing that is always writable, and saying so is
-    // what stops "I cannot write anywhere" panic after one EPERM elsewhere.
+    // 工作区是始终可写的一件事，并且这样说是在其他地方发生一个EPERM之后
+    // 停止"I cannot write anywhere"恐慌的原因。
     out += "    writable:  the workspace (cwd above) and /tmp\n";
     out += "    readable:  system dirs and your toolchain; "
            "credential files are masked\n";
@@ -252,8 +252,8 @@ namespace {
                 out += "    network:   public internet via a sandbox proxy; private, "
                        "loopback and cloud-metadata addresses are refused\n";
             } else {
-                // List the names up front, so the model picks a mirror that
-                // is ALLOWED instead of discovering the list one 403 at a time.
+                // 预先列出名称，因此模型选择ALLOWED的镜像，
+                // 而不是一次发现列表403。
                 out += "    network:   ONLY these hosts (via a sandbox proxy): ";
                 for (std::size_t i = 0; i < cfg->allow_hosts.size() && i < 24; ++i)
                     out += (i ? ", " : "") + cfg->allow_hosts[i];
@@ -263,9 +263,9 @@ namespace {
             }
             break;
         case sandbox_cfg::NetMode::None:
-            // Worth being blunt: this one breaks the commands an agent reaches
-            // for most (git push, npm install, curl), and a model that does not
-            // know will burn a turn diagnosing DNS.
+            // 值得直言不讳的是：这个破坏了代理大多数情况下所达到的命令（
+            // git push、npm install、curl），
+            // 并且不知道的模型将烧毁诊断 DNS 的回合。
             out += "    network:   BLOCKED \xe2\x80\x94 git push, npm/pip installs "
                    "and curl will fail. Do not retry them or blame DNS.\n";
             break;
@@ -275,9 +275,9 @@ namespace {
             break;
     }
 
-    // The instruction, not just the facts. Without this the model knows it is
-    // sandboxed and still retries, because nothing told it that retrying is
-    // the wrong move.
+    // 指示，而不仅仅是事实。如果没有这个，模型就知道它是沙盒的，
+    // 并且仍然是 重试，因为没有任何东西告诉它 重试 是
+    // 错误的举动。
     out += "    If a command fails with a permission or network error, that is "
            "the sandbox, not a broken tool (a proxy/tunnel/403 error is the "
            "sandbox's own proxy).\n"
@@ -287,7 +287,7 @@ namespace {
     return out;
 }
 
-} // namespace
+} // 命名空间结束。
 
 std::string default_system_prompt(Io io, bool lean) {
 #if defined(_WIN32)
@@ -313,11 +313,11 @@ std::string default_system_prompt(Io io, bool lean) {
 #endif
 
     std::string cwd;
-    // current_path().string() narrows the wide Windows path through the active
-    // code page (ANSI), so a non-ASCII path turns into invalid UTF-8 and would
-    // poison the whole system prompt on the JSON wire. u8string() converts the
-    // wide path to UTF-8 directly — no lossy ANSI round-trip. (No-op on POSIX,
-    // where the native encoding is already UTF-8.)
+    // current_path().string()通过活动代码页（ANSI)缩小
+    // 宽Windows路径，因此非-ASCII路径变成无效UTF-8并且会毒害JSON
+    // 传输上的整个系统提示词。 u8string() 将宽路径直接转换为 UTF
+    // -8 — 无有损 ANSI round-trip。 （POSIX 上的 No-op，
+    // 其中本机编码已经是 UTF-8。）
     try {
         auto u8 = std::filesystem::current_path().u8string();
         cwd.assign(reinterpret_cast<const char*>(u8.data()), u8.size());
@@ -375,22 +375,22 @@ std::string default_system_prompt(Io io, bool lean) {
         << "  - For listing/searching files, prefer the dedicated tools "
         << "(`list_dir`, `glob`, `grep`, `find_definition`) over shelling "
         << "out — they give the UI structured cards.\n"
-        // Naming the PARAMETER is what makes this stick. "Prefer the
-        // native tool" is abstract advice the model already agrees with
-        // and then ignores under pressure; it reaches for `| head -20`
-        // because it does not believe the tool can bound itself. Measured
-        // on one real session, every missed detour was a pipe or a
-        // redirect, so these four lines name the exact replacement for the
-        // four idioms that produced them.
+        // 命名为 PARAMETER 是这根棍子的由来。
+        // "Prefer the native tool"
+        // 是模型已经同意但在压力下忽略的抽象建议；
+        // 它到达 `| head -20`，因为它不相信该工具
+        // 可以约束自身。在一次真实的会话中测量，
+        // 每一个错过的绕道都是一个管道或一个重定向，因此这四行名称准确
+        // 地替代了产生它们的四个习语。
         << "  - The shell idioms you reach for have native equivalents — "
         << "a pipe is usually a PARAMETER you haven't found yet:\n"
         << "      `cmd | head -20`   → `limit: 20` on `grep`/`read` (list_dir "
         << "and glob are already bounded)\n"
-        // The one idiom with no native TOOL answer: a real build/test
-        // command whose output you want to bound. The pipe filters at the
-        // wrong layer — it discards the rest before the terminal card sees
-        // it, so the USER loses output they were watching to save the
-        // model's context. head_lines/tail_lines bound only the boundary.
+        // 没有本机 TOOL 答案的一个习语：您想要绑定其输出的
+        // 真正的 build/test 命令。管道过滤器在错误的层
+        // - 它在 终端 卡看到它之前丢弃了其余部分，因此 USER
+        // 丢失了他们正在观察的输出到 保存 模型的上下文。
+        // head_lines/tail_lines 仅限制边界。
         << "      `make | tail -20`  → shell's own `tail_lines: 20` — the "
         << "pipe hides those lines from the USER too; the parameter bounds "
         << "only what reaches you\n"
@@ -400,9 +400,9 @@ std::string default_system_prompt(Io io, bool lean) {
         << "`symbol: \"name\"` for one function's body\n"
         << "      `cmd 2>/dev/null`  → nothing: native tools report "
         << "\"no matches\" instead of shouting\n"
-        // Measured on 11.5k real shell calls: 19% were `cd X && inspect`,
-        // 28% glued steps together with `echo "=== x ==="`, and 24% of
-        // greps used BRE `\|`, which ripgrep reads as a literal pipe.
+        // 在 11.5k 真实 shell 调用 上测量：19% 是 `cd X && inspect`，
+        // 28% 与 `echo "=== x ==="` 粘合在一起，
+        // 24% 的 grep 使用 BRE `\|`，ripgrep 将其读取为文字管道。
         << "      `cd X && grep …`   → `grep` with `path: \"X\"` — native "
         << "tools take the directory as a parameter\n"
         << "      `a; echo ===; b`   → two native calls in one turn; they "
@@ -562,12 +562,12 @@ std::string default_system_prompt(Io io, bool lean) {
         << "<shell-notes>\n"
         << shell_hint << "\n"
         << "</shell-notes>\n\n";
-    // SUBAGENT lean prompt: stop here. The memory-tools protocol, the
-    // user-authored CLAUDE.md tiers, and the skills catalog below are all
-    // parent-only concerns — a subagent can't call the memory tools and
-    // doesn't drive skills the same way, so shipping them just inflates its
-    // billed prefix on every cache miss. Everything above is the operational
-    // discipline a subagent genuinely needs to work well.
+    // SUBAGENT精益提示词：到此为止。 内存-tools 协议、
+    // 用户-authored CLAUDE.md 层以及
+    // 下面的技能目录 都是父-only 问题——子代理
+    // 无法调用 内存 工具并且不会以同样的方式驱动技能，
+    // 因此运送它们只会在每次缓存 未命中时夸大其计费前缀。
+    // 以上所有内容都是子代理真正需要良好运作的操作纪律。
     if (lean) return oss.str();
     oss << "<memory-tools>\n"
         << "  - If the user asks you to remember something — \"remember "
@@ -639,50 +639,50 @@ std::string default_system_prompt(Io io, bool lean) {
         << "waste \xe2\x89\xa5" "10 minutes rediscovering this? If yes, store it; "
         << "if it's routine or speculative, don't. Never store secrets.\n"
         << "</memory-tools>\n";
-    // Append AGENTS.md (AAIF standard, project-scoped) BEFORE the CLAUDE.md
-    // tiers. Standardized public project guidance lands first, personal
-    // memory layers on top — same end-of-prompt position so the always-on
-    // rules above still anchor first.
+    // 附加AGENTS.md(AAIF标准，项目-scoped)
+    // BEFORE到CLAUDE.md层。标准化公共项目指导首先落地，
+    // 个人 内存 层位于顶部 - 相同的末端 -of-prompt 位置，
+    // 因此上面的始终 -on 规则仍然首先锚定。
     oss << collect_agents_md_block(io);
-    // Append CLAUDE.md tiers (User + Project + Local) when present.
-    // Lives at the END of the prompt so the always-on rules above
-    // anchor first; user-authored memory then layers on top.
+    // 如果存在，则附加 CLAUDE.md 层（用户+项目+本地）。
+    // 居住在提示词的END处，因此总是-on首先规则在锚点之上；
+    // user-authored 内存 然后分层在上面。
     oss << collect_memory_blocks(io);
-    // On-demand skills catalog (names + descriptions only). The full
-    // bodies load lazily via the `skill` tool — progressive disclosure
-    // keeps the per-request cost to one cheap line per skill.
+    // On-demand技能目录（仅限名称+描述）。完整的 正文
+    // 加载 通过 `skill` 工具懒惰地进行 - 渐进式披露使每
+    // -request 的成本保持在每项技能的一条廉价行上。
     oss << tools::skills::catalog_block(io);
     return oss.str();
 }
 
 // ---------------------------------------------------------------------------
-// Per-provider overlay seam.
+// 每-provider 覆盖面板 接口边界。
 //
-// The base prompt above is the single source of truth for every provider. When
-// a specific model needs a divergent nudge (a "pedantic" model that mishandles
-// a construct, a provider whose tool-call dialect wants an extra reminder), add
-// its delta here keyed by canonical provider id — do NOT fork the whole base.
-// The delta is APPENDED after the base, so it always wins on any conflicting
-// instruction (last-writer semantics in a system prompt). Everything stays
-// baked into the binary: no file is read from disk, so there is no
-// prompt-injection surface.
+// 上述基础提示词是每个提供商的单一事实来源。当特定模型需要
+// 发散性推动时（错误处理构造的 "pedantic" 模型、
+// 其工具-call 方言的提供者需要额外提醒），请在此处添加
+// 由规范提供者 id 键入的增量 - 不执行 分叉整个基础。
+// 增量是基数之后的APPENDED，因此它总是在任何冲突指令上获胜
+// （系统提示词中的last-writer语义）。一切都保留在 二
+// 进制程序 中：没有从磁盘读取文件，因此不存在 提示词
+// -injection 表面。
 //
-// To add one, return a non-empty block for the id, e.g.:
+// 要添加一个，请返回 id e.g 的非 -empty 块。：
 //
-//   if (provider_id == "openai")
-//       return "<provider-notes>\n  - Emit tool arguments as a single JSON "
+//   if (provider_id=="openai")
+//       返回"<provider-notes>\n  - Emit tool arguments as a single JSON "
 //              "object; never wrap them in a markdown code fence.\n"
-//              "</provider-notes>\n";
+//              "</provider-notes>\n"；
 //
-// Keep overlays SMALL and additive. If you find yourself rewriting whole
-// sections per provider, that's the signal to promote this to a templated
-// base rather than growing the deltas.
+// 保留覆盖面板 SMALL和添加剂。如果您发现自己重
+// 写了每个提供者的整个部分，那么这就是将其提升为模板化
+// 基础而不是增加增量的信号。
 // ---------------------------------------------------------------------------
 std::string prompt_overlay(std::string_view provider_id) {
     (void)provider_id;
-    // No provider currently diverges from the shared base. New overlays plug
-    // in here; the seam + composition are already wired so adding one is a
-    // one-line change with no call-site churn.
+    // 当前没有提供商偏离共享基础。新 覆盖面板 插头插入此处；
+    // 接口边界 + 组合已经连接，因此添加一个是一个 -line 更改，
+    // 没有 调用-site 流失。
     return {};
 }
 
@@ -690,7 +690,7 @@ std::string system_prompt_with_overlay(Io io, std::string_view provider_id, bool
     std::string base = default_system_prompt(io, lean);
     std::string overlay = prompt_overlay(provider_id);
     if (overlay.empty()) return base;
-    // Ensure a clean seam between the base and the appended delta.
+    // 确保底座和附加三角形之间干净的接口边界。
     if (!base.empty() && base.back() != '\n') base.push_back('\n');
     base.push_back('\n');
     base += overlay;
@@ -700,7 +700,7 @@ std::string system_prompt_with_overlay(Io io, std::string_view provider_id, bool
 std::vector<ToolSpec> default_tools() {
     std::vector<ToolSpec> out;
     for (const auto& td : *tools::wire_tools()) {
-        if (!td.advertise) continue;   // dispatch-only (proxy owns the schema)
+        if (!td.advertise) continue;   // 分派-only（代理拥有 模式定义）
         out.push_back({td.name.value, td.description, td.input_schema});
     }
     return out;

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""ACP client harness: drives `agentty acp` over stdio like an editor does.
+"""ACP 客户端测试框架，通过标准输入输出模拟编辑器驱动 `agentty acp`。
 
-Every message agentty sends is validated against the official ACP v1 JSON
-schema, so a field the spec doesn't allow (or a missing required one) fails
-the run. Scenarios mirror what Zed and JetBrains actually do.
+agentty 发出的每条消息都会对照官方 ACP v1 JSON 模式校验。
+出现规范不允许的字段，或缺少必需字段，都会使测试失败。
+测试场景模拟 Zed 和 JetBrains 的实际行为。
 
-usage: acp_client.py <agentty> <schema.json> [scenario...]
-env:   the caller sets AGENTTY_HOME / provider vars for a sandboxed run
+用法：acp_client.py <agentty> <schema.json> [scenario...]
+环境：调用方设置 AGENTTY_HOME 和提供方变量，以便在隔离环境中运行。
 """
 import json
 import os
@@ -19,7 +19,7 @@ import time
 
 try:
     import jsonschema
-except ImportError:          # schema checks are skipped, scenarios still run
+except ImportError:          # 模式定义 检查被跳过, 假设情景仍在运行
     jsonschema = None
 
 
@@ -29,16 +29,16 @@ class Client:
                                   stderr=subprocess.PIPE, cwd=cwd, bufsize=0)
         self.q = queue.Queue()
         self.next_id = 0
-        self.updates = []        # (sessionId, update) in arrival order
+        self.updates = []        # (sessionId,更新)按抵达顺序排列
         self.violations = []
         self.permission_answer = "allow_once"
         self.client_requests = []
-        self.files = {}          # path -> text, for fs/* callbacks
+        self.files = {}          # 路径 - > 文本,用于 fs/* 回调
         self.elicitations = []
-        self.cancel_requests = []   # ids from $/cancel_request
-        self.elicit_done = []       # elicitation/complete ids
-        self.held = []              # permission requests left unanswered
-        self.responses = {}         # id -> response, for send_request
+        self.cancel_requests = []   # 美元/cancel_request美元
+        self.elicit_done = []       # elicitation/complete 编号
+        self.held = []              # 权限 请求未答复
+        self.responses = {}         # id - > 答复, 用于send_request
         self.schema = None
         if jsonschema is None and schema_path:
             print("  note: python jsonschema not installed, schema checks skipped")
@@ -79,7 +79,7 @@ class Client:
             path = "/".join(str(x) for x in e.absolute_path)
             self.violations.append(f"{where}: {def_name} at /{path}: {e.message[:300]}")
 
-    # ── request / response ─────────────────────────────────────────────
+    # ── 请求/答复 ─────────────────────────────────────────────
     def request(self, method, params, result_def=None, timeout=30):
         self.next_id += 1
         rid = self.next_id
@@ -106,7 +106,7 @@ class Client:
         self.send({"jsonrpc": "2.0", "method": method, "params": params})
 
     def send_request(self, method, params):
-        """Fire a request without waiting; collect the answer with wait_response."""
+        """发送请求而不等待；通过 wait_response 获取回复。"""
         self.next_id += 1
         self.send({"jsonrpc": "2.0", "id": self.next_id, "method": method, "params": params})
         return self.next_id
@@ -133,7 +133,7 @@ class Client:
                 self.responses[m["id"]] = m
 
     def _handle_incoming(self, m):
-        """Notifications and agent->client requests. True if consumed."""
+        """处理通知和代理发往客户端的请求；已消费时返回 True。"""
         meth = m.get("method")
         if not meth:
             return False
@@ -146,7 +146,7 @@ class Client:
                 self.elicit_done.append(m["params"].get("elicitationId"))
             elif meth == "$/cancel_request":
                 self.cancel_requests.append(m["params"].get("id"))
-                # Answer the withdrawn request the way the spec asks.
+                # 回答撤回的请求。
                 rid = m["params"].get("id")
                 if rid in self.held:
                     self.held.remove(rid)
@@ -157,7 +157,7 @@ class Client:
         rid, p = m["id"], m.get("params", {})
         if meth == "session/request_permission" and self.permission_answer == "hold":
             self.check("RequestPermissionRequest", p, meth)
-            self.held.append(rid)   # the user hasn't clicked yet
+            self.held.append(rid)   # 用户尚未点击
         elif meth == "session/request_permission":
             self.check("RequestPermissionRequest", p, meth)
             opts = p.get("options", [])
@@ -201,7 +201,7 @@ class Client:
         return [u.get("sessionUpdate") for s, u in self.updates if sid is None or s == sid]
 
 
-# ── scenarios ──────────────────────────────────────────────────────────
+# ── 假设 ──────────────────────────────────────────────────────────
 
 FAILS = []
 
@@ -382,7 +382,7 @@ def scenario_mcp(c, cwd, agentty):
     expect(err is None, f"session/new with mcpServers {err or ''}")
     sid = r["sessionId"]
     seen = False
-    for _ in range(30):          # connecting happens in the background
+    for _ in range(30):          # 连接发生在背景
         open(os.environ["FAKE_TOOLS_LOG"], "w").close()
         c.request("session/prompt", {"sessionId": sid,
                   "prompt": [{"type": "text", "text": "say hello"}]}, timeout=60)
@@ -443,7 +443,7 @@ def scenario_air(agentty, schema, cwd):
                  for m in (r.get("modes") or {}).get("availableModes", [])}
         expect(kinds.get("write") == "auto_review" and kinds.get("ask") == "standard",
                f"modes carry the AIR kind ({kinds})")
-        # The permission dialog gets AIR's heading record.
+        # 电话 权限 对话框获得 AIR 记录在行
         before = len(c.client_requests)
         c.request("session/prompt", {"sessionId": sid,
                   "prompt": [{"type": "text", "text": "run echo"}]}, timeout=90)
@@ -457,7 +457,7 @@ def scenario_air(agentty, schema, cwd):
         target = os.path.join(cwd, "air.txt")
         c.request("session/prompt", {"sessionId": sid,
                   "prompt": [{"type": "text", "text": f"write to {target}"}]}, timeout=90)
-        # An edit in the middle of a longer file, and one at each end.
+        # 较长文件中间的编辑,每端各一个.
         long_file = os.path.join(cwd, "air_long.txt")
         body = "".join(f"line {i}\n" for i in range(1, 41))
         open(long_file, "w").write(body)
@@ -476,7 +476,7 @@ def scenario_air(agentty, schema, cwd):
                 if p:
                     patches.append(p)
         expect(len(patches) >= 4, f"each edit carries _meta.jetbrains.air.diffPatch ({len(patches)})")
-        # Each patch must apply to the file as it was before that edit.
+        # 每一个 补丁 必须在编辑前对文件进行应用。
         befores = [None] + [originals[i] for i in range(len(originals))]
         ok = True
         for i, p in enumerate(patches[:4]):
@@ -515,7 +515,7 @@ def scenario_elicit(c, cwd):
     sid = r["sessionId"]
     c.request("session/set_mode", {"sessionId": sid, "modeId": "write"})
     got = ""
-    for _ in range(30):           # the server connects in the background
+    for _ in range(30):           # 服务器在背景中连接
         c.request("session/prompt", {"sessionId": sid,
                   "prompt": [{"type": "text", "text": "ask my name"}]}, timeout=60)
         outs = [u for s, u in c.updates if s == sid and u.get("toolCallId") == "call_ask"
@@ -537,7 +537,7 @@ def scenario_elicit(c, cwd):
         expect(e.get("sessionId") == sid and e.get("toolCallId") == "call_ask",
                "scoped to the session and tool card")
     expect("hello Ayush" in got, f"the answer reached the MCP server ({got[:60]!r})")
-    # URL mode: the editor gets the link, and the server's "done" is passed on.
+    # URL 模式:编辑器得到 链接 ,服务器的 "done" 被传递。
     c.request("session/prompt", {"sessionId": sid,
               "prompt": [{"type": "text", "text": "open the link"}]}, timeout=60)
     c.pump(0.5)
@@ -549,7 +549,7 @@ def scenario_elicit(c, cwd):
            and urls[-1].get("elicitationId") == "el-1", f"URL elicitation relayed ({got_link!r})")
     expect("url accept" in got_link, f"consent reached the MCP server ({got_link!r})")
     expect("el-1" in c.elicit_done, f"elicitation/complete forwarded ({c.elicit_done})")
-    # The same server's prompt shows in the / menu and expands on use.
+    # 同樣的伺服器的提示词在/菜单中显示,并在使用上扩展.
     menus = [u["availableCommands"] for s, u in c.updates
              if s == sid and u.get("sessionUpdate") == "available_commands_update"]
     cmds = {x["name"]: x for x in (menus[-1] if menus else [])}
@@ -570,7 +570,7 @@ def scenario_progress(agentty, schema, cwd):
     print("progress: without a terminal channel, a running tool's output still streams")
     c = Client([agentty, "acp"], schema, cwd)
     try:
-        caps = {k: v for k, v in ZED_CAPS.items() if k != "_meta"}   # no terminal_output
+        caps = {k: v for k, v in ZED_CAPS.items() if k != "_meta"}   # 无terminal_output
         initialize(c, caps)
         r, _ = c.request("session/new", {"cwd": cwd, "mcpServers": []}, "NewSessionResponse")
         sid = r["sessionId"]
@@ -595,7 +595,7 @@ def scenario_cancel(agentty, schema, cwd):
         r, _ = c.request("session/new", {"cwd": cwd, "mcpServers": []}, "NewSessionResponse")
         sid = r["sessionId"]
         c.request("session/set_mode", {"sessionId": sid, "modeId": "write"})
-        # Two prompts back to back: the second waits for the first, no overlap.
+        # 两位 提示词 背对背:第二等第一,无重叠.
         a = c.send_request("session/prompt", {"sessionId": sid,
                            "prompt": [{"type": "text", "text": "run slow"}]})
         b = c.send_request("session/prompt", {"sessionId": sid,
@@ -609,7 +609,7 @@ def scenario_cancel(agentty, schema, cwd):
         expect("tool_call" in order and first_text > order.index("tool_call"),
                "queued prompt ran after the first turn")
 
-        # A queued prompt is cancelled with the running one.
+        # 队列已排入 提示词 谓 已取消 和运行的一。
         a = c.send_request("session/prompt", {"sessionId": sid,
                            "prompt": [{"type": "text", "text": "run slow"}]})
         b = c.send_request("session/prompt", {"sessionId": sid,
@@ -620,7 +620,7 @@ def scenario_cancel(agentty, schema, cwd):
         expect(ra and (ra.get("result") or {}).get("stopReason") == "cancelled", f"running turn cancelled ({ra})")
         expect(rb and (rb.get("result") or {}).get("stopReason") == "cancelled", f"queued turn cancelled ({rb})")
 
-        # Cancel while the permission dialog is open: the agent withdraws it.
+        # 取消 时 权限 对话框打开: 代理机撤回它。
         c.request("session/set_mode", {"sessionId": sid, "modeId": "ask"})
         c.permission_answer = "hold"
         a = c.send_request("session/prompt", {"sessionId": sid,
@@ -639,8 +639,8 @@ def scenario_cancel(agentty, schema, cwd):
                            "prompt": [{"type": "text", "text": "say hello"}]}, "PromptResponse", timeout=60)
         expect(err is None and r.get("stopReason") == "end_turn", f"session usable after cancel {err or r}")
 
-        # A subagent run becomes its own session, linked from the task card
-        # the way Zed nests subagents.
+        # 副剂运行成为自己的会话,从任务卡上与Zed巢
+        # 子剂的方式联系起来.
         c.request("session/set_mode", {"sessionId": sid, "modeId": "write"})
         c.request("session/prompt", {"sessionId": sid,
                   "prompt": [{"type": "text", "text": "spawn a helper"}]}, timeout=90)
@@ -734,7 +734,7 @@ def scenario_failure(c, cwd):
            f"error carries the reason ({err})")
     c.pump(0.3)
     expect("notice" in c.kinds(sid), "notice sent to a client that renders them")
-    # A transient 503 before anything streamed is retried, not surfaced.
+    # 流水前的瞬间503号被重试,而不是浮出水面.
     r, err = c.request("session/prompt", {"sessionId": sid,
                        "prompt": [{"type": "text", "text": "flaky one"}]}, "PromptResponse", timeout=60)
     text = "".join(u["content"].get("text", "") for s, u in c.updates
@@ -825,7 +825,7 @@ def scenario_reload(agentty, schema, cwd, env, sid):
         c.pump(0.5)
         k = c.kinds(sid)
         expect("user_message_chunk" in k and "agent_message_chunk" in k, "history replayed")
-        # And from a different cwd, as an IDE launched elsewhere would.
+        # 和不同的cwd,作为一个 IDE 将到别处发射
         other = tempfile.mkdtemp()
         r, err = c.request("session/load", {"sessionId": sid, "cwd": other, "mcpServers": []},
                            "LoadSessionResponse")

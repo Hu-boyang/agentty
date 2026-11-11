@@ -1,26 +1,26 @@
-// hooks.cpp — user-authored lifecycle hooks. See hooks.hpp for the design
-// and the consent-gate rationale. Implementation notes:
+// hooks.cpp 用户 -authored 生命周期钩子,
+// 看 hooks.hpp 设计及同意 -gate 理由说明。
 //
-//   • The payload travels via AGENTTY_HOOK_PAYLOAD_FILE (a mode-0600 temp
-//     file) instead of stdin: run_shell_command has no stdin-pipe seam,
-//     and a file keeps multi-MB tool results out of the environment block
-//     (env vars have hard platform caps).
-//   • Hook commands run through run_shell_command — the SAME bwrap /
-//     sandbox-exec wrapper the bash tool uses — so an approved hook is
-//     workspace-confined exactly like model-driven shell.
-//   • Approval store: content-hash trust via the SHARED scope::Approvals
-//     primitive (the same one plugins use), persisted at
-//     ~/.agentty/hooks_approved.json as a list of approved file hashes. Any
-//     byte change to a hooks file yields a new hash → re-gated. A pre-scope
-//     {path: hash} store is migrated transparently on first read.
+//   • 国家 载荷 旅行经过 AGENTTY_HOOK_PAYLOAD_FILE (模式0600临时)
+//     文件)而不是 stdin : run_shell_command
+//     没有标准 -pipe 接口边界 ,文件将保持多 -MB 工具结果出自
+//     环境块(env vars有硬平台盖).
+//   • 钩式命令贯穿 run_shell_command - 电话 相同 环形山 /
+//     沙箱-exec 包装用到的击打工具——所以一个经批准的钩子是 工作区
+//     -confined 完全像模型一样 -driven 壳壳。
+//   • 核准储存:内容 -hash 通过 SHARED scope::Approvals
+//     原始( 同一插件使用) ,
+//     坚持到 ~/.agentty/hooks_approved.json 以
+//     列表列出已核准的文件散列。 字节 更改为钩状文件生成新散列 = re
+//     -gated 预览 -scope {路径:散列}商店在第一读时透明迁移。
 
 #include "agentty/tool/hooks.hpp"
 #include "agentty/util/user_root.hpp"
-#include "agentty/config/inventory.hpp"   // kHooksApprovals — the one name
-#include "agentty/util/capped_read.hpp"   // the one capped-read primitive
+#include "agentty/config/inventory.hpp"   // kHooks 核准——一个名字
+#include "agentty/util/capped_read.hpp"   // 原始的封顶-read
 
-#include "agentty/auth/auth.hpp"            // auth::sha256_hex (file-content hash)
-#include "agentty/scope/scope.hpp"          // scope::Approvals (shared trust store)
+#include "agentty/auth/auth.hpp"            // auth::sha256_hex (档案 -content (hash) 语句
+#include "agentty/scope/scope.hpp"          // scope::Approvals(共享信托商店)
 #include "agentty/io/persistence.hpp"       // random_hex_id
 #include "agentty/io/shared_file.hpp"       // create_exclusive
 #include "agentty/tool/util/sandbox.hpp"    // run_shell_command
@@ -42,7 +42,7 @@
 
 #ifndef _WIN32
 #include <sys/stat.h>   // chmod
-#include <unistd.h>     // getpid
+#include <unistd.h>     // 发作
 #else
 #include <process.h>    // _getpid
 #endif
@@ -67,20 +67,20 @@ constexpr auto        kHookTimeout       = std::chrono::seconds{30};
 }
 
 struct HookEntry {
-    std::string match;   // ERE on the tool name
-    std::string run;     // sh -c command
+    std::string match;   // 工具名上的ERE
+    std::string run;     // sh -c 命令
 };
 
 struct HooksFile {
-    std::string            path;      // absolute path of the file loaded
-    std::string            hash;      // sha256 of the raw bytes
+    std::string            path;      // 文件的绝对路径已加载
+    std::string            hash;      // 原生的沙256块 字节
     std::vector<HookEntry> pre_tool;
     std::vector<HookEntry> post_tool;
     bool                   ok = false;
-    // Set when a hooks file EXISTS but is past the size cap, so nothing
-    // could be loaded from it. Distinct from "no file": a user whose
-    // blocking hook is silently inert deserves to be told which it is.
-    std::string            too_big;   // the oversized path, else empty
+    // 设定钩子文件时 EXISTS 但是已经过了这个尺寸了,
+    // 所以什么也做不了 已加载 与它不同,与它不同 "no file"
+    // :一个使用屏蔽钩子的用户默默无闻,理应被告知它是什么.
+    std::string            too_big;   // 超大小路径, 否则为空
 };
 
 [[nodiscard]] bool hooks_disabled() {
@@ -88,15 +88,15 @@ struct HooksFile {
     return off && off[0] && off[0] != '0';
 }
 
-// NOTE: the local read_all() is gone — see util/capped_read.hpp. It, and the
-// two other copies in skills.cpp and commands.cpp, all shipped the same bug:
-// "" meant missing AND too big, so `agentty hooks` printed "no hooks file"
-// with the user's file right there and a blocking hook silently inert.
+// NOTE : 当地 read_all () 已消失——见 util/capped_read.hpp.
+// 里面还有另外两本 skills.cpp 财务报告和已审计财务报表 commands.cpp ,所有数据都运出相同的错误 :
+// "" 意味着失踪 和 太大了,所以,我说 `agentty hooks`
+// 打印 "no hooks file" 和一个无声的阻断钩子
 
-// Locate + parse the active hooks file. NOT cached across calls on
-// purpose: hooks fire once per tool call (seconds apart), a stat+parse is
-// noise there, and skipping the cache removes a whole class of staleness
-// bugs (edit hooks.json → next tool call sees it, gated on approval).
+// 地点+ 解析 活动钩子文件。 不 缓存到交叉处 调用 目的:每
+// 个工具一次钩火 调用 (秒相隔),一个 stat+ 解析 那边有噪音,
+// 然后跳过 缓存 删除整个类的 Staleness 错误( 编辑)
+// hooks.json ——下一个工具 调用 看见了,批准后就登门).
 [[nodiscard]] HooksFile load_hooks_file() {
     HooksFile out;
     const fs::path candidates[] = {
@@ -115,8 +115,8 @@ struct HooksFile {
         auto abs = fs::weakly_canonical(c, ec);
         out.path = (ec ? fs::absolute(c, ec) : abs).string();
         out.hash = auth::sha256_hex(raw);
-        json j = json::parse(raw, nullptr, /*throw=*/false);
-        if (!j.is_object()) return out;   // ok=false: unparseable
+        json j = json::parse(raw, nullptr, /*投掷=*/false);
+        if (!j.is_object()) return out;   // OK=假: 无法解析
         auto read_list = [&](const char* key, std::vector<HookEntry>& dst) {
             if (!j.contains(key) || !j[key].is_array()) return;
             for (const auto& e : j[key]) {
@@ -132,12 +132,12 @@ struct HooksFile {
         out.ok = true;
         return out;
     }
-    return out;   // no file
+    return out;   // 无文件
 }
 
-// The pre-scope {path: hash} store, if one is still around. scope owns the
-// current location (user root / state/); this only has to find an old file
-// to migrate, so it looks in both.
+// -scope { path: hash} 存储, 如果仍然在周围。
+// 范围拥有当前位置( 用户 root / state/); 这只需要找到一个旧文件即可迁移,
+// 所以它看起来都是两个文件。
 [[nodiscard]] fs::path legacy_approvals_path() {
     auto root = ::agentty::util::user_root();
     if (root.empty()) return {};
@@ -148,32 +148,32 @@ struct HooksFile {
     return root / leaf;
 }
 
-// Hooks trust now rides on the SHARED content-hash primitive
-// (scope::Approvals) instead of a bespoke store — one trust mechanism for
-// every executable-from-untrusted-origin surface (plugins, hooks). The hash
-// is the same value either way (scope::content_hash == auth::sha256_hex, and
-// hf.hash is already sha256_hex(raw)), so nothing about the security property
-// changes: approve a file's exact bytes; any byte change yields a new hash
-// that isn't in the approved set, so it re-gates.
+// 虎克信任现在骑在路上 SHARED 内容 -hash 原始(
+// 4月 ) scope::Approvals ——每个可执行文件都有一个信任机制。
+// -from-untrusted-origin 表面(插头、钩子)。
+// 散列无论哪种方式都相同( scope::content_hash ==
+// auth::sha256_hex ,和 hf.hash 已经 sha256_hex ),
+// 所以没有关于安全财产的更改:批准文件的精确性 字节 ; 任意 字节 更改产生
+// 新的散列,不在批准的一组,所以它是 -gates.
 //
-// The store leaf stays "hooks_approved.json" for continuity. scope::Approvals
-// is a flat hash LIST; the pre-scope format was a {abs_path: hash} OBJECT.
-// load_hook_approvals() reads either — an object is migrated in place by
-// taking its hash VALUES — so nobody loses an approval across the upgrade.
+// 店里留有叶子 "hooks_approved.json" 用于连续性。 scope::Approvals 是
+// 一个平坦的散列 LIST 预 告 -scope 格式为 { abs_path 说吧,我... OBJECT.
+// load_hook_approvals () 读作其中之一——
+// 物体通过散列迁移而发生。 VALUES 所以升级时没有人会失去批准
 constexpr std::string_view kHooksApprovalsLeaf =
     ::agentty::config::kHooksApprovals;
 
 [[nodiscard]] scope::Approvals load_hook_approvals() {
-    // Fast path: the scope loader handles the new array form (and returns
-    // empty on the legacy object form, which it can't parse as an array).
+    // 快路:瞄准镜加载器处理新的数组形式(并在遗留
+    // 对象形式上返回空,它不能将它作为解析作为数组).
     scope::Approvals a = scope::load_approvals(kHooksApprovalsLeaf);
     if (!a.shas.empty()) return a;
-    // Legacy {path: hash} object — migrate its values into the list.
+    // 遗产{路径:散列}对象 – 将其值移入列表中。
     const auto p = legacy_approvals_path();
     std::string raw = std::string{::agentty::util::bytes_or_empty(
         ::agentty::util::capped_read(p, kMaxHooksFileBytes))};
     if (raw.empty()) return a;
-    json j = json::parse(raw, nullptr, /*throw=*/false);
+    json j = json::parse(raw, nullptr, /*投掷=*/false);
     if (j.is_object())
         for (auto it = j.begin(); it != j.end(); ++it)
             if (it->is_string()) a.approve(it->get<std::string>());
@@ -187,25 +187,25 @@ constexpr std::string_view kHooksApprovalsLeaf =
 
 void store_approval(Io io, const maya::unlocked& cap, const HooksFile& hf) {
     if (hf.hash.empty()) return;
-    scope::Approvals a = load_hook_approvals();   // includes any migrated legacy hashes
+    scope::Approvals a = load_hook_approvals();   // 包括任何迁移的遗产散装物
     a.approve(hf.hash);
-    (void)scope::save_approvals(io, cap, kHooksApprovalsLeaf, a);   // rewrites as the array form
+    (void)scope::save_approvals(io, cap, kHooksApprovalsLeaf, a);   // 重写为数组形式
 }
 
 [[nodiscard]] bool name_matches(const std::string& ere, std::string_view tool) {
-    if (ere.empty()) return true;   // no match key ⇒ every tool
+    if (ere.empty()) return true;   // 没有匹配的密钥 QQ 每个工具
     try {
         std::regex re(ere, std::regex::extended | std::regex::nosubs);
         return std::regex_search(std::string{tool}, re);
     } catch (const std::regex_error&) {
-        return false;   // bad pattern never matches (fail closed for pre)
+        return false;   // 坏模式从不匹配( 无法关闭预端)
     }
 }
 
-// Write the payload to a private temp file; returns its path ('' on error).
-// The temp dir is shared with other users, so the file is created whole at
-// 0600 and never over an existing name: nobody can read it early or plant a
-// symlink where it will be written.
+// Write 编号 载荷 以返回私有临时文件;返回路径 ('在错误中)。
+// 临时目录与其他用户共享,因此文件在0600时创建完整,
+// 永远不能超越一个已有的名称:没有人能提早读取,
+// 或将写作的符号设置在其中.
 [[nodiscard]] std::string write_payload(const std::string& payload) {
     std::error_code ec;
     auto dir = fs::temp_directory_path(ec);
@@ -219,15 +219,15 @@ void store_approval(Io io, const maya::unlocked& cap, const HooksFile& hf) {
     return {};
 }
 
-// Prefix `cmd` with variable assignments the shell applies to that command
-// only. POSIX: `export A='v' B='v'; <cmd>` (exported so a hook that is a
-// script sees them, and single-quoted so nothing in a value is interpreted).
-// Windows cmd.exe: `set "A=v" && set "B=v" && call <cmd>`; the values here
-// are an event name, a tool name and a temp path, none of which carry `"`
-// or `%`. The `call` is load-bearing: cmd expands %VAR% when it PARSES the
-// line, before any `set` on it has run, so a hook written as
-// `findstr x "%AGENTTY_HOOK_PAYLOAD_FILE%"` saw the literal text. `call`
-// re-parses its argument after the sets, which is when the vars exist.
+// 前缀 `cmd` 包含可变任务, shell 仅适用于该命令。
+// POSIX: `export A='v' B='v'; <cmd>` (出口后,
+// 钩子是脚本) 看见他们,单身 -quoted 故任何价值都不能被解释。
+// Windows cmd.exe: `set "A=v" && set "B=v" && call <cmd>` ;
+// 这里的值是 事件 名称、工具名称和临时路径,没有一条 `"` 或 或 时 间 `%`。
+// 该词 `call` 谓 加载-bearing : cmd 扩展% VAR 当它 PARSES 线条,
+// 在任何线条之前 `set` 上面有一条钩子,
+// 写着 `findstr x "%AGENTTY_HOOK_PAYLOAD_FILE%"` 见文义文.
+// `call` 内容 -parses 其论点在套装之后,也就是在Vars存在的时候。
 [[nodiscard]] std::string with_hook_env(
     const std::string& cmd,
     std::initializer_list<std::pair<const char*, std::string>> vars) {
@@ -259,16 +259,16 @@ void store_approval(Io io, const maya::unlocked& cap, const HooksFile& hf) {
     return out;
 }
 
-// Run one hook command with the payload plumbed via env + file. Returns
-// {exit_code, captured output}.
+// 运行一个钩状命令 载荷 通过 env + 文件 调制。
+// 返回{ exit_code , 捕获输出].
 struct HookRun { int exit_code = 0; std::string output; };
 [[nodiscard]] HookRun run_hook(const HookEntry& h, std::string_view event,
                                std::string_view tool,
                                const std::string& payload) {
     const std::string pf = write_payload(payload);
-    // The hook's context goes in ITS command line, not the process env:
-    // setenv/unsetenv mutate state every thread shares, so concurrent tools
-    // needed a global lock around the whole run. A prefix is per-process.
+    // 钩子的上下文在ITS命令行中,而不是进程内涵:
+    // setenv/unsetenv 变异状态 线程 因此,
+    // 同时使用的工具需要全球的共享。 锁。每个运行前缀 -process.
     const std::string cmd = with_hook_env(h.run, {
         {"AGENTTY_HOOK_EVENT",        std::string{event}},
         {"AGENTTY_HOOK_TOOL",         std::string{tool}},
@@ -283,7 +283,7 @@ struct HookRun { int exit_code = 0; std::string output; };
     return {res.exit_code, std::move(res.output)};
 }
 
-} // namespace
+} // 命名空间结束。
 
 PreToolDecision run_pre_tool(std::string_view tool,
                              const std::string& args_json) {
@@ -291,13 +291,13 @@ PreToolDecision run_pre_tool(std::string_view tool,
     if (hooks_disabled()) return d;
     HooksFile hf = load_hooks_file();
     if (!hf.ok || hf.pre_tool.empty()) return d;
-    if (!is_approved(hf)) return d;   // unapproved file NEVER runs
+    if (!is_approved(hf)) return d;   // 未经批准的文件NEVER运行
 
     json payload = {{"event", "pre_tool"},
                     {"tool", std::string{tool}},
                     {"args", args_json}};
-    // error_handler_t::replace: args_json may embed lossy bytes; dump()
-    // THROWS on invalid UTF-8 by default — a crash inside the tool path.
+    // error_handler_t::replace: args_json 可能埋入损失 字节;
+    // dump() THROWS 无效 UTF -8 默认——工具路径内部发生崩溃.
     const std::string body =
         payload.dump(-1, ' ', false, json::error_handler_t::replace);
     for (const auto& h : hf.pre_tool) {
@@ -309,9 +309,9 @@ PreToolDecision run_pre_tool(std::string_view tool,
                 d.reason = "blocked by pre_tool hook (`" + h.run + "` exited "
                          + std::to_string(r.exit_code) + ")";
             } else {
-                // Hook stdout becomes the error the MODEL reads — scrub
-                // terminal controls, force valid UTF-8, and cap it (a 4 MB
-                // guard-script dump would blow the turn's token budget).
+                // 钩子的断层变成错误 MODEL 读写 - 擦除 终端 控件,
+                // 强制有效 UTF -8,盖上它(a 4) MB
+                // 警卫 -script 垃圾场会毁了转弯的象征性预算。
                 std::string reason = util::to_valid_utf8(
                     util::strip_terminal_controls(r.output));
                 if (reason.size() > 4096) {
@@ -341,13 +341,13 @@ void run_post_tool(std::string_view tool, const std::string& args_json,
                      result_text.size() > kMaxPayloadBytes
                          ? result_text.substr(0, kMaxPayloadBytes)
                          : result_text}};
-    // replace-handler: result_text is arbitrary tool output (bash can emit
-    // raw bytes); default dump() throws on invalid UTF-8.
+    // 替换 -handler: result_text 是任意工具输出( bash 能够
+    // 发出原始 字节 ; 默认 dump() 丢弃无效 UTF-8.
     const std::string body =
         payload.dump(-1, ' ', false, json::error_handler_t::replace);
     for (const auto& h : hf.post_tool) {
         if (!name_matches(h.match, tool)) continue;
-        (void)run_hook(h, "post_tool", tool, body);   // fire-and-forget
+        (void)run_hook(h, "post_tool", tool, body);   // 开火 -and-forget
     }
 }
 
@@ -365,9 +365,9 @@ int cli(Io io, const maya::unlocked& cap, const std::string& verb) {
     HooksFile hf = load_hooks_file();
     if (verb == "list" || verb.empty()) {
         if (hf.path.empty()) {
-            // "No file" and "a file too big to load" are different answers,
-            // and printing the first for the second is how a blocking hook
-            // stays silently inert while the user believes it is armed.
+            // "No file"和"a file too big to load"
+            // 是不同的答案,而打印第一个答案的第二个是:阻塞钩
+            // 如何在用户认为它有武器的同时保持无声的惰性.
             if (!hf.too_big.empty()) {
                 std::printf("%s is over the %zu KB limit — NOT loaded,"
                             " so no hooks are running\n",
@@ -417,7 +417,7 @@ int cli(Io io, const maya::unlocked& cap, const std::string& verb) {
             std::printf("already approved: %s\n", hf.path.c_str());
             return 0;
         }
-        // Show the exact bytes being approved, then require explicit y.
+        // 显示正批准的字节,然后需要明确y.
         std::printf("── %s ──\n%s\n────────\n"
                     "These hooks run ARBITRARY SHELL automatically on "
                     "matching tool calls\n(sandboxed like the bash tool, "

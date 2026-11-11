@@ -1,11 +1,11 @@
-// panel_sections_render_test — the fused model picker's SECTION HEADERS,
-// asserted against real rendered cells.
+// panel_sections_render_test ——引信型号. 选择面板's SECTION
+// HEADERS ,声称已实际交付 存储单元.
 //
-// Browse is a two-section layout ("recent" / "all providers"); there is no
-// per-provider split. The header is SPELLED in the view, so this renders the
-// picker through the real view + maya and reads the header back off the
-// canvas rather than grepping the source — a source-text assertion cannot
-// tell you the header is reachable or that the rows it titles are on screen.
+// 浏览为 2 -section 版式( 简况) "recent" /
+// "all providers" ),没有 -provider 分拆。
+// 该 头文件 谓 SPELLED 风景中,所以这个 渲染 编号 选择
+// 面板 通过真实视图+ maya 读到 头文件 反向画布,而不是给源头加固
+// ——源头 -text 断言不能告诉你 头文件 可到达或其标题的行在屏幕上。
 
 #include "agtest.hpp"
 
@@ -44,9 +44,9 @@ ProviderCatalog cat(std::string id, std::string label,
     return c;
 }
 
-// Render ONLY the picker element (not the whole app layout) and flatten the
-// canvas to text. Non-ASCII folds to '?' — the section titles are ASCII, and
-// the badge/■ chrome around them is not what we're asserting on.
+// 渲染 仅 编号 选择面板 元素(不是整个应用程序布局),并将画布平整为文本。
+// -ASCII 归并 改为 '?' ——各节标题为: ASCII ,
+// 并显示 badge/ 环绕着它们 的铬不是我们所主张的
 std::string render_panel(const Model& m, int width = 100, int height = 200) {
     auto root = ui::models_panel(m);
     maya::StylePool pool;
@@ -74,9 +74,9 @@ bool has(const std::string& hay, std::string_view needle) {
     return hay.find(needle) != std::string::npos;
 }
 
-// Build a Model with the picker open over `cats`, as the reducer would:
-// fused_rows is the reducer-maintained cache the view reads, never rebuilt
-// per frame, so a render test must populate it the same way.
+// 构建一个 Model 与 选择面板 打开 `cats` ,作为 状态更新函数 将:
+// fused_rows 是那个 状态更新函数-maintained 缓存 视图
+// 为: 从未重建 帧 ,所以一个 渲染 测试必须同样地充斥它。
 Model picker_model(const std::vector<ProviderCatalog>& cats,
                    ModelRef active = {}) {
     Model m;
@@ -88,12 +88,12 @@ Model picker_model(const std::vector<ProviderCatalog>& cats,
     return m;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("picker: browse lists every provider under one 'all providers' header") {
-    // With an active provider set, its non-recent rows are NOT broken out
-    // into a "from this provider" block — every non-recent model, regardless
-    // of provider, lives under a single "all providers" header.
+    // 拥有活动提供者集,其非 -recent 行数不是 被冲出一个
+    // "from this provider" 块块——每个非 -recent 模式,
+    // 不论提供者,都生活在一个单一的 "all providers" 头文件.
     const std::vector<ProviderCatalog> cats{
         cat("anthropic", "Anthropic",
             {mk("claude-opus-4-5",  "Claude Opus 4.5",  "anthropic"),
@@ -104,39 +104,39 @@ TEST_CASE("picker: browse lists every provider under one 'all providers' header"
     const std::string screen = render_panel(m);
 
     INFO(screen);
-    // One flat section — no per-provider split.
+    // 平面一节——无 -provider 分头。
     CHECK(has(screen, "ALL PROVIDERS"));
     CHECK_FALSE(has(screen, "from this provider"));
     CHECK_FALSE(has(screen, "from all other providers"));
-    // Rows from BOTH providers render under it.
-    CHECK(has(screen, "Claude Haiku 4.5"));   // active provider, non-recent
-    CHECK(has(screen, "GPT-5"));              // another provider
+    // 开始行 两者 提供者 渲染 下方是这个
+    CHECK(has(screen, "Claude Haiku 4.5"));   // 活跃提供者, 非-recent
+    CHECK(has(screen, "GPT-5"));              // 另一供应商
 }
 
 TEST_CASE("picker: with NO active provider, the header is still 'all providers'") {
-    // The fresh-install shape: nothing active. The header is unchanged —
-    // there was never a contrast to drop.
+    // 新鲜的 -install 形状: 无活动。 头文件 情况
+    // 没有改变——从未出现下降的反差。
     const std::vector<ProviderCatalog> cats{
         cat("anthropic", "Anthropic",
             {mk("claude-opus-4-5", "Claude Opus 4.5", "anthropic")}),
         cat("openai", "OpenAI", {mk("gpt-5", "GPT-5", "openai")}),
     };
-    const Model m = picker_model(cats);           // active left EMPTY
+    const Model m = picker_model(cats);           // 活动左 空
     const std::string screen = render_panel(m);
 
     INFO(screen);
     CHECK_FALSE(has(screen, "from this provider"));
     CHECK_FALSE(has(screen, "from all other providers"));
     CHECK(has(screen, "ALL PROVIDERS"));
-    // The models are still listed under it.
+    // 模型仍列于其下.
     CHECK(has(screen, "Claude Opus 4.5"));
     CHECK(has(screen, "GPT-5"));
 }
 
 TEST_CASE("picker: the active model leads, and its row is on screen") {
-    // The ● pin is a builder invariant (fused_models_test proves the
-    // ordering); this pins that the picker RENDERS it in the recent section
-    // rather than ordering it correctly and then drawing something else.
+    // 针头是建材 不变量 (fused_models_test
+    // 证明命令; 这针是 选择面板 RENDERS
+    // 而不是正确命令它 然后画出其他东西
     const std::vector<ProviderCatalog> cats{
         cat("anthropic", "Anthropic",
             {mk("claude-opus-4-5",  "Claude Opus 4.5",  "anthropic"),
@@ -157,8 +157,8 @@ TEST_CASE("picker: the active model leads, and its row is on screen") {
     const std::string screen = render_panel(m);
     INFO(screen);
     CHECK(has(screen, "RECENT"));   // ┌─ RECENT divider (^K-style, uppercased)
-    // Haiku sorts before Opus alphabetically; the active Opus must still be
-    // the first RECENT row, because the picker pre-selects row 0.
+    // 字母顺序前的海库类型; 活动 Opus 仍然必须是第一个 RECENT 排队,
+    // 因为 选择面板 预览 -selects 第0行 开始
     const auto recent_hdr = screen.find("RECENT");
     const auto opus       = screen.find("Claude Opus 4.5");
     const auto haiku      = screen.find("Claude Haiku 4.5");

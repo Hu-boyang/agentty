@@ -1,15 +1,15 @@
-// oauth_proactive_refresh_test — the proactive-refresh probe's decision logic.
+// oauth_proactive_refresh_test - 主动性强 -refresh 探测器的决定逻辑。
 //
-// auth::oauth_proactive_refresh_token() reads the on-disk credential and
-// decides whether to hand back a refresh_token so the reducer can pre-refresh
-// a soon-to-lapse OAuth token BEFORE the next request would 401 (the
-// first-message-lag fix's sibling to the socket prewarm). This exercises the
-// real save→probe round-trip through a temp config dir and asserts the window
-// boundaries plus the negative cases (no expiry / no refresh_token / API key).
+// auth::oauth_proactive_refresh_token ()读读
+// -disk 凭据 决定是否将A交还给 refresh_token 所以,我们 状态更新函数
+// 能够预览 -refresh 很快的 很快的 {\3cH202020}A
+// soon -to-lapse OAuth 证书 之前 下一个请求是401(第一次)
+// -message-lag 修补到套接字预热的兄弟姐妹。 保存 探索圆形 -trip 并声明
+// 窗口边界加负数( 无过期 / 无) refresh_token / API ) , 键盘).
 //
-// A doctest case in the consolidated binary (links the shared object set, so
-// auth.cpp comes for free). It points XDG_CONFIG_HOME at a unique temp dir and
-// disables the keystore so save/load go straight to the sealed file.
+// A doctest 合并案件 二进制程序 (链接 共享对象集,
+// 所以 auth.cpp 免费来。它指 XDG_CONFIG_HOME 在一个
+// 独特的临时目录中,并禁用密钥托尔 save/load 直接转到密封文件
 #include <doctest/doctest.h>
 
 #include "agentty/auth/auth.hpp"
@@ -54,7 +54,7 @@ void isolate_config_dir() {
 #endif
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("oauth proactive refresh: window + negative cases") {
     isolate_config_dir();
@@ -91,9 +91,9 @@ TEST_CASE("oauth proactive refresh: window + negative cases") {
 
     SUBCASE("custom window boundaries") {
         save_oauth(t + 4 * 60 * 1000, "rt-window");
-        // 4 min out is fresh under a 1-min window …
+        // 4分钟后在1-min窗口下新鲜...
         CHECK(!auth::oauth_proactive_refresh_token(::agentty::IoAccess::grant(), 60 * 1000).has_value());
-        // … but stale under a 10-min window.
+        // . 不过... 过期 10岁以下 -min 窗口中选择一个窗口。
         auto tok = auth::oauth_proactive_refresh_token(::agentty::IoAccess::grant(), 10 * 60 * 1000);
         REQUIRE(tok.has_value());
         CHECK(*tok == "rt-window");

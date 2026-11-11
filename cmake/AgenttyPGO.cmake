@@ -1,17 +1,17 @@
-# AgenttyPGO.cmake — opt-in profile-guided optimization (two-phase). Operates
-# on the already-defined `agentty` target; included after it. No-op unless
-# -DAGENTTY_PGO=generate|use. See the header comment for the workflow.
+# AgenttyPGO.cmake-opt-in配置文件-guided优化(two-phase)。
+# 在已经-defined `agentty`目标上运行；包含在它之后。 No-op 除非
+# -DAGENTTY_PGO=generate|use. 请参阅工作流程的 头文件 注释。
 
-# ── Profile-guided optimization (opt-in, two phases) ────────────────────
-# Phase 1: `cmake -B build-pgogen -DAGENTTY_PGO=generate` → build, then run
-#          `scripts/pgo-train.sh build-pgogen/agentty` — a scripted PTY
-#          workload covering boot, typing, pickers, redraw, and quit (the
-#          CPU-bound hot paths; network-free, no credentials needed).
-# Phase 2: `cmake -B build-pgouse -DAGENTTY_PGO=use` → rebuild using the
-#          counters — typical gain on streaming + layout hot paths is
-#          8–12% wall-clock, 3–6% binary size on MSVC/GCC/Clang.
-# The profile data directory is kept out of build/ so switching generators
-# or blowing away build/ doesn't lose your collected profile.
+# ── Profile-guided 优化( opt) -in ,两个阶段) ────────────────────
+# 第 1 阶段：`cmake -B build-pgogen -DAGENTTY_PGO=generate`→构建，
+#          然后运行 ​​`scripts/pgo-train.sh build-pgogen/agentty`
+#          ——脚本化的 PTY 工作负载，涵盖启动、键入、选择面板、重绘 和退出（
+#          CPU-bound 热路径；network-free，不需要 凭据）。
+# 第 2 阶段：`cmake -B build-pgouse -DAGENTTY_PGO=use`→
+#          使用计数器重建 — 流式传输 上的典型增益 + 布局热路径是 8-12% wall
+#          -clock，3-6% 二进制程序 上的 MSVC/GCC/Clang. 尺寸
+# 档案数据目录不存在于build/之外，
+# 因此切换发电机或吹走build/不会丢失您收集的档案。
 set(AGENTTY_PGO "" CACHE STRING
     "Profile-guided optimization: 'generate', 'use', or empty.")
 set(AGENTTY_PGO_DIR "${CMAKE_SOURCE_DIR}/pgo-data" CACHE PATH
@@ -29,8 +29,8 @@ if(AGENTTY_PGO)
             target_compile_options(agentty PRIVATE -fprofile-instr-generate)
             target_link_options(agentty PRIVATE -fprofile-instr-generate)
         elseif(AGENTTY_PGO STREQUAL "use")
-            # Expect `llvm-profdata merge -output=agentty.profdata ${AGENTTY_PGO_DIR}/*.profraw`
-            # to be run between the two builds.
+            # 期望`llvm-profdata merge -output=agentty.profdata ${AGENTTY_PGO_DIR}/*.profraw`
+            # 在两个构建之间运行。
             target_compile_options(agentty PRIVATE "-fprofile-instr-use=${AGENTTY_PGO_DIR}/agentty.profdata")
             target_link_options(agentty PRIVATE "-fprofile-instr-use=${AGENTTY_PGO_DIR}/agentty.profdata")
         endif()

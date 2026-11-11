@@ -1,14 +1,14 @@
 #pragma once
-// agentty activity-indicator word pool — 1000 curated terms.
-// Auto-generated from gen_words.py; checked in. Owned by the host so
-// maya's ActivityIndicator widget stays content-agnostic — the host
-// passes the rotating word list into Config::words.
+// agentty活动-indicator字池 — 1000个策划术语。
+// Auto-generated来自gen_words.py；已签入。由主机拥有，
+// 因此 maya 的 ActivityIndicator 小部件保留内容-agnostic
+// — 主机将旋转单词列表传递到 Config::words。
 //
-// Mixed domains so the verb stream feels alive: thinking/reasoning,
-// CS, math, philosophy, craft, kitchen, nature, music, physics,
-// writing, sport, detective, AI, space, gaming, medical, finance,
-// astro, bio, travel, plus a tail of re-prefix verbs. All entries
-// are lowercase ASCII, 3-12 chars.
+// 混合领域，因此动词数据流感觉生动：thinking/reasoning、
+// CS、数学、哲学、工艺、厨房、自然、音乐、物理、写作、
+// 运动、侦探、AI、空间、游戏、医疗、金融、天文、生物、
+// 旅行，加上re-prefix动词的末尾。所有条目均为小写
+// ASCII，3-12 个字符。
 
 #include <array>
 #include <string_view>

@@ -1,62 +1,62 @@
 #pragma once
-// agentty/provider/openai/conformance.hpp — what we send, and to whom.
+// agentty/provider/openai/conformance.hpp——我们发送什么以及发送给谁。
 //
-// ── WHY "100% SPEC-CONFORMANT" IS THE WRONG TARGET ───────────────────────
+// ── 原因 "100% SPEC-CONFORMANT" IS 该 WRONG TARGET ───────────────────────
 //
-// It sounds like the obviously correct goal, and adopting it would break
-// agentty on most of the endpoints it talks to. Concretely:
+// 这听起来显然是正确的目标，并且采用它会在它所对话的大
+// 多数端点上破坏 agentty。具体来说：
 //
-//   OpenAI DEPRECATED `max_tokens` on Chat Completions in favour of
-//   `max_completion_tokens`. Strict conformance to OpenAI's document means
-//   sending the new name. But vLLM, llama.cpp, Together, Fireworks and most
-//   of the compat family accept ONLY `max_tokens` — so conforming to the
-//   spec breaks the majority of the ecosystem that the spec is named after.
+//   OpenAI DEPRECATED `max_tokens`
+//   聊天完成有利于 `max_completion_tokens`。
+//   严格遵守OpenAI的文件意味着发送新名称。但 vLLM、llama.cpp、
+//   Together、Fireworks 和大多数兼容系列都接受 仅
+//   `max_tokens` — 因此，符合该规范会破坏该规范命名的大部分生态系统。
 //
-// There is no single authority to conform TO (see lens.hpp): OpenAI's own
-// openapi document and vLLM's server are the two de-facto sources and they
-// disagree. So the target is not "match the document", it is:
+// 没有单一的权威机构来符合TO(参见lens.hpp)：OpenAI自己的
+// openapi文档和vLLM的服务器是两个de-facto来源，并且他们不同意。
+// 所以目标不是"match the document"，而是：
 //
-//        BE CORRECT FOR THE ENDPOINT WE ARE ACTUALLY TALKING TO.
+//        必须根据当前实际通信的端点确保行为正确。
 //
-// That is a per-endpoint decision, and this header is where those decisions
-// are written down instead of being implied by an `if (use_tls)` buried in
-// the body builder.
+// 这是一个 per-endpoint 决策，并且这个 头文件 是那些决策
+// 被写下的地方，而不是由埋在 正文 构建器中的 `if (use_tls)`
+// 暗示的。
 //
-// ── THE RULE ─────────────────────────────────────────────────────────────
+// ── 该 RULE ─────────────────────────────────────────────────────────────
 //
-// A request field falls into one of three tiers. The tier says who may
-// receive it, and every tier assignment below cites the evidence.
+// 请求字段落入三层之一。该层规定了谁可以接收它，
+// 并且下面的每个层分配都引用了证据。
 //
-//   Universal   every OpenAI-shaped endpoint accepts it. Send always.
-//   Hosted      the big hosted APIs take it; local servers reject or choke.
-//               Gated on TLS, which is the honest proxy for "not a laptop".
-//   Probed      only send when the endpoint was OBSERVED to support it.
-//               A registry row claiming support is not evidence (see
-//               Observed<T> in lens.hpp, and PR #53).
+//   通用的每个OpenAI-shaped端点都接受它。总是发送。
+//   托管大托管API拿它；本地服务器拒绝或阻塞。
+//               在 TLS 上门控，这是 "not a laptop" 的诚实代理。
+//   探测仅当端点为OBSERVED时才发送以支持它。
+//               声称支持的注册表行不是证据（参见lens.hpp中的
+//               Observed<T>和PR#53)。
 //
-// The failure modes are not symmetric, which is what sets the default:
-// sending a field an endpoint rejects is a HARD 400/422 that kills the turn;
-// omitting a field costs an optimisation. So when in doubt, omit.
+// 故障模式不是对称的，这就是设置默认值的原因：
+// 发送端点拒绝的字段是杀死回合的HARD 400/422；
+// 省略一个字段会导致优化成本。因此，如有疑问，请省略。
 //
-// ── AND TOLERANCE VARIES, SO IT CANNOT BE ASSUMED ────────────────────────
+// ── 和 TOLERANCE VARIES, SO IT CANNOT BE ASSUMED ────────────────────────
 //
-// Measured on Yolo-Auto (vllm-0.29.1 behind a billing proxy, 2026-09-23):
-// it accepts `prompt_cache_key`, `reasoning_effort` AND
-// `max_completion_tokens` — all HTTP 200, unknown fields silently ignored.
-// vLLM is permissive by default.
+// 在 Yolo-Auto (计费代理后面的 vllm-0.29.1，2026-09-23)上测量：
+// 它接受 `prompt_cache_key`、`reasoning_effort`
+// 和 `max_completion_tokens` — 所有 HTTP 200、未知字段均被默默忽略。
+// vLLM默认是允许的。
 //
-// That is exactly why the tiers are NOT derived from "did it work somewhere".
-// One tolerant endpoint proves nothing about a strict one: Mistral MAGISTRAL
-// returns 422 for the same `reasoning_effort` this host shrugs at. A field is
-// Universal only when it works on the STRICTEST endpoint we support, never
-// because the most permissive one let it through.
+// 这正是从"did it work somewhere"派生出NOT层的原因。
+// 一个容忍端点与严格端点没有任何关系：Mistral MAGISTRAL
+// 对于该主机耸肩的同一个 `reasoning_effort` 返回 422。
+// 仅当字段在我们支持的 STRICTEST 端点上工作时，
+// 它才是通用的，绝不会因为最宽松的端点而让它通过。
 //
-// GitHub Copilot's runtime reaches the same conclusion from the other side:
-// its model records carry `supported_endpoints` and per-model
-// `supportsReasoningEffort`, and it ships a whole
-// `reasoning_effort_fallback` path (configured_effort → resultingEffort with
-// a primary_reason) rather than assuming a configured effort is deliverable.
-// Capability is per-endpoint data, not a global constant.
+// GitHub副驾驶的运行时从对方得到同样的结论：
+// 其模型记录携带`supported_endpoints`和per-model
+// `supportsReasoningEffort`，
+// 并且它运送整个`reasoning_effort_fallback`路径(configured_effort
+// →resultingEffort和primary_reason)，而不是假设配置的工作是可交付的。
+// 能力是每个-endpoint数据，而不是全局常数。
 
 #include <cstdint>
 #include <string_view>
@@ -64,20 +64,20 @@
 namespace agentty::provider::openai::conformance {
 
 enum class Tier : std::uint8_t {
-    Universal,  // send to everything
-    Hosted,     // TLS endpoints only
-    Probed,     // only with positive evidence
+    Universal,  // 发送至一切
+    Hosted,     // 仅TLS端点
+    Probed,     // 仅在有确凿证据的情况下
 };
 
 struct FieldRule {
     std::string_view field;
     Tier             tier;
-    std::string_view rationale;   // the evidence, not an opinion
+    std::string_view rationale;   // 证据，而非意见
 };
 
-// The request-side decisions, as data. Adding a field to the body without
-// adding it here is how a 422 on one provider becomes a mystery six months
-// later.
+// request-side决定，作为数据。向 正文 添加一个字段而不在此处添加，
+// 这就是 6 个月后 422 on one 提供商如何成为一个谜的
+// 原因。
 inline constexpr FieldRule kRequestFields[] = {
     {"model", Tier::Universal,
      "required by every implementation"},
@@ -122,8 +122,8 @@ inline constexpr FieldRule kRequestFields[] = {
      "being re-checked at the wire. Evidence, not a capability table."},
 };
 
-// Fields agentty deliberately does NOT send, and why. Kept because "we tried
-// that and it broke X" is knowledge that otherwise lives only in a git log.
+// 字段agentty故意发送NOT，以及为什么。之所以保留，
+// 是因为 "we tried that and it broke X" 是知识，否则只能存在于 git 日志中。
 inline constexpr FieldRule kOmittedFields[] = {
     {"max_completion_tokens", Tier::Probed,
      "OpenAI's replacement for max_tokens. NOT sent: most of the compat "

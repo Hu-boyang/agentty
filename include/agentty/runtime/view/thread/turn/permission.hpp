@@ -4,8 +4,8 @@
 
 namespace agentty::ui {
 
-// Build the Permission widget config from the pending permission +
-// the tool call it's gating. Pure data extraction — no Element work.
+// 从 待处理 权限 +其门控工具 调用 构建 权限 小部件配置。
+// 纯粹的数据提取——没有 Element 工作。
 [[nodiscard]] maya::Permission::Config inline_permission_config(
     const PendingPermission& pp, const ToolUse& tc);
 

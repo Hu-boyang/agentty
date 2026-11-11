@@ -1,16 +1,16 @@
-// Panel input snappiness + burst correctness.
+// 面板输入snappiness + 爆发正确性.
 //
-// Two questions, both about what happens when keys arrive FASTER than a
-// frame:
+// 两个问题,两个问题都问到钥匙到来后会怎样 FASTER 超过
+// 帧:
 //
-//   1. LATENCY — does one keypress fit inside a key-repeat slot (~33 ms at
-//      30/s) on every panel, not just the theme browser?
+//   1. LATENCY 键盘里有键盘吗? -repeat 插槽( ~33 ms at)
+//      每个面板上都有30/s, 不只是主题浏览器?
 //
-//   2. CORRECTNESS under burst — a fast terminal delivers a whole key-repeat
-//      run in ONE read(), and maya dispatches every event before painting
-//      once. So N arrows must land on exactly the same state as N separate
-//      frames would. If they don't, that's the "input race" class: a
-//      coalesced burst that ends somewhere a single-stepped run wouldn't.
+//   2. CORRECTNESS 爆炸后,一个快餐 终端 提供完整的密钥 -repeat
+//      运行在 一个 read() ,和 maya 发送次数 事件 因此,
+//      N箭头必须降落在与N分离完全相同的状态上 帧 一定会的,
+//      如果不是的话,那就是 "input race"
+//      类: 连结的爆裂, 以单曲结束 -stepped 跑不会的
 #include "agentty/runtime/model.hpp"
 #include "agentty/runtime/msg.hpp"
 #include "agentty/runtime/app/deps.hpp"
@@ -51,16 +51,16 @@ Model seeded(int msgs) {
     }
     app::detail::rehydrate_frozen(m);
 
-    // Model the post-paint trim, or this measures a canvas the user never
-    // types against. rehydrate seeds a wide window so a resumed thread
-    // has real scrollback; the first frame paints it, then meta.cpp's
-    // Tick arm trims to frozen_row_budget() once every block has a
-    // recorded height. Every keystroke after that renders the SMALL
-    // canvas, which is what this test is about.
+    // Model 员额 -paint 修剪,或测量用户从未对它
+    // 进行打字。将种子补水,宽的窗口恢复 线程 真实 回滚缓冲区 ;
+    // 第一个 帧 画出来,然后 meta.cpp 手臂的
+    // 剪切到 frozen_row_budget ()
+    // 一旦每个街区都有记录的高度。 渲染 编号 SMALL 帆布,
+    // 这就是这个测试的目的。
     //
-    // Headless there is no paint, so record the heights the renderer
-    // would (the ledger refuses to drop a block whose height was never
-    // recorded -- scrollback_ledger.hpp's provability gate).
+    // 没有头,没有油漆,所以记录高度 渲染器 将拒绝
+    // 投下一个从未记录其高度的区块,
+    // scrollback_ledger.hpp 其可推广性门.
     for (std::size_t k = 0; k < m.ui.frozen.size(); ++k)
         m.ui.frozen.record_paint(k, static_cast<int>(m.ui.frozen.block_rows(k)));
     (void)app::detail::trim_frozen_if_oversized(m);
@@ -74,7 +74,7 @@ void paint(const Model& m) {
     (void)maya::render_to_string(el, 100);
 }
 
-// Cost of ONE key: reduce + the paint that follows the batch.
+// ONE键的成本:减少+批次后的涂料.
 double key_ms(Model& m, const Msg& key) {
     auto t0 = clk::now();
     m = app::update(std::move(m), Msg{key}).first;
@@ -86,7 +86,7 @@ const char* verdict(double ms, double budget) {
     return ms <= budget ? "snappy" : "SLOW";
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 int main() {
     app::install_deps(app::Deps{
@@ -101,15 +101,15 @@ int main() {
         .title_from    = [](std::string_view) { return std::string{"t"}; },
     });
 
-    constexpr double kBudget = 33.3;   // one key-repeat slot at 30/s
-    const int msgs = 800;              // a long session
+    constexpr double kBudget = 33.3;   // 30/s时段的1个关键值-repeat
+    const int msgs = 800;              // 长会
     std::printf("transcript=%d msgs   budget=%.1f ms/key (30/s key repeat)\n\n",
                 msgs, kBudget);
 
-    // ── 1. Per-panel latency ────────────────────────────────────────────
+    // ── 1. 人数 -panel 延迟 ────────────────────────────────────────────
     std::printf("%-26s %10s  %s\n", "panel / action", "ms/key", "verdict");
 
-    {   // Theme browser: the one with 615 rows and a live re-seal per move.
+    {   // 主题浏览器:每动一个有615行和活的Re-seal的浏览器.
         Model m = seeded(msgs);
         m = app::update(std::move(m), Msg{OpenAppearance{}}).first;
         m = app::update(std::move(m), Msg{AppearancePickTheme{}}).first;
@@ -121,7 +121,7 @@ int main() {
         CHECK(worst <= kBudget, "theme browser %.1f ms > %.1f budget", worst, kBudget);
     }
 
-    {   // Typing in the theme filter: re-filters 615 names per keystroke.
+    {   // 在主题过滤器中打字:re-filters每键键盘615个名称.
         Model m = seeded(msgs);
         m = app::update(std::move(m), Msg{OpenAppearance{}}).first;
         m = app::update(std::move(m), Msg{AppearancePickTheme{}}).first;
@@ -134,7 +134,7 @@ int main() {
         CHECK(worst <= kBudget, "theme filter %.1f ms > %.1f budget", worst, kBudget);
     }
 
-    {   // The appearance FORM itself (row navigation, no browser).
+    {   // 外观FORM本身(row nailing, no 浏览器).
         Model m = seeded(msgs);
         m = app::update(std::move(m), Msg{OpenAppearance{}}).first;
         double worst = 0;
@@ -147,23 +147,23 @@ int main() {
         CHECK(worst <= kBudget, "appearance form %.1f ms > %.1f budget", worst, kBudget);
     }
 
-    // The LANGUAGE row specifically, cycled rather than passed over.
+    // 电话 LANGUAGE 排成一行,循环而不是通过。
     //
-    // It is the heaviest row in the pane and the only one whose cost scales
-    // with something other than itself: building it calls completeness()
-    // once per language, and each of those walks the English catalog. That
-    // is 20 walks per form build, and the form is rebuilt on every keystroke
-    // in the pane.
+    // 这是最重的一排 面板 并且是唯一一个成本 以
+    // 其他东西 建造它 调用 completeness()
+    // 每种语言,每个语言都行英语 目录。
+    // 即每块20步的窗体, 窗体重建在每块键盘上。
+    // 面板.
     //
-    // Measured at 3.8 us for all twenty -- 0.02% of a 33 ms budget, which is
-    // why it ships as a straight loop rather than a cache. This case is here
-    // so that stays true: a future id-count in the hundreds, or a
-    // completeness() that got slower, shows up as a number here instead of
-    // as "the settings pane feels sticky" in a bug report.
+    // 以3.8美元衡量,我们全部为33毫秒预算的0.02%,这就是为什么它
+    // 作为一个直径而不是一个 缓存。本案在此,所以真实性不变:未来身份
+    // -count 数以百计,或 completeness() 慢了点,
+    // 就在这里出现一个数字,而不是 "the settings pane feels sticky"
+    // 在一个错误报告。
     //
-    // ALSO the row that applies LIVE. Each cycle swaps the catalog pointer
-    // and rebuilds the form in the new language, so this measures the whole
-    // switch path, not just the row.
+    // ALSO 应用的行 LIVE。每个周期互换 目录
+    // 指针和在新语言中重建形式,因此这可以测量整个切换路径,
+    // 而不仅仅是行.
     {
         Model m = seeded(msgs);
         m = app::update(std::move(m), Msg{OpenAppearance{}}).first;
@@ -175,9 +175,9 @@ int main() {
         double worst = 0;
         for (int i = 0; i < 20; ++i) {
             AppearanceKey k;
-            // -> on a Choice row: the gesture that actually SWITCHES
-            // language, so each iteration swaps the catalog pointer and
-            // rebuilds the form in the new language.
+            // - > 在选择行上:实际的姿态
+            // SWITCHES 语言,所以每个迭代互换
+            // 目录 指针并重建新语言中的窗体。
             k.action = form::keys::Action{form::keys::Intent::AdjustUp, 0};
             worst = std::max(worst, key_ms(m, Msg{k}));
         }
@@ -187,9 +187,9 @@ int main() {
               worst, kBudget);
     }
 
-    // The other panels a user holds an arrow in. Same budget, same reason:
-    // every one of them repaints the transcript behind it, so a slow one
-    // would show up here rather than in a bug report.
+    // 其它面板中, 用户会持有箭头。 预算相同, 原因相同 :
+    // 每一个 重绘 记录在后面,所以慢的会出现在这里,
+    // 而不是出现在错误报告。
     {
         Model m = seeded(msgs);
         m = app::update(std::move(m), Msg{OpenPalette{}}).first;
@@ -218,9 +218,9 @@ int main() {
         std::printf("%-26s %10.2f  %s\n", "settings list  \u2193", worst, verdict(worst, kBudget));
         CHECK(worst <= kBudget, "settings list %.1f ms > %.1f budget", worst, kBudget);
     }
-    // The model picker: the panel users report as laggy. It fuses every
-    // authed provider's catalog, so both its reducer and its view are the
-    // heaviest of the pickers.
+    // 模型( 模型) 选择面板 :面板用户报告为 laggy。
+    // 它将每个认证提供者的 目录 ,所以两者 状态更新函数 其
+    // 观点是: 选择面板.
     {
         Model m = seeded(msgs);
         auto t0 = clk::now();
@@ -240,12 +240,12 @@ int main() {
         CHECK(type_worst <= kBudget, "model filter %.1f ms > %.1f budget", type_worst, kBudget);
     }
 
-    // ── 2. Burst == single-step (the race check) ────────────────────────
+    // ── 2. 伯斯特单曲 -step (无) 竞态 检查) ────────────────────────
     //
-    // A fast terminal delivers a key-repeat run in ONE read, and maya
-    // dispatches every event before painting once. So 20 arrows delivered as
-    // a burst must land exactly where 20 arrows delivered one-per-frame land.
-    // Anything else means the landing spot depends on terminal timing.
+    // 斋戒 终端 提供密钥 -repeat 运行在 一个 读,
+    // 和 maya 发送次数 事件 20支箭作为爆破的箭
+    // 一定降落在20支箭的地方 -per-frame 陆地。
+    // 其它任何意味着着陆点取决于终端的时点.
     std::printf("\nburst vs single-step (20 \u2193):\n");
     {
         const int kN = 20;
@@ -253,14 +253,14 @@ int main() {
         Model burst = seeded(msgs);
         burst = app::update(std::move(burst), Msg{OpenAppearance{}}).first;
         burst = app::update(std::move(burst), Msg{AppearancePickTheme{}}).first;
-        for (int i = 0; i < kN; ++i)   // all events, THEN one paint
+        for (int i = 0; i < kN; ++i)   // 全部( E) 事件, THEN 一张油漆
             burst = app::update(std::move(burst), Msg{AppearanceThemeMove{+1}}).first;
         paint(burst);
 
         Model step = seeded(msgs);
         step = app::update(std::move(step), Msg{OpenAppearance{}}).first;
         step = app::update(std::move(step), Msg{AppearancePickTheme{}}).first;
-        for (int i = 0; i < kN; ++i) { // paint between every event
+        for (int i = 0; i < kN; ++i) { // 彩绘在每张相间 事件
             step = app::update(std::move(step), Msg{AppearanceThemeMove{+1}}).first;
             paint(step);
         }
@@ -278,14 +278,14 @@ int main() {
               "burst landed on a different THEME than single-stepping");
     }
 
-    // A wrap must also be timing-independent: 615 themes, walk past the end.
+    // 包装也必须是时间-independent:615个主题,走过结尾.
     {
         Model a = seeded(8), b = seeded(8);
         for (Model* p : {&a, &b}) {
             *p = app::update(std::move(*p), Msg{OpenAppearance{}}).first;
             *p = app::update(std::move(*p), Msg{AppearancePickTheme{}}).first;
         }
-        const int kWrap = 620;   // past the end of the list
+        const int kWrap = 620;   // 过列表末尾
         for (int i = 0; i < kWrap; ++i)
             a = app::update(std::move(a), Msg{AppearanceThemeMove{+1}}).first;
         for (int i = 0; i < kWrap; ++i) {
@@ -301,27 +301,27 @@ int main() {
         CHECK(a.d.ui().theme == b.d.ui().theme, "wrap landed on a different theme");
     }
 
-    // ── 3. The routing race: a batch that CHANGES which panel owns keys ──
+    // ── 3. 路线 竞态 : 批次, 即: CHANGES 哪个面板拥有密钥 ──
     //
-    // This is the one a reducer-level test cannot see. maya routes each key
-    // through the subscription built from the CURRENT model, and a fast
-    // terminal delivers "Enter ↓ ↓ ↓" in one read. If the loop reused the
-    // pre-Enter subscription for the arrows, they would route to the form
-    // underneath (moving its cursor) instead of the browser that Enter just
-    // opened — a keypress that visibly does nothing.
+    // 碞琌硂 状态更新函数-level 测试无法看到。
+    // maya 每一个键通过 事件订阅 建自该 当前 模型,
+    // 一个快 终端 交付 "Enter ↓ ↓ ↓"。
+    // 如果循环重用预览 -Enter 事件订阅 对于箭头,
+    // 它们会沿着下面的窗体(移动它的光标),而不是浏览器,
+    // Enter 刚刚打开的,一个显着无所作为的按键。
     //
-    // maya re-fetches the sub after every drained message for exactly this
-    // reason (app.hpp: "Re-route BETWEEN events, not just between reads").
-    // Model that here: the panel state after the opening message must be
-    // what the following messages are interpreted against.
+    // maya 内容 -fetches 每一个排水消息之后的子,正因为这个原因( app.hpp:
+    // 必须在事件之间重新路由，不能只在读取批次之间路由。
+    // Model在此:面板在开封电文之后
+    // 必须说明以下电文的对应解释。
     std::printf("\nrouting across a panel change (open + 3 \u2193 in one batch):\n");
     {
         Model m = seeded(64);
         m = app::update(std::move(m), Msg{OpenAppearance{}}).first;
 
-        // Enter on the Theme row opens the browser — the panel-changing
-        // event. Everything after it in the same read must land in the
-        // BROWSER, not the form.
+        // Enter 主题行打开浏览器——面板 -changing
+        // 事件 之后的一切,在同一读数中,必须降落在 BROWSER
+        // 而不是表单。
         m = app::update(std::move(m), Msg{AppearancePickTheme{}}).first;
         const auto* opened = m.ui.panel.get<pn::Appearance>();
         CHECK(opened && opened->pane.picking,

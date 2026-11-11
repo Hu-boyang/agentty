@@ -1,9 +1,9 @@
-// slash_menu_test — the composer's `/` menu and the one slash resolver.
+// slash_menu_test - 作曲家的 - 编曲家的 `/` 菜单和斜线解析器。
 //
-// Two layers. The resolver is pure and tested directly. Everything a user
-// sees goes through the real key path (on_key -> update), because the bug
-// this replaces only showed up there: `/` used to open the action palette
-// and the typed name never reached the composer.
+// 两层。 解析器是纯的, 直接测试。 用户看到的一切都会经过真正的密
+// 钥路径( NAME OF TRANSLATORS) on_key
+// - > 更新),因为这个替换错误只显示在那里 : `/` 用于打开
+// 动作调色板和 带类型的 名字从未到达作曲家。
 
 #include "agtest.hpp"
 
@@ -50,8 +50,8 @@ Model press(Model m, const maya::KeyEvent& ev) {
         auto owned = std::move(*msg);
         m = app::update(std::move(m), std::move(owned)).first;
     }
-    // Typing can kick a background OAuth refresh, which queues a send until
-    // it answers. No refresh runs here, so let the send go through.
+    // 打字可以踢踢背景 OAuth 刷新, 将发送排队直到它回答。
+    // 这里没有刷新, 所以让发送通过。
     m.s.oauth_refresh_in_flight = false;
     return m;
 }
@@ -60,7 +60,7 @@ Model type(Model m, std::u32string_view s) {
     return m;
 }
 
-// A model with one user command, one skill and one MCP prompt.
+// 一个有用户命令、技能、技能的模型 MCP 提示词.
 Model fresh() {
     install_stub_deps();
     Model m;
@@ -91,16 +91,16 @@ std::vector<std::string> names(const Model& m) {
     return out;
 }
 
-// The text of the last user message the transcript got.
+// 记录稿上一封用户留言的文本。
 std::optional<std::string> sent(const Model& m) {
     for (auto it = m.d.current.messages.rbegin(); it != m.d.current.messages.rend(); ++it)
         if (it->role == Role::User) return it->text;
     return std::nullopt;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
-// ── the resolver ────────────────────────────────────────────────────────
+// ── 解析器 ────────────────────────────────────────────────────────
 
 TEST_CASE("slash: resolve picks the kind, plain text falls through") {
     const auto cat = slash::make_catalog({{"summarize", "", ""}}, {{"prose", "", ""}},
@@ -112,13 +112,13 @@ TEST_CASE("slash: resolve picks the kind, plain text falls through") {
     CHECK(slash::resolve("/prose tighten this", cat).what == W::Skill);
     CHECK(slash::resolve("/gh:issue crash on start", cat).what == W::Prompt);
     CHECK(slash::resolve("/etc/hosts is odd", cat).what == W::Plain);
-    CHECK(slash::resolve("/undo", cat).what == W::Plain);   // no guessing
-    CHECK(slash::resolve(" /new", cat).what == W::Plain);   // leading space: prose
+    CHECK(slash::resolve("/undo", cat).what == W::Plain);   // ⊿Τ猜
+    CHECK(slash::resolve(" /new", cat).what == W::Plain);   // 主空间: 传言
     CHECK(slash::resolve("/", cat).what == W::Plain);
 }
 
 TEST_CASE("slash: a name clash goes to the earlier source") {
-    // A user command named like a built-in doesn't replace the built-in.
+    // 一个用户命令, 命名为已建 -in 无法取代已建的 -in.
     const auto cat = slash::make_catalog({{"new", "mine", ""}}, {{"new", "", ""}}, {});
     CHECK(slash::resolve("/new", cat).what == slash::Resolved::What::Action);
     int n = 0;
@@ -129,26 +129,26 @@ TEST_CASE("slash: a name clash goes to the earlier source") {
 TEST_CASE("slash: menu shows only while typing the leading name") {
     CHECK(slash::menu_query("/", 1).has_value());
     CHECK(slash::menu_query("/re", 3)->query == "re");
-    CHECK(slash::menu_query("/re", 2)->query == "re");           // caret inside the name
-    CHECK_FALSE(slash::menu_query("/re x", 5).has_value());      // past the name
-    CHECK_FALSE(slash::menu_query("/etc/hosts", 10).has_value()); // a path
-    CHECK_FALSE(slash::menu_query("hi /re", 6).has_value());     // not leading
-    CHECK_FALSE(slash::menu_query("x\n/re", 5).has_value());     // not line one
-    CHECK_FALSE(slash::menu_query("/re", 0).has_value());        // caret before the '/'
+    CHECK(slash::menu_query("/re", 2)->query == "re");           // 名称中的 光标
+    CHECK_FALSE(slash::menu_query("/re x", 5).has_value());      // 过名称
+    CHECK_FALSE(slash::menu_query("/etc/hosts", 10).has_value()); // 路径
+    CHECK_FALSE(slash::menu_query("hi /re", 6).has_value());     // 未显示
+    CHECK_FALSE(slash::menu_query("x\n/re", 5).has_value());     // 非行号
+    CHECK_FALSE(slash::menu_query("/re", 0).has_value());        // 光标 之前, '/'
 }
 
 TEST_CASE("slash: filter ranks exact, then prefix, then fuzzy") {
     const auto cat = slash::make_catalog({{"rebase-all", "", ""}, {"fork-and-rename", "", ""}}, {}, {});
     const auto rows = slash::filter(cat, "re");
     REQUIRE(rows.size() >= 3);
-    // Every name that starts with "re" comes before one that only contains it.
+    // 每个以"re"开头的名字都出现在只包含它的名字之前.
     bool seen_fuzzy = false;
     for (const auto& r : rows) {
         const bool prefix = r.entry->name.starts_with("re");
         if (!prefix) seen_fuzzy = true;
         else CHECK_FALSE(seen_fuzzy);
     }
-    CHECK(slash::filter(cat, "rename").front().entry->name == "rename");   // exact first
+    CHECK(slash::filter(cat, "rename").front().entry->name == "rename");   // 准确的第一
 }
 
 TEST_CASE("slash: complete replaces the name and keeps what follows") {
@@ -161,12 +161,12 @@ TEST_CASE("slash: complete replaces the name and keeps what follows") {
     CHECK(c.cursor == 11);
 }
 
-// ── through the keys ────────────────────────────────────────────────────
+// ── 通过密钥 ────────────────────────────────────────────────────
 
 TEST_CASE("slash menu: typed text stays in the composer") {
     auto m = type(fresh(), U"/su");
     CHECK(m.ui.composer.text == "/su");
-    CHECK(ui::panel::top(m) == ui::panel::Kind::None);   // no palette took over
+    CHECK(ui::panel::top(m) == ui::panel::Kind::None);   // 没有调色板接手
     CHECK(names(m).front() == "summarize");
     CHECK(ui::slash_menu_open(m));
 }
@@ -175,7 +175,7 @@ TEST_CASE("slash menu: Tab completes, Enter on the full name sends the template"
     auto m = type(fresh(), U"/su");
     m = press(std::move(m), sk(maya::SpecialKey::Tab));
     CHECK(m.ui.composer.text == "/summarize ");
-    CHECK_FALSE(ui::slash_menu_open(m));   // past the name now
+    CHECK_FALSE(ui::slash_menu_open(m));   // 过这个名字了
     m = type(std::move(m), U"a.cpp");
     m = press(std::move(m), sk(maya::SpecialKey::Enter));
     CHECK(sent(m) == "Summarize a.cpp please");
@@ -185,7 +185,7 @@ TEST_CASE("slash menu: Enter on a partial name completes instead of guessing") {
     auto m = type(fresh(), U"/su");
     m = press(std::move(m), sk(maya::SpecialKey::Enter));
     CHECK(m.ui.composer.text == "/summarize ");
-    CHECK_FALSE(sent(m).has_value());   // nothing sent
+    CHECK_FALSE(sent(m).has_value());   // 没有发送
 }
 
 TEST_CASE("slash menu: arrows pick a row, Tab takes it") {
@@ -197,7 +197,7 @@ TEST_CASE("slash menu: arrows pick a row, Tab takes it") {
     CHECK(m.ui.composer.slash.index == 2);
     m = press(std::move(m), sk(maya::SpecialKey::Tab));
     CHECK(m.ui.composer.text == "/" + all[2] + " ");
-    // Up wraps from the top, same as every list.
+    // 上面的包装,和每张名单一样。
     m = type(fresh(), U"/");
     m = press(std::move(m), sk(maya::SpecialKey::Up));
     CHECK(m.ui.composer.slash.index == static_cast<int>(all.size()) - 1);
@@ -219,7 +219,7 @@ TEST_CASE("slash menu: a path or unknown name is sent as typed") {
     CHECK(sent(m) == "/etc/hosts");
 
     m = type(fresh(), U"/undo");
-    CHECK_FALSE(ui::slash_menu_open(m));   // no match: menu closes itself
+    CHECK_FALSE(ui::slash_menu_open(m));   // 无匹配: 菜单关闭本身
     m = press(std::move(m), sk(maya::SpecialKey::Enter));
     CHECK(sent(m) == "/undo");
 }
@@ -288,8 +288,8 @@ TEST_CASE("slash menu: paste then Enter expands the command") {
     {
         auto msg = app::on_paste(m, maya::PasteEvent{"/summarize b.cpp"});
         m = app::update(std::move(m), std::move(msg)).first;
-        // A paste that could be a file path is checked for an image on a
-        // worker first; it isn't one, so the reply hands the text back.
+        // 一个可能是文件路径的粘贴片首先会被检查一个工作线程
+        // 上的图像;它不是一个,所以回复者将文本递回.
         if (m.ui.composer.text.empty())
             m = app::update(std::move(m),
                 Msg{ImagePathSniffed{"/summarize b.cpp", {}, {}, {}}}).first;

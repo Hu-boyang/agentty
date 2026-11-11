@@ -1,10 +1,10 @@
 #pragma once
-// agentty::tools::tool_loading — the live MCP tool-loading setting and the
-// tool_search tool (#98).
+// agentty::tools::tool_loading —实时MCP工具-loading设置和tool_search工具
+// (#98)。
 //
-// Same shape as web_search_policy: the setting is persisted with the rest of
-// settings.json and edited in the TUI, but read on turn workers (TUI, `agentty
-// run`, subagents, ACP), so it lives in one process-wide slot.
+// 与web_search_policy形状相同：该设置与settings.json
+// 的其余部分一起保留并在TUI中编辑，但在工作线程轮上读取(TUI、`agentty run`、
+// 子代理、ACP)，因此它存在于一个进程-wide槽中。
 
 #include <string>
 #include <unordered_set>
@@ -18,44 +18,44 @@
 
 namespace agentty::tools::tool_loading {
 
-// Load the setting from settings.json unless one is already installed.
+// 加载 是 settings.json 的设置，除非已经安装了该设置。
 void seed(Io io);
 [[nodiscard]] plan::Loading current();
 void install(plan::Loading l);
 
-// The tool_search ToolDef. Searches the live catalog when called, so it sees
-// tools from a server that connected after the request was built.
+// tool_search ToolDef。调用时搜索实时 目录，
+// 因此它会看到来自请求构建后连接的服务器的工具。
 [[nodiscard]] const ToolDef& search_tool();
 
-// What a provider + model can take. `anthropic` picks deferred references;
-// `context_window` 0 = unknown. `model` decides whether on-demand loading is
-// used at all: a small model that won't search gets everything that fits.
+// 提供商+模型可以采取什么。 `anthropic` 选择延迟参考；
+// `context_window` 0 = 未知。 `model` 决定是否
+// 使用 on-demand 加载：不会搜索的小模型会获得适合的所有内容。
 [[nodiscard]] plan::Limits limits_for(const provider::Selection& sel,
                                       std::size_t context_window,
                                       std::string_view model = {});
 
-// The one entry point every request builder uses: plan the tools for this
-// turn and append them to `out` as wire specs.
+// 每个请求构建器使用的一个入口点：规划本轮的工具并将
+// 它们作为传输规范附加到`out`。
 //
-//   catalog   the selected tools (live catalog, after any per-caller filter)
-//   loaded    tools::plan::loaded_in(thread)
+//   目录所选工具（实时目录，在任何per-caller过滤器之后）已加载
+//   tools::plan::loaded_in(线程)
 //
-// Returns the plan so the caller can log it and the UI can show counts. The
-// caller keeps the Catalog that `pool` points into alive for the call.
+// 返回计划，以便调用者可以记录它并且UI可以显示计数。
+// 调用者将 `pool` 指向的 目录 保持为 调用 的活动状态。
 struct Request {
-    std::vector<const ToolDef*> pool;          // the tools this caller may use
+    std::vector<const ToolDef*> pool;          // 该呼叫者可能使用的工具
     plan::Loaded loaded;
     plan::Limits limits;
     plan::Loading mode = plan::Loading::Auto;
-    // Each server's handshake instructions, shown in tool_search's
-    // description next to that server (mcp::mcp_server_instructions()).
+    // 每个服务器的握手指令，显示在该服务器旁边的tool_search的
+    // 描述中(mcp::mcp_server_instructions())。
     std::vector<std::pair<std::string, std::string>> server_instructions;
 };
 plan::Plan plan_into(const Request& r, std::vector<provider::ToolSpec>& out);
 
-// Fill the Plugins pane's view of loading (#98): counts, cost, and which
-// tools are on demand, as a fresh thread on the ACTIVE provider would see
-// them. Runs the same planner the request builders do.
+// 填充插件 面板 的加载视图（#98）：计数、
+// 成本以及按需工具，就像 活动 提供商上的新 线程 会看到
+// 它们一样。运行与请求构建器相同的计划器。
 void annotate(mcp::PluginModel& m);
 
 } // namespace agentty::tools::tool_loading

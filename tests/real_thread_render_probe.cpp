@@ -1,14 +1,14 @@
-// real_thread_render_probe — load a REAL thread off disk and render it.
+// real_thread_render_probe — 加载 a 真实 线程 离盘和 渲染 就是这样
 //
-// Not a unit test: a crash probe. Point it at a thread file and it walks
-// the exact path the TUI walks when you pick a thread out of the picker —
-// load → rehydrate_frozen → conversation_config → render_tree — at a
-// couple of widths, so a stack overflow or a dangling view in the render
-// walk reproduces here instead of only in the user's terminal.
+// 不是一个 单元测试 撞机探测器 瞄准一个 线程 文档,
+// 它走准确的路径 TUI 选一个就走 线程 出处 选择面板 — 加载 →
+// rehydrate_frozen → conversation_config
+// → render_tree 宽度几度,所以堆叠溢出,或者在一旁的
+// 一幅画 渲染 步行在此复制, 而不是只在用户的 终端.
 //
 //   ./build/real_thread_render_probe ~/.agentty/threads/<id>.json
 //
-// Exit 0 = rendered clean. A signal = the bug, with a usable backtrace.
+// 0 = 已清理。 信号=错误, 并有可用的反跟踪。
 
 #include <agentty/domain/session.hpp>
 #include <agentty/io/persistence.hpp>
@@ -30,9 +30,9 @@
 
 using namespace agentty;
 
-// Deepest nesting level in the Element tree. paint_element / layout /
-// build_layout_tree all recurse once per level, so this number times the
-// per-frame stack cost is what has to fit in the thread's 8 MB stack.
+// 元素中最深的巢穴水平 源码树. paint_element / 版式/
+// 编辑 build_layout_tree 全部每关重复一次,所以这个数字是每关
+// 重复的倍数 -frame 堆栈成本是必须适应的 线程's 8 MB 堆栈。
 static int element_depth(const maya::Element& e, int d = 0) {
     int best = d;
     std::visit([&](const auto& n) {
@@ -54,9 +54,9 @@ static int element_depth(const maya::Element& e, int d = 0) {
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        // No thread given: nothing to probe. This is how ctest invokes it,
-        // so it must SUCCEED rather than report a failure — the probe is a
-        // hand-run tool (see the header), not an unattended regression test.
+        // 没有 线程 给定: 没什么可探测的。这是Ctest如何引用它,
+        // 所以它必须 SUCCEED 而不是报告失败——探测器是一只手
+        // -run 工具(见框注) 头文件 ),而不是一个未加注意的回归测试。
         std::printf("real_thread_render_probe: no thread file given, nothing "
                     "to do.\nusage: %s <thread.json> [width]\n", argv[0]);
         return 0;
@@ -67,16 +67,16 @@ int main(int argc, char** argv) {
     auto t0 = std::chrono::steady_clock::now();
     std::printf("stage: load\n"); std::fflush(stdout);
 
-    // A migrated thread is <id>.jsonl + .ofs + .meta.json; a legacy one is
-    // a single <id>.json. Accept either, so the same probe measures the
-    // same thread before and after migration.
+    // 迁移 线程 谓 <id> .jsonl + .ofs +. ) 高温的电压.
+    // meta.json ; 遗产是单 <id>.JSON。接受其中之一,
+    // 所以同样的探测器测量 线程 迁移前后.
     std::optional<Thread> loaded;
     if (p.extension() == ".jsonl") {
         auto log = ThreadLog::open_path(p);
         if (log) loaded = log->load_thread();
     } else {
-        // Sub-time the load so the probe says WHERE the thread-switch
-        // latency is: raw I/O, the JSON DOM parse, or the DOM->Thread walk.
+        // 子类 -time 编号 加载 所以探测器说 WHERE 编号 线程-switch
+        // 耐久性为: 生 I/O ,则 JSON DOM 解析 ,或 DOM->线程 走着走着吧
         auto a = std::chrono::steady_clock::now();
         std::ifstream ifs(p, std::ios::binary);
         std::string buf;
@@ -115,10 +115,10 @@ int main(int argc, char** argv) {
     Model m;
     m.d.current = std::move(*loaded);
 
-    // MIGRATE=1: load then save straight back (what the first autosave after
-    // a thread switch does) and report the file-size change. Legacy inline
-    // base64 images become blob references, so an old image-heavy thread
-    // shrinks once and loads fast forever after.
+    // MIGRATE=1: 加载 那样 保存 直接背( 自动保存在之后的
+    // 线程 切换为)并报告文件 -size 更改。遗存内含 base64
+    // 图像变成blob 引用,所以一个旧图像 -heavy 线程
+    // 一次缩进 加载 之后就快了,永远的快
     if (std::getenv("MIGRATE")) {
         const auto before = std::filesystem::file_size(p);
         persistence::save_thread(::agentty::IoAccess::grant(), agtest::cap(), m.d.current);
@@ -134,9 +134,9 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    // BISECT=1: binary-search the message prefix that first corrupts, so a
-    // 1700-message thread names the ONE message that breaks the renderer
-    // instead of leaving "somewhere in here".
+    // BISECT=1: 二进制程序-search 第一次损坏的讯息前缀,
+    // 所以是 1700 -message 线程 名称 一个 打破 渲染器 而不是
+    // 离开 "somewhere in here".
     if (std::getenv("BISECT")) {
         const auto all = m.d.current.messages;
         std::printf("bisect over %zu messages\n", all.size());
@@ -174,9 +174,9 @@ int main(int argc, char** argv) {
         std::printf("stage: depth w=%d\n", w); std::fflush(stdout);
         std::printf("  element tree depth: %d\n", element_depth(el));
         std::fflush(stdout);
-        // Deep-copy the tree BEFORE any rendering touches it. If this
-        // throws/corrupts, the damage was done at BUILD time and the
-        // renderer is an innocent bystander.
+        // 深处 -copy 编号 源码树 之前 任何 渲染 摸摸它,
+        // 如果这样 throws/corrupts ,损害发生在 BUILD
+        // 时间和时间 渲染器 是个无辜的旁观者
         if (std::getenv("COPY_PROBE")) {
             std::printf("stage: copy-probe (pre-render)\n"); std::fflush(stdout);
             maya::Element copy = el;

@@ -1,31 +1,31 @@
-// subagent_lifetime_test — the provider seam must survive an ABANDONED worker.
+// subagent_lifetime_test ——提供者 接口边界 必须活下来 ABANDONED 工作线程.
 //
-// THE BUG THIS PINS. The long-lived providers (Anthropic, ChatGPT, Copilot,
-// Kimi) used to be stack objects in main(), and the stream seam captured them
-// by reference. The justification was "main outlives maya::run", which is
-// true for every thread the runtime waits for.
+// 该 BUG 此 PINS。漫长 -lived 提供者( Anthropic,
+// ChatGPT , 副驾驶, Kimi) 曾经是堆栈对象 main() ,
+// 并显示 数据流 接口边界 理由是: "main outlives maya::run" ,
+// 这对每个 线程 编号 运行时 等诸人.
 //
-// Subagents are exactly the threads it does not wait for. A `task` runs on a
-// Cmd::task_isolated thread, and jaal DETACHES those — its kernel pool header
-// says isolated threads are "asked to stop but never waited for". Shutdown
-// now asks (run_tool reads its stop_token) and waits, but the wait is
-// BOUNDED on purpose: a thread wedged in a syscall must not hold the process
-// open. So abandonment is a designed outcome, and with a by-reference capture
-// an abandoned worker called into freed stack memory while main unwound.
+// 副剂就是 线程 等不及了,A,我等不及了 `task` 运行在 a
+// Cmd::task_isolated 线程 ,和 jaal DETACHES
+// 这些——其内核 池 头文件 说孤立 线程 已经
+// 请求了停止，却从未等待任务结束。
+// 关闭现在问( run_tool 读取其 stop_token 等待,但等待是,
+// BOUNDED 目的:a 线程 放弃是设计的结果,而放弃是必然的结果。
+// -reference 抓取一个废弃 工作线程 调用为自由堆栈 内存 却又无法受伤
 //
-// It only faulted when a subagent happened to be mid-stream at quit — which
-// is precisely when a user gives up on a slow one and presses escape. That
-// is why it read as "subagents crash sometimes".
+// 只有在副剂正好在中场时才有问题 -stream 退出时,
+// 用户会放弃慢速的, 按下逃生键。 所以它读作
+// "subagents crash sometimes".
 //
-// The fix is ownership, not timing: the seam holds shared_ptrs, so the last
-// user out destroys the provider and an abandoned worker keeps it alive for
-// as long as it is still touching it. No grace period to tune, nothing to
-// race.
+// 固定时间为所有权,而非时间:接口边界持有shared_ptrs,
+// 所以最后的用户退出会摧毁提供者,一个废弃的工作线程只要它
+// 还在触摸它,就让它活着,没有宽限期调谐,什么都没有到竞
+// 态.
 //
-// Run under ASan (this is a `sanitizer`-labelled lane) so the BEFORE shape
-// would be a hard stack-use-after-scope rather than a probabilistic crash.
-// Verified: the by-reference version of this same harness aborts here with
-// "AddressSanitizer: stack-use-after-scope ... WRITE of size 4 thread T1".
+// 运行在 ASan( 这是 `sanitizer`-labelled 车道)
+// 之前 形状会是一个硬堆 -use-after-scope 而不是一场概率性的坠机
+// 已验证: 由 -reference 此相同的套管版本在此中止
+// "AddressSanitizer: stack-use-after-scope ... WRITE of size 4 thread T1".（AddressSanitizer 报告栈变量作用域结束后，线程 T1 仍写入 4 字节。）
 
 #include <atomic>
 #include <chrono>
@@ -45,9 +45,9 @@ void check(bool ok, const char* what) {
     else       std::printf("ok:   %s\n", what);
 }
 
-// Stands in for a provider: has state the stream both reads and writes, and
-// a destructor that poisons it so a use-after-free is detectable even
-// without a sanitizer.
+// 提供方的站牌: 已声明 数据流 读写都一样 并且一个破坏者
+// 毒害它 如此的用途 -after-free 即便没有消毒剂,
+// 也能够检测到。
 struct FakeProvider {
     static constexpr int kCanary = 0x5A5A5A;
     int canary = kCanary;
@@ -60,12 +60,12 @@ struct FakeProvider {
     ~FakeProvider() { canary = 0; }
 };
 
-}  // namespace
+}  // 命名空间结束。
 
 int main() {
-    // The seam, shaped like main()'s stream_fn: a std::function that outlives
-    // the scope which constructed the providers, because the subagent config
-    // holds a copy of it process-wide.
+    // 电话 接口边界 形状像 main()'s stream_fn: a
+    // std::function 超过构建提供者的范围, 因为子代理配置
+    // 持有其进程的副本 -wide.
     std::function<bool()> seam;
 
     std::atomic<bool> worker_started{false};
@@ -76,12 +76,12 @@ int main() {
 
     {
         auto provider = std::make_shared<FakeProvider>();
-        // BY VALUE. This single character is the fix: `[provider]` rather
-        // than `[&provider]`.
+        // BY 值。这个单一字符是固定的: `[provider]` 而不是说
+        // `[&provider]`.
         seam = [provider] { return provider->stream(); };
 
-        // A DETACHED worker — the shape jaal gives an isolated task. Nothing
-        // joins it; it simply keeps calling the seam.
+        // A DETACHED 工作线程 - 形状 jaal 给出一个孤立的任务。
+        // 没有加入它;它只是继续呼叫 接口边界.
         std::thread([&, seam] {
             worker_started.store(true);
             const auto until = std::chrono::steady_clock::now()
@@ -97,12 +97,12 @@ int main() {
         while (!worker_started.load())
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         std::this_thread::sleep_for(std::chrono::milliseconds(40));
-        // main() unwinds here, with the worker still inside the seam.
+        // main() 这儿有风,还有... 工作线程 还在里面 接口边界.
     }
     scope_exited.store(true, std::memory_order_release);
 
-    // Drop the local handle too, so ONLY the abandoned worker's captured
-    // copy keeps the provider alive. This is the state after main returns.
+    // 也把地方的把手放下,所以... 仅 弃置 工作线程
+    // 被捕获的复制件使提供者得以存活。 这是主返回后的状态。
     seam = nullptr;
 
     const auto until = std::chrono::steady_clock::now()

@@ -1,9 +1,9 @@
-// fold.cpp — one message → Facts. The ONLY place anything is counted.
+// fold.cpp — 一条消息 → 事实。 ONLY处的任何东西都算在内。
 //
-// Every statistic in the panel is a line in fold(). That is the DRY claim
-// the design rests on: adding "how many tokens did subagents burn" is a
-// field on Facts and a line here, not a second walk of the transcript with
-// its own cache and its own idea of what a turn is.
+// 面板中的每个统计数据都是fold()中的一行。这就是设计所依据的 DRY
+// 声明：添加 "how many tokens did subagents burn"
+// 是事实上的一个字段和此处的一行，而不是带有自己的 缓存 和
+// 自己对转弯是什么的想法的记录的第二步。
 
 #include "agentty/domain/stats/facts.hpp"
 
@@ -12,10 +12,10 @@
 namespace agentty::stats {
 namespace {
 
-// Everything before the first '-' or '/' — "claude-sonnet-4-6" → "claude",
-// "openai/gpt-5" → "openai". A hint, not an authority: the wire id is the
-// only provenance a turn carries, and asking the registry here would
-// couple the fold to live model state that a reloaded thread may not have.
+// 第一个'-'或'/'之前的所有内容——"claude-sonnet-4-6"
+// →"claude"，"openai/gpt-5"→"openai"。
+// 提示，而不是权威：传输 id 是回合携带的唯一出处，在这里询问
+// 注册表 会将 归并 耦合到重新加载的 线程 可能没有的实时模型状态。
 [[nodiscard]] std::string_view provider_hint(std::string_view id) {
     const auto cut = id.find_first_of("-/");
     return cut == std::string_view::npos ? id : id.substr(0, cut);
@@ -26,7 +26,7 @@ void push_capped(std::vector<double>& v, double x) {
     v.push_back(x);
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 void Facts::fold(const Message& msg) {
     if (msg.role == Role::User) {
@@ -42,27 +42,27 @@ void Facts::fold(const Message& msg) {
     }
     if (msg.role != Role::Assistant) return;
 
-    // Smart Mode's own routing messages are bookkeeping, not turns. Counting
-    // them would inflate every denominator on the panel.
+    // 智能模式自己的路由消息是簿记的，而不是轮流的。
+    // 计算它们会夸大面板上的每个分母。
     if (msg.smart_routing) return;
 
     ++session.assistant_turns;
     if (msg.error)            ++session.errors;
     if (msg.is_compact_summary) ++session.compact_summaries;
 
-    // ── Models ──────────────────────────────────────────────────────────
+    // ── 模型 ──────────────────────────────────────────────────────────
     if (!msg.served_model.empty()) {
         models.by_model.add(msg.served_model.value);
         models.by_provider_hint.add(provider_hint(msg.served_model.value));
     }
 
-    // ── Smart Mode ──────────────────────────────────────────────────────
+    // ── 智能模式 ──────────────────────────────────────────────────────
     //
-    // The bucket split is load-bearing. A turn with no served_role ran with
-    // Smart Mode OFF; counting it as Strategic would overstate the
-    // flagship's share, and dropping it would understate the denominator.
-    // `delegated` is over ROUTED turns only, which is what makes it a
-    // verdict on the feature rather than a description of the session.
+    // 桶分裂是加载-bearing。没有 served_role
+    // 的转弯使用智能模式 OFF 运行；
+    // 将其算作战略会夸大旗舰产品的份额，而放弃它会低估分母。
+    // `delegated`仅超过ROUTED轮，
+    // 这使得它成为对特征的判断而不是对会话的描述。
     if (msg.served_role) {
         ++smart.routed;
         smart.by_role.add(smart::role_display_name(*msg.served_role));
@@ -72,7 +72,7 @@ void Facts::fold(const Message& msg) {
         ++smart.unrouted;
     }
 
-    // ── Reasoning ─────────────────────────────────────────────
+    // ── 理由说明 ─────────────────────────────────────────────
     if (msg.reasoning_ms > 0 || !msg.thinking_blocks.empty()
         || !msg.thinking.empty()) {
         ++reasoning.turns;
@@ -86,20 +86,20 @@ void Facts::fold(const Message& msg) {
                 reasoning.longest_ms = static_cast<std::size_t>(ms);
         }
         reasoning.blocks += msg.thinking_blocks.size();
-        // Did the thinking lead to an ACTION? A turn that deliberated and
-        // then called a tool used its reasoning to decide what to do; one
-        // that deliberated and only answered reasoned instead of acting.
-        // Neither is wrong, but the ratio is what says whether effort is
-        // buying decisions or prose.
+        // 这个想法是否导致了ACTION？经过深思熟虑
+        // 然后调用工具的回合利用其推理来决定要做什么；
+        // 一个深思熟虑并只回答推理而不是采取行动的人。
+        // 两者都没有错，但比率表明努力是购买
+        // 决策还是购买散文。
         if (!msg.tool_calls.empty()) ++reasoning.thought_then_acted;
     }
 
-    // ── Tools ───────────────────────────────────────────────────────────
+    // ── 工具 ───────────────────────────────────────────────────────────
     for (const auto& tc : msg.tool_calls) {
         ++tools.total;
         tools.by_name.add(tc.name.value);
-        // The status names are the user's vocabulary, not the variant's:
-        // these appear verbatim as row labels.
+        // 状态名称是用户的词汇，而不是变体的：
+        // 这些逐字地显示为行标签。
         const char* st = std::visit([](const auto& s) -> const char* {
             using T = std::decay_t<decltype(s)>;
             if constexpr (std::is_same_v<T, ToolUse::Done>)     return "done";
@@ -108,21 +108,21 @@ void Facts::fold(const Message& msg) {
             else return "pending";
         }, tc.status);
         tools.by_status.add(st);
-        // Duration = the EXECUTION window (dispatch → terminal), not the
-        // card's existence. started_at is stamped at StreamToolUseStart and
-        // deliberately covers arg-streaming, permission wait and dispatch
-        // queueing (issue #40); folding THAT would bill "how long the human
-        // took to approve" and "how long args streamed" to the tool's time,
-        // and a session parked at permission prompts would show hours in
-        // the tools slice of "where the time went".
+        // 持续时间=EXECUTION窗口(分派→终端)，而不是卡的存在。
+        // started_at 被标记为 StreamToolUseStart，
+        // 并故意覆盖 arg-streaming、权限 等待和 分派 排队（问题
+        // #40）；折叠 该 会将 "how long the human took to approve"
+        // 和 "how long args streamed" 记入工具时间，
+        // 停在 权限 提示词 的会话将在 "where the time went"
+        // 的工具切片中显示小时数。
         //
-        // Done/Failed carry executing_since copied from Running at settle.
-        // exec_window_at() reads it WITHOUT falling back to started_at:
-        // a tool that never dispatched (Rejected, salvaged-as-"not run",
-        // args-parse failure, pre-#40 thread) has no window, and billing
-        // its card-birth stamp would re-create exactly the 2h20m lie this
-        // split is meant to remove. Zero means "no window", a statement,
-        // not a sample.
+        // Done/Failed携带从运行时复制的executing_since。
+        // exec_window_at()读取它WITHOUT回落到started_at：
+        // 从未发送的工具（已拒绝、抢救-as-"not run"、
+        // args-parse失败、#40 线程之前）没有窗口，
+        // 并且对其card-birth标记进行计费将re-create正是该拆分旨在删除的2h20m谎言。
+        // 零表示 "no window"，是一个陈述，
+        // 而不是一个样本。
         const auto began    = tc.exec_window_at();
         const auto finished = tc.finished_at();
         if (began && finished.time_since_epoch().count() != 0
@@ -133,11 +133,11 @@ void Facts::fold(const Message& msg) {
         }
     }
 
-    // ── Everything from the sealed telemetry ────────────────────────────
+    // ── 密封遥测仪上的所有东西 ────────────────────────────
     //
-    // Absent means "not measured", which is different from measured zero —
-    // so an unmeasured turn is excluded from measured_turns and therefore
-    // from every average, rather than dragging them toward zero.
+    // 缺席意味着 "not measured"，它与测量的零不同——
+    // 因此未测量的转弯被排除在 measured_turns 之外，
+    // 因此也被排除在每个平均值之外，而不是将它们拖向零。
     if (!msg.telemetry) return;
     const auto& t = *msg.telemetry;
     ++session.measured_turns;
@@ -156,9 +156,9 @@ void Facts::fold(const Message& msg) {
         push_capped(tokens.output_series, static_cast<double>(t.output_tokens));
     }
 
-    // Cache: the three-way split a band renders. `input_tokens` excludes
-    // the cache fields on the wire, so it IS the miss term — no arithmetic
-    // needed, and none invented.
+    // 缓存:将三个-way分割成一个带渲染。 `input_tokens`
+    // 排除了 传输 上的 缓存 字段，因此 IS 是未命中项——不需要算术，
+    // 也没有发明。
     if (t.cache_read || t.cache_creation) ++cache.turns_with_cache;
     cache.hits   += t.cache_read;
     cache.writes += t.cache_creation;
@@ -166,13 +166,13 @@ void Facts::fold(const Message& msg) {
     if (const double r = t.cache_hit_ratio(); r >= 0.0)
         push_capped(cache.ratio_series, r);
 
-    // Context: the true prefix is input + both cache terms.
+    // 上下文：真正的前缀是输入+两个缓存项。
     const std::uint64_t prefix = static_cast<std::uint64_t>(t.input_tokens)
                                + t.cache_read + t.cache_creation;
     if (prefix > context.peak_input) context.peak_input = prefix;
     if (prefix) push_capped(context.prefix_series, static_cast<double>(prefix));
 
-    // Stream health.
+    // 数据流健康。
     if (t.degraded()) ++stream.degraded_turns;
     stream.transient  += t.transient_retries;
     stream.mid_stream += t.mid_stream_failures;
@@ -183,9 +183,9 @@ void Facts::fold(const Message& msg) {
     if (t.wire_bytes) stream.bytes.add(t.wire_bytes);
     if (t.ttft_ms)   push_capped(stream.ttft_series,
                                  static_cast<double>(t.ttft_ms));
-    // Output tokens per second of GENERATION time, not of wall time:
-    // including the wait would fold the provider's queueing into a number
-    // that is supposed to be about how fast it writes.
+    // GENERATION时间（而不是墙上时间）每秒输出令牌：
+    // 包括等待将使供应商的队列归并到一个数字，
+    // 该数字被认为是关于其写入的速度。
     if (t.stream_ms && t.output_tokens)
         push_capped(stream.rate_series,
                     static_cast<double>(t.output_tokens)
@@ -263,22 +263,22 @@ void Facts::merge(const Facts& o) {
 const Facts& Projection::refresh(const Thread& t) {
     const Epoch next = Epoch::of(t);
 
-    // Fork, rewind and compaction all mutate history rather than appending.
-    // Detect by value, rebuild wholesale — see the header note on why this
-    // deliberately does not try to be clever.
+    // 分叉、倒带和压缩都是改变历史而不是追加。
+    // 按值检测，批量重建——参见 头文件 注释，
+    // 了解为什么这故意不试图变得聪明。
     if (!epoch_.extends_to(next)) {
         sealed_.clear();
         consumed_ = 0;
     }
     epoch_ = next;
 
-    // The LAST message is always volatile: it is the one being streamed
-    // into. Seal everything strictly before it.
+    // LAST消息始终是易失性的：它是被流入的消息。
+    // 面前的一切都严格密封。
     const std::size_t seal_to = t.messages.empty() ? 0 : t.messages.size() - 1;
     for (; consumed_ < seal_to; ++consumed_)
         sealed_.fold(t.messages[consumed_]);
 
-    // Compaction count is a thread-level fact, not a per-message one.
+    // 压缩计数是线程-level事实，而不是per-message事实。
     view_ = sealed_;
     view_.context.compactions = t.compactions.size();
 

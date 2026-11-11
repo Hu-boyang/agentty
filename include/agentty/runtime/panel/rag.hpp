@@ -1,17 +1,17 @@
 #pragma once
-// RAG mode picker — one decision: how proactive (pre-turn) retrieval behaves.
+// RAG模式选择面板-一个决定：主动(pre-turn)检索如何表现。
 //
-// Open it from the command palette (Ctrl+K → "RAG"). Three modes:
+// 从命令选项板(Ctrl+K→"RAG")打开它。三种模式：
 //
-//   On               inject retrieved context before EVERY turn
-//   First turn only  inject only on a thread's first turn (grounding, then off)
-//   Off              no proactive injection (search_docs/search_code still work)
+//   在 每个 转动之前注入检索到的上下文 仅在 线
+//   程 的第一转动时注入（接地，然后关闭） 关闭 无主动注入（
+//   search_docs/search_code 仍然工作）
 //
-// ↑↓ move, Enter/Space/← → select, Esc closes. The choice persists to
-// settings.json and applies live. The advanced retrieval knobs are no longer
-// in the UI — they stay at their defaults (env-tunable for power users).
+// ↑↓移动，Enter/Space/←→选择，Esc关闭。
+// 该选择持续到 settings.json 并实时应用。高级检索旋钮不再位于
+// UI 中 - 它们保持默认设置（高级用户为 env-tunable）。
 //
-// UI-state only; reducer in update/rag_settings.cpp, view in view/pickers.cpp.
+// 仅UI-state； update/rag_settings.cpp 中的 状态更新函数，在 view/pickers.cpp. 中查看
 
 #include <optional>
 #include <string>
@@ -27,37 +27,37 @@ namespace agentty {
 
 namespace rag_settings {
 
-// ── The embeddings sub-form ────────────────────────────────────────
-// Retrieval used to be hardwired to a local Ollama daemon, which locks out
-// anyone who cannot run one (locked-down work machines) or who already has an
-// internal embeddings gateway. The backend is now user-chosen, and — per the
-// requirement that everything be configurable from the TUI — chosen HERE
-// rather than only through environment variables.
+// ── 嵌入子-form ────────────────────────────────────────
+// 检索过去被硬连线到本地Ollama守护进程，
+// 该守护进程锁排除任何不能运行守护进程（锁定的-down工作机器）
+// 或已经具有内部嵌入网关的人。后端现在是 user-chosen，
+// 并且根据所有内容均可从 TUI 进行配置的要求，
+// 选择 此处 而不仅仅是通过环境变量。
 //
-// The pane holds a form::Form and nothing else: navigation, editing, the
-// dropdown and the key map all come from the shared component layer, and
-// maya::Form owns every glyph. What remains here is the only genuinely
-// embeddings-specific knowledge — WHICH rows a backend needs, and how rows
-// map back onto an EmbedConfig.
+// 面板仅拥有form::Form：导航、编辑、
+// 下拉菜单和键映射均来自共享组件层，并且maya::
+// Form拥有每个字形。这里剩下的是唯一真正嵌入
+// -specific的知识——后端需要WHICH行，以及行如何映射
+// 回EmbedConfig。
 //
-// Rows are DERIVED from the selected backend (see rows_for): a custom endpoint
-// shows host/port/model/key, an in-process backend shows a model-file path
-// instead. The form never displays a row that cannot affect the chosen
-// backend, so there is no "which of these actually applies?" ambiguity.
+// 行是来自所选后端的 派生（参见 rows_for）：自定义端点显示
+// host/port/model/key，in-process 后端显示 model
+// -file 路径。该表单永远不会显示不能影响所选后端的行，因此不存在
+// "which of these actually applies?" 歧义。
 //
-// The probe is the load-bearing row. Embedding dimension is DERIVED from it,
-// never typed: rag-cpp's HNSW silently drops vectors whose size disagrees with
-// the index, so a guessed dimension yields an empty index with no error at
-// all. Test connection is therefore on the path to a valid config.
+// 探针是加载-bearing行。嵌入维度是 派生，
+// 绝不是 带类型的：rag-cpp 的 HNSW 默默地丢弃
+// 大小与索引不一致的向量，因此猜测的维度会产生一个空索引，
+// 根本没有错误。因此，测试连接位于有效配置的路径上。
 struct EmbedForm {
     rag::embed::EmbedConfig cfg;
 
-    // Rows + cursor + focus + dirty, all from the shared model.
+    // 行+光标+焦点+脏，全部来自共享模型。
     form::Form form;
 
-    // Probe lifecycle. Stays a pane concern rather than a form concern: it is
-    // the ONE thing a generic form cannot express, because its result feeds
-    // back into the config (the measured dimension).
+    // 探针生命周期。保持 面板 关注点而不是表单关注
+    // 点：这是通用表单无法表达的 一个 事物，
+    // 因为它的结果反馈到配置（测量的维度）中。
     struct Idle {};
     struct Testing {};
     struct Ok   { std::uint32_t dim; int latency_ms; };
@@ -65,20 +65,20 @@ struct EmbedForm {
     using Probe = std::variant<Idle, Testing, Ok, Failed>;
     Probe probe{Idle{}};
 
-    // Which probe LAUNCH the next TestDone may answer. The probe runs on a
-    // worker; between launch and completion the user can EDIT the config
-    // (which invalidates the probe) or launch again. A completion whose
-    // generation doesn't match is a stale answer about a config that no
-    // longer exists — without the stamp it would overwrite `dim` and mark
-    // the pane verified-Ok against bytes the probe never saw. Same shape as
-    // login's attempt_id.
+    // 下一个TestDone可以回答哪个探头LAUNCH。
+    // 探针在 工作线程 上运行；在启动和完成之间，
+    // 用户可以 EDIT 配置（这会使探测器无效）或再次启动。
+    // 代不匹配的完成是关于不再存在的配置的 过期 答案 -
+    // 如果没有标记，它将覆盖 `dim` 并针对探测器从未见过的
+    // 字节 标记 面板 已验证 -Ok。与登录的 attempt_id
+    // 形状相同。
     std::uint64_t probe_gen = 0;
 
     [[nodiscard]] bool dirty() const noexcept { return form.dirty; }
 };
 
-// Field ids. Named constants because the reducer addresses rows by id (a row
-// index changes meaning when the backend changes the row set).
+// 字段ID。命名常量是因为 状态更新函数 按 id 寻址
+// 行（当后端更改行集时，行索引会发生变化）。
 inline constexpr const char* kFieldMode      = "mode";
 inline constexpr const char* kFieldBackend   = "backend";
 inline constexpr const char* kFieldModel     = "model";
@@ -91,66 +91,66 @@ inline constexpr const char* kFieldTokenizer = "tokenizer";
 inline constexpr const char* kFieldApiKey    = "api_key";
 inline constexpr const char* kFieldTest      = "test";
 
-// Build the form for a config's backend. Pure — unit-testable without UI.
-// `mode` is the proactive-retrieval policy, rendered as the first row: it and
-// the embedder are the two halves of one question ("how does retrieval
-// behave here?"), and splitting them across two overlays made the second one
-// undiscoverable.
+// 构建配置后端的表单。纯 — 单元 -testable，不含 UI。
+// `mode`是主动-retrieval策略，呈现为第一行：它和嵌入
+// 器是一个问题（"how does retrieval behave here?")的两半，
+// 并且将它们分成两个覆盖面板使得第二个问题
+// 不可发现。
 //
-// `rag` supplies the pipeline knobs, which are GENERATED from
-// settings_registry::kSettings rather than listed here — adding a knob is
-// adding a table row, and this pane picks it up with no edit.
-// `advanced` reveals the rows whose effect a user cannot easily judge.
+// `rag`提供管道旋钮，它们是来自settings_registry::
+// kSettings的GENERATED，而不是在此处列出——添加旋
+// 钮就是添加表行，并且该面板在不进行编辑的情况下拾取它。
+// `advanced`揭示了用户无法轻易判断其副作用的行。
 [[nodiscard]] form::Form build_form(const rag::embed::EmbedConfig& c,
                                     store::RagMode mode,
                                     const store::Settings& settings = {},
                                     const ::agentty::settings::registry::EnvSnapshot& env = {},
                                     bool advanced = false);
 
-// Read the rows back into a config (the inverse of build_form).
+// 将行读回到配置中（build_form的逆）。
 [[nodiscard]] rag::embed::EmbedConfig config_from_form(
     const rag::embed::EmbedConfig& base, const form::Form& f);
 
-// Read the mode row back.
+// 读回模式行。
 [[nodiscard]] store::RagMode mode_from_form(const form::Form& f,
                                             store::RagMode fallback);
 
-// Read the registry-generated rows back into a RagConfig. Walks the same
-// table build_form walked, so a row cannot be written that was never read.
+// 将 注册表-generated 行读回到 RagConfig 中。
+// 遍历 build_form 遍历的同一个表，因此无法写入从未读取过的行。
 void apply_form_to_settings(const form::Form& f, store::Settings& settings);
 
 struct Closed {};
 struct Open {
-    // The cursor is the MODE itself, not an index into kModes. Storing an
-    // index means every read is `kModes[i]` — an unchecked array subscript
-    // whose meaning silently changes if the list is reordered or resized.
+    // 光标是MODE本身，而不是kMode的索引。存储索引意味
+    // 着每次读取都是 `kModes[i]` — 一个未经检查的
+    // 数组下标，如果列表重新排序或调整大小，其含义会悄然改变。
     store::RagMode cursor = store::RagMode::On;
-    store::RagMode active = store::RagMode::On;   // persisted mode (row marker)
+    store::RagMode active = store::RagMode::On;   // 持久化模式（行标记）
 
-    // The pane's form. NOT optional: a form-backed overlay with no form owns
-    // the keyboard and can answer nothing, which reads on screen as the app
-    // freezing. That state was reachable while `embed` was an optional filled
-    // in by a deferred Cmd; it is now built at construction, so "open but
-    // inert" is not representable.
+    // 面板的形式。 不 可选：没有表单的表单 -backed 覆盖
+    // 面板 拥有键盘，无法回答任何问题，当应用程序冻结时，它会在屏幕上读取。
+    // 该状态是可达的，而 `embed` 是由延迟的 Cmd 填充的
+    // 可选状态；现在是在施工中建造的，所以"open but inert"
+    // 不具有代表性。
     EmbedForm embed;
 
-    // Show the Tier::Advanced rows — the knobs whose effect a user cannot judge
-    // at a glance (numeric tuning, the routing policy). Hidden by DEFAULT, not
-    // absent: burying them in an env var is what made them undiscoverable in
-    // the first place, and a settings screen that lists thirty sliders is its
-    // own kind of unusable. Toggled with ^A; the pane rebuilds its form.
+    // 显示Tier::Advanced行——用户一眼无法判断其
+    // 副作用的旋钮(数字调整、路由策略)。被 DEFAULT 隐藏，
+    // 并非不存在：将它们埋在环境变量中是使它们一开始就无法
+    // 被发现的原因，而列出 30 个滑块的设置屏幕本身就是
+    // 不可用的。用 ^A 切换； 面板 重建了它的形状。
     bool advanced = false;
 };
 
-// The rows, in display order — 1:1 with store::RagMode. The ONE place the
-// layout is written down: the view walks it and the cursor moves through it.
+// 行，按照显示顺序——1:1与store::RagMode。
+// 一个 位置记录了布局：视图在其中移动，光标在其中移动。
 inline constexpr store::RagMode kModes[] = {
     store::RagMode::On, store::RagMode::FirstTurnOnly, store::RagMode::Off,
 };
 inline constexpr int kModeCount =
     static_cast<int>(sizeof(kModes) / sizeof(kModes[0]));
 
-// Cursor movement closed over the enumeration — no call site owns a modulus.
+// 光标移动结束于枚举——没有 调用 站点拥有模数。
 [[nodiscard]] constexpr store::RagMode next_mode(store::RagMode mmode,
                                                  int delta) noexcept {
     int i = 0;

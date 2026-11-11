@@ -1,28 +1,28 @@
 #pragma once
-// agentty::rpc::Peer — one JSON-RPC connection, driven by agentty on maya.
+// agentty::rpc::Peer-一个JSON-RPC连接，由maya上的agentty驱动。
 //
-// jsonrpc-cpp's Engine is a pure state machine: frames and time in, effects
-// out, no thread anywhere. This is the runtime around it, and the only place
-// in agentty that is (docs/PROTOCOL_LIBRARIES.md §6):
+// jsonrpc-cpp的引擎是纯状态机：帧和时间进入，副作用出去，
+// 任何地方都没有线程。这是它周围的 运行时，也是 agentty 中唯一的地方（
+// docs/PROTOCOL_LIBRARIES.md §6）：
 //
-//   * ONE owner. The engine lives in a maya::guarded; every transition runs
-//     under it. Reads from the wire, our own requests, deadlines and close
-//     all go through step(), so they are serialised by construction.
-//   * a reader task (maya::pool, isolated) reads the inbound byte channel,
-//     splits lines (jsonrpc::LineSplitter) and steps Received for each;
-//   * a deadline task sleeps on maya::delay_for until next_deadline() and
-//     steps Tick;
-//   * a writer task drains an ordered outbox, so frames never interleave
-//     and no lock is held across a write.
+//   * 一个 所有者。发动机位于 maya::guarded 中；每次转换都会运行
+//     其下。从传输读取，我们自己的请求、截止日期和关闭都
+//     经过step()，所以它们是通过构造序列化的。
+//   *读取器任务(maya::pool，隔离)读取入站字节通道，
+//     分割行（jsonrpc::LineSplitter)和每个接收到的步骤；
+//   * 截止时间任务在 maya::delay_for 休眠，直到 next_deadline() 且
+//     步骤打勾；
+//   * 写入任务会耗尽有序的发件箱，因此 帧 永远不会交错
+//     并且在写入期间不保持锁。
 //
-// Outbound requests are blocking-style for the caller (`call<M>(params)`
-// returns the typed result), because both of agentty's integrations already
-// call from a worker thread that may wait: the caller sleeps until its own
-// completion is parked, never holding the engine.
+// 出站请求对于调用者来说是阻塞-style（
+// `call<M>(params)`返回带类型的结果），
+// 因为agentty的两个集成已经从可能等待的工作线程 线程 调用：调
+// 用者休眠直到其自己的完成被停放，从不保持引擎。
 //
-// The peer's calls and notifications go to a dispatch callback the owner
-// supplies; it runs on the reader thread, outside the engine lock, so a
-// handler may itself call<> the peer without deadlocking.
+// 对端的调用和通知转到所有者供应的分派 回调；
+// 它在读卡器 线程 上运行，在引擎 锁 之外，
+// 因此 处理函数 本身可以 调用<> 对端 而不会出现死锁。
 
 #include <atomic>
 #include <chrono>
@@ -44,87 +44,87 @@
 
 namespace agentty::rpc {
 
-// ── Lock order ─────────────────────────────────────────────────────────────
+// ── 锁 顺序 ─────────────────────────────────────────────────────────────
 //
-// A Peer holds two LEAF locks (its engine and its outbox) and never holds one
-// across I/O. So, by capability (agentty/util/lock_levels.hpp):
+// 对端持有两个LEAF 锁 (其引擎及其发件箱）并且从不持有跨I/O.的一个因此，
+// 按能力（agentty/util/lock_levels.hpp)：
 //
-//   below<leaf>   write-side calls that only queue a frame or step the
-//                 engine: notify, notify_raw, reply, cancel, Batch,
-//                 set_request_meta, closed. Callable from any non-leaf
-//                 lock body.
-//   unlocked      calls that WAIT for another thread: call/call_raw (waits
-//                 for the reply), wait_closed, stop (joins the tasks).
+//   下面<leaf>写-side 调用表示只排队一个帧或步进引擎：notify，
+//                 notify_raw，reply，取消，Batch，
+//                 set_request_meta，关闭。可从任何非 -leaf 锁
+//                 正文 调用。
+//   解锁调用，即WAIT为另一个线程：call/call_raw（等待回复），
+//                 wait_closed，停止（加入任务）。
 //
-// The dispatch callbacks run on the Peer's reader thread, between frames,
-// holding nothing, so they are handed that thread's `unlocked`: a handler can
-// make a nested call() or take any lock in rank order.
+// 分派 回调在对端的读取器线程上运行，在帧之间，不持有任何东西，
+// 因此它们被交给线程的`unlocked`:处理函数可以制作嵌
+// 套的call()或按排名顺序获取任何锁。
 
-// A byte channel to the peer. Both functions block; read returns 0 at EOF
-// (or on error), write returns false when the channel is gone.
+// 到对端的字节通道。两个功能块；读取在 EOF（或出错
+// 时）返回 0，写入在通道消失时返回 false。
 //
-// read runs on the Peer's reader thread and write on its writer thread;
-// each holds nothing and passes its `unlocked` (an in-memory channel waits
-// on a lock inside read). interrupt is called by stop(), also `unlocked`.
+// 读取在对端的读取器线程上运行，写入在其写入器线程上运行；每个通道都不
+// 持有任何内容并传递其 `unlocked`（in-memory 通道等待
+// 锁 内部读取）。中断被stop()调用，也被`unlocked`调用。
 struct Channel {
     std::function<std::size_t(const maya::unlocked&, char* buf, std::size_t cap)> read;
     std::function<bool(const maya::unlocked&, std::string_view bytes)>            write;
-    // Wake a read blocked in `read` so the reader can exit (close the fd,
-    // shut the socket). Called once, at stop.
+    // 唤醒在`read`中阻塞的读取，以便读取器可以退出（关闭fd，
+    // 关闭套接字）。停车时打过一次电话。
     std::function<void(const maya::unlocked&)>                                    interrupt;
 };
 
-// Raw read(2)/write(2) on two fds, e.g. our own stdin/stdout (0, 1).
+// 两个 fd 上的原始读(2)/写(2)，e.g。我们自己的 stdin/stdout (0, 1)。
 [[nodiscard]] Channel fd_channel(int in_fd, int out_fd);
 
-// A child's pipes as streams (util::ChildProcess's out()/in()). The
-// owner keeps the streams alive for the peer's life.
+// 儿童的管子为数据流 (util::ChildProcess的out()/in())。
+// 所有者让 数据流 在 对端 的生命周期内保持活力。
 [[nodiscard]] Channel stream_channel(std::istream& in, std::ostream& out);
 
-// Two in-memory channels wired to each other: what one writes, the other
-// reads. Interrupting either end closes both. For tests and loopback.
+// 两个in-memory通道彼此连接：一个写入，
+// 另一个读取。中断任一端都会关闭两端。用于测试和环回。
 [[nodiscard]] std::pair<Channel, Channel> channel_pair();
 
-// How a call may end early. A stop on `cancel` runs `on_cancel` (say, to
-// tell the peer) and fails the call `cancel_grace` later if the peer hasn't
-// answered by then; zero grace fails it at once. `timeout` of zero means no
-// deadline; unset means the peer's default.
+// 调用如何可能提前结束。 `cancel` 上的停止会运行 `on_cancel`（例如，
+// 告诉 对端），如果 对端 到那时还没有应答，则稍后会失败 调用
+// `cancel_grace`；零恩典立刻就失败了。 `timeout`为零
+// 表示没有截止日期；未设置表示 对端 的默认值。
 //
-// The stop on `cancel` may be requested from any thread, holding anything,
-// so the stop callback only raises a flag. The CALLER -- the thread waiting
-// in call(), which holds nothing -- notices it within a few milliseconds and
-// then runs on_cancel, sends the cancel notification and settles the call.
+// 可以从持有任何东西的任何线程请求停止`cancel`，
+// 因此停止回调仅引发标志。 CALLER——在 call()
+// 中等待的 线程，什么也没有——在几毫秒内注意到它，
+// 然后运行 ​​on_cancel，发送 取消 通知 并解决 调用。
 struct CallOptions {
     std::optional<std::chrono::milliseconds> timeout;
     std::stop_token                          cancel;
-    // Runs on the calling thread, which holds nothing.
+    // 在调用线程上运行，其不包含任何内容。
     std::function<void(const maya::unlocked&)> on_cancel;
     std::chrono::milliseconds                cancel_grace{0};
-    // Also send $/cancel_request with this call's id, so the peer can drop
-    // the request (a permission dialog, a form).
+    // 还发送带有该调用的id的$/cancel_request，
+    // 因此对端可以丢弃该请求（权限对话框、表单）。
     bool                                     notify_peer = false;
 };
 
-// What the owner does with the peer's calls and notifications. Return the
-// reply frame for a call to have it written now, or Nothing to answer later
-// with Peer::reply (a deferred method).
+// 所有者如何处理对端的调用和通知。返回 帧 以便
+// 立即写入 调用，或者使用 Peer::reply
+// （延迟方法）稍后再回复。
 struct Dispatch {
-    // Called on the reader thread, which holds nothing: they get its
-    // `unlocked`. A handler may make nested calls or take locks.
+    // 调用读取器线程，其没有任何内容：他们得到其`unlocked`。
+    // 处理函数 可以嵌套 调用 或采用 锁。
     std::function<jsonrpc::Maybe<std::string>(const maya::unlocked&, const jsonrpc::Call&)>
         on_call;
     std::function<void(const maya::unlocked&, const jsonrpc::Notification&)> on_notification;
-    // Every frame in and out, for a wire trace. Optional.
+    // 每帧进出，用于传输踪迹。选修的。
     std::function<void(bool inbound, std::string_view frame)>        trace;
 };
 
 } // namespace agentty::rpc
 
-// The peer calls a Channel's and a Dispatch's functions from its own reader,
-// writer and ticker threads, read and write at the same time. Handing one to
-// a Peer is the claim that this is safe; jaal can't look inside a closure to
-// check it. Every channel in rpc/peer.cpp keeps it: read and write touch
-// separate ends, and interrupt only closes them.
+// 对端、调用是一个通道的和一个分派的功能来自其自己的读取器、
+// 写入器和股票代码线程，同时读取和写入。将一个交给 对端
+// 就表明这是安全的； jaal 无法查看闭包内部来检查它。
+// rpc/peer.cpp 中的每个通道都保留它：读和
+// 写接触不同的端部，中断仅关闭它们。
 MAYA_SYNC(agentty::rpc::Channel);
 MAYA_SYNC(agentty::rpc::Dispatch);
 
@@ -135,39 +135,39 @@ public:
     using Clock = jsonrpc::Clock;
 
     Peer(Channel ch, Dispatch d, std::string_view name);
-    // Stops and joins, like stop(). A destructor can't be handed `unlocked`;
-    // it may wait anyway because a Peer is marked joins_on_destroy, so no
-    // maya::guarded<T> can own one and it is never destroyed inside a lock
-    // body. Prefer calling stop(cap) explicitly first.
+    // 停止并加入，如stop()。不能将 `unlocked` 交给析构函数；
+    // 它可能会等待，因为 对端 被标记为 joins_on_destroy，
+    // 因此 maya::guarded<T> 不能拥有它，并且它永远不会在 锁
+    // 正文 内被破坏。最好先显式调用 stop(cap)。
     ~Peer();
     Peer(const Peer&)            = delete;
     Peer& operator=(const Peer&) = delete;
 
-    // Start reading. Separate from construction so the owner can finish
-    // wiring before the first frame arrives.
+    // 开始阅读。与施工分开，以便业主可以在第一个
+    // 帧 到达之前完成布线。
     void start();
 
-    // Stop reading, fail every waiting call with ConnectionLost, join.
-    // Joins: `unlocked`.
+    // 停止读取，每次等待调用与ConnectionLost失败，加入。
+    // 加入：`unlocked`。
     void stop(const maya::unlocked&) noexcept;
 
-    // Block until the reader has seen EOF. For a server whose life is the
-    // connection's. Waits: `unlocked`.
+    // 阻塞直到读者看到EOF。对于一个服务器来说，其生命周期就是连接的生命周期。
+    // 等待：`unlocked`。
     void wait_closed(const maya::unlocked&);
 
-    // Deadline for calls that pass none. Zero means no deadline. Callable any
-    // time, from any thread (MCP narrows it after the handshake, while the
-    // reader is already running).
+    // 截止日期为调用，没有通过。零意味着没有截止日期。
+    // 可以随时从任何 线程 调用（MCP 在握手后缩小范围，
+    // 而读取器已经在运行）。
     void set_default_timeout(std::chrono::milliseconds d) noexcept {
         default_timeout_.store(d, std::memory_order_relaxed);
     }
     void set_request_meta(const maya::below<maya::leaf>&, jsonrpc::Json meta);
 
-    // ── to the peer ─────────────────────────────────────────────────────
+    // ── 编号 对端 ─────────────────────────────────────────────────────
 
-    // A typed request, waited for. Errors (the peer's, a timeout, a closed
-    // connection, a cancel, a result that doesn't decode) come back as
-    // RpcError. Waits for the reply: `unlocked`.
+    // 带类型的请求，等待。错误（对端、超时、关闭的连接、取消、
+    // 未解码的结果）以 RpcError 的形式返回。
+    // 等待回复：`unlocked`。
     template <jsonrpc::IsMethod M>
     std::expected<typename M::result, jsonrpc::RpcError>
     call(const maya::unlocked& cap, const typename M::params& p, CallOptions o = {}) {
@@ -175,7 +175,7 @@ public:
         return jsonrpc::result<M>(c);
     }
 
-    // The untyped form: the completion as the engine returned it.
+    // 无类型的形式：引擎返回时完成。
     jsonrpc::Completed call_raw(const maya::unlocked&, std::string_view method,
                                 jsonrpc::Json params, CallOptions o = {});
 
@@ -188,7 +188,7 @@ public:
         write(cap, jsonrpc::notify_raw(method, std::move(params)));
     }
 
-    // Answer a call the dispatch deferred.
+    // 答复调用，分派被推迟。
     void reply(const maya::below<maya::leaf>& cap, const jsonrpc::Id& id,
                std::expected<jsonrpc::Json, jsonrpc::RpcError> outcome) {
         write(cap, jsonrpc::reply(id, std::move(outcome)));
@@ -200,15 +200,15 @@ public:
     }
 
 private:
-    struct Core;   // shared with the tasks, so an abandoned reader outlives us
+    struct Core;   // 与任务共享，因此被遗弃的读者比我们活得更久
     using core_t = maya::co_owned<Core>;
     static void write_core(const maya::below<maya::leaf>& cap, const core_t& c, std::string frame);
 
 public:
 
-    // A deferred call's answer, sent at most once. The first ok()/error()
-    // wins; later ones are dropped. It co-owns the peer's core, so a worker
-    // holding one can outlive the Peer: the answer is just dropped then.
+    // 延迟的调用的答复，最多发送一次。先ok()/error()获胜；
+    // 后来的则被丢弃。它与 -owns 和 对端 的核心相连，
+    // 因此持有一个 工作线程 的寿命可以比 对端 长：答案就被丢弃了。
     template <jsonrpc::IsMethod M>
     class Deferred {
     public:
@@ -232,13 +232,13 @@ public:
         bool        done_ = false;
     };
 
-    // Fail one of our calls now (locally), e.g. on user cancel.
+    // 现在（本地）我们的调用之一失败，e.g。在用户 取消 上。
     void cancel(const maya::unlocked&, jsonrpc::RequestId id);
 
-    // Coalesce every frame written by THIS thread inside `body` into one
-    // write. For a burst of notifications (replaying a thread). Scoped by a
-    // call, not a free-standing RAII object, so the end of the batch runs
-    // with the same capability the beginning had. Nested batches flatten.
+    // 将`body`内的THIS 线程写入的每个帧合并为一次写入。
+    // 对于 通知 的突发（重播 线程）。范围是 调用，
+    // 而不是 free-standing RAII 对象，
+    // 因此批处理结束时具有与开始时相同的功能。嵌套批次展平。
     template <class F>
     decltype(auto) batch(const maya::below<maya::leaf>& cap, F&& body) {
         begin_batch(cap);
@@ -259,21 +259,21 @@ private:
 
     core_t                    core_;
     std::atomic<std::chrono::milliseconds> default_timeout_{std::chrono::milliseconds{0}};
-    maya::pool                pool_{3};   // reader, writer, ticker
+    maya::pool                pool_{3};   // 读者、作者、自动收报机
 };
 
 }  // namespace agentty::rpc
 
-// A Peer joins its reader/writer/ticker when destroyed: never inside a
-// maya::guarded<T> (jaal refuses the type), so its destructor may wait.
+// 对端在被销毁时加入其reader/writer/ticker：永远不会在
+// maya::guarded<T>内部（jaal拒绝该类型），因此其析构函数可以等待。
 MAYA_JOINS_ON_DESTROY(agentty::rpc::Peer);
-// Every member is safe from any thread: the core is co_owned Sync state
-// (guarded Shared/Outbox, const channel), the timeout is atomic, the pool is
-// Sync. So many threads may call one Peer at once.
+// 每个成员对于任何线程都是安全的：核心是co_owned同步状态（
+// 受保护的Shared/Outbox，常量通道），超时是原子的，池是同步的。
+// 如此多的 线程 可能会同时 调用 和一个 对端。
 MAYA_SYNC(agentty::rpc::Peer);
 
-// A deferred reply is a handle the dispatch hands to whoever answers later.
-// A Deferred owns a handle to the peer's core (co_owned), the call's id and a
-// flag: moving it to the worker that will answer shares nothing.
+// 延迟答复是分派交给稍后答复者的句柄。
+// Deferred拥有对端的核心(co_owned)、调用的id和
+// 标志的句柄：将其移动到将应答的工作线程不共享任何内容。
 template <jsonrpc::IsMethod M>
 MAYA_SENDABLE_T(agentty::rpc::Peer::Deferred<M>);

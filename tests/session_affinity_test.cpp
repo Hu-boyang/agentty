@@ -1,7 +1,7 @@
-// session_affinity_test — #118: a routing gateway (bifrost, OpenRouter) keeps
-// a conversation on the backend that served it last when every request
-// carries the same `x-session-id`. These tests stream a real turn through the
-// OpenAI-compatible transport to a loopback server and read what arrived.
+// session_affinity_test 118号:一个路由网关(bifrost,
+// OpenRouter )在后端保持对话,每一次请求都带有相同的内容,
+// 就服务于后端 `x-session-id`。这些测试 数据流 真正的
+// 转弯穿过 OpenAI-compatible 传输层 读到到达的。
 
 #include "agtest.hpp"
 
@@ -44,7 +44,7 @@ constexpr socket_t kInvalid = -1;
 void close_socket(socket_t s) { if (s != kInvalid) ::close(s); }
 #endif
 
-// Answers each POST with a one-word SSE turn and keeps the request heads.
+// 答对各题 POST 带一个 -word SSE 转身,保持请求头。
 class ChatServer {
 public:
     ChatServer() {
@@ -76,7 +76,7 @@ public:
 
     ~ChatServer() {
         stop_.store(true);
-        if (fd_ != kInvalid) {   // wake accept()
+        if (fd_ != kInvalid) {   // 醒来 accept()
             sockaddr_in a{};
             a.sin_family = AF_INET;
             a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
@@ -97,7 +97,7 @@ public:
     [[nodiscard]] bool valid() const { return fd_ != kInvalid; }
     [[nodiscard]] std::uint16_t port() const { return port_; }
 
-    // The value of `name` in the last request head, lowercased name match.
+    // 上一个请求头中的`name`值,小写名称匹配.
     [[nodiscard]] std::optional<std::string> header(std::string_view name) const {
         std::lock_guard lk(mu_);
         std::size_t pos = 0;
@@ -188,7 +188,7 @@ private:
 #endif
 };
 
-// A custom host (no registry row): the shape a self-run bifrost has.
+// 自定义主机( 无) 注册表 行:形状为自 -run 双冻已经。
 oai::Endpoint gateway(std::uint16_t port) {
     oai::Endpoint ep;
     ep.host    = "127.0.0.1";
@@ -217,7 +217,7 @@ provider::StreamResult send(const ChatServer& s, provider::Request req) {
     return p.stream(agtest::cap(), std::move(req), [](Msg) {});
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("session affinity: the thread id rides x-session-id (#118)") {
     ChatServer s;
@@ -228,8 +228,8 @@ TEST_CASE("session affinity: the thread id rides x-session-id (#118)") {
 }
 
 TEST_CASE("session affinity: a subagent sticks with its parent's session") {
-    // The subagent keeps its own prompt-cache key, but the gateway session
-    // is the parent thread's, so it lands where the chat already is.
+    // 副代理保持自己的状态 提示词-cache 键,
+    // 但网关会话是父关 线程 已经是聊天的地方了
     ChatServer s;
     REQUIRE(s.valid(), "loopback server starts");
     const auto r = send(s, turn("subagent:explorer:abcd", "parent-thread"));
@@ -246,8 +246,8 @@ TEST_CASE("session affinity: no conversation, no header") {
 }
 
 TEST_CASE("session affinity: the header is all a custom host gets") {
-    // prompt_cache_key stays off for hosts that didn't opt in (#93): the
-    // session rides a header, which an unknown host ignores, never the body.
+    // prompt_cache_key 未选择加入(# 93) 的主机
+    // 不开放 : 会话会运行 a 头文件 ,未知的宿主忽略了,从不 正文.
     ChatServer s;
     REQUIRE(s.valid(), "loopback server starts");
     (void)send(s, turn("thread-0123"));

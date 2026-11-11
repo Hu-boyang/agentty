@@ -1,15 +1,15 @@
-// settings_default_test — pins the SHIPPED default permission profile.
+// settings_default_test - 钉住 SHIPPED 默认 权限 简介.
 //
-// A fresh install (no settings.json) and a legacy/partial config missing the
-// "profile" key must BOTH resolve to Write — the Profile enum's zero value.
-// This is an intentional product decision: agentty is autonomous-by-default,
-// contained by the sandbox + workspace boundary (the website documents it at
-// /docs/profiles, and the ACP bridge separately starts in Ask). This test is
-// the regression lock so a later enum reorder or a Settings-struct-default
-// change can't silently flip the default and desync the docs.
+// 新的安装( 无) settings.json )和a 数据 legacy/partial 配置缺少
+// "profile" 密钥必须 两者 决 议 Write - 电话 Profile 枚举 '0值'。
+// 这是一个有意的产品决定:agentty是自主的-by-default,
+// 由沙箱+工作区边界(网站文件在/docs/profiles,
+// ACP桥分别从Ask开始)包含. 这个测试是回归的锁,
+// 所以后期的枚举重排或Setro
+// -struct-default的改变不能默默地翻转默认并解开文件.
 //
-// It drives the PUBLIC persistence API (load_settings / save_settings)
-// against an isolated $HOME so it touches real disk, not a mock.
+// 它驱动PUBLIC 持久化 API(load_settings / save_settings)
+// 对一个孤立的$HOME,所以它触摸到真正的磁盘,而不是一个模拟.
 
 #include "agentty/io/persistence.hpp"
 #include "agentty/store/store.hpp"
@@ -25,42 +25,42 @@
 
 #include "agtest.hpp"
 
-#include <unistd.h>   // getpid
+#include <unistd.h>   // 发作
 
 namespace fs = std::filesystem;
 using namespace agentty;
 
-// Compile-time twin of the runtime checks below (also enforced project-wide in
-// domain/profile.hpp): Write must stay the enum's zero value, because
-// load_settings() defaults a missing "profile" key to value("profile", 0).
+// 编译-time 双胞胎 运行时 检查(也执行项目) -wide 输入 domain/profile.hpp):
+// Write 一定要留下来 枚举 '0值, 因为 load_settings
+// () 默认缺失 "profile" 值的密钥( E) "profile", 0).
 static_assert(static_cast<std::uint8_t>(Profile::Write) == 0,
               "Profile::Write must remain the enum's zero value — the settings "
               "loader defaults a missing 'profile' key to 0, which must == Write.");
 
 TEST_CASE("settings defaults + persistence round-trip") {
-    // Isolate the data dir: persistence::data_dir() resolves $HOME/.agentty.
+    // 隔离数据目录 : persistence::data_dir () 决 定 $HOME/.agentty.
     auto tmp = fs::temp_directory_path()
              / ("agentty_settings_test_" + std::to_string(::getpid()));
     fs::remove_all(tmp);
     fs::create_directories(tmp);
     ::setenv("HOME", tmp.c_str(), 1);
-    // Settings/user-scope paths resolve via util::user_root()
-    // ($AGENTTY_HOME, else $HOME/.agentty) — keep both in the sandbox.
-    ::unsetenv("AGENTTY_HOME");   // fall back to $HOME/.agentty
-    ::unsetenv("USERPROFILE");   // data_dir() prefers this on Windows; clear it
+    // Settings/user-scope 路径解析通过 util::user_root
+    // () ($AGENTTY_HOME ,其他则 $HOME/.agentty () 两者都保留在 沙箱.
+    ::unsetenv("AGENTTY_HOME");   // 倒车 $HOME/.agentty
+    ::unsetenv("USERPROFILE");   // data_dir () 更喜欢这个 Windows 清除它
 
     const auto settings_json = tmp / ".agentty" / "settings.json";
 
-    // (1) The struct default — the value a default-constructed Settings holds.
+    // (1) 结构默认值——默认-constructed设置所持有的值。
     check(store::Settings{}.profile == Profile::Write,
           "Settings{}.profile defaults to Write");
 
-    // (2) Fresh install: nothing persisted yet → load falls back to Write.
+    // (2) 新鲜安装:目前没有持续进行 __ 加载 倒车 Write.
     check(!fs::exists(settings_json), "no settings.json present (fresh install)");
     check(persistence::load_settings(::agentty::IoAccess::grant()).profile == Profile::Write,
           "load_settings() with no file -> Write");
 
-    // (3) Legacy/partial config that predates the "profile" key → Write.
+    // (3) Legacy/partial 配置在日期之前的 "profile" 键 + Write.
     fs::create_directories(tmp / ".agentty");
     {
         std::ofstream ofs(settings_json, std::ios::trunc);
@@ -69,8 +69,8 @@ TEST_CASE("settings defaults + persistence round-trip") {
     check(persistence::load_settings(::agentty::IoAccess::grant()).profile == Profile::Write,
           "load_settings() with settings.json missing 'profile' -> Write");
 
-    // (4) A non-default choice still round-trips — proves the Write default
-    //     isn't masking a broken parser (Ask/Minimal persist and reload).
+    // (4) 非 -default 选择仍然圆 -trips - 证明 Write
+    //     默认不是掩盖破损 解析器 (Ask/Minimal 将永不动,而重装。
     {
         store::Settings s; s.profile = Profile::Ask;
         persistence::save_settings(::agentty::IoAccess::grant(), agtest::cap(), s);
@@ -84,7 +84,7 @@ TEST_CASE("settings defaults + persistence round-trip") {
     check(persistence::load_settings(::agentty::IoAccess::grant()).profile == Profile::Minimal,
           "save/load round-trips Minimal");
 
-    // (5) Sandbox: an emptied port list stays empty.
+    // (5)沙箱:空出端口列表保持空出.
     {
         store::Settings s;
         s.sandbox.configured = true;
@@ -94,7 +94,7 @@ TEST_CASE("settings defaults + persistence round-trip") {
     check(persistence::load_settings(::agentty::IoAccess::grant()).sandbox.allow_ports.empty(),
           "an empty allow_ports list round-trips as empty");
 
-    // (6) Bad sandbox values keep the default instead of breaking the load.
+    // (6) 坏 点 沙箱 值保留默认值而不是断开 加载.
     {
         std::ofstream ofs(settings_json, std::ios::trunc);
         ofs << R"({"profile":1,"sandbox":{"configured":true,"net_mode":9,)"
@@ -132,14 +132,14 @@ TEST_CASE("settings rows harden bad input") {
     fs::remove_all(tmp);
     fs::create_directories(tmp);
     ::setenv("HOME", tmp.c_str(), 1);
-    // Settings/user-scope paths resolve via util::user_root()
-    // ($AGENTTY_HOME, else $HOME/.agentty) — keep both in the sandbox.
-    ::unsetenv("AGENTTY_HOME");   // fall back to $HOME/.agentty
+    // Settings/user-scope 路径解析通过 util::user_root
+    // () ($AGENTTY_HOME ,其他则 $HOME/.agentty () 两者都保留在 沙箱.
+    ::unsetenv("AGENTTY_HOME");   // 倒车 $HOME/.agentty
     ::unsetenv("USERPROFILE");
 
-    // create_starter: a ':'-namespaced command becomes a SUBDIRECTORY tree
-    // (git:fixup -> commands/git/fixup.md), matching the loader and never
-    // writing a ':' into a filename (illegal on Windows).
+    // create_starter: a ':'-namespaced 命令变成一个 SUBDIRECTORY
+    // 源码树 (git: 修补 - > commands/git/fixup.md ),
+    // 匹配装填器,而从未写过 ':' 变成文件名( 非法使用 Windows).
     {
         auto r = S::create_starter(::agentty::IoAccess::grant(), S::Category::Commands, "git:fixup");
         check(r.ok, "create_starter nests a colon name");
@@ -148,16 +148,16 @@ TEST_CASE("settings rows harden bad input") {
         check(!fs::exists(tmp / ".agentty" / "commands" / "git:fixup.md"),
               "no literal-colon filename is created");
     }
-    // A plain name is a single file.
+    // 普通名是单文件.
     {
         auto r = S::create_starter(::agentty::IoAccess::grant(), S::Category::Commands, "deploy");
         check(r.ok && fs::is_regular_file(tmp / ".agentty" / "commands" / "deploy.md"),
               "plain name -> deploy.md");
     }
-    // Duplicate is refused, not silently overwritten.
+    // 重复被拒绝,而不是默默地覆写。
     check(!S::create_starter(::agentty::IoAccess::grant(), S::Category::Commands, "deploy").ok,
           "create_starter refuses an existing file");
-    // Path-escape and illegal shapes are rejected up front.
+    // Path-escape和非法形状被拒绝在前面。
     check(!S::create_starter(::agentty::IoAccess::grant(), S::Category::Commands, "../evil").ok,
           "'..' path escape rejected");
     check(!S::create_starter(::agentty::IoAccess::grant(), S::Category::Commands, "a/b").ok,
@@ -171,8 +171,8 @@ TEST_CASE("settings rows harden bad input") {
     check(!S::create_starter(::agentty::IoAccess::grant(), S::Category::Commands, "a:b:c:d").ok,
           "too many nesting levels rejected");
 
-    // add_plugin_from_line: a misplaced flag as the name is rejected, a
-    // non-existent --python script is rejected, and a good spec is accepted.
+    // add_plugin_from_line : 错误 标志 名字被拒绝,
+    // 一个非 -existent --python 脚本被否决,接受好的谱.
     check(!S::add_plugin_from_line(::agentty::IoAccess::grant(), agtest::cap(), "--http http://x").ok,
           "leading-dash name (misplaced flag) rejected");
     check(!S::add_plugin_from_line(::agentty::IoAccess::grant(), agtest::cap(), "tool --python /no/such/script_xyz.py").ok,

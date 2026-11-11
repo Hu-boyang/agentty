@@ -1,32 +1,32 @@
-// responses_log_test — the Responses dialect must be debuggable from the log.
+// responses_log_test — 反应方言必须从日志中调试.
 //
-// ── WHY ──────────────────────────────────────────────────────────────────
+// ── 原因 ──────────────────────────────────────────────────────────────────
 //
-// A Copilot turn came back with every argument-taking tool failing
-// ("[invalid args] path required") while zero-argument tools succeeded.
-// That asymmetry means arguments were lost, not that the model was weak.
+// 一个副驾驶转回,每个参数-taking工具都失败(
+// "[invalid args] path required"),而0-argument工具成功.
+// 这种不对称意味着争论被丢失,而不是模型软弱.
 //
-// The log could not settle where. The Chat transport dumps its request
-// (`openai.request` + `openai.request.body`) and its decode decisions, but
-// the Responses codec — the transport Copilot uses for gpt-* models — logged
-// only failures. A healthy-looking stream that produced empty arguments left
-// no trace at all, so "we never sent the tools", "the server sent no
-// arguments", and "we failed to route them" were indistinguishable without
-// attaching a debugger to the user's machine.
+// 日志无法在什么地方解决。 Chart 传输层 放弃其请求( Q)
+// `openai.request` + `openai.request.body`
+// 及其解码决定,但答复编码程序—— 传输层 副驾驶用于gpt-*模型——只记录故障。
+// -looking 数据流 故我对你们所争论的是空洞的,
+// "we never sent the tools",（我们从未发送工具。）
+// "the server sent no arguments" ,和 "we failed to route them"
+// 无法区分,而不在用户的机器上装一个调试器。
 //
-// ── THE RULE ─────────────────────────────────────────────────────────────
+// ── 该 RULE ─────────────────────────────────────────────────────────────
 //
-// Every tool call on this dialect leaves a trail through its whole life:
+// 每个工具 调用 在整个生命中,
 //
-//     responses.request            what we asked for (incl. tool count)
-//     responses.tool_open          item_id ↔ call_id ↔ name
-//     responses.tool_args_routed   which carrier delivered bytes, how many
-//     responses.tool_closed        what the call ended up with
+//     responses.request 我们要求的(包括工具计数) responses.tool_open
+//     item_id ↔ call_id 名称
+//     responses.tool_args_routed 承运人交付的 字节 ,
+//     有多少个 responses.tool_closed 或 调用 最终与
 //
-// Given those four, an empty-arguments report is a lookup rather than a
-// guess. This test pins that they exist and carry the identifiers that make
-// them joinable, because a log line is trivially deletable and nothing else
-// in the suite would notice.
+// 有了这四个,就空了 -arguments 报告是一个
+// 查询而非猜测。测试的标点是它们的存在,并带有可将它们合并
+// 的识别符,因为日志行是微不足道的可删除的,
+// 套件中其他任何内容都不会注意到。
 
 #include <cstdio>
 #include <cstdlib>
@@ -45,23 +45,23 @@ namespace cc = agentty::provider::chatgpt;
 
 namespace {
 
-// Drive the real codec, then read back what the flight recorder captured.
+// 驾驶真正的解码器,然后读回飞行记录器捕获的是什么.
 //
-// The ring records Warn+ always, and everything when the build/filter asks
-// (debug builds default to Trace — see logx::init). dump_flight_recorder_to
-// is the supported way to get the slots out, and it is what the crash
-// handler and `agentty diagnostics` both use, so testing through it means
-// testing the path a real bug report travels.
-// logx::detail::init() runs exactly once, from a magic static on the first
-// log call anywhere in the process. So the environment has to be set before
-// that — not inside the test body, which may well run after some other test
-// has already logged. A namespace-scope initialiser gets us in ahead of
-// main(), and therefore ahead of any TEST_CASE.
+// 戒指总是记录Warn+, 以及所有当 build/filter 询问( 调试建立
+// 默认值以跟踪 - 见 logx::init). dump_flight_recorder_to
+// 是支持的解开槽的方法, 也是崩溃的原因 处理函数 财务报告和已审计
+// 财务报表 `agentty diagnostics` 两者都使用,
+// 所以通过测试意味着测试一个真正的错误报告所行走的路径.
+// logx::detail::init (从第一个木头上的
+// 魔法静态) 调用 因此,环境必须在此之前确定,
+// 而不是在试验中确定。 正文 ,在其它测试已经登录之后,
+// 可能很可能会运行。 -scope 用户让我们在前面 main() ,
+// 因此在任何 TEST_CASE.
 //
-// wire=debug is precisely what a user debugging this would run, so the test
-// exercises the same filter path a real bug report travels.
+// 传输 =debug正是用户调试此操作的特性,因此测试会练习
+// 一个真实的bug报告所行走的相同的过滤路径.
 const bool g_log_env = [] {
-    ::setenv("AGENTTY_LOG", "wire=debug", /*overwrite=*/1);
+    ::setenv("AGENTTY_LOG", "wire=debug", /*覆盖=*/1);
     return true;
 }();
 
@@ -72,15 +72,15 @@ std::string run_and_capture(const std::vector<std::string>& sse) {
                     / "agentty_responses_log_test.txt";
     std::filesystem::remove(path);
 
-    // The flight ring is process-wide and cumulative — it has no reset, by
-    // design (a crash wants everything). So stamp a unique marker, run the
-    // turn, and keep only what lands after the marker. Without this the
-    // second test reads the first test's lines and "no arguments were
-    // routed" is unprovable.
+    // 飞行环是过程 -wide 并且累积的 —— 它没有重新设置,
+    // 由设计( 崩溃需要一切 )。 因此, 盖上一个独特的标记,
+    // 运行转弯, 并且只保留标记后的土地。 没有这个, 第二次测试会读
+    // 取第一个测试的行和 "no arguments were routed"
+    // 无法证明。
     static int seq = 0;
     ++seq;
-    // The dump line is "<meta> <channel> <site>: <message>", so the joint
-    // of site and message is ": " — match on that, not a bare space.
+    // 垃圾场的线路是 "<meta> <channel> <site>: <message>" ,
+    // 所以网站和消息的连结是 ": " - 配对,不是空地
     const std::string mark = "responses_log_test.mark: seq="
                            + std::to_string(seq);
     AGT_LOG(Wire, Debug, "responses_log_test.mark", "seq={}", seq);
@@ -90,7 +90,7 @@ std::string run_and_capture(const std::vector<std::string>& sse) {
 
     std::string dump;
     {
-        // Scoped: Windows can't delete a file that is still open.
+        // 范围:Windows无法删除一个仍然打开的文件.
         std::ifstream in(path);
         dump.assign(std::istreambuf_iterator<char>(in),
                     std::istreambuf_iterator<char>());
@@ -103,9 +103,9 @@ std::string run_and_capture(const std::vector<std::string>& sse) {
     return dump.substr(at);
 }
 
-// A Copilot-shaped turn: Copilot does NOT stream argument fragments, it
-// coalesces and sends one `.done` snapshot. That is the exact shape the
-// original bug hid in, so it is the shape worth pinning.
+// 副驾驶 -shaped 转弯: 副驾驶确实如此 不 数据流
+// 参数片段,它会汇合并发送一个 `.done` 快照。
+// 这就是原始虫藏在体内的形状,所以它就是值得被钉住的形状。
 const std::vector<std::string> kHealthyTurn = {
     R"({"type":"response.output_item.added","item":{"type":"function_call","id":"fc_1","call_id":"call_9","name":"read"}})",
     R"({"type":"response.function_call_arguments.done","item_id":"fc_1","arguments":"{\"path\":\"a.txt\"}"})",
@@ -113,8 +113,8 @@ const std::vector<std::string> kHealthyTurn = {
     R"({"type":"response.completed","response":{"usage":{}}})",
 };
 
-// The failure the user actually hit: the call opens and closes, but no
-// arguments arrive on any carrier.
+// 用户实际撞到的故障:调用打开并关闭,
+// 但没有任何论据到达任何载体上.
 const std::vector<std::string> kEmptyArgsTurn = {
     R"({"type":"response.output_item.added","item":{"type":"function_call","id":"fc_1","call_id":"call_9","name":"read"}})",
     R"({"type":"response.output_item.done","item":{"type":"function_call","id":"fc_1"}})",
@@ -125,33 +125,33 @@ bool has(const std::string& hay, std::string_view needle) {
     return hay.find(needle) != std::string::npos;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("responses: a tool call's whole life is in the log") {
     const auto dump = run_and_capture(kHealthyTurn);
 
-    // Opening: the identity pairing. item_id is what later argument frames
-    // address; call_id is what the reducer dispatches on. When they differ
-    // — they do on Copilot — a mismatch here is precisely the difference
-    // between arguments landing and going to tool_args_unroutable.
+    // 开场:身份配对. item_id 后一论点 帧 地址;
+    // call_id 是什么,这是 状态更新函数 当它们有分歧时,
+    // 它们会用副驾驶机, 与此不匹配的正是 参数着陆和准备降落
+    // 之间的区别 tool_args_unroutable.
     CHECK(has(dump, "responses.tool_open"));
     CHECK(has(dump, "item_id=fc_1"));
     CHECK(has(dump, "call_id=call_9"));
     CHECK(has(dump, "name=read"));
 
-    // Routing: which carrier delivered bytes, and whether they were new.
-    // On Copilot this is the single line for the call — total=1 (a
-    // snapshot, not a fragment) carrying the whole argument string.
+    // 运行:由哪家承运人交付字节,以及它们是否是新货.
+    // 副驾驶上,这是单行 调用 总计=1(a) 快照 ,
+    // 而不是一个碎片), 带有整个争论字符串。
     CHECK(has(dump, "responses.tool_args_routed"));
     CHECK(has(dump, "total=1"));
 
-    // Closing: the verdict, with the arguments the call actually ended up
-    // with. Non-zero here is a healthy turn.
+    // 结 论: 判决, 连同论点 调用 最终还是有的
+    // -zero 这儿是一个健康的转弯。
     //
-    // Match the FULL token `args=0 `, not the substring: `responses.
-    // completed` now also carries `salvaged_args=0 unroutable_args=0`, and
-    // a bare `args=0` matches inside those. The tool_closed line ends with
-    // `args=N`, so anchor on the space that follows the site's own field.
+    // 匹配 完整 符号 `args=0 ` ,而不是子弦:`反应。
+    // 完成 ` now also carries `salvaged_args=0 unroutable_args
+    // =0`, and a bare ` 参数=0 ` matches inside those. The tool_closed line ends with `
+    // args=N',所以锚在跟随站点自身场的空间上.
     CHECK(has(dump, "responses.tool_closed"));
     CHECK(!has(dump, " args=0\n"));
     CHECK(!has(dump, " args=0 "));
@@ -160,19 +160,19 @@ TEST_CASE("responses: a tool call's whole life is in the log") {
 TEST_CASE("responses: the empty-arguments failure is visible in the log") {
     const auto dump = run_and_capture(kEmptyArgsTurn);
 
-    // The call was announced…
+    // 电话 调用 已经宣布...
     CHECK(has(dump, "responses.tool_open"));
 
-    // …no carrier ever routed bytes…
+    // ...没有载体经过过 字节…
     CHECK(!has(dump, "responses.tool_args_routed"));
 
-    // …and the close records that it ended with nothing. Those three facts
-    // together say "the server sent no arguments", which is a different bug
-    // from "we dropped them" and points at a different fix. Without this
-    // line the two are indistinguishable from a bug report.
+    // 以及最后没有结果的近距离记录 这三个事实都表明
+    // "the server sent no arguments" ,（服务器没有发送参数。）
+    // 它是一个不同的错误,来自 "we dropped them" 并
+    // 指向不同的修正。没有这条线,两者就与错误报告无法区分。
     //
-    // Anchored on the trailing newline so this cannot accidentally match
-    // `salvaged_args=0` / `unroutable_args=0` on the completed line.
+    // 被困在后方的新线上,这样不能不小心吻合 `salvaged_args=0`
+    // / `unroutable_args=0` 已经完工的线路上
     CHECK(has(dump, "responses.tool_closed"));
     CHECK(has(dump, " args=0\n"));
 }

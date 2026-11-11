@@ -1,10 +1,10 @@
-// child_process_race_test — ChildProcess under concurrent stop/close/write.
+// child_process_race_test — ChildProcess 下加的 stop/close/write.
 //
-// The child's stdin fd and the process itself are reached from several
-// threads in real use: the peer's writer writes, stop() closes stdin, the
-// owner's destructor terminates and reaps. This hammers those together so
-// TSan (build-tsan) sees any unsynchronised access, and the plain build
-// checks nothing deadlocks or crashes.
+// 孩子们的血清和过程本身从几个 线程 实际使用:
+// 对端 作家写道: stop() 关闭 Stdin,
+// 主人的毁灭器终止并收割。 这把那些 人 绑在一起。
+// -tsan 任何不同步的进入,
+// 普通建筑检查什么 死锁 或坠机。
 #include "agentty/util/child_process.hpp"
 
 #include <atomic>
@@ -24,17 +24,17 @@ void check(bool ok, const char* what) {
 agentty::util::ChildProcess::Spawn cat_spawn() {
     agentty::util::ChildProcess::Spawn s;
 #if defined(_WIN32)
-    s.command = "cmd";   // `more` echoes stdin and exits on EOF, like cat
+    s.command = "cmd";   // `more` 呼应 stdin 和 退出 EOF 猫一样
     s.args    = {"/c", "more"};
 #else
-    s.command = "cat";   // echoes stdin; exits on EOF
+    s.command = "cat";   // 呼应 stdin; EOF 上的出口
 #endif
     return s;
 }
 
-// The writer races close_stdin(): no write may land on a closed or reused
-// fd. One writer, as in real use (the peer's writer thread); a std::ostream
-// isn't safe for two.
+// 作家竞态 close_stdin():任何写作都不得登陆封闭或重复使用的fd.
+// 1个写作机,如实际使用(对端的写作机线程);一个std::ostream
+// 对2个写作器不安全.
 void writers_vs_close() {
     for (int round = 0; round < 100; ++round) {
         agentty::util::ChildProcess c{cat_spawn()};
@@ -54,8 +54,8 @@ void writers_vs_close() {
     check(true, "a writer racing close_stdin finished");
 }
 
-// alive() polls and terminate() reaps from different threads: exactly one
-// reap, and the exit code is seen by both.
+// alive() 民意测验和 terminate() 从不同的收获 线程
+// :完全一个收获,退出代码被两者所看到.
 void poll_vs_terminate() {
     for (int round = 0; round < 50; ++round) {
         agentty::util::ChildProcess c{cat_spawn()};
@@ -69,7 +69,7 @@ void poll_vs_terminate() {
     }
 }
 
-// The child exits by itself (stdin EOF) while another thread terminates.
+// 儿童自行离开(Stdin EOF),而另一第线程终止。
 void natural_exit_vs_terminate() {
     for (int round = 0; round < 50; ++round) {
         agentty::util::ChildProcess c{cat_spawn()};
@@ -80,7 +80,7 @@ void natural_exit_vs_terminate() {
         check(!c.alive(), "child gone after a racing exit and terminate");
     }
 }
-}  // namespace
+}  // 命名空间结束。
 
 int main() {
     writers_vs_close();

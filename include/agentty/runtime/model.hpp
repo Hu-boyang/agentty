@@ -1,10 +1,10 @@
 #pragma once
-// agentty::Model — the composed application state.
+// agentty::Model 汇集整个应用的状态。
 //
-// This header imports each domain it aggregates and adds the UI-only
-// sub-states that don't belong to any domain (composer, pickers, palette,
-// modals).  Update / view code reach for domain-specific headers directly;
-// only the runtime glue needs the full composite.
+// 此头文件引入各领域类型，并补充不属于单一领域的
+// 界面子状态，包括输入框、选择面板、命令面板和弹出面板。
+// 状态更新与视图代码直接包含对应领域头文件，
+// 只有运行时整合层需要完整的组合模型。
 
 #include <optional>
 #include <limits>
@@ -20,44 +20,44 @@
 
 #include "agentty/domain/catalog.hpp"
 #include "agentty/domain/smart_mode.hpp"
-#include "agentty/provider/selection.hpp"   // Domain::selection
+#include "agentty/provider/selection.hpp"   // Domain::selection 选择状态。
 #include "agentty/domain/conversation.hpp"
-#include "agentty/foreign/scan.hpp"         // Domain::foreign
+#include "agentty/foreign/scan.hpp"         // Domain::foreign 外部会话状态。
 #include "agentty/diff/diff.hpp"
 #include "agentty/domain/id.hpp"
 #include "agentty/domain/profile.hpp"
 #include "agentty/domain/ui_prefs.hpp"
-#include "agentty/domain/ui_theme.hpp"   // ui_prefs::Detected
-#include "agentty/runtime/settings_registry.hpp"   // registry::EnvSnapshot
+#include "agentty/domain/ui_theme.hpp"   // ui_prefs::Detected 检测到的界面偏好。
+#include "agentty/runtime/settings_registry.hpp"   // registry::EnvSnapshot 环境快照。
 #include "agentty/domain/session.hpp"
 #include "agentty/domain/todo.hpp"
-#include "agentty/runtime/panel/slot.hpp"   // ui::panel::State (the exclusive slot)
-#include "agentty/mcp/plugin_model.hpp"    // mcp::PluginModel (owned in the Model)
+#include "agentty/runtime/panel/slot.hpp"   // ui::panel::State 独占面板槽位。
+#include "agentty/mcp/plugin_model.hpp"    // mcp::PluginModel 由 Model 拥有。
 #include "agentty/runtime/composer_attachment.hpp"
 #include "agentty/runtime/login.hpp"
 #include "agentty/runtime/panel/common.hpp"
-#include "agentty/runtime/panel/thread_peek.hpp"   // PeekTurn: the ^J peek cache
+#include "agentty/runtime/panel/thread_peek.hpp"   // PeekTurn 保存 ^J 的预览缓存。
 #include "agentty/runtime/view/cache.hpp"
-#include "agentty/store/store.hpp"          // store::Settings (the persisted record)
-#include "agentty/domain/auth_view.hpp"     // auth::AuthView
-#include "agentty/runtime/library.hpp"      // Library: what is installed on disk
-#include "agentty/rag/embed_backend.hpp"    // Env::embed_defaults
-#include "agentty/io/clipboard.hpp"         // ClipboardWalk
+#include "agentty/store/store.hpp"          // store::Settings 为持久化记录。
+#include "agentty/domain/auth_view.hpp"     // auth::AuthView 认证视图。
+#include "agentty/runtime/library.hpp"      // Library 描述磁盘上已安装的内容。
+#include "agentty/rag/embed_backend.hpp"    // Env::embed_defaults 嵌入模型默认配置。
+#include "agentty/io/clipboard.hpp"         // ClipboardWalk 剪贴板遍历状态。
 
 namespace agentty {
 
 // ============================================================================
-// UI sub-states — one concern each, declared next to the Model that owns them
+// 界面子状态各自负责一项功能，并在拥有它们的 Model 附近声明。
 // ============================================================================
 
 struct ComposerState {
-    /// One queued, not-yet-sent message. Carries the same `text` +
-    /// `attachments` pair the live composer does so a paste / @file
-    /// chip that got queued (because the agent was busy) survives
-    /// recall and resend as a chip rather than getting linearised
-    /// into an inline blob the moment it left the composer. The
-    /// fields here name-mirror ComposerState's text+attachments so a
-    /// queue cycle is a structural swap, not a one-way collapse.
+    /// 一条已排队、尚未发送的消息，与实时输入框
+    /// 一样保存 `text` 和 `attachments`。
+    /// Agent 忙碌时排队的粘贴内容或
+    /// @file 标签，在取回和重发时仍保留为标签。
+    /// 字段名与 ComposerState 一致，
+    /// 使排队和取回成为结构化交换，
+    /// 避免把附件提前压平成内联文本。
     struct QueuedMessage {
         std::string             text;
         std::vector<Attachment> attachments;
@@ -67,18 +67,18 @@ struct ComposerState {
     int  cursor   = 0;
     bool expanded = false;
     std::vector<QueuedMessage> queued;
-    /// Long pastes and @file picks live here as out-of-band bodies; the
-    /// composer text holds a placeholder token (\x01ATT:N\x01) per
-    /// attachment so cursor math and word-wrap stay plain-string.
-    /// Submit-time expansion (attachment::expand) substitutes each
-    /// placeholder with its body so the model sees the full bytes.
+    /// 长文本粘贴和 @file 选择保存为独立附件正文。
+    /// 输入框文本为每个附件保存一个占位符（\x01ATT:N
+    /// \x01），使光标计算和换行继续使用普通字符串逻辑。
+    /// 提交时 attachment::expand
+    /// 将各占位符展开成附件正文，让模型收到完整内容。
     std::vector<Attachment> attachments;
 
-    /// Undo / redo. Each Snapshot is the WHOLE composer payload — text,
-    /// cursor, attachments — captured before a mutating op. Cap depth
-    /// at 64 entries; older snapshots are dropped FIFO. New edits clear
-    /// the redo stack (standard editor semantics: branching from
-    /// mid-history discards the old future).
+    /// 撤销与重做。每次修改前的 Snapshot
+    /// 保存完整输入框内容，包括文本、光标和附件。
+    /// 最多保留 64 项，超出后按先进先出移除旧快照。
+    /// 新编辑会清空重做栈，符合从历史中间分叉后
+    /// 丢弃原有后续记录的编辑器语义。
     struct Snapshot {
         std::string             text;
         int                     cursor = 0;
@@ -86,118 +86,118 @@ struct ComposerState {
     };
     std::vector<Snapshot> undo_stack;
     std::vector<Snapshot> redo_stack;
-    /// True while a run of consecutive self-inserting keystrokes is
-    /// being coalesced into ONE undo unit (see push_undo). Any
-    /// non-typing op (paste, delete, cursor move, chip insert, submit,
-    /// undo/redo) sets this false so the next typing run starts a
-    /// fresh snapshot — Ctrl+Z then rewinds word-runs, not characters.
+    /// 连续的普通字符输入合并为一个撤销单元时为 true，
+    /// 详见 push_undo。粘贴、删除、
+    /// 光标移动、插入标签、提交以及撤销或重做等非普通
+    /// 输入操作将其设为 false，使下一段输入创建新快照。
+    /// 这样 Ctrl+Z 按输入片段撤销。
     bool undo_coalescing = false;
 
-    /// What the composer is currently SHOWING. Exactly one of three
-    /// things, so it is spelled as a variant rather than as two integers
-    /// that have to be kept mutually exclusive by hand:
+    /// 输入框当前显示的内容恰好
+    /// 属于以下三种状态之一，
+    /// 使用变体类型表达互斥关系。
     ///
-    ///   Live        the user's own draft — the normal state.
-    ///   History{i}  walking past USER messages (↑/↓). `i` indexes the
-    ///               reverse-chronological list of prior user messages.
-    ///   QueuePeek{i} editing pending queued item `i` in place (Alt+↑/↓).
+    ///   Live 是用户正在编辑的草稿，也是通常的状态。
+    ///   History{i} 表示用 ↑ / ↓ 浏览历史用户消息，
+    ///               i 索引按时间倒序排列的用户消息。
+    ///   QueuePeek{i} 表示原地编辑第 i 个排队条目，使用 Alt+↑ / ↓ 切换。
     ///
-    /// This was `int history_idx = -1` plus `int queue_peek_idx = -1`,
-    /// with a comment on the second one stating the invariant in prose:
-    /// "Mutually exclusive with history_idx — you're either walking past
-    /// USER messages or editing a pending QUEUED one, never both." Two
-    /// independent ints cannot express that: `history_idx >= 0 &&
-    /// queue_peek_idx >= 0` was a perfectly constructible state that every
-    /// reader had to avoid producing, and -1 had to be remembered as "none"
-    /// at each of the ~20 sites that touched them. A variant states the
-    /// exclusion in the type, so the illegal combination has no spelling.
+    /// 过去这里使用 int history_idx = -1 和 int
+    /// queue_peek_idx = -1，并用注释描述两者必须互斥。
+    /// 用户只能浏览历史消息或
+    /// 编辑排队消息。
+    /// 两个独立整数仍允许同时
+    /// 非负的非法状态，
+    /// 各调用点还必须记住 -1 表示未选中。
+    /// 变体类型将互斥关系写入类型，
+    /// 使非法组合无法构造。
     ///
-    /// The first ↑ (or Alt+↑) snapshots the live text/attachments into
-    /// draft_save so the round-trip is non-destructive. Any text-mutating
-    /// op (CharInput / Backspace / Paste / Kill / chip insertion) drops
-    /// back to Live and discards the snapshot — at that point the user is
-    /// editing what they pulled up, treating it as their new draft.
+    /// 首次按 ↑ 或 Alt+↑ 时，将实时文本和附件
+    /// 快照保存到 draft_save，使往返浏览不会破坏草稿。
+    /// 输入字符、Backspace、Paste、
+    /// Kill 或插入标签等修改操作会返回 Live 并
+    /// 丢弃快照，此时取回的内容成为正在编辑的新草稿。
     struct Live {};
-    struct History   { int index = 0; };   // into prior user messages
-    struct QueuePeek { int index = 0; };   // into `queued`
+    struct History   { int index = 0; };   // 指向历史用户消息。
+    struct QueuePeek { int index = 0; };   // 指向 `queued` 中的条目。
     using Browsing = std::variant<Live, History, QueuePeek>;
     Browsing                   browsing{Live{}};
 
     std::optional<std::string> draft_save;
-    /// Companion to `draft_save`: the live draft's attachments[]
-    /// captured at the same moment so a queue-peek round-trip
-    /// (Alt+↑ … Alt+↓ past the tail) restores chips too, not just
-    /// the text. Empty if there were no live attachments at the
-    /// time of the snapshot, OR if the snapshot is for a history
-    /// walk (history items never carry attachments — they're
-    /// rendered turns whose chips were collapsed at submit time on
-    /// previous schemas). Cleared together with `draft_save`.
+    /// 与 draft_save 同时
+    /// 保存的草稿附件数组。
+    /// Alt+↑ 浏览队列，
+    /// 再用 Alt+↓ 越过末尾返回时，
+    /// 文本和标签一起恢复。原草稿无附件或
+    /// 当前快照用于历史浏览时为空，
+    /// 因为历史消息的附件已经在提交时展开。
+    /// 与 draft_save 一起清除。
     std::vector<Attachment>    draft_save_attachments;
 
-    /// The `/` menu. Whether it shows is worked out from text + caret each
-    /// frame (slash::menu_query); only the selection and an Esc are kept.
-    /// `dismissed` holds the token text Esc was pressed on, so the menu
-    /// stays hidden while that token is unchanged.
+    /// `/` 菜单是否显示，每帧根据文本和光标由 slash::menu_query 推导。
+    /// 这里只保存选中位置和 Esc 关闭状态。
+    /// dismissed 保存按 Esc 时所在的标记文本，
+    /// 该标记不变时菜单保持隐藏。
     struct SlashMenu {
         int                        index = 0;
         std::optional<std::string> dismissed;
-        std::string                query;   // what `index` was picked for
+        std::string                query;   // 记录 index 所对应的查询。
     };
     SlashMenu slash;
-    /// An MCP `/prompt` is being rendered (cmd::render_slash_prompt); a
-    /// second Enter meanwhile doesn't start another.
+    /// 正在通过 cmd::render_slash_prompt 渲染 MCP
+    /// `/prompt`，期间再次按 Enter 不会重复启动。
     bool slash_pending = false;
 
-    /// ── Loop mode (^B) ───────────────────────────────────────────
-    /// When armed, the message that armed it is RE-SENT automatically
-    /// every time the agent finishes a turn, until the user toggles it
-    /// off (^B again, or Esc). This is the "keep hammering on this
-    /// prompt" workflow — iterate on a refactor, re-run a failing test,
-    /// poll until something converges — without retyping or holding
-    /// Enter.
+    /// ── 循环模式（^B）。 ───────────────────────────────────────────
+    /// 启用后，每当 Agent 完成一轮，
+    /// 就自动重发启用时的消息，直到用户再次
+    /// 按 ^B 或 Esc 关闭。
+    /// 适合持续重构、重复运行失败测试或轮询直到
+    /// 任务收敛，无需反复输入或按
+    /// Enter。
     ///
-    /// `loop_text` / `loop_attachments` snapshot the payload at ARM time
-    /// rather than re-reading the live composer, so the user can keep
-    /// typing a follow-up while the loop runs its own fixed prompt: the
-    /// thing that repeats is the thing you armed, which is the only
-    /// reading that stays true once the composer has moved on.
+    /// loop_text /
+    /// loop_attachments
+    /// 保存启用时的消息快照，因此循环运行
+    /// 期间用户仍可编辑后续消息。
+    /// 重复发送的内容始终是启用循环时的内容。
     ///
-    /// `loop_iterations` counts completed auto-sends (the first, manual
-    /// send is 0) purely so the UI can show ⟳ ×N — an unbounded loop
-    /// with no visible progress is indistinguishable from a hang.
+    /// loop_iterations 统计自动发送的完成次数，
+    /// 第一次手动发送记为 0，用于在界面显示 ⟳ ×N。
+    /// 显示进度可以帮助用户区分持续运行和程序卡住。
     ///
-    /// LOOP IS A REPEAT-ON-SUCCESS CONSTRUCT WITH ADAPTIVE BACKOFF.
-    /// It re-sends after a turn that ended normally — immediately, since
-    /// a completed turn already took real wall-clock time. When a turn
-    /// FAILS the loop does not die (the user asked it to keep going) but
-    /// it must not re-fire instantly either: a 429 answered by an instant
-    /// re-send is how a rate limit deepens into a ban. So a failure arms
-    /// `loop_wait_until_ms` and the next send waits.
+    /// LOOP 在成功后重复执行，并在失败时自适应退避。
+    /// 正常结束一轮后立即重发，
+    /// 因为这一轮本身已经消耗了实际时间。
+    /// 失败时循环继续，
+    /// 但通过 loop_wait_until_ms
+    /// 等待一段时间。立即重试 429 会
+    /// 加重限流，甚至导致封禁。
     ///
-    /// The delay is chosen by the provider's own signal where one exists:
-    /// a `Retry-After` header is obeyed verbatim (the server told us when
-    /// to come back — guessing anything else is strictly worse). Absent
-    /// that, `loop_failures` escalates a per-class schedule and resets to
-    /// 0 on the next success, so a transient blip costs seconds while a
-    /// sustained outage decays to minutes instead of spinning.
+    /// 优先采用提供方返回的延迟信号。
+    /// 存在 Retry-After 响应头时严格
+    /// 遵循服务器指定的重试时间。否则根据错误类别
+    /// 和 loop_failures 逐步增加等待时间，
+    /// 下次成功时清零。短暂故障只等待数秒，
+    /// 持续故障则退避到数分钟，避免忙循环。
     ///
-    /// Only Cancelled stops the loop outright: Esc means stop.
+    /// 只有 Cancelled 会立即停止循环，Esc 明确表示停止。
     bool                    loop_armed = false;
     std::string             loop_text;
     std::vector<Attachment> loop_attachments;
     int                     loop_iterations = 0;
-    /// Consecutive failed iterations; drives the backoff schedule and
-    /// resets to 0 on any success.
+    /// 连续失败次数，用于计算退避时间，
+    /// 任何一次成功都会清零。
     int                     loop_failures = 0;
-    /// Wall-clock ms before which the loop must not re-send. 0 = ready now.
+    /// 允许再次发送的最早实际时间，单位毫秒。0 表示现在就绪。
     std::int64_t            loop_wait_until_ms = 0;
 
     [[nodiscard]] bool looping() const noexcept {
         return loop_armed && !loop_text.empty();
     }
 
-    /// Stop the loop and forget what it was repeating. Called on cancel
-    /// and by the ^B toggle. Idempotent.
+    /// 停止循环并清除待重复的消息，由取消操作和 ^B
+    /// 开关调用，可安全重复执行。
     void disarm_loop() noexcept {
         loop_armed = false;
         loop_text.clear();
@@ -207,32 +207,32 @@ struct ComposerState {
         loop_wait_until_ms = 0;
     }
 
-    /// A turn ended normally: clear the failure streak so the next hiccup
-    /// starts from the bottom of the schedule again.
+    /// 轮次正常结束后清除连续失败计数，
+    /// 使下一次短暂故障从最短退避时间开始。
     void loop_note_success() noexcept {
         loop_failures = 0;
         loop_wait_until_ms = 0;
     }
 
-    /// May the loop send right now? False while a backoff is pending.
+    /// 循环现在是否可以发送。等待退避期间返回 false。
     [[nodiscard]] bool loop_ready(std::int64_t now_ms) const noexcept {
         return looping() && now_ms >= loop_wait_until_ms;
     }
 
-    /// Seconds still to wait, for the UI countdown (0 when ready).
+    /// 供界面倒计时使用的剩余秒数，就绪时为 0。
     [[nodiscard]] int loop_wait_secs(std::int64_t now_ms) const noexcept {
         if (loop_wait_until_ms <= now_ms) return 0;
         return static_cast<int>((loop_wait_until_ms - now_ms + 999) / 1000);
     }
 
-    /// Record a failed iteration and arm the next delay.
+    /// 记录一次失败，并设置下次重试的等待时间。
     ///
-    /// `retry_after` (the provider's own Retry-After) wins outright when
-    /// present: the server stated when to return, and any guess we make
-    /// is either rude or needlessly slow. Otherwise escalate by class —
-    /// rate limits get a much longer floor than a transient blip, because
-    /// retrying a 429 early is what turns it into a longer one. Capped so
-    /// a long outage settles at a slow poll instead of growing unbounded.
+    /// 提供方传入 retry_after
+    /// 时优先采用它指定的重试时间。
+    /// 否则按类别增加退避，
+    /// 限流或认证错误的起始等待时间比瞬时故障更长。
+    /// 设置上限后，持续故障最终稳定为慢速轮询，
+    /// 等待时间不会无限增长。
     void loop_backoff(int error_class_rank, int retry_after_secs,
                       std::int64_t now_ms) noexcept {
         ++loop_failures;
@@ -240,10 +240,10 @@ struct ComposerState {
         if (retry_after_secs > 0) {
             secs = retry_after_secs;
         } else {
-            // rank: 0 = transient/other, 1 = rate-limit/auth (slower).
+            // 错误等级为 0 时表示瞬时或其他错误，为 1 时表示需要更慢重试的限流或认证错误。
             const int base = error_class_rank >= 1 ? 30 : 5;
             const int cap  = error_class_rank >= 1 ? 600 : 120;
-            // Double per consecutive failure: 5,10,20,40… / 30,60,120…
+            // 每次连续失败后加倍，分别为 5、10、20、40… 秒和 30、60、120… 秒。
             secs = base;
             for (int i = 1; i < loop_failures && secs < cap; ++i) secs *= 2;
             if (secs > cap) secs = cap;
@@ -251,11 +251,11 @@ struct ComposerState {
         loop_wait_until_ms = now_ms + static_cast<std::int64_t>(secs) * 1000;
     }
 
-    // ── Browsing queries ─────────────────────────────────────────
-    // Small readers so call sites ask a question instead of unpacking a
-    // variant inline. Each returns the index only when that alternative is
-    // actually active, so "which mode" and "which item" cannot be answered
-    // separately — the pairing that -1 sentinels kept splitting apart.
+    // ── 历史与队列浏览查询。 ─────────────────────────────────────────
+    // 这些辅助读取函数只在对应变体处于活动
+    // 状态时返回索引。调用方无需自行拆解变体，
+    // 也不能把当前模式与条目索引分开读取，
+    // 从而避免 -1 哨兵值造成的状态分离。
     [[nodiscard]] bool is_live() const noexcept {
         return std::holds_alternative<Live>(browsing);
     }
@@ -268,184 +268,184 @@ struct ComposerState {
         return std::nullopt;
     }
 
-    /// Wall-clock ms (maya anim clock) of the user's last composer
-    /// interaction (any keystroke / edit / cursor move). Drives the
-    /// idle blink-stop: the painted block cursor stops blinking 15 s
-    /// after this, so the composer cell goes static and a GPU terminal
-    /// with an aggressive repaint_delay stops compositing at idle. 0
-    /// until the first interaction (blink runs normally until then).
+    /// 用户最后一次操作输入框的实际时间，
+    /// 使用 maya 动画时钟的毫秒值。
+    /// 任意按键、编辑或光标移动都会更新。
+    /// 15 秒无操作后，绘制的块状光标停止闪烁，
+    /// 使输入框变为静态，减少 GPU 终端的空闲合成。
+    /// 首次操作前为 0，期间正常闪烁。
     std::int64_t last_edit_ms = 0;
 };
 
-// Todo picker carries its own item list — separate concern from the
-// open/closed state, which now lives in `open` as a typed variant.
+// 待办面板独立保存条目列表，
+// 打开或关闭状态由 open 中的变体类型表示。
 struct TodoState {
-    ui::pick::Modal       open;     // Closed | OpenModal
+    ui::pick::Modal       open;     // 状态为 Closed 或 OpenModal。
     std::vector<TodoItem> items;
 };
 
 // ============================================================================
-// Model — the composed application state, split into three concerns:
-//   d   — Domain: what the conversation is (persisted, sent to provider).
-//   s   — Session: the in-flight request's state machine + cancel handle.
-//   ui  — UI: picker/modal/view-virtualization state, pure ephemeral.
+// Model 汇集应用状态，并分为以下三部分。
+//   d 为 Domain，保存会话内容等需要持久化或发送给提供方的数据。
+//   s 为 Session，保存当前请求的状态机和取消句柄。
+//   ui 保存选择面板、弹出面板和视图虚拟化等临时界面状态。
 //
-// The split lets call sites communicate their scope: a function that only
-// touches `m.ui.*` can't accidentally mutate the conversation; a reducer
-// fragment that reads `m.d.*` doesn't need to thread picker state through.
+// 这种划分使函数的操作范围清晰可见。只修改 m.ui.
+// * 的函数不会误改会话，读取 m.d.
+// * 的状态更新逻辑也无需传递选择面板的状态。
 // ============================================================================
 
 struct Model {
     struct Domain {
-        // THE persisted record, held whole.
+        // 完整保存的持久化记录。
         //
-        // init() used to unpack this field-by-field into the members below,
-        // which meant a reducer that changed one preference could not
-        // produce a Settings to save — it had to read the last one back
-        // through the Deps seam and patch it (the read-modify-write in
-        // update/appearance.cpp). That read is why reducers were impure.
+        // 过去 init() 将记录逐字段拆到下方成员，
+        // 导致修改某项偏好的状态更新函数无法直接生成
+        // Settings。它必须通过 Deps 读取旧
+        // 记录再修改，update/appearance.cpp
+        // 曾因此产生读取后修改再写回的非纯操作。
         //
-        // Holding the record makes saving a pure derivation: edit the field
-        // here, hand `persisted` to the save effect, done. Fields are
-        // migrating into it one at a time (each move is its own commit, so
-        // a regression has one suspect); the members below are what has not
-        // moved yet.
+        // 持有完整记录后，保存可由当前状态直接推导。
+        // 修改对应字段，将 persisted
+        // 交给保存副作用即可。字段正在逐项迁移，
+        // 每次独立提交便于定位回归问题，下方成员是尚未迁移
+        // 的部分。
         //
-        // NOT in here: provider_keys. Those are sealed to a separate
-        // keystore and never reach settings.json; the host's save handler
-        // merges them back. That is a host concern — it owns the keystore.
+        // provider_keys 不包含在这里。
+        // 它们封存在独立密钥存储中，不会写入 settings.json，
+        // 由拥有密钥存储的宿主在保存时合并。
         store::Settings     persisted;
 
         Thread              current;
-        // Fingerprints of `current` as of the last save described for it
-        // (save_current). The next save sends only what differs. Empty =
-        // send it whole: a new thread, a swap, or a refused save.
+        // save_current 上次为 current 描述
+        // 保存操作时的指纹，用于下次只发送差异。空值表示发送完整会话，
+        // 适用于新会话、切换会话或上次保存被拒绝的情况。
         std::vector<std::uint64_t> saved_fps;
         std::vector<Thread> threads;
-        // Codex / Claude Code sessions, as picker headers. Their not-yet-
-        // opened rows are merged into `threads` (foreign_only) whenever
-        // either list changes; kept apart so a native reload can't drop them.
+        // Codex / Claude Code 会话，用作选择器中的分组标题。
+        // 任一列表变化时，将其中尚未打开的 foreign_only 条目
+        // 合并进 threads。单独保存，避免原生会话重新加载时丢失这些条目。
         foreign::Scan foreign;
-        // Bumped whenever `threads` or a row in it changes (load, rename,
-        // delete), so the frame gate can tell without walking the list.
+        // threads 或其中任一行变化时递增，包括加载、
+        // 重命名和删除，让重绘判定无需遍历整个列表。
         std::uint64_t threads_rev = 0;
         Profile             profile = Profile::Write;
 
-        // How agentty LOOKS. The storage is `persisted.ui`; this is the
-        // name 34 call sites already use. Domain, not Model::ui, because it
-        // is persisted state the user chose — `Model::ui` is this session's
-        // transient panels and cursors, which these outlive.
+        // agentty 的外观配置，实际存储于 persisted.ui；
+        // 这里沿用现有 34 处调用使用的名称。它属于 Domain，
+        // 因为这是用户选择并持久化的状态，生命周期长于
+        // Model::ui 中的临时面板和光标。
         //
-        // Deliberately an accessor and not a reference member: a reference
-        // would delete Domain's copy-assignment, and the Model is copied and
-        // moved on every reducer step.
+        // 刻意使用访问器而非引用成员；
+        // 引用会使 Domain 无法复制赋值，而每次状态更新都会
+        // 复制或移动 Model。
         [[nodiscard]] ::agentty::ui_prefs::Prefs&       ui()       noexcept { return persisted.ui; }
         [[nodiscard]] const ::agentty::ui_prefs::Prefs& ui() const noexcept { return persisted.ui; }
 
         std::vector<ModelInfo> available_models;
         ModelId                model_id{std::string{"claude-opus-4-5"}};
-        // The active provider — WHICH backend this session talks to (Anthropic,
-        // an OpenAI-family endpoint, an ACP agent). The source of truth.
+        // 当前会话使用的提供方，例如 Anthropic、
+        // OpenAI 系列端点或 ACP 代理。这是权威状态。
         //
-        // This used to live only in a process global (provider::select /
-        // provider::active()), written from inside the switch reducer. The
-        // global stays, as the published copy that code OFF the loop reads —
-        // the stream worker, the ACP server, main — but it is now derived:
-        // the dispatch seam publishes this field to it after the fold that
-        // changed it (update.cpp, publish_derived). Reducers and the Cmd
-        // builders they call read the Model.
+        // 此前只保存于 provider::select /
+        // provider::active() 进程全局对象，
+        // 由切换状态更新函数写入。全局副本仍供事件循环之外的流式工作线程、
+        // ACP 服务器和 main 读取，但现在由模型派生：
+        // 修改该字段的状态更新完成后，分派边界通过 update.cpp 的
+        // publish_derived 发布副本。状态更新函数及其调用的
+        // Cmd 构造函数直接读取 Model。
         //
-        // Initialised by init() from what main() selected at launch.
+        // init() 根据 main() 启动时选择的提供方初始化。
         provider::Selection    selection;
 
-        // Credentials outside the settings record: which stores hold a
-        // token, which env vars are set, the accounts registry. Loaded by the
-        // host (LoadAuthView → AuthViewLoaded) at launch and after every
-        // credential effect, so reducers and views never read them from disk.
+        // 设置记录之外的凭据状态，包括哪些存储持有令牌、
+        // 哪些环境变量已设置以及账号注册表。宿主在启动时和每次凭据
+        // 副作用后通过 LoadAuthView →
+        // AuthViewLoaded 加载，状态更新和视图无需读磁盘。
         auth::AuthView         auth;
 
-        // Fused cross-provider model picker (docs/design/unified-model-picker.md).
-        // `provider_catalogs` is the MERGED, multi-provider catalog view built
-        // lazily when the fused picker opens (one entry per authed provider);
-        // it sits BESIDE available_models (which stays the active provider's
-        // catalog the wire path + context math read). `recent_models` is the
-        // MRU (provider,model) the user toggles between, newest first, capped;
-        // it drives the RECENT section and ^Tab quick-swap and persists to
-        // Settings.recent_models.
+        // 跨提供方的统一模型选择器，见 docs/design/unified-model-picker.md。
+        // provider_catalogs 是统一选择器打开时延迟构建的跨
+        // 提供方合并目录，每个已认证提供方一项。它与 available_models 并列，
+        // 后者仍是传输路径和上下文计算使用的当前提供方目录。
+        // recent_models 保存有上限的最近使用 (provider,
+        // model) 对，最新在前，用于 RECENT 分组和
+        // ^Tab 快速切换，并持久化到
+        // Settings.recent_models。
         std::vector<ProviderCatalog> provider_catalogs;
         std::vector<ModelRef>        recent_models;
-        // Cached fused-picker row list, rebuilt by the reducer ONLY when its
-        // inputs change (open / filter / catalog-loaded / favorite) so the
-        // view and cursor math read a ready vector every frame instead of
-        // re-enumerating providers + re-reading settings.json + re-scoring
-        // every model per keystroke. Empty while the picker is closed.
+        // 统一选择器行缓存。仅在打开、过滤、
+        // 目录加载或收藏等输入变化时由状态更新函数重建，
+        // 使视图和光标计算每帧读取现成向量，
+        // 无需每次按键重新枚举提供方、
+        // 读取 settings.json 并给模型评分。选择器关闭时为空。
         std::vector<FusedRow>        fused_rows;
-        // Sign-in offers (un-authed providers) computed ONCE when the fused
-        // picker opens, so per-keystroke row rebuilds never re-derive auth
-        // from disk. Paired with provider_catalogs as the picker's sources.
+        // 未认证提供方的登录入口在统一选择器打开时计算一次，
+        // 避免每次按键重建行时读取磁盘认证状态。
+        // 它与 provider_catalogs 一起构成选择器的数据源。
         std::vector<SigninOffer>     fused_offers;
-        // Reasoning effort tier, selected live in the model picker (←/→).
-        // None = the default no-thinking wire; any other level makes the
-        // Claude provider send adaptive thinking + output_config.effort.
-        // Persisted in Settings; gated per-model at request-build time.
+        // 推理力度等级，可在模型选择器中通过 ←/→ 即时切换。
+        // None 表示默认不启用思考；其他等级让 Claude 提供
+        // 方发送自适应思考和 output_config.effort。
+        // 持久化到 Settings，构建请求时再根据具体模型决定是否启用。
         Effort                 effort = Effort::None;
 
-        // Smart Mode: role-based execution routing (docs/design/smart-mode.md).
-        // `enabled` off by default — the whole feature is opt-in and a no-op
-        // when off (internal utility calls keep their existing cheapest-model
-        // default). Persisted in Settings.
+        // Smart Mode：按角色路由执行，见 docs/design/smart-mode.md。
+        // enabled 默认关闭，需要用户主动开启。
+        // 关闭时不改变行为，内部辅助调用仍默认使用最便宜模型。
+        // 配置持久化到 Settings。
         smart::RoleConfig      smart;
 
         std::vector<FileChange>          pending_changes;
-        // Two-press guard state for X/^X "reject all" when the review pane is
-        // CLOSED: the first bare X arms (toast asks for a second), the second
-        // executes, ANY other diff-review message disarms. Inside the pane the
-        // guard lives on the panel cell (confirm_reject_all) instead.
+        // 审查面板关闭时，X/^X 拒绝全部的两次按键保护状态。
+        // 第一次按键进入待确认并显示提示，第二次执行，
+        // 其他任意差异审查消息都会解除确认。面板内使用面板
+        // 状态 confirm_reject_all。
         bool                             reject_all_armed = false;
-        // Whether the persistent "N changes" review strip renders after edits.
-        // Loaded from Settings at startup; toggled live via the palette. OFF by
-        // default — edits still queue in pending_changes (Ctrl+R opens the
-        // pane), just without the always-on banner.
+        // 编辑后是否显示持续可见的“N changes”改动审查条。
+        // 启动时从 Settings 加载，可通过命令面板即时切换。默认关闭；
+        // 改动仍加入 pending_changes，可通过 Ctrl
+        // +R 打开面板，只是不持续显示横幅。
         bool                             show_changes_strip = false;
-        // Show the model's reasoning/thinking block in the transcript AND ask
-        // Anthropic for visible thinking (interleaved-thinking beta). Loaded
-        // from Settings at startup; toggled live via the palette (Ctrl+K →
-        // "Reasoning"). Off by default. Provider-agnostic.
+        // 是否在会话中显示模型的推理或思考内容，并向 Anthropic 请求
+        // 可见思考，使用 interleaved-thinking beta。
+        // 启动时从 Settings 加载，可通过 Ctrl+K →
+        // Reasoning 切换，默认关闭，适用于各提供方。
         bool                             show_reasoning = false;
         std::optional<PendingPermission> pending_permission;
-        // Shell detours in a row (analyze_detour().substitutable()). Drives
-        // the drift reminder in update/tool.cpp; reset by any other call.
+        // 连续发生的 shell 绕行次数，由 analyze_detour().substitutable() 判断。
+        // 用于 update/tool.cpp 的偏离提醒，其他任何调用都会重置。
         int                              shell_detour_streak = 0;
 
-        // Session-scoped "always allow" grants, keyed by tool name
-        // (e.g. "shell", "write"). Set by PermissionApproveAlways;
-        // consulted in kick_pending_tools BEFORE prompting. Cleared on
-        // profile change so tightening the profile re-arms prompts.
-        // Seeded at startup from persisted always_allow_tools.
+        // 会话级“始终允许”授权，以工具名为键，例如 shell、
+        // write。由 PermissionApproveAlways 设置，
+        // kick_pending_tools 在显示提示前查询。
+        // 切换权限配置时清空，使收紧配置后重新要求确认。
+        // 启动时从持久化的 always_allow_tools 初始化。
         std::set<std::string>            session_grants;
 
-        // The DEFINITION each grant was given for, by tool name.
+        // 每项授权对应的工具定义指纹，以工具名为键。
         //
-        // A grant on a bare name is a standing permission for whatever that
-        // name resolves to later, and for an MCP tool the server owns the
-        // name. So the grant carries the fingerprint of what was approved,
-        // and a call riding that grant is dispatched against that hash --
-        // execute_approved refuses if the tool has since been redefined.
+        // 仅按名称授权会使权限自动适用于以后解析到
+        // 同名的任何实现，而 MCP 工具名称由服务器控制。
+        // 因此授权携带被批准定义的指纹，
+        // 调用也按该哈希分派；若工具已被重新定义，
+        // execute_approved 会拒绝执行。
         //
-        // Missing entry (or 0) = unchecked: a grant persisted by an older
-        // build has no hash, and refusing those would break every saved
-        // grant on upgrade.
+        // 缺失或为 0 表示尚未校验。旧版本保存的
+        // 授权没有哈希，直接拒绝会使升级后所有旧
+        // 授权失效。
         std::map<std::string, std::uint64_t> grant_def_hash;
 
-        // Is ANY provider catalog still being fetched?
+        // 是否仍有任一提供方的模型目录正在获取？
         //
-        // THE predicate for "the fused picker's list is still filling in".
-        // Distinct from Session::models_loading, which covers only the
-        // ACTIVE provider's fetch (provider switch / startup) — the picker
-        // fans out to every authed provider and tracks each one's state
-        // here. Using the wrong one is how the picker's "loading …" spinner
-        // ended up gated on a flag the picker never sets: it advanced during
-        // provider switches and stayed frozen in the one place it exists for.
+        // 这是判断统一模型选择器列表是否仍在填充的唯一谓词。
+        // 它不同于 Session::models_loading，
+        // 后者只跟踪切换提供方或启动时的当前
+        // 提供方目录请求。统一选择器会向所有
+        // 已认证提供方并发取目录，并在这里分别跟踪。
+        // 此前混用判定，导致加载动画只在切换
+        // 提供方时转动，真正打开选择器时却冻结。
         [[nodiscard]] bool any_catalog_loading() const noexcept {
             for (const auto& c : provider_catalogs)
                 if (c.state == ProviderCatalog::State::Loading) return true;
@@ -455,305 +455,305 @@ struct Model {
 
     struct UI {
         ComposerState       composer;
-        // ── THE exclusive panel slot ─────────────────────────────
-        // Every modal overlay (pickers, palettes, viewers, diff review)
-        // lives in this ONE variant: opening is assignment, which
-        // structurally closes whatever was open — "two overlays open" is
-        // unrepresentable, and the ~17 rival-closing writes the old 16
-        // separate fields required are gone. See overlay_state.hpp for
-        // the alternatives and the deliberate non-members (login,
-        // permission, todo — they coexist with the slot by design;
-        // panel::top() composes all four into the priority answer).
+        // ── 独占面板槽位。 ─────────────────────────────
+        // 所有模态覆盖界面，包括选择器、命令面板、
+        // 只读视图和差异审查，都放在同一个变体中。
+        // 打开新界面即赋值，从结构上关闭旧界面，
+        // 不可能同时打开两个，替代了旧 16 个字段
+        // 所需的约 17 处互相关闭逻辑。
+        // 各分支及刻意独立的登录、权限、待办界面见
+        // overlay_state.hpp；
+        // panel::top() 合并四类状态并决定优先级。
         ui::panel::State  panel;
-        // Escape-based clipboard read bookkeeping: bumped when a query is
-        // emitted; a successful paste stamps done = seq. The delayed
-        // ClipboardQueryTimeout{seq} only fires its diagnosis when seq still
-        // matches and done hasn't caught up — so a reply always cancels the
-        // timeout, and rapid re-triggers can't fire stale toasts.
+        // 转义序列剪贴板查询的记录：发送查询时递增 seq，
+        // 成功粘贴时令 done = seq。
+        // ClipboardQueryTimeout{seq}
+        // 只有在序号仍匹配且 done 尚未追上时才诊断，
+        // 确保回复取消超时，快速重试也不会触发旧提示。
         std::uint64_t       clipboard_query_seq  = 0;
         std::uint64_t       clipboard_query_done = 0;
-        // maya::clipboard_rx_bytes() sampled when the query was armed. The
-        // timeout compares against it to tell a silent terminal from one
-        // whose (large, image) reply is still streaming in.
+        // 查询发出时采样 maya::clipboard_rx_bytes()。
+        // 超时路径通过比较该值，区分终端完全未
+        // 答复和大型图像回复仍在传输。
         std::uint64_t       clipboard_rx_mark    = 0;
-        // maya::clipboard_read_refused() sampled when the query was armed.
-        // Movement means the terminal answered with EPERM/ENOSYS rather than
-        // staying silent — a different fault with a different fix, which the
-        // user cannot distinguish from the symptom alone.
+        // 查询发出时采样 maya::clipboard_read_refused()。
+        // 计数变化表示终端返回 EPERM/ENOSYS，
+        // 而非保持沉默；两种故障需要不同修复方式，
+        // 用户无法仅靠表面症状区分。
         std::uint64_t       clipboard_refused_mark = 0;
-        // True when the in-flight query was raised by an IMAGE-paste intent
-        // (Ctrl+V / Alt+V on a clipboard we could not read locally), as
-        // opposed to an ordinary text paste. Set alongside the seq bump.
+        // 当前终端查询是否由图像粘贴意图触发，即无法本地读
+        // 取剪贴板时按 Ctrl+V / Alt+V，
+        // 而非普通文本粘贴。随 seq 递增一起设置。
         //
-        // Why it matters: over SSH+tmux agentty asks for BOTH dialects — OSC
-        // 5522 (kitty only; carries image bytes) and OSC 52 (text only,
-        // widely supported). A non-kitty terminal ignores the first and
-        // answers the second, so the user who wanted to paste a screenshot
-        // silently receives TEXT. The reply cancels the no-reply timeout, so
-        // without this flag there is no moment at which anything can explain
-        // what happened — the failure is invisible.
+        // 原因是 SSH+tmux 场景会同时请求
+        // OSC 5522 和 OSC 52：前者
+        // 只被 kitty 支持且携带图像字节，
+        // 后者广泛支持但只返回文本。非 kitty
+        // 终端会忽略前者并回复后者，使想粘贴截图的用户只
+        // 得到文本；回复又取消了无响应超时。若不保存该标志，
+        // 就无法解释这个隐蔽失败。
         bool                clipboard_wanted_image = false;
-        // Text stashed by the ComposerPaste arm when wanted_image is true and
-        // the paste was text (the tmux race: OSC 52 text reply arrives before
-        // the OSC 5522 image reply). The timeout path uses it as a fallback
-        // instead of diagnosing "no answer" while the text is sitting here.
+        // wanted_image 为真但收到文本时，
+        // ComposerPaste 暂存该文本，用于处理 tmux
+        // 中 OSC 52 文本回复早于 OSC 5522 图像回复的竞态。
+        // 超时路径将其作为回退，避免明明已有文本却报告无响应。
         std::string         clipboard_text_fallback;
-        // The clipboard reply that answered the last query (size + hash), so
-        // a duplicate answer to the same query (tmux: OSC 5522 and OSC 52)
-        // isn't pasted twice.
+        // 最近一次查询回复的大小与哈希，避免 tmux 下
+        // OSC 5522 和 OSC 52 对同一查询重复
+        // 回复时粘贴两次。
         std::size_t         clipboard_last_reply_size = 0;
         std::size_t         clipboard_last_reply_hash = 0;
-        // A clipboard reply that reached the input as plain text (its ESC
-        // bytes stripped on the way), collected here until it is complete so
-        // it is never pasted as text. See the ComposerPaste arm.
+        // 剪贴板回复的 ESC 字节若途中被剥离，
+        // 可能作为普通文本到达；这里收集完整内容，防止将其直接粘贴为正文。
+        // 见 ComposerPaste 分支。
         std::string         clipboard_leaked_reply;
-        // A Ctrl+V read waiting on the terminal: richpaste's route walk, kept
-        // so a silent terminal resumes it at the next route instead of
-        // ending the paste. Cleared when any answer lands.
+        // 等待终端回复的 Ctrl+V 读取状态，
+        // 保留 richpaste 的读取路径遍历进度。
+        // 终端沉默时可继续尝试下一条路径，收到任意回复后清空。
         ClipboardWalk       clipboard_walk;
-        // When the in-flight terminal ask counts as unanswered. The timeout
-        // arm polls until then (a refusal shows up only as a counter).
+        // 终端查询何时被视为无响应。超时分支在此
+        // 之前持续检查，因为拒绝只通过计数器体现。
         std::chrono::steady_clock::time_point clipboard_query_deadline{};
-        // Bumped each time an image-as-text paste chip is made or grows; the
-        // ArmoredPasteStall check armed with it only fires if nothing came
-        // after.
+        // 每当将图像编码文本转换为粘贴标签，或标签继续增长时递增。
+        // ArmoredPasteStall 仅在其后再无数据到达时
+        // 触发。
         std::uint64_t       armored_paste_gen = 0;
-        // (Smart-Mode slot-assign state used to be parked HERE as three
-        // fields — slot, advanced, from — because the hand-off destroyed the
-        // SmartMode overlay. It now rides ON the assign-mode Models panel
-        // (pn::Models::assign_slot) with the whole SmartMode pane in its
-        // `from` snapshot: abandoning the picker abandons the mode
-        // structurally, and ascend() restores the pane. Nothing to park.)
+        // Smart Mode 的槽位分配状态曾以 slot、
+        // advanced、from 三个字段保存在这里，因为跳转会销毁原面板。
+        // 现在状态随分配模式的 Models 面板保存于
+        // pn::Models::assign_slot，
+        // from 快照中保留完整 SmartMode 面板；
+        // 放弃选择器即结构性放弃模式，ascend() 恢复面板，无需另存。
 
-        // Effort tier changed via ←/→ in the model picker but not yet
-        // flushed to disk. Persisting per keystroke is a synchronous
-        // load+fsync+rename on the UI thread; instead the CycleEffort arm
-        // sets this and CloseModels/Select flush once.
+        // 通过 ←/→ 改变但尚未落盘的推理力度。每次按键保存会
+        // 在界面线程同步执行加载、fsync 和 rename，
+        // 因此 CycleEffort 仅设置该标志，
+        // 由 CloseModels/Select 统一写入一次。
         bool                effort_dirty = false;
-        // The model id we last told the user isn't in its provider's list, so
-        // each catalog refresh doesn't repeat the toast.
+        // 最近一次已提示“不在提供方列表中”的模型标识，
+        // 避免每次刷新目录都重复弹出提示。
         std::string         unlisted_model_noted;
-        // A model picked while a turn was running. It's applied when the turn
-        // ends (publish_derived checks every fold), so the running turn's
-        // continuations and retries stay on the model and provider it started
-        // with. A newer pick replaces it; picking the running model clears it.
+        // 轮次运行中选择的新模型，待轮次结束后应用，
+        // publish_derived 每次状态更新都会检查。
+        // 这样续接与重试仍使用轮次开始时的模型和提供方。
+        // 新选择覆盖旧选择，重新选择正在使用的模型则清空。
         std::optional<ModelRef> pending_switch;
-        // Plugins/MCP connection snapshot — OWNED BY THE MODEL, not read from
-        // the global pool at render time. This is the architectural fix for
-        // the recurring "stuck on connecting… / laggy panel" bugs: the view
-        // and visual_hash are contractually pure functions of the Model, so
-        // any UI truth living OUTSIDE the Model (as plugin_model() used to,
-        // reaching into a process-global pool) is invisible to the render
-        // gate and undriveable by the update loop. The connection itself
-        // still lives in the mcp:: ConnectionPool (it owns sockets/child
-        // procs), but its UI-facing VALUE snapshot is mirrored here via the
-        // PluginsUpdated message (Cmd→Msg, exactly like ThreadsLoaded). The
-        // view renders THIS; nothing in the view path calls plugin_model().
+        // Plugins/MCP 连接快照由 Model 拥有，
+        // 渲染时不读取全局连接池。view 和
+        // visual_hash 必须是 Model 的纯函数；
+        // 位于模型之外的界面状态无法触发重绘，
+        // 也无法由状态更新循环驱动，这曾造成连接中卡住和
+        // 面板延迟。连接本体仍由 mcp::ConnectionPool
+        // 管理套接字和子进程，但面向界面的值快照
+        // 通过 PluginsUpdated 消息镜像到此，
+        // 采用与 ThreadsLoaded 相同
+        // 的 Cmd→Msg 流程。视图只渲染此快照，
+        // 不调用 plugin_model()。
         mcp::PluginModel    plugins;
-        bool                plugins_loading = false;  // a connect/reload Cmd is in flight
-        // Tail-follow toggle for the tool viewer's LIVE row (row 0). True =
-        // the body auto-scrolls to the newest streamed output (tail -f);
-        // scrolling up disengages it, End / scrolling back to the bottom
-        // re-engages. Only consulted while viewing a live entry.
+        bool                plugins_loading = false;  // 连接或重新加载 Cmd 正在执行。
+        // 工具查看器实时行（第 0 行）的跟随尾部开关。
+        // 为真时正文自动滚动到最新输出，类似 tail -f；
+        // 向上滚动会关闭，按 End 或回到底部
+        // 重新开启。仅查看实时条目时使用。
         bool                tool_viewer_tail = true;
         TodoState           todo;
         ui::login::State    login;            // Closed | Picking | OAuthCode | OAuthExchanging | ApiKeyInput | Failed
-        // Terminal window focus (?1004). Starts true — the terminal
-        // that launched agentty has focus. Gates the hardware caret:
-        // unfocused ⇒ park + hide (no blinking bar in inactive panes).
+        // 终端窗口焦点状态（?1004）。初始为 true，
+        // 因为启动 agentty 的终端拥有焦点。它控制硬件光标：
+        // 失去焦点时停放并隐藏，避免非活动面板中出现闪烁光标。
         bool                terminal_focused = true;
-        // Terminal geometry as the host last reported it (TerminalResized).
-        // 80x40 until the first report, the same fallback the old direct
-        // tty query used for a piped or detached stdout.
+        // 宿主最近一次通过 TerminalResized 报告的终端尺寸。
+        // 首次报告前使用 80x40，与旧版直接查询 tty 时
+        // 针对管道或分离 stdout 的回退值一致。
         int                 term_cols = 80;
         int                 term_rows = 40;
 
-        // ── Sealed scrollback prefix (maya ScrollbackLedger) ───
+        // ── 已固定的回滚前缀，使用 maya ScrollbackLedger。 ───
         //
-        // Append-only ledger of fully-built Element blocks that
-        // represent the settled portion of the transcript. The view
-        // hands maya's Conversation widget a borrowed pointer via
-        // `Config::ledger`, which renders it through `ledger_ref` —
-        // zero-copy across frames AND maya's paint pass records every
-        // block's real laid-out height back into the ledger each
-        // frame.
+        // 只追加的账本，保存已经构建完成、
+        // 代表会话稳定部分的 Element 块。
+        // 视图通过 Config::ledger 向
+        // maya 的 Conversation 组件传入借用指针，
+        // 再以 ledger_ref 渲染，实现跨帧零复制；
+        // maya 每帧绘制时也会把各块真实布局高度写回
+        // 账本。
         //
-        // THE ACCOUNTING INVERSION (Witness Chain — Trim Accounting):
-        // the ledger replaced four parallel host-maintained vectors
-        // (frozen / frozen_rows / frozen_is_separator + frozen_row_total
-        // + frozen_cols) whose row counts were HOST-measured through a
-        // reconstructed width. Every historical trim-corruption bug was
-        // drift between that parallel measurement and what maya painted
-        // (the phone-over-SSH duplication ghost, the post-resize
-        // over-commit, the one-row estimate drift). Now maya measures:
-        // trim commit counts are minted exclusively by
-        // ledger.harvest() from paint-recorded heights, as a typed
-        // ScrollbackDebt token the host cannot fabricate or adjust —
-        // drift is unrepresentable, not merely tested-against.
+        // 高度记账方向的反转：见证链与裁剪记账。
+        // 账本替代了宿主维护的四套并行记录：frozen
+        // / frozen_rows / frozen_is_separator，
+        // 以及 frozen_row_total、
+        // frozen_cols。旧方案根据重建宽度自行
+        // 测量行数，与 maya 实际绘制发生偏差，
+        // 曾造成手机 SSH 重复内容、调整尺寸后过量
+        // 提交和单行估算漂移。现在统一由 maya 测量：
+        // 裁剪提交量只能由 ledger.harvest
+        // () 根据绘制记录高度生成，
+        // 形式为 ScrollbackDebt 令牌。
+        // 宿主无法伪造或调整，因而类型结构直接排除了测量漂移。
         //
-        // Block granularity (one ledger block per push):
-        //   • a gap (blank+rule+blank) before each fresh-speaker turn,
-        //   • a built Turn Element for a settled message (or run),
-        //   • a compaction divider for a CompactionRecord boundary.
+        // 每次追加一个账本块，粒度如下：
+        //   • 每个新发言方轮次前的间隔：空行、分隔线、空行。
+        //   • 已稳定消息或消息组构建好的 Turn Element。
+        //   • CompactionRecord 边界对应的压缩分隔条。
         //
-        // The producer is freeze_range/freeze_through (frozen.cpp),
-        // called from the settle path. Cleared (and frozen_through
-        // reset) on thread switch / NewThread / OpenThread; rebuilt by
-        // rehydrate_frozen() when a saved thread is loaded.
+        // 生产方是 frozen.cpp 中的 freeze_range/freeze_through，
+        // 由收尾路径调用。切换会话、NewThread 或 OpenThread
+        // 时清空并重置 frozen_through；加载保存的会话后
+        // 由 rehydrate_frozen() 重建。
         maya::ScrollbackLedger frozen;
 
-        // Exclusive upper bound into m.d.current.messages. Every
-        // message with index < frozen_through has already been built
-        // into `frozen` and need not be rendered live. The suffix
-        // [frozen_through .. end) is the live tail — rebuilt every
-        // frame (with the per-Turn shared_ptr Element cache keeping
-        // settled-within-tail messages cheap).
+        // m.d.current.messages 的排他上界。
+        // 索引小于 frozen_through 的消息都已构建到
+        // frozen 中，无需实时渲染。
+        // 后缀 [frozen_through .. end) 是每帧
+        // 重建的实时尾部，逐 Turn 的 shared_ptr Element
+        // 缓存降低了尾部已稳定消息的开销。
         std::size_t         frozen_through = 0;
 
-        // Running turn number for the next freshly-frozen Assistant
-        // turn. The live tail reads (frozen_turn + assistant_messages_in_tail)
-        // for its display numbers.
+        // 下一条新冻结的 Assistant 轮次编号。实时尾部使用
+        // frozen_turn + assistant_messages_in_tail
+        // 生成显示编号。
         int                 frozen_turn = 0;
 
-        // Deferred settle-freeze. The post-stream settle (finish() on the
-        // StreamingMarkdown) flips the md widget's build shape + prefix
-        // generation, so the post-finish element tree's inner
-        // ComponentElement hash differs from every live (pre-finish)
-        // frame. If freeze_through ran in the SAME tick as finish(), the
-        // frozen tree (post-finish hash) would be diffed against
-        // prev_cells (last live, pre-finish hash) on the next paint = a
-        // maya component-cache miss = the whole turn re-emits from the
-        // top (the post-settle redraw). Instead finalize_turn settles
-        // here and sets this flag WITHOUT freezing; one view() paints the
-        // finished (still-unfrozen, live-tail) tree so prev_cells now
-        // holds the post-finish hash; the next idle Tick sees the flag,
-        // freezes the byte-and-hash-identical tree (cache HIT, no
-        // re-emit), and clears the flag.
+        // 延迟收尾冻结。流结束后，
+        // StreamingMarkdown 的
+        // finish() 改变构建结构和前缀代数，
+        // 使组件哈希不同于此前的实时帧。
+        // 如果同一次 Tick 中立即 freeze_through，
+        // 下一次绘制会拿完成后的哈希与旧实时
+        // 帧的 prev_cells 比较，
+        // 导致组件缓存未命中并从顶部重画整轮。
+        // 为此 finalize_turn 只完成
+        // 收尾并设置标志，暂不冻结；
+        // 先由一次 view() 绘制已完成但仍在实时
+        // 尾部的树，更新 prev_cells。
+        // 下一次空闲 Tick 再冻结字节和哈希均相同的树，
+        // 命中缓存并清除标志。
         bool                pending_settle_freeze = false;
 
-        // Post-freeze settling window. When the deferred settle-freeze
-        // fires, the live tail collapses into the frozen prefix in ONE
-        // reducer step. If that tail had overflowed the viewport (the
-        // common case for a long reply), maya's renderer needs SEVERAL
-        // frames to fully reconcile the shrink: detect the shrink-while-
-        // overflowed prefix, commit the off-viewport rows, demote to
-        // Stale, then soft-repaint the corrected viewport on the
-        // FOLLOWING render. At fps=0 the tick subscription drops the
-        // instant pending_settle_freeze clears, so without an explicit
-        // settling window maya might get only ONE post-collapse frame —
-        // not enough for the detect→commit→demote→repaint chain — and a
-        // stranded duplicate turn lingers until the next user keystroke.
-        // agent_session never has this problem: its always-on 30fps clock
-        // keeps rendering frames after MessageStop, so the reconciliation
-        // chain always completes. We emulate that by keeping the tick
-        // alive for a few frames after the freeze. Set to kSettleCooldown
-        // when the freeze fires; decremented each Tick; the tick
-        // subscription stays armed while > 0.
+        // 冻结后的稳定窗口。
+        // 延迟冻结会在一次状态更新中把
+        // 实时尾部并入冻结前缀。
+        // 若尾部已超出可视区，
+        // maya 需要多帧完成协调：发现
+        // 溢出前缀缩短、提交视口外行、
+        // 降为 Stale，
+        // 再在下一帧轻量重绘。fps=0
+        // 时若 pending_settle_freeze
+        // 清除后立即停止 Tick，
+        // 只会得到一帧，无法走完整个链条，
+        // 重复轮次就会留到下一次按键。
+        // agent_session 持续 30 fps，
+        // MessageStop 后仍继续渲染，
+        // 所以不会出现此问题。这里通过冻结后继续保留数
+        // 帧 Tick 模拟该行为：冻结时设为
+        // kSettleCooldown，每次 Tick 递减，
+        // 大于 0 时保持订阅。
         int                 settle_cooldown_ticks = 0;
 
-        // One-shot: re-run trim_frozen_if_oversized on the first Tick
-        // after a thread rehydrate. The rehydrate budget walk works on
-        // ESTIMATED heights; the first paint stamps every sealed block's
-        // REAL laid-out height into the ledger (record_paint), and on
-        // tool-heavy threads the real total can exceed the estimate
-        // several-fold (per-panel chrome the estimate's flat caps miss).
-        // The deferred trim closes the loop against ground truth — same
-        // provable drop_front + harvest + commit_scrollback path the
-        // settle-freeze trim uses. Set by ThreadLoaded (which also arms
-        // the Tick via settle_cooldown_ticks); consumed by the Tick arm.
+        // 会话恢复后的首个 Tick 再执行一次
+        // trim_frozen_if_oversized。
+        // 恢复时的预算基于估算高度，
+        // 首次绘制则通过 record_paint
+        // 写入各块真实高度。工具密集的会话中，
+        // 面板装饰可能使实际总高度达到估算的数倍。
+        // 延迟裁剪根据真实绘制数据闭合反馈，沿用收尾冻结的 drop_front
+        // + harvest + commit_scrollback 路径。
+        // ThreadLoaded 设置此标志，
+        // 并通过 settle_cooldown_ticks 启用 Tick；由 Tick 分支消费。
         bool                pending_rehydrate_trim = false;
 
-        // One-shot hint to maya's run loop: "the next view() result
-        // contains a heavy frozen scrollback that hasn't been painted
-        // yet on this thread; please pre-warm the component cache
-        // before the wire-bound render." Set after rehydrate_frozen()
-        // populates m.ui.frozen on thread swap; cleared by the reducer
-        // step that produced the post-warmup model (so warmup fires
-        // exactly once per swap).
+        // 给 maya 运行循环的一次性预热提示：
+        // 下次 view() 包含该会话尚未绘制的大量
+        // 冻结历史，应在向终端输出前预热组件缓存。
+        // 会话切换后由 rehydrate_frozen
+        // () 填充 m.ui.frozen 时设置，
+        // 产生预热后模型的状态更新步骤会清除它，
+        // 确保每次切换只预热一次。
         //
-        // Maya's run<P> loop detects this via the optional Program
-        // hook `static bool needs_warmup(const Model&)` — see app.hpp
-        // detail::HasNeedsWarmup. When true, an off-wire warmup_render
-        // populates the hash-keyed component cache so the user-visible
-        // render hits the cell-blit fast path: converts 80–660 ms cold
-        // paint to <1 ms warm paint on tool-heavy thread resume.
+        // maya 的 run<P> 通过可选 Program 钩子
+        // static bool needs_warmup(const Model
+        // &) 检测，见 app.hpp 的 detail::HasNeedsWarmup。
+        // 为真时，warmup_render 在不输出终端数据的情况下填充
+        // 按哈希索引的组件缓存，使可见渲染直接复用单元格；工具密集会话恢复时，
+        // 可把 80～660 ms 的冷绘制降低到不足 1 ms。
         bool                needs_warmup_render = false;
 
-        // Is a background `git status` refresh (the `@` picker's working-set
-        // ranking) in flight?
+        // 后台 git status 刷新是否正在执行？它用于 @
+        // 选择器的工作集排序。
         //
-        // THE single-flight latch for that job, and it lives HERE — on the
-        // Model — on purpose. The reducer emits the refresh Cmd only when
-        // this is false, and GitSignalsRefreshed clears it. So "don't run two
-        // at once" is a property a test can set up and assert on, rather than
-        // a static atomic buried in the workspace layer where the reducer
-        // cannot see it.
+        // 该任务的唯一在途标志特意保存在 Model 上。
+        // 仅为 false 时，状态更新函数才生成刷新 Cmd，
+        // GitSignalsRefreshed 清除它。
+        // 这样“同一时刻最多一个任务”能由测试直接构造并断言，
+        // 无需依赖藏在工作区层、状态更新函数看不到的静态
+        // 原子变量。
         //
-        // Before this existed, the `@` handler spawned a bare detached thread
-        // per keystroke with no guard at all: holding `@` meant N threads and
-        // 2N `git` subprocesses (8 s timeout each) racing to publish into one
-        // map, with the winner decided arbitrarily.
+        // 此前 @ 处理函数每次按键都会启动无保护的分离线程，
+        // 长按 @ 会产生 N 条线程和 2N 个 git
+        // 子进程，各自超时 8 秒，争相写入同一张表，
+        // 结果取决于任意完成顺序。
         //
-        // Deliberately NOT part of the visual hash — it changes no pixels.
+        // 不纳入 visual_hash，因为它不会改变任何像素。
         bool                git_refresh_inflight = false;
 
-        // A custom --provider spec (and its -m recall) that becomes sticky
-        // the first time its host answers a model fetch. Set once by init
-        // from main's launch args; ModelsLoaded takes it.
+        // 自定义 --provider 规格及其 -m 记忆值。
+        // 主机第一次成功返回模型列表时才固定保存；init 根据 main 的
+        // 启动参数设置一次，由 ModelsLoaded 接收。
         std::optional<std::pair<std::string, std::string>> unproven_spec;
 
-        // What is installed on disk: skills, their approvals, slash
-        // commands, the hooks file. Loaded by an effect (LibraryLoaded) at
-        // startup and after each turn, since a turn can add or edit any of
-        // them. Reducers and panels read this instead of the disk.
+        // 磁盘上已安装的内容，包括技能、批准记录、
+        // 斜杠命令和钩子文件。启动时及每轮结束后通过
+        // LibraryLoaded 副作用加载，因为轮次可能修改这些内容。
+        // 状态更新函数和面板读取此快照，不直接读磁盘。
         Library library;
 
-        // The ^J peek's loaded threads, newest first, at most kPeekCache:
-        // just the lines the card shows, split into turns, built once when
-        // the load lands. Whole threads can be tens of MB each; this is KB.
+        // ^J 预览已加载的会话缓存，最新在前，最多 kPeekCache 个：
+        // 只保存卡片展示的行并按轮次拆分，加载完成时构建一次。
+        // 完整会话可能有数十 MB，这里仅需 KB 级空间。
         struct PeekThread {
             ThreadId id;
             std::vector<ui::PeekTurn> turns;
         };
         static constexpr std::size_t kPeekCache = 16;
         std::vector<PeekThread> peek_cache;
-        // The id whose load is in flight, so a held arrow key doesn't queue
-        // a load per row it passes.
+        // 正在加载的会话标识，避免长按方向键时为经过的每一
+        // 行都排入一次加载。
         std::string peek_loading;
 
-        // Is the workspace a git repo? nullopt until the startup probe
-        // answers (RepoProbed). Checkpoints read this; asking git directly
-        // would spawn it on the reducer thread.
+        // 工作区是否为 Git 仓库？启动探测 RepoProbed
+        // 返回前为 nullopt。检查点读取此状态，
+        // 避免在状态更新线程上直接启动 git。
         std::optional<bool> git_repo;
-        // The terminal's scrollback length, once the startup probe answers
-        // (TerminalScrollbackProbed). Scrollback=Auto reads it.
+        // 启动探测 TerminalScrollbackProbed 得到的终端
+        // 回滚缓冲区长度，由 Scrollback=Auto 使用。
         struct TerminalScrollback {
-            int         rows      = 0;      // 0 = unknown (or unlimited)
+            int         rows      = 0;      // 0 表示未知或无限制。
             bool        unlimited = false;
-            bool        exact     = false;  // from its config, not a default
+            bool        exact     = false;  // 来自终端实际配置，不使用默认猜测。
             std::string source;
         };
         std::optional<TerminalScrollback> terminal_scrollback;
 
-        // Cross-frame widget state cache. The only consumers now are:
-        //   • StreamingMarkdown — keeps a per-Message widget instance
-        //     alive across frames so its block boundary cache survives
-        //     between live renders.
-        //   • Agent-timeline panel freeze — snapshots the AgentTimeline
-        //     Element once every tool call is terminal, then serves
-        //     that frozen Element until the message gets pushed into
-        //     m.ui.frozen.
-        // No Turn-level Element cache anymore: settled turns live as
-        // raw Element values inside m.ui.frozen, the live tail
-        // rebuilds each frame (bounded by the active turn).
+        // 跨帧组件状态缓存，目前仅用于：
+        //   • StreamingMarkdown：为每条 Message 保留组件实例，
+        //     使块边界缓存能在实时渲染帧之间
+        //     持续存在。
+        //   • Agent 时间线面板冻结：所有工具调用进入终态后，
+        //     保存一次 AgentTimeline Element 快照，
+        //     直到该消息被推入
+        //     m.ui.frozen。
+        // 不再缓存 Turn 级 Element。稳定轮次作为
+        // Element 值保存在 m.ui.frozen，
+        // 实时尾部每帧重建，范围受活动轮次限制。
         mutable ui::ViewCache view_cache;
 
-        // Scrollback replay: history blocks already built, per thread, per
-        // chunk start (message index), with a key over that chunk's content
-        // + turn number. A second resize (or switching back to a recent
-        // thread) serves the Elements from here and only re-lays them out;
-        // a changed message changes the key, so it's rebuilt. The last few
-        // threads are kept (kHistoryThreads), oldest dropped.
+        // 回滚重放缓存按会话和分块起始消息索引保存
+        // 已构建历史块，并将块内容和轮次编号纳入键。
+        // 再次调整尺寸或切回近期会话时复用 Element，
+        // 仅重新布局；消息变化会改变键并触发重建。
+        // 最多保留 kHistoryThreads
+        // 个会话，淘汰最旧项。
         struct HistoryChunk {
             std::uint64_t                  key = 0;
             std::vector<maya::ReplayBlock> blocks;
@@ -764,11 +764,11 @@ struct Model {
             std::unordered_map<std::size_t, HistoryChunk> chunks;
         };
         static constexpr std::size_t kHistoryThreads = 1;
-        mutable std::vector<ThreadHistory> history;   // most recent first
-        // Run starts of the current thread + the turn number at each, so
-        // every replay chunk finds its range in O(log n) instead of walking
-        // the thread from message 0. Rebuilt when the thread or its length
-        // changes.
+        mutable std::vector<ThreadHistory> history;   // 最近使用的在前。
+        // 当前会话各消息组的起始索引和轮次编号，
+        // 让重放块通过 O(log n) 查找范围，
+        // 而无需每次从消息 0 遍历。会话或其长度变化时
+        // 重建。
         struct RunIndex {
             ThreadId                 thread;
             std::size_t              msg_count = 0;
@@ -776,48 +776,48 @@ struct Model {
             std::vector<int>         turn_at;
         };
         mutable RunIndex history_runs;
-        // The width changed while a turn was running. The replay that ran
-        // then rewrapped history, but the live turn's rows that had already
-        // scrolled off were printed at the old width; once the turn settles
-        // and freezes, one more replay rewraps them too.
+        // 轮次运行期间宽度发生变化。
+        // 此前重放已重新折行历史内容，但实时轮次已
+        // 滚出屏幕的行仍按旧宽度输出；轮次稳定并冻结后，
+        // 再重放一次修正它们。
         bool replay_after_settle = false;
 
-        // ── Scroll state for modal pickers ─────────────────────────────
+        // ── 模态选择器的滚动状态。 ─────────────────────────────
         //
-        // Storage for the scroll state of each modal picker. The picker
-        // widget (maya::Picker) reads & mutates these via a borrowed
-        // pointer in Picker::Config; the host owns the storage so the
-        // adapter rule holds (maya owns chrome + behavior; agentty owns
-        // model state).
+        // 各模态选择器的滚动状态。maya::Picker
+        // 通过 Picker::Config 中的借用
+        // 指针读取和修改；存储由宿主拥有，遵守 maya
+        // 负责外观与行为、agentty 负责模型状态的
+        // 适配规则。
         //
-        // `mutable` is required because the view function takes
-        // `const Model&` but maya's paint-time writeback mutates
-        // max_y / bar_v_bounds / viewport_bounds. Same logical-const
-        // pattern as view_cache above: filling a render-side cache /
-        // bounds slot doesn't change observable Model behavior.
+        // view 接收 const Model&，
+        // 但 maya 在绘制时会回写 max_y、
+        // bar_v_bounds 和 viewport_bounds，
+        // 因此需要 mutable。与 view_cache 相同，
+        // 这类渲染缓存和边界信息不改变模型可观察行为，符合逻辑常量语义。
         //
-        // Persisted across open→close→open by default. The reducer can
-        // reset `.y = 0` on semantic transitions if desired (e.g. when
-        // the filter query changes the match set).
+        // 默认在打开、关闭、重新打开之间保留。
+        // 语义发生变化时，例如过滤查询改变匹配集合，
+        // 状态更新函数可以主动将 .y 重置为 0。
         //
-        // auto_dispatch = false: these pickers are selection-driven. The
-        // reducer owns the cursor (ModelsMove / ThreadListMove /
-        // PaletteMove / …) and the Picker widget auto-scrolls the
-        // viewport to keep the selected row visible every build. Leaving
-        // auto_dispatch on (the default) would ALSO feed every ↑/↓/PageUp
-        // arrow straight into ScrollState::handle, bumping scroll.y in
-        // parallel — which then fights the widget's selection-follow
-        // clamp. The visible symptom is arrow keys appearing to do
-        // nothing until the offset saturates against max_y ("press 4-5
-        // times before it registers once"). Scroll position here is a
-        // pure function of the selected index, so the raw-key dispatch
-        // is interference, not input.
+        // auto_dispatch = false：
+        // 这些选择器由选中行驱动，
+        // 光标由 ModelsMove /
+        // ThreadListMove /
+        // PaletteMove 等状态更新维护，
+        // Picker 每次构建时自动滚动以保持选中行可见。
+        // 若同时启用默认的 auto_dispatch，
+        // ↑/↓/PageUp 还会直接改变
+        // ScrollState::handle 的
+        // scroll.y，与选择跟随互相抵消，
+        // 表现为连按四五次才有反应。滚动位置应由选中索引唯一决定，
+        // 不再额外分派原始按键。
         //
-        // NB: maya's ScrollState gained a user-declared destructor (the
-        // UAF fix that unregisters it from the live-state registry), so
-        // it is no longer an aggregate and `{.auto_dispatch = false}`
-        // designated init no longer compiles. routed_scroll() builds one
-        // with auto_dispatch cleared without touching aggregate-ness.
+        // 注意：maya 的 ScrollState 因修复
+        // 释放后使用问题而增加了析构函数，用于从活动状态注册表注销，
+        // 所以已不再是聚合类型，不能使用 {.
+        // auto_dispatch = false} 指定初始化。
+        // routed_scroll() 通过普通构造清除该标志。
         static maya::ScrollState routed_scroll() noexcept {
             maya::ScrollState s;
             s.auto_dispatch = false;
@@ -832,12 +832,12 @@ struct Model {
         mutable maya::ScrollState code_blocks_scroll      = routed_scroll();
         mutable maya::ScrollState checkpoints_scroll      = routed_scroll();
         mutable maya::ScrollState rag_settings_scroll     = routed_scroll();
-        // NB: the stats viewer's offset is NOT here. It lives on
-        // pn::Stats, which is what makes the frame gate see it (the slot
-        // walk covers panel members; this bag is reachable only by a
-        // hand-written mix() in program.hpp) and what ties its lifetime to
-        // the panel instead of to the session. Prefer that shape for new
-        // panels; this list is the older one.
+        // 统计视图的偏移不保存在这里，
+        // 而位于 pn::Stats 中。
+        // 面板槽位遍历可使重绘判定自动看到它，
+        // 也让生命周期与面板绑定。此旧式状态集合只能由
+        // program.hpp 手写 mix() 访问，
+        // 新面板应优先采用前一种结构。
         mutable maya::ScrollState smart_mode_scroll       = routed_scroll();
         mutable maya::ScrollState plugin_edit_scroll      = routed_scroll();
         mutable maya::ScrollState appearance_scroll       = routed_scroll();
@@ -846,9 +846,9 @@ struct Model {
         mutable maya::ScrollState todo_scroll             = routed_scroll();
         mutable maya::ScrollState tool_viewer_scroll      = routed_scroll();
         mutable maya::ScrollState account_list_scroll     = routed_scroll();
-        // The Ctrl+K settings list (Plugins/Commands/Agents/Hooks). The
-        // Plugins pane can exceed any viewport (125 advertised tools ⇒ 135+
-        // rows), so it scrolls like every other picker.
+        // Ctrl+K 设置列表，包括 Plugins/Commands/Agents/Hooks。
+        // Plugins 可能有 125 个工具、超过 135 行，
+        // 因此需要与其他选择器一样支持滚动。
         mutable maya::ScrollState settings_list_scroll    = routed_scroll();
     };
 
@@ -856,46 +856,46 @@ struct Model {
     StreamState s;
     UI          ui;
 
-    // The time of the message being folded. NOT a clock.
+    // 当前正在处理的消息时间，不是时钟。
     //
-    // jaal hands update() the step time as an argument (AgenttyApp declares
-    // a Clock — jaal core/program.hpp, "time, as an argument"). That argument
-    // is the contract, and it is what makes a recorded run replay to the same
-    // model. This field is how it reaches the ~300 helper calls below the
-    // dispatch seam without a `now` parameter on each: the seam writes it as
-    // the FIRST thing every fold does, from jaal's argument, so inside a fold
-    // it always holds the current step's time.
+    // jaal 以参数向 update() 传入本次状态
+    // 更新的时间，AgenttyApp 声明 Clock，
+    // 见 jaal core/program.hpp。
+    // 这个契约保证录制的运行能够重放得到相同模型。
+    // 分派边界每次首先把该参数写入此字段，供下方约 300
+    // 处辅助调用使用，避免为每个函数增加 now 参数；
+    // 因此一次更新中始终使用同一个时间。
     //
-    // Rules, and how each is enforced rather than hoped for:
-    //   * written ONLY by the dispatch seam (program.hpp AGENTTY_FWD_UPDATE,
-    //     and the test entry update(Model, Msg, now)). Nothing else stamps it.
-    //   * read only by reducers. view() and subscribe() see a const Model
-    //     whose `now` is the LAST fold's time, which is stale by definition;
-    //     the elm_purity lint rejects a read of it outside update/.
-    //   * reducers never read a clock instead — the lint's `clock` category.
+    // 规则及其实际约束方式：
+    //   * 仅允许分派边界写入，包括 program.hpp 的 AGENTTY_FWD_UPDATE，
+    //     以及测试入口 update(Model, Msg, now)。其他位置不得赋值。
+    //   * 仅状态更新函数读取。view() 和 subscribe() 看到的 const Model 中，
+    //     now 属于上一次更新，已不再代表当前时间；
+    //     elm_purity 禁止 update/ 之外读取。
+    //   * 状态更新函数也不能自行读取时钟，由静态检查的 clock 类别约束。
     //
-    // steady_clock, matching jaal's: a wall clock can run backwards.
+    // 使用与 jaal 相同的 steady_clock，避免系统日历时钟回拨。
     std::chrono::steady_clock::time_point now{};
 
-    // The fold's CALENDAR time, for the few things that must be real dates:
-    // a thread's created_at/updated_at (persisted, and the picker sorts by
-    // them) and an OAuth expiry (compared against the provider's clock).
+    // 本次状态更新对应的日历时间，仅供必须使用真实日期的场景：
+    // 会话 created_at/updated_at 会持久
+    // 化并用于排序；OAuth 过期时间需要与提供方时钟比较。
     //
-    // A steady clock has no relation to the calendar, so this is a second
-    // input rather than a conversion of `now`. It is derived at the SAME seam
-    // from the same step: the wall clock is read once when the kernel starts
-    // (Model::wall_epoch / steady_epoch, set by init) and every fold places
-    // its steady `now` on that timeline. So one fold sees one instant in both
-    // clocks, and a recorded run replays to the same dates — a direct
-    // system_clock read per call site gave each call its own instant and made
-    // updated_at differ from the message time it was written beside.
+    // 单调时钟与日历无直接关系，所以另设输入而不直接转换 now。
+    // 两种时间在同一分派边界按同一步骤推导：内核启动时只读取
+    // 一次日历时钟，由 init 设置 Model::wall_epoch
+    // / steady_epoch；每次更新把单调
+    // now 映射到该时间线上。这样一次更新对应两种时钟
+    // 中的同一瞬间，录制重放也得到相同日期。
+    // 过去各调用点直接读 system_clock，
+    // 会使 updated_at 与同时保存的消息时间不同。
     [[nodiscard]] std::chrono::system_clock::time_point wall_now() const noexcept {
         return wall_at(now);
     }
-    // Any steady instant on that same calendar timeline. A view passes the
-    // FRAME's time (maya::anim_now()) to get "now" as a date without reading
-    // the system clock itself; before init() set the epochs it falls back to
-    // the real wall clock.
+    // 把任意单调时刻映射到同一日历时间线。视图传入当前帧的
+    // maya::anim_now()，无需自行读取系统
+    // 时钟即可得到日期。init() 尚未设置纪元时，
+    // 回退到真实日历时钟。
     [[nodiscard]] std::chrono::system_clock::time_point wall_at(
             std::chrono::steady_clock::time_point t) const noexcept {
         if (steady_epoch == std::chrono::steady_clock::time_point{})
@@ -903,25 +903,25 @@ struct Model {
         return wall_epoch + std::chrono::duration_cast<
                    std::chrono::system_clock::duration>(t - steady_epoch);
     }
-    // The pair of readings wall_now() is anchored to. Set once, by init().
+    // wall_now() 使用的两种时钟基准，仅由 init() 设置一次。
     std::chrono::system_clock::time_point wall_epoch{};
     std::chrono::steady_clock::time_point steady_epoch{};
 
-    // The subagent router's view of this Model, as LAST PUBLISHED to the
-    // runtime's subagent registry (tool/subagent.cpp).
+    // 最近一次发布到运行时子代理注册表的 Model 路由视图，
+    // 见 tool/subagent.cpp。
     //
-    // The subagent loop runs on worker threads and reads its config from a
-    // registry, not the Model, so the registry has to track four Model
-    // fields. Reducers used to push each one with tools::subagent::set_*()
-    // — eleven calls across four files, written from inside update, and
-    // correct only as long as every reducer that changed one of those fields
-    // remembered to make the matching call.
+    // 子代理循环在工作线程上运行，从注册表而非
+    // Model 读取配置，因此注册表必须跟踪四
+    // 个模型字段。过去状态更新函数内部通过
+    // tools::subagent::set_*() 发布，
+    // 四个文件共有 11 处调用；每处修改都得记住同步，
+    // 才能保持正确。
     //
-    // Now no reducer publishes. The dispatch seam (update.cpp,
-    // publish_subagent_if_changed) derives the view from the Model after
-    // every fold, compares it with this snapshot, and returns
-    // cmd::publish_subagent only when it moved. Forgetting is impossible
-    // because syncing is not a step anyone performs.
+    // 现在状态更新函数不自行发布。
+    // 分派边界 update.cpp 的
+    // publish_subagent_if_changed 每次
+    // 更新后派生视图，与此快照比较，仅在变化时返回 cmd::publish_subagent。
+    // 同步成为统一流程，避免调用点漏写。
     struct SubagentView {
         std::string             model;
         std::string             provider;
@@ -931,125 +931,125 @@ struct Model {
     };
     SubagentView published_subagent;
 
-    // The active provider as LAST PUBLISHED to the process global
-    // (provider::select). Same rule as published_subagent: the seam compares
-    // the Model's selection with this and returns a publish effect only on
-    // change. Kept on the Model, not read back from the global, so the
-    // comparison is against Model state and replays.
+    // 最近一次发布到 provider::select
+    // 进程全局对象的提供方。与 published_subagent 相同，
+    // 分派边界比较 Model 中的选择与此快照，
+    // 仅变化时返回发布副作用。比较依据保存在 Model 中，
+    // 可重放，无需读回全局状态。
     provider::Selection published_selection;
 
-    // The web_search policy as LAST PUBLISHED to the tool layer. Same rule as
-    // published_selection. Starts as nullopt so the FIRST fold always
-    // publishes: until then the tool layer runs on its own lazy read of
-    // settings.json, which can disagree with what init() loaded.
+    // 最近一次发布到工具层的 web_search 策略，
+    // 规则同 published_selection。初始为 nullopt，
+    // 确保首轮状态更新必定发布；此前工具层自行延迟读取 settings.json，
+    // 可能与 init() 加载的值不一致。
     std::optional<web_search_cfg::Config> published_web_search;
-    // Same, for the paste settings richpaste reads (PublishPasteConfig).
+    // 同样记录 richpaste 使用的粘贴设置，消息为 PublishPasteConfig。
     std::optional<paste_cfg::Config> published_paste;
-    // Same, for MCP tool loading (PublishToolLoading, #98).
+    // 同样记录 MCP 工具加载设置，消息为 PublishToolLoading（#98）。
     std::optional<std::string> published_tool_loading;
 
-    // The process's launch environment, read ONCE by init() and never again.
+    // 进程启动环境，仅由 init() 读取一次。
     //
-    // Elm has no getenv: a reducer that reads the environment is a function
-    // of state the Model doesn't hold, so replay and a test that sets one var
-    // and expects one behaviour both lie. These facts can't change while we
-    // run (env vars are fixed at exec), so capturing them is not a snapshot
-    // that goes stale — it is the whole truth, stated where update can see
-    // it. They were six getenv calls and two function-local statics spread
-    // across update/; the predicates below are their single definition.
+    // Elm 状态更新不读取 getenv，
+    // 否则行为会依赖 Model 之外的隐藏状态，
+    // 使重放和环境变量测试失真。进程运行期间
+    // 这些启动事实不会变化，因此捕获后可直接作为
+    // 状态更新可见的完整事实。此前 update/
+    // 中分散着六处 getenv 和两个函数
+    // 局部静态对象，现由下方谓词统一定义。
     struct Env {
-        // A remote session (SSH / mosh / Eternal Terminal, or forced). Frames
-        // land >=80 ms apart, so streaming and reveal cadence throttle down.
+        // 远程会话，包括 SSH、mosh、Eternal Terminal 或
+        // 强制指定。帧间隔至少 80 ms，因此流式和逐字显示需要降低刷新频率。
         bool remote               = false;
-        // A plain SSH session specifically (mosh/ET excluded): the composer's
-        // clipboard paths differ, because OSC 52 rides the SSH pty.
+        // 特指普通 SSH，会排除 mosh/ET。输入框的剪贴板路径不同，
+        // 因为 OSC 52 通过 SSH PTY 传递。
         bool ssh                  = false;
-        // AGENTTY_NO_REVEAL_GLIDE: force the immediate end-of-turn finish.
+        // AGENTTY_NO_REVEAL_GLIDE：强制在轮次结束时立即完成显示。
         bool no_reveal_glide      = false;
-        // The terminal supports synchronized output (DECSET 2026).
+        // 终端支持同步输出，使用 DECSET 2026。
         bool synchronized_output  = false;
-        // AGENTTY_FROZEN_COLLAPSE: stub off-screen bodies instead of
-        // re-rendering them.
+        // AGENTTY_FROZEN_COLLAPSE：为屏幕外正文保留占位，
+        // 不重新渲染。
         bool frozen_collapse      = false;
-        // AGENTTY_NO_UPDATE_CHECK / AGENTTY_NO_AUTO_UPDATE.
+        // AGENTTY_NO_UPDATE_CHECK / AGENTTY_NO_AUTO_UPDATE 配置。
         bool no_update_check      = false;
         bool no_auto_update       = false;
-        // AGENTTY_MAX_CONTEXT_TOKENS, parsed (0 = unset): the context
-        // ladder's last rung before the default.
+        // 解析后的 AGENTTY_MAX_CONTEXT_TOKENS，0 表示未设置；
+        // 它是回退到默认上下文长度前的最后一级覆盖。
         int  max_context_tokens   = 0;
-        // AGENTTY_REVEAL / _TYPEWRITER / _DECORATE (unset = on).
+        // AGENTTY_REVEAL / _TYPEWRITER / _DECORATE，未设置表示启用。
         bool reveal               = true;
         bool reveal_typewriter    = true;
         bool reveal_decorate      = true;
-        // AGENTTY_PAINTED_CARET: always paint the composer caret.
+        // AGENTTY_PAINTED_CARET：始终自行绘制输入框光标。
         bool painted_caret        = false;
-        // Running under a cooperating editor host (AGENTTY_HOST=emacs or
-        // INSIDE_EMACS with vterm): emit file-event OSCs.
+        // 是否运行在协作编辑器宿主中，例如 AGENTTY_HOST=emacs，
+        // 或设置 INSIDE_EMACS 并使用 vterm；用于输出文件事件 OSC。
         bool host_integration     = false;
-        // Scrollback replay limits (maya/render/scrollback_replay.hpp). The
-        // Scrollback setting picks how many rows; these are launch facts
-        // around it. replay_rows_override: AGENTTY_REPLAY_ROWS (-1 = unset,
-        // 0 = replay off). terminal_history_rows: what the terminal keeps,
-        // when it says (tmux's history-limit); 0 = unknown.
+        // 回滚重放限制，见 maya/render/scrollback_replay.hpp。
+        // Scrollback 设置决定行数，这里保存相关启动事实。
+        // replay_rows_override 来自 AGENTTY_REPLAY_ROWS，
+        // -1 为未设置、0 为关闭重放；terminal_history_rows 来自终端声明，
+        // 例如 tmux history-limit，0 表示未知。
         int         replay_rows_override = -1;
         int         terminal_history_rows = 0;
-        // Scrollback=Auto before the startup probe answers: env only (the
-        // terminal's documented default). 0 = unknown.
+        // 启动探测完成前，Scrollback=Auto 仅根据
+        // 环境采用终端文档中的默认值；0 表示未知。
         int         auto_scrollback_rows = 0;
         std::size_t replay_max_bytes = std::numeric_limits<std::size_t>::max();
-        // Colour tier and background polarity the terminal reports (TERM,
-        // COLORTERM, COLORFGBG, NO_COLOR). "auto" appearance resolves here.
+        // 终端通过 TERM、COLORTERM、COLORFGBG、
+        // NO_COLOR 报告的颜色等级和背景明暗，用于解析 auto 外观。
         ui_prefs::Detected terminal;
-        // Env overrides for settings rows, and the AGENTTY_SMART_MODE pin.
+        // 设置项的环境覆盖值，以及 AGENTTY_SMART_MODE 强制值。
         settings::registry::EnvSnapshot settings;
-        // Can this binary replace itself? Answered once at launch: resolving
-        // our own path and probing its directory for write access (it creates
-        // and deletes a file there). The reducer used to call that inline
-        // every time an auto-update was considered — a filesystem WRITE from
-        // inside update, invisible to a name-based lint because it sat in a
-        // util/ helper. Neither answer can change while we run.
+        // 当前程序是否能替换自身？启动时仅检查
+        // 一次：解析自身路径，并在其目录创建、
+        // 删除文件以探测写权限。此前每次考虑自动
+        // 更新时都在状态更新中同步调用，
+        // 隐藏于 util/ 辅助函数的文件写入绕过了按
+        // 名称检查。运行期间这两项结果不会变化。
         bool        self_update_ok     = false;
-        std::string self_update_reason;   // why not, when !self_update_ok
-        // The embedder config the AGENTTY_EMBED_* / AGENTTY_OLLAMA_HOST vars
-        // describe, layered on the defaults. The RAG pane starts from this.
+        std::string self_update_reason;   // self_update_ok 为 false 时的原因。
+        // 由 AGENTTY_EMBED_* / AGENTTY_OLLAMA_HOST
+        // 描述的嵌入模型配置，覆盖默认值。RAG 面板以此为初始状态。
         rag::embed::EmbedConfig embed_defaults;
-        // agentty's per-user root (~/.agentty, or $AGENTTY_HOME), resolved
-        // once. Paths the reducers name (the user mcp.json) derive from it.
+        // agentty 的每用户根目录，默认为 ~/.agentty，也可由 $AGENTTY_HOME 指定；
+        // 只解析一次。状态更新函数使用的用户 mcp.json 等路径均从这里派生。
         std::string user_root;
-        // AGENTTY_RAG_PROACTIVE, if set: forces proactive injection on/off
-        // for one run, over the saved RAG setting.
+        // 设置 AGENTTY_RAG_PROACTIVE 时，为本次运行强制
+        // 开启或关闭主动注入，覆盖保存的 RAG 设置。
         std::optional<bool> rag_proactive_override;
 
-        // Where paths are shown relative to: the launch cwd ("src/x.cpp")
-        // and the home dir ("~/notes"). Captured once so a tool card names a
-        // path the same way every frame without asking the OS.
+        // 路径显示的相对基准，包括启动工作目录和主目录，
+        // 例如 src/x.cpp、~/notes。一次捕获后，
+        // 工具卡片各帧都使用相同格式，无需查询操作系统。
         std::string cwd;
         std::string home;
 
-        // Glide the reveal to the end at message_stop instead of pasting the
-        // rest. Needs synchronized output (without it a 200 ms ramp is ~2
-        // frames and the height drifts). Motion=Off or
-        // AGENTTY_NO_REVEAL_GLIDE=1 turn it off.
+        // 在 message_stop 时把逐字显示平滑推进到末尾，而不是直接贴出剩余文本。
+        // 需要同步输出，否则 200 ms 的过渡只有约两帧，容易造成高度漂移。
+        // Motion=Off 或 AGENTTY_NO_REVEAL_GLIDE
+        // =1 会关闭此行为。
         [[nodiscard]] bool reveal_end_glide() const noexcept {
             return !no_reveal_glide && synchronized_output;
         }
     } env;
 
-    // Is a LOADING SPINNER currently on screen?
+    // 当前屏幕上是否有加载动画？
     //
-    // THE gate for the picker's catalog-fetch animation — and the reason it
-    // is a Model-level predicate rather than a Domain one: a spinner is only
-    // worth a 33 ms tick when the surface that draws it is VISIBLE. Keying
-    // on catalog state alone kept the whole event loop waking at frame rate
-    // after the picker closed, which is both wasted work and, worse, latency:
-    // an idle loop that is already inside a timed poll answers the next
-    // keystroke a frame late. (Measured: arrow-key p90 12.7 ms / max 55 ms
-    // during navigation, against a p50 of 0.1 ms.)
+    // 选择器目录加载动画的统一启用条件。它必须属于
+    // Model 而不只是 Domain，
+    // 因为只有绘制动画的界面可见时，33 ms 的
+    // Tick 才有价值。过去只看目录加载状态，
+    // 选择器关闭后事件循环仍按帧率唤醒，浪费工作并增加输入延迟：
+    // 若空闲循环已经进入定时轮询，下次按键会晚一帧响应。
+    // 实测导航时方向键 p90 为 12.7 ms、最大 55 ms，
+    // 而 p50 只有 0.1 ms。
     //
-    // Pairs with Session::active() at every call site — see the THREE gates
-    // that must agree: subscribe.cpp (is a Tick delivered), update/meta.cpp
-    // (does the spinner advance) and app/program.hpp (does the frame change
-    // the visual hash).
+    // 各调用点与 Session::active() 配合，三处条件必须一致：
+    // subscribe.cpp 决定是否发送 Tick，update/meta.cpp
+    // 推进动画，app/program.hpp 决定帧是否改变
+    // visual_hash。
     [[nodiscard]] bool loading_spinner_visible() const noexcept {
         return ui.panel.is<ui::panel::Models>()
             && d.any_catalog_loading();

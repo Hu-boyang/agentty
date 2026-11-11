@@ -11,14 +11,14 @@
 #include "agentty/runtime/view/palette.hpp"
 #include "agentty/runtime/view/thread/turn/agent_timeline/tool_args.hpp"
 #include "agentty/tool/util/utf8.hpp"
-#include "agentty/domain/ui_live.hpp"   // path_roots, project agents
+#include "agentty/domain/ui_live.hpp"   // path_roots, 项目代理商
 
 namespace agentty::ui {
 
-// ── Display ─────────────────────────────────────────────────────────────
+// ── 显示 ─────────────────────────────────────────────────────────────
 
-// Pretty title-case for the tool name shown as the timeline event label.
-// Maps agentty's lowercase canonical names to brand TitleCase forms.
+// 漂亮的标题 -case 用于显示为时间线的工具名称 事件 标签。
+// 地图 agentty 将小写小写名称改为品牌 TitleCase 表格中。
 std::string tool_display_name(const std::string& n) {
     if (n == "read")            return "Read";
     if (n == "write")           return "Write";
@@ -69,9 +69,9 @@ std::string tool_display_name(const std::string& n) {
     if (n == "mcp__resources__read") return "MCP Resource";
     if (n == "mcp__prompts__get")    return "MCP Prompt";
     if (n == "codex_script")         return "Codex Script";
-    // MCP tools arrive as `mcp__<server>__<tool>`. Show the tool, then the
-    // server it came from: "Search Issues · github", not "Mcp Github
-    // Search Issues".
+    // MCP 工具以 `mcp__<server>__<tool>`。显示工具,然后显示它来自的服务器:
+    // "Search Issues · github" ,
+    // 没有 "Mcp Github Search Issues".
     if (n.rfind("mcp__", 0) == 0) {
         const auto rest = n.substr(5);
         const auto sep  = rest.find("__");
@@ -79,11 +79,11 @@ std::string tool_display_name(const std::string& n) {
             return tool_display_name(rest.substr(sep + 2)) + " \xc2\xb7 "
                  + rest.substr(0, sep);
     }
-    // Fallback for any UNMAPPED tool name (MCP-provided tools, a raw name the
-    // model emitted, future built-ins not yet in the table above): Title-Case
-    // it so the timeline is visually consistent — no tool ever renders as a
-    // bare lowercase token. Splits on '_'/'-'/space, upcases each word's first
-    // letter, and turns the separators into spaces (e.g. "foo_bar" -> "Foo Bar").
+    // 回退 用于任何 UNMAPPED 工具名称( 选项) ( MCP
+    // -provided 工具, 模型的原始名称, 未来构建 -ins 尚未
+    // 列入上表: -Case 时间线是连续的 永远没有工具 渲染 作为赤小写符号。
+    // '_'/'-' / 空格, 上列每个字的第一个字母, 并将分隔符变为
+    // 空格( $ e.g. "foo_bar" -> "Foo Bar").
     if (n.empty()) return n;
     std::string out;
     out.reserve(n.size());
@@ -103,24 +103,24 @@ std::string tool_display_name(const std::string& n) {
     return out;
 }
 
-// Tool category — semantic grouping for color + stats badge.
-// Compressed tonal scheme so a long sequence of inspect-class tools reads
-// as a calm gray list, and the meaningful actions (edit/write/bash) stand
-// out as the saturated rows. Status-axis colors (green/red/yellow) are
-// reserved for the ✓/✗/⊘ icons and the breathing border — never used as
-// category, so green doesn't mean "execute" AND "ok" simultaneously.
+// Tool类——表示颜色+统计徽章的语义分类.
+// 压缩了托尔图, 长长的检查顺序 -class 工具读作平静的灰色清单,
+// 以及有意义的行动(第2段)。 edit/write/bash ) 突出
+// 为饱和行。状态 -axis 颜色( E) green/red/yellow
+// )是保留给\\\\x/\x图标和呼吸边框的——从不作为分类,
+// 所以绿色并不意味着 "execute" 和 "ok" 同时也是
 //
-// Every tool gets a bright, saturated category hue so the header row
-// ("✓ Name detail") carries real color across the entire timeline,
-// not just the saturated minority. The chrome inside the tool body
-// (line gutter, pipe, elision marker) reads in the same hue — the
-// tool's color identity carries top-to-bottom.
+// 每个工具都有一个亮的饱和类别色素,因此头文件(
+// "✓ Name detail")行携带着真实的颜色,
+// 横跨整个时间线,而不仅仅是饱和的少数. 正文(线沟,
+// 管,消除标记)内含的染色体在同一色素读取——工具的
+// 颜色身份带有顶端的-to-bottom.
 //
-//   inspect (read/grep/glob/list/find/diag/web)  → code_path (bright cyan, "code refs")
-//   execute (bash)                                → code_text (cyan, "active")
-//   mutate  (edit/write)                          → role_brand (magenta)
-//   vcs     (git_*)                               → role_info (blue, "context-shift")
-//   plan    (todo)                                → status_warn (yellow, planning)
+//   检查( read/grep/glob/list/find/diag/web)  → code_path (
+//   闪亮的青色, "code refs" 执行(bash) □ code_text (青色, ,
+//   ) "active" ) 变异( edit/write)
+//   → role_brand (马格塔语)vcs(git ⁇ ) ~ role_info (蓝色,
+//   "context-shift" 计划(待办) □ status_warn (黄,规划)
 maya::Color tool_category_color(const std::string& n) {
     if (n == "edit" || n == "write" || n == "move" || n == "remove"
         || n == "apply_patch" || n == "replace" || n == "rewrite_structural")
@@ -129,7 +129,7 @@ maya::Color tool_category_color(const std::string& n) {
         || n.rfind("process_", 0) == 0)
         return code_text;
     if (n == "todo")                  return status_warn;
-    if (n == "task")                  return role_brand_alt;   // agent identity
+    if (n == "task")                  return role_brand_alt;   // 代理身份
     if (n.rfind("git_", 0) == 0)      return role_info;
     return code_path;
 }
@@ -147,10 +147,10 @@ std::string_view tool_category_label(const std::string& n) {
     return "inspect";
 }
 
-// ── Status mapping ──────────────────────────────────────────────────────
+// ── 状态映射 ──────────────────────────────────────────────────────
 
-// `Approved` folds into Running because both render with the same
-// in-flight spinner — the widget doesn't need a separate stage.
+// `Approved` 归并 进入运行中,因为两者 渲染
+// 相同内容 -flight 加载动画 - 部件不需要单独的舞台
 maya::AgentEventStatus tool_event_status(const ToolUse& tc) {
     if (tc.is_running() || tc.is_approved()) return maya::AgentEventStatus::Running;
     if (tc.is_pending())                     return maya::AgentEventStatus::Pending;
@@ -159,7 +159,7 @@ maya::AgentEventStatus tool_event_status(const ToolUse& tc) {
     return maya::AgentEventStatus::Rejected;
 }
 
-// ── Detail line ─────────────────────────────────────────────────────────
+// ── 详细行 ─────────────────────────────────────────────────────────
 
 namespace {
 
@@ -170,8 +170,8 @@ namespace {
     return it != args.end() && it->is_boolean() ? it->get<bool>() : fallback;
 }
 
-// Relative to the launch cwd, else "~/" under home. The roots come from
-// Model::env via the per-frame publish (ui_live.hpp), never from the OS.
+// 相对于发射的cwd,其他 "~/" 家的根子是来自 Model::env 以每笔金额
+// 计算 -frame 出版( 4月 4日) ui_live.hpp ),从不从 OS.
 std::string pretty_path(std::string p) {
     if (p.empty()) return p;
     const auto roots = agentty::ui_prefs::path_roots();
@@ -186,12 +186,12 @@ std::string pretty_path(std::string p) {
     return p;
 }
 
-// Parse the leading count out of a tool output that begins "Found N …"
-// (grep: "Found N matches across M files", glob: "Found N file(s):").
-// Returns -1 when the output doesn't match, so callers can fall back.
-// Counting rendered LINES (the old behaviour) inflated the number —
-// grep output includes ### context headers, 2 context lines per hit and
-// blank separators, so "· 45 matches" showed for 3 real hits.
+// 解析 工具输出中开始的首数 "Found N …" (grep: 读取:
+// "Found N matches across M files" , 缩写: "Found N file(s):").
+// 当输出不匹配时返回 -1,所以呼叫者可以退后.
+// 计算已实现 LINES (旧行为)夸大了数字——grep
+// 输出包括__上下文. 头文件 ,每击2条上下文线和空白分隔线,
+// 所以 "· 45 matches" 显示3个真正的点击。
 [[nodiscard]] int parse_found_count(std::string_view out) {
     constexpr std::string_view kTag = "Found ";
     if (out.rfind(kTag, 0) != 0) return -1;
@@ -205,24 +205,24 @@ std::string pretty_path(std::string p) {
     return got ? n : -1;
 }
 
-// True line count for a `read`. count_lines(card_output(tc)) is WRONG here: a read
-// output is decorated — an optional `display_description` line, an optional
-// symbol header, and a trailing `[showing lines A-B of N ...]` / `[... of N
-// ...]` hint the tool appends — so re-counting rows inflates the number and
-// disagrees with the file. The tool already reports the file's real length as
-// the `of N` in that hint (also `of N lines` in the outline/1-KiB fallbacks);
-// read it as the authoritative count. Returns -1 when there's no such marker
-// (a small file read whole, no truncation), so the caller falls back to a
-// plain content-line count.
+// 真实行数 `read`. count_lines(card_output (tc)
+// 是指: WRONG 这里: 已读输出被装饰—— 选项 `display_description` 线条,
+// 可选 符号 头文件 和一条线索 `[showing lines A-B of N ...]`
+// / `[... of N ...]` 提示工具附件——所以 -counting
+// 行会夸大数字, 并不同意文件。 工具已经报告文件的真长。
+// `of N` 提示中( 也 `of N lines` 输入
+// outline/1-KiB 回退 ; 读作权威的计数。 当没有这样的标注时
+// 返回 - 1 (一个小文件读完整, 没有切换), 所以调用者会回到一个简单的内容。
+// -line 数数
 [[nodiscard]] int parse_read_total_lines(std::string_view out) {
-    // read reports the file's real length in two shapes:
-    //   • content / 1-KiB fallback: "[showing lines A-B of N ...]" — " of N"
-    //     followed by end-of-number + (" lines" | "]" | ";" | " more").
-    //   • symbol outline: "path — K definitions across N lines:" — the
-    //     count sits after "across ".
-    // Scan for both; the last plausible match wins (the marker is always in
-    // the trailing hint / header, never earlier prose). Returns -1 when
-    // neither shape is present (small file read whole).
+    // 读取文件的正长, 以两个形状 :
+    //   • 内容 / 1-KiB 回退: "[showing lines A-B of N ...]" - " of N"
+    //     之后是结束 -of-number + (" lines" | "]" | ";" | " more").
+    //   • 符号 大纲 : "path — K definitions across N lines:" - 电话
+    //     计数在"across "之后。
+    // 扫描两者; 最后的可视匹配胜负( 标记总是在后缀提示 /
+    // 头文件 中, 从未更早的表达式中)。 当两个形状
+    // 都没有时返回 - 1 (小文件读完整)。
     auto num_after = [&](std::size_t i, int& n) -> std::size_t {
         n = 0; bool got = false;
         while (i < out.size() && out[i] >= '0' && out[i] <= '9') {
@@ -252,8 +252,8 @@ std::string pretty_path(std::string p) {
     return found;
 }
 
-// The range a `read` actually returned, from its "[showing lines A-B of N"
-// footer. first == 0 when there is no such footer (a whole small file).
+// 范围 a `read` 实际返回,从其 "[showing lines A-B of N"
+// foder. 初解 ====没有这样的foper(一个完整的小文件)时,为0.
 struct ShownRange { int first = 0, second = 0, total = 0; };
 [[nodiscard]] ShownRange parse_read_shown_range(std::string_view out) {
     constexpr std::string_view kTag = "[showing lines ";
@@ -275,33 +275,33 @@ struct ShownRange { int first = 0, second = 0, total = 0; };
     return r;
 }
 
-} // namespace
+} // 命名空间结束。
 
-// One-line "what this tool is doing" for the timeline. Tool-specific
-// so the user can read the sequence at a glance: paths for fs ops, the
-// actual command for bash, the pattern for grep, etc. When the tool
-// has settled, folds in post-completion stats so the timeline doubles
-// as a compact result log without expanding individual cards.
-// Concise, human-readable failure reason for a Failed tool, pulled from its
-// output. Tool errors render as "[kind] detail" (ToolError::render); we want
-// the KIND ("invalid args", "out of workspace", "not found", …) plus a short
-// slice of detail so the header tells the user WHY at a glance instead of
-// looking identical to a success. Bash carries no [kind] tag — its failure is
-// an "[exit code N]" / "[terminated by signal …]" trailer instead — so we sniff
-// that too. Returns "" when there's nothing meaningful to show.
+// 一个 -line "what this tool is doing"
+// 时间轴。 Tool-specific 这样用户就可以一看就能读取
+// 序列:fs ops的路径,shash的实际命令,grep的图案等.
+// 工具确定后, 归并 员额 -completion 数据显示,
+// 所以时间表作为紧凑结果日志加倍,而不扩展单个卡片.
+// 简洁,人 -readable 失败工具的失败原因, 取自其输出。
+// Tool 错误 渲染 以 "[kind] detail" (
+// ToolError::render )我们想要的是 KIND ("invalid args",
+// "out of workspace", "not found" ,（位于工作区之外，或文件未找到。）
+// )加一小片细节,所以 头文件 告诉用户 原因 而不是一目了然地看它是否成功。
+// "[exit code N]" / "[terminated by signal …]" 拖车,
+// 我们也会嗅到。返回 "" 没有什么意义可以显示的
 static std::string tool_failure_reason(const ToolUse& tc) {
     const std::string_view out = card_output(tc);
     if (out.empty()) return {};
 
-    // "[kind] detail" — the structured ToolError shape. Several tags can
-    // stack ("[unknown] [not found] …"); skip the vague `unknown` one.
+    // "[kind] detail" 结构化 ToolError 形状。若干标记可以堆叠(
+    // "[unknown] [not found] …" ); 跳过模糊 `unknown` 一个
     std::string_view rest = out;
     while (!rest.empty() && rest.front() == '[') {
         const auto close = rest.find(']');
         if (close == std::string_view::npos || close < 2 || close > 32) break;
         std::string kind{rest.substr(1, close - 1)};
-        // A bracketed exit trailer ("[exit code 1]") is not a kind — fall
-        // through to the bash sniff below.
+        // 括号内的出口拖车("[exit code 1]")不是
+        // 那种——倒到下面的沙滩嗅觉。
         if (kind.rfind("exit code", 0) == 0 || kind.rfind("terminated", 0) == 0)
             break;
         if (kind != "unknown") return kind;
@@ -309,7 +309,7 @@ static std::string tool_failure_reason(const ToolUse& tc) {
         while (!rest.empty() && rest.front() == ' ') rest.remove_prefix(1);
     }
     if (rest.size() != out.size()) return "failed";
-    // Bash-style trailer, wherever it lands in the output.
+    // 贝什 -style 拖车,不管它降落在什么地方
     if (out.find("[terminated by signal") != std::string::npos)
         return "terminated";
     if (auto p = out.rfind("[exit code "); p != std::string::npos) {
@@ -317,7 +317,7 @@ static std::string tool_failure_reason(const ToolUse& tc) {
         if (e != std::string::npos)
             return std::string{out.substr(p + 1, e - p - 1)};   // "exit code N"
     }
-    // Unstructured error text: take the first short line.
+    // 无结构错误文本:取第一短行.
     if (out.starts_with("Tool call arguments look incomplete")
      || out.starts_with("tool args truncated"))
         return "args cut off";
@@ -326,16 +326,16 @@ static std::string tool_failure_reason(const ToolUse& tc) {
     return first;
 }
 
-// The per-tool detail body (success-shaped). tool_timeline_detail wraps this
-// to append a uniform failure summary, so no individual tool branch has to
-// remember to surface its own failure — one code path owns that.
+// 人均数 -tool 细节 正文 (成功) (中文(简体) ). -shaped).
+// tool_timeline_detail 包成此内容以附加一个统一的失败摘要,
+// 因此没有任何单个工具分支需要记住表露自己的失败——一个代码路径拥有它.
 static std::string tool_timeline_detail_base(const ToolUse& tc) {
-    // Streaming-aware string arg: parsed args first (authoritative once the
-    // ~120 ms reparse catches up), then a scrape of the raw partial JSON so
-    // the value shows the INSTANT its bytes arrive on the wire. Applied
-    // uniformly here so EVERY tool's header (command, pattern, query, url,
-    // ref, symbol, …) goes live during streaming instead of sitting on a bare
-    // "…" — the same fix the file path got, now for all args in one place.
+    // 流式传输-aware 字符串 arg:先解析(一旦 ~120
+    // ms reparse 追赶后授权),然后是原始部分的碎片 JSON 因此,
+    // 该值显示 INSTANT 编号 字节 到达 传输。
+    // 统一应用在这里 每个 工具的 头文件 (命令、模式、查询、url、
+    // ref、 符号 ,...) 期间开始直播 流式传输 而不是光着身子坐
+    // 着 "…" ——同样的修复文件路径得到,现在所有参数在一个地方.
     auto safe = [&](const char* k) -> std::string {
         if (auto v = safe_arg(tc.args, k); !v.empty()) return v;
         return pick_streaming_string(tc.args_streaming, k);
@@ -346,17 +346,17 @@ static std::string tool_timeline_detail_base(const ToolUse& tc) {
 
     if (n == "read") {
         auto detail = path_pp.empty() ? std::string{"\xe2\x80\xa6"} : path_pp;
-        // Symbol reads are the encouraged idiom — say WHAT was read, not
-        // just where. Streaming-live like every other arg via safe().
+        // 符号 读起来是鼓励的 idiom —— 比如 内容 被读到,不只是在什么地方。
+        // 流式传输-live 就像其他的 ⁇ 一样 safe().
         if (auto sym = safe("symbol"); !sym.empty())
             detail += " \xc2\xb7 " + sym + "()";
-        // Both spellings of the range start (offset / Zed-style start_line).
+        // 两种拼写方式都是范围起始(offset / Zed-style start_line).
         int off = safe_int_arg(tc.args, "offset", 0);
         if (off == 0) off = safe_int_arg(tc.args, "start_line", 0);
         if (tc.is_done()) {
-            // What was SHOWN, from the tool's own "[showing lines A-B of N]"
-            // footer: a 5-line read of a 349-line file reads "131–135 of
-            // 349", not "349 lines", which looked like the card's own size.
+            // 刚才是什么 SHOWN ,从工具的自 "[showing lines A-B of N]"
+            // 页脚: 1 5 -line 读作349 -line 文件已读
+            // "131–135 of 349" ,没有 "349 lines" 看上去是卡片的尺寸
             if (auto r = parse_read_shown_range(card_output(tc)); r.first > 0) {
                 detail += "  \xc2\xb7  " + std::to_string(r.first) + "\xe2\x80\x93"
                         + std::to_string(r.second);
@@ -364,9 +364,9 @@ static std::string tool_timeline_detail_base(const ToolUse& tc) {
                 return detail;
             }
             if (off > 0) detail += ":" + std::to_string(off);
-            // Prefer the file's true length that read reports in its
-            // "[showing lines A-B of N]" footer; only re-count the (decorated)
-            // output when there's no such marker (small file read whole).
+            // 优先使用文件的真实长度, 以读取其中的报告
+            // "[showing lines A-B of N]" 页脚;
+            // 只重 -count 输出( 装饰) 当没有这样的标记( 小文件读完整)。
             int lines = parse_read_total_lines(card_output(tc));
             if (lines < 0) lines = count_lines(card_output(tc));
             if (lines > 1) detail += "  \xc2\xb7  " + std::to_string(lines) + " lines";
@@ -376,32 +376,32 @@ static std::string tool_timeline_detail_base(const ToolUse& tc) {
         return detail;
     }
     if (n == "write") {
-        // LIFECYCLE-STABLE: path only, forever — same rule as edit below.
-        // The old Done-only "(N lines, X KB)" echo rewrote the committed
-        // header row at settle whenever the streaming write card had
-        // pushed its header above the viewport top (tail-window →
-        // show_all is a net GROW at that frame → gate → HardReset). The
-        // lines/bytes stats render in the settled body footer
-        // (show_footer_stats), which paints below the seam.
+        // LIFECYCLE-STABLE :只有路径,永远——与下文编辑的规则相同.
+        // 旧的 -only "(N lines, X KB)" 重写承诺 头文件
+        // 随时按行结算 流式传输 写卡已经推了 头文件 上方为 可视区域 顶端
+        // ( U) 末尾-window → show_all 是净数
+        // GROW 在那的时候 帧 门 门 HardReset。。 内容。
+        // lines/bytes 数据 渲染 已解决的 正文 页脚( E)
+        // show_footer_stats ),它画在下方 接口边界.
         return path_pp.empty() ? std::string{"\xe2\x80\xa6"} : path_pp;
     }
     if (n == "edit") {
         if (path_pp.empty()) return "\xe2\x80\xa6";
-        // Header detail is LIFECYCLE-STABLE: just the path, forever. No
-        // "· N edits" count and no "(…)" output echo — both appear only
-        // at terminal, but this detail renders on the event HEADER row,
-        // which can commit to native scrollback while the edit streams
-        // (the live tail is tall; prose below pushes the card up). A
-        // Done-only suffix then REWRITES the committed row on the settle
-        // frame — which is a net GROW for edit (windowed hunk → show_all
-        // full diff), so maya's gate can only recover by a destructive
-        // HardReset (the scrollback_oracle write/edit turn caught this at
-        // t*-e-post). The hunk count lives in the settled body's
-        // "edit i/N" band headers; nothing is lost.
+        // 头文件 细节是 LIFECYCLE-STABLE 永远的走在路上
+        // "· N edits" 数和数 "(…)" 输出回声——两者均仅出现在
+        // 终端 但这个细节 渲染 自动调试 事件 HEADER 横行,可以承诺本土
+        // 回滚缓冲区 编辑时 数据流 (现场直播) 末尾 高; 下方的流派将卡片推高。
+        // A 完成 -only 后缀 REWRITES 结账的行数 帧 ——这是净值.
+        // GROW 编辑( 已关闭) 差异块 → show_all 完全的diff),
+        // 所以,("")",""(")"("""),"("(","))"(("))
+        // maya 只能靠破坏力才能恢复 HardReset (无)
+        // scrollback_oracle write/edit 转过来,抓住这个T*
+        // -e-post。。 内容。 差异块 数着住在定居的 正文's
+        // "edit i/N" 带 头文件 ; 什么都没有丢失。
         return path_pp;
     }
     if (n == "move") {
-        // safe() is streaming-aware, so source/destination show live too.
+        // safe() 谓 流式传输-aware ,所以,我说 source/destination 现场直播也。
         auto src = pretty_path(safe("source"));
         auto dst = pretty_path(safe("destination"));
         if (src.empty() && dst.empty()) return "\xe2\x80\xa6";
@@ -416,11 +416,11 @@ static std::string tool_timeline_detail_base(const ToolUse& tc) {
     if (n == "bash" || n == "shell" || n == "diagnostics") {
         auto cmd = safe("command");
         if (cmd.empty()) {
-            // args never arrived (cancelled / cut off): say what it was for.
+            // args从未到达(已取消 / 断:说它是为了什么.
             auto why = safe("display_description");
             return why.empty() ? std::string{"\xe2\x80\xa6"} : why;
         }
-        // show the real command, not display_description.
+        // 显示真实命令, 而不是 display_description。
         if (auto nl = cmd.find('\n'); nl != std::string::npos)
             cmd = cmd.substr(0, nl) + " \xe2\x80\xa6";
         if (tc.is_done()) {
@@ -478,9 +478,9 @@ static std::string tool_timeline_detail_base(const ToolUse& tc) {
         return detail;
     }
     if (n == "extract" || n == "aggregate") {
-        // Pattern-projection tools: the regex is the story; add the path
-        // scope when present. (These previously fell to display_description
-        // — BLANK whenever the model omitted it.)
+        // 模式 -projection 工具: regex 是故事;
+        // 在当前时添加路径范围。 (这些以前掉到 display_description
+        // — BLANK 每当模型省略它。 )
         auto pat = safe("pattern");
         if (pat.empty()) return "\xe2\x80\xa6";
         if (pat.size() > 48) {
@@ -488,7 +488,7 @@ static std::string tool_timeline_detail_base(const ToolUse& tc) {
             pat += "\xe2\x80\xa6";
         }
         std::string detail = path_pp.empty() ? pat : pat + "  in  " + path_pp;
-        // "Extracted N values." / "Aggregated N matches by ..."
+        // "Extracted N values." / "Aggregated N matches by ..." 数据
         if (tc.is_done()) {
             const std::string_view out = card_output(tc);
             const std::string_view lead = n == "extract" ? "Extracted " : "Aggregated ";
@@ -512,8 +512,8 @@ static std::string tool_timeline_detail_base(const ToolUse& tc) {
         std::string detail = path_pp.empty() ? std::string{"\xe2\x80\xa6"} : path_pp;
         if (!pat.empty()) detail += "  \xc2\xb7  " + pat;
         if (tc.is_done()) {
-            // The tool's header has the true count: "path — N matching lines
-            // of M". Counting body rows would include the context lines.
+            // 工具的吗? 头文件 拥有真实的数 : "path — N matching lines of M"。
+            // 计数 正文 行将包括上下文线。
             const std::string_view out = card_output(tc);
             int kept = -1;
             constexpr std::string_view kTag = " matching line";
@@ -542,7 +542,7 @@ static std::string tool_timeline_detail_base(const ToolUse& tc) {
     if (n == "outline")
         return path_pp.empty() ? std::string{"\xe2\x80\xa6"} : path_pp;
     if (n == "apply_patch") {
-        // Mirror edit: the path is the identity; hunk count from the patch.
+        // 镜像编辑:路径是身份; 差异块 从 补丁.
         std::string detail = path_pp.empty() ? std::string{"\xe2\x80\xa6"} : path_pp;
         auto patch = safe("patch");
         if (!patch.empty()) {
@@ -550,7 +550,7 @@ static std::string tool_timeline_detail_base(const ToolUse& tc) {
             for (std::size_t p = 0;
                  (p = patch.find("@@", p)) != std::string::npos; p += 2)
                 ++hunks;
-            hunks /= 2;   // each hunk header carries a pair of @@
+            hunks /= 2;   // – 差异块 头文件 携带一对  ⁇   ⁇  .
             if (hunks > 0)
                 detail += "  \xc2\xb7  " + std::to_string(hunks)
                         + (hunks == 1 ? " hunk" : " hunks");
@@ -558,7 +558,7 @@ static std::string tool_timeline_detail_base(const ToolUse& tc) {
         return detail;
     }
     if (n == "replace") {
-        // find → replacement across a glob; the dry-run/apply mode matters.
+        // 查找 ~ 替换到一个 glob; dry-run/apply 模式很重要。
         auto find_s = safe("find");
         if (find_s.empty()) return "\xe2\x80\xa6";
         if (find_s.size() > 32) {
@@ -574,11 +574,11 @@ static std::string tool_timeline_detail_base(const ToolUse& tc) {
     if (n == "list_dir") {
         std::string detail = path_pp.empty() ? std::string{"."} : path_pp;
         if (tc.is_done()) {
-            // Count real entry rows only. list_dir output can carry a leading
-            // `display_description` line and trailing `[>1000 entries, …]` /
-            // `[… truncated …]` notices; counting those (as raw count_lines
-            // did) over-reports the entry total. Skip the description prepend
-            // and any bracketed notice line.
+            // 仅计算真实的条目数。 list_dir 输出可以带一个主线
+            // `display_description` 线条和后继
+            // `[>1000 entries, …]` / `[… truncated …]` 通知;
+            // 计数( 未计数) count_lines 结束了 -reports 全部。
+            // 跳过描述预置和括号内的通知行。
             const std::string desc = safe_arg(tc.args, "display_description");
             int entries = 0;
             const std::string_view out = card_output(tc);
@@ -695,10 +695,10 @@ static std::string tool_timeline_detail_base(const ToolUse& tc) {
             auto eol = out.find('\n', lo);
             std::string_view line{out.data() + lo,
                 (eol == std::string::npos ? out.size() : eol) - lo};
-            // porcelain v1: optional prepended display_description line(s),
-            // then a "## branch...upstream [ahead/behind]" header, then one
-            // "XY path" row per change ("?? " = untracked). Anchor on the
-            // `## ` line so a description can't be miscounted as a change.
+            // 瓷v1:可选预留的display_description线,
+            // 然后是"## branch...upstream [ahead/behind]"
+            // XXXX头文件,每变一行"XY path"("?? "=无轨).
+            // `## `线上的Anchor,所以一个描述不能误算为变化.
             if (!seen_branch) {
                 if (line.starts_with("## ")) {
                     seen_branch = true;
@@ -719,8 +719,8 @@ static std::string tool_timeline_detail_base(const ToolUse& tc) {
                 else if (x == 'U' || y == 'U' || (x == 'A' && y == 'A')
                          || (x == 'D' && y == 'D'))      ++conflicts;
                 else {
-                    if (x != ' ' && x != '?') ++staged;    // index side
-                    if (y != ' ' && y != '?') ++modified;  // worktree side
+                    if (x != ' ' && x != '?') ++staged;    // 索引侧
+                    if (y != ' ' && y != '?') ++modified;  // 工作树侧
                 }
             }
             if (eol == std::string::npos) break;
@@ -829,19 +829,19 @@ static std::string tool_timeline_detail_base(const ToolUse& tc) {
         return "\xe2\x80\xa6";
     }
     if (n == "task") {
-        // Header detail: "type · what it's doing". The agent type leads —
-        // in a parallel fan-out of subagents it's the discriminator the
-        // user scans for. Falls back to the prompt's first line when the
-        // model omitted display_description. Once settled, append the turn
-        // count parsed from the report header ("Subagent report (type, N
-        // turns):") so the card doubles as a compact result log.
+        // 头文件 细节 : "type · what it's doing"。
+        // 代理类型引导——平行扇形 -out 子代理是用户扫描时的歧义者。
+        // 提示词 模型省略时的第一道行 display_description。
+        // 一旦结算,请将报告所分析的转弯计数附加到后面 头文件 (
+        // "Subagent report (type, N turns):"
+        // )所以卡作为紧凑的结果记录而双倍.
         std::string type = safe("agent_type");
         if (type.empty()) type = "general";
-        // Provenance: a PROJECT-scoped persona rode in on the workspace (a
-        // clone could author its role prompt), so tag it so an injected agent
-        // is never invisible. Built-in and the user's own agents get no tag —
-        // the clean common case. Transparency, not a gate: the agent still
-        // runs, its tools still pass the normal permission/sandbox checks.
+        // 证明:a PROJECT-scoped 骑着马冲进 工作
+        // 区 (克隆人可以写出其角色) 提示词 ),所以标记它,
+        // 所以注射剂永远是隐形的。 -in 并且用户自己的代理没有标记
+        // ——干净的普通案件。透明,不是一个门:代理仍然运行,
+        // 其工具仍然通过正常 permission/sandbox 检查。
         std::string type_tag = type;
         bool project = false;
         for (const auto& a : agentty::ui_prefs::path_roots().project_agents)
@@ -863,8 +863,8 @@ static std::string tool_timeline_detail_base(const ToolUse& tc) {
             const std::string_view out = card_output(tc);
             if (auto p = out.find("report ("); p != std::string::npos) {
                 if (auto end = out.find(')', p); end != std::string::npos) {
-                    // "(type, N turns)" — keep only the "N turns" half; the
-                    // type is already leading the detail.
+                    // "(type, N turns)" - 仅保留 "N turns" 半;
+                    // 该类型已经引导细节。
                     std::string inner{out.substr(p + 8, end - (p + 8))};
                     if (auto comma = inner.find(", "); comma != std::string::npos)
                         inner = inner.substr(comma + 2);
@@ -875,7 +875,7 @@ static std::string tool_timeline_detail_base(const ToolUse& tc) {
         return detail;
     }
     if (n == "git_branch" || n == "git_stash" || n == "git_rebase") {
-        // action + its target, e.g. "switch master", "onto origin/master".
+        // 行动+其目标, e.g. "switch master", "onto origin/master".
         std::string action = safe("action");
         if (action.empty()) action = "list";
         std::string target = safe("name");
@@ -910,8 +910,8 @@ static std::string tool_timeline_detail_base(const ToolUse& tc) {
                                                  : sym + "  in  " + path_pp;
     }
     if (auto d = safe_arg(tc.args, "display_description"); !d.empty()) return d;
-    // A tool with no description (most MCP tools): show its first few
-    // short string args as `key value`, so the header still says what ran.
+    // 无描述的工具( 多数) MCP 工具 : 显示其第一个几个短字符
+    // 串的参数为 `key value` ,所以,请 头文件 仍然说什么跑。
     std::string detail;
     if (tc.args.is_object()) {
         int shown = 0;
@@ -929,14 +929,14 @@ static std::string tool_timeline_detail_base(const ToolUse& tc) {
     return detail;
 }
 
-// Public entry: the success-shaped detail plus, for a Failed tool, a uniform
-// "· reason" suffix so every failed tool tells the user WHY at a glance (a
-// failed edit/read/bash no longer looks identical to a successful one). One
-// code path owns the failure summary; individual tool branches stay
-// success-only. Rejected/aborted tools are intentionally left plain — they
-// weren't errors, and their glyph already says "skipped".
-// "(3+ 5-)" from edit / write / apply_patch output, as "+3 −5". The
-// minus is U+2212 so the header colouring can't confuse it with a flag.
+// 公开进入:成功 -shaped 细节加失败工具的制服 "· reason" 后缀,
+// 所以每个失败的工具告诉用户 原因 浏览( 失败) edit/read/bash
+// 不再看起来与成功路径完全相同。 失败摘要由一个代码路径拥有。
+// 单个工具分支保持成功。 -only.
+// Rejected/aborted 工具是故意的 被保留在平原上,
+// 它们不是错误, 并且他们的格莱弗已经说 "skipped".
+// "(3+ 5-)" 从编辑/ 写入/ 开始 apply_patch 输出,
+// 如 "+3 −5"。减值是 U+2212,所以 头文件 彩色不能与一个 标志.
 static std::string change_stat(std::string_view out) {
     for (std::size_t p = out.find(" ("); p != std::string_view::npos;
          p = out.find(" (", p + 2)) {
@@ -966,7 +966,7 @@ std::string tool_timeline_detail(const ToolUse& tc) {
     if (tc.is_failed()) {
         std::string reason = tool_failure_reason(tc);
         if (reason.empty()) reason = "failed";
-        // Avoid a redundant "· failed · failed" if a base branch already said it.
+        // 如果一个基部已经说过的话,就避免冗余的"· failed · failed".
         if (detail.find(reason) == std::string::npos)
             detail += detail.empty() ? reason : "  \xc2\xb7  " + reason;
     }

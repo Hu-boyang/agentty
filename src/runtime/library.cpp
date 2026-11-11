@@ -1,4 +1,4 @@
-// read_library — the on-disk half of agentty::Library. Runs on a worker.
+// read_library - 开机了 -disk 半数 agentty::Library 运行于 a 工作线程.
 
 #include "agentty/runtime/library.hpp"
 

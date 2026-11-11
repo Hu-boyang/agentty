@@ -1,9 +1,9 @@
-// Which tools go on the wire, and in what order (tools::plan, #98).
+// 哪个工具在 传输 ,以及顺序( tools::plan, #98).
 //
-// The tools block is the head of the prompt-cache prefix, so its order must
-// depend only on the catalog and the thread's loaded set: never on what the
-// user typed. And the web_search switch must remove only the NATIVE tool,
-// with the rest keeping their order.
+// 工具块是头部 提示词-cache 前缀,所以其顺序必须仅取决于 目录
+// 编辑 线程's 已加载 设置: 永远不要在用户的什么上 带类型的 和。
+// 和 : web_search 切换必须只删除 NATIVE 工具,
+// 其余的都维持着他们的秩序。
 
 #include "agtest.hpp"
 
@@ -34,8 +34,8 @@ tools::ToolDef native_tool(const char* n) {
     return t;
 }
 
-// What a request carries for this catalog, with policy applied the way the
-// request builders do (withheld tools never reach the planner).
+// 要求的目录, 政策应用了要求构建者的
+// 方式( 持有的工具从未到达规划者)。
 std::vector<std::string> wire(const std::vector<tools::ToolDef>& cat, bool web_search_on,
                               tp::Loading mode = tp::Loading::Auto) {
     std::vector<tools::ToolDef> pool;
@@ -47,7 +47,7 @@ std::vector<std::string> wire(const std::vector<tools::ToolDef>& cat, bool web_s
     return out;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("wire tool order is catalog order, whatever loads") {
     std::vector<tools::ToolDef> cat{native_tool("read"),
@@ -57,16 +57,16 @@ TEST_CASE("wire tool order is catalog order, whatever loads") {
     const auto all = wire(cat, true);
     check(all == std::vector<std::string>{"read", "alpha_tickets", "beta_pages", "gamma_logs"},
           "natives first, then catalog order");
-    // A thread that loaded the LAST tool on demand still emits catalog order.
+    // A 线程 说 已加载 编号 最后 工具仍然显示 目录 秩序。 秩序。
     const auto p = tp::make_plan(cat, {"gamma_logs"}, nullptr, tp::Loading::OnDemand, {});
     std::vector<std::string> got;
     for (const auto& w : p.wire) got.push_back(w.tool->name.value);
     check(got == std::vector<std::string>{"read", "gamma_logs"}, "loaded set, catalog order");
 }
 
-// Settings → Web Search can switch web_search off. It must leave the wire
-// WITHOUT disturbing the order of what remains, and only ever remove the
-// NATIVE tool: an MCP server's own web_search is governed by mcp.json.
+// 设置 ~ 网络搜索可以切换 web_search 关上,它必须离开 传输
+// 无需 破坏留下的秩序, 并且只从中移除 NATIVE 工具: a MCP
+// 服务器的自有 web_search 受以下规定制约: mcp.json.
 TEST_CASE("web_search switch removes only the native tool, order intact") {
     std::vector<tools::ToolDef> cat;
     for (const char* n : {"read", "web_fetch", "web_search", "grep"}) cat.push_back(native_tool(n));
@@ -81,9 +81,9 @@ TEST_CASE("web_search switch removes only the native tool, order intact") {
           "and the MCP tool of the same name is untouched");
 }
 
-// `agentty mcp-serve` registers native_registry() minus withheld_by_policy():
-// the SAME predicate the request builders use, so another MCP client is never
-// offered a tool agentty's settings switched off for its own model.
+// `agentty mcp-serve` 注册表 native_registry () 减 withheld_by_policy():
+// 编号 相同 请求构建者使用上游,所以另一个 MCP 客户端从未
+// 提供工具 agentty 设置关闭了, 用于自己的模型。
 TEST_CASE("mcp-serve and the wire withhold exactly the same tools") {
     std::vector<tools::ToolDef> cat;
     for (const char* n : {"read", "web_fetch", "web_search", "grep"}) cat.push_back(native_tool(n));

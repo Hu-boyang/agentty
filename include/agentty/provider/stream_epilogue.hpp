@@ -1,35 +1,35 @@
 #pragma once
 
-// ── Provider stream epilogue: the shared "how a streamed turn ends" layer ────
+// ── Provider 数据流 内涵:共享 "how a streamed turn ends" 层 ────
 //
-// Every streaming transport (Anthropic, OpenAI-compat, Ollama, ChatGPT/Codex)
-// faces the SAME two problems once its SSE/NDJSON body has been fed to the
-// HTTP client:
+// 一旦其 SSE/NDJSON 正文 被馈送到 HTTP 客户端，每个 流式传输 传输层 (Anthropic、
+// OpenAI-compat、Ollama、ChatGPT/Codex)就面临
+// 相同 两个问题：
 //
-//   1. Emit EXACTLY ONE terminal event. A turn finishes with a single
-//      StreamFinished (success) or StreamError (failure) — never zero, never
-//      two. The body itself usually fires it (a `response.completed` /
-//      `message_stop` / `[DONE]` frame), so the post-loop code must NOT emit a
-//      second one. Forgetting this guard is exactly the bug the ChatGPT path
-//      had: it aborted the read after `response.completed`, the HTTP layer
-//      reported that intentional abort as "cancelled", and the post-loop
-//      forwarded it as a spurious StreamError — so a clean turn showed
-//      "cancelled".
+//   1.发出EXACTLY 一个 终端 事件。一回合以单曲结束
+//      StreamFinished(成功)或StreamError(失败)-从不为零，
+//      从不为二。 正文 本身通常会触发它（`response.completed`
+//      / `message_stop` / `[DONE]` 帧），因此 post
+//      -loop 代码不得 发出第二个。忘记这个守卫正是 ChatGPT 路径所存在的
+//      错误：它在 `response.completed` 之后中止读取，
+//      HTTP 层将故意中止报告为 "cancelled"，而 post-loop
+//      将其转发为虚假的 StreamError — 因此，干净的转向显示
+//      "cancelled"。
 //
-//   2. Interpret the loop exit uniformly. When the body did NOT already finish,
-//      the reason the stream loop returned has a fixed precedence: a real user
-//      cancel, then an HTTP error status, then a transport error, else a clean
-//      socket close (finish with the last-seen stop reason).
+//   2、统一解释循环出口。当 正文 完成 不 时，
+//      数据流循环返回的原因具有固定优先级：真实用户取消，
+//      然后HTTP错误状态，然后传输层错误，否则干净套接字
+//      关闭（以最后-seen停止原因结束）。
 //
-// Historically each transport open-coded both, and they drifted (the ChatGPT
-// path got #1 wrong). This header is the single source of truth so all
-// providers behave identically and a new transport gets it right for free.
+// 历史上每个传输层都打开-coded，并且它们漂移（ChatGPT
+// 路径出现#1错误）。这个 头文件 是唯一的事实来源，
+// 因此所有提供商的行为都是相同的，而新的 传输层 则免费提供正确的信息。
 //
-// It is deliberately tiny and header-only: two free functions over the common
-// vocabulary (EventSink, StopReason, StreamFinished/StreamError, CancelToken).
-// Transport-specific "flush before finishing" work (salvage a leaked tool call,
-// close an open tool block) is injected as a callback, so the shared rule holds
-// without the shared code needing to know each transport's internals.
+// 它故意很小并且头文件-only:对于公共词汇表(EventSink、StopReason、
+// StreamFinished/StreamError、CancelToken)的两个自由函数。
+// 传输层-specific "flush before finishing"
+// 工作（抢救泄漏的工具调用，关闭打开的工具块）被作为回调注入，
+// 因此共享规则成立，而共享代码不需要知道每个传输层的内部结构。
 
 #include <chrono>
 #include <functional>
@@ -44,21 +44,21 @@
 
 namespace agentty::provider {
 
-// Emit the single terminal event for a turn, exactly once.
+// 发射单个 终端 事件 一圈，恰好一次。
 //
-//   terminated    in/out latch. If already true this is a no-op (the body — or
-//                 an earlier epilogue call — already finished the turn). Set to
-//                 true on emit so a later call can't double-finish.
-//   sink          the transport's EventSink.
-//   stop          stop reason to report on SUCCESS (ignored on error).
-//   err           std::nullopt → success (StreamFinished{stop}); otherwise
-//                 StreamError{*err, retry_after}.
-//   retry_after   server Retry-After hint to carry on an error (429/529).
-//   before_finish transport hook run ONLY on the success path, just before
-//                 StreamFinished — the place to flush held text / close an open
-//                 tool block / salvage a leaked tool call. Not run on error.
+//   终止in/out锁存器。如果已经为真，则这是一个 no-op（正文 - 或
+//                 更早的尾声 调用 - 已经完成了回合）。在发出时设置为 true，
+//                 这样后面的 调用 就不能加倍 -finish。
+//   沉传输层的EventSink。
+//   停止报告SUCCESS的停止原因（错误时被忽略）。
+//   错误std::nullopt→成功（StreamFinished{停止}）；否则 StreamError
+//                 {*err, retry_after}。
+//   retry_after服务器重试-After提示进行错误(429/529)。
+//   before_finish 传输层钩子在成功路径上运行ONLY，
+//                 就在StreamFinished之前——
+//                 刷新保持的文本/关闭打开的工具块/抢救泄漏的工具调用的位置。出错时不运行。
 //
-// This is the shared body of every transport's old `emit_terminal` lambda.
+// 这是每个传输层的旧`emit_terminal` lambda的共享正文。
 inline void finish_turn_once(
         bool& terminated,
         const EventSink& sink,
@@ -81,72 +81,72 @@ inline void finish_turn_once(
     }
 }
 
-// How a stream loop ended, in precedence order. `classify_stream_end` returns
-// exactly one; the transport switches on it to emit the right terminal event
-// (or nothing, for AlreadyTerminated).
+// 数据流 循环如何结束（按优先顺序）。 `classify_stream_end`
+// 返回正好 1； 传输层 打开它以发出正确的 终端 事件（或者对于
+// AlreadyTerminated 则什么也不发出）。
 enum class StreamEnd {
-    // The SSE/NDJSON body already fired a terminal event (and set `terminated`).
-    // Emit NOTHING more — this is the case that must win, so an intentional
-    // read-abort after a clean finish is never mistaken for a cancel/error.
+    // SSE/NDJSON 正文已经发射了终端 事件 (并且设置了`terminated`)。
+    // 发出更多 无内容 — 这是必须获胜的情况，因此在干净完成后有意读
+    // 取 -abort 绝不会被误认为是 cancel/error.
     AlreadyTerminated,
-    // The caller's cancel token is set: a genuine user Esc. Emit
-    // StreamError{"cancelled"}.
+    // 设置呼叫者的取消令牌：真实用户Esc。发出 StreamError
+    // {"cancelled"}。
     UserCancelled,
-    // Response status was >= 400. The transport builds the error message from
-    // the buffered error body.
+    // 响应状态> = 400。传输层从缓冲的错误
+    // 正文构建错误消息。
     HttpError,
-    // The HTTP client returned an error (connection/TLS/reset) and it was not a
-    // user cancel. The transport renders result.error().
+    // HTTP客户端返回错误(connection/TLS/reset)并且它不是用户取消。
+    // 传输层 渲染 result.error()。
     TransportError,
-    // A 2xx stream closed cleanly without an explicit terminal frame (proxy
-    // cutoff). Finish with the last-seen stop reason.
+    // 2xx 数据流干净地关闭，没有显式的终端 帧（代理截止）。
+    // 完成最后一个-seen 停止原因。
     CleanClose,
 };
 
-// ── StreamResult: how a streamed turn ended, as a VALUE ────────────────────
+// ── StreamResult : 流转的结束, 作为 值 ────────────────────
 //
-// The terminal outcome of a turn used to be observable only as a side effect —
-// a StreamFinished / StreamError Msg pushed into the sink, which a caller had
-// to intercept and re-decode to learn "did this turn error? was it cancelled?
-// what was the retry hint?". StreamResult makes that outcome a first-class
-// return value: `stream()` (and finish_stream) hand it back, the emitted
-// terminal Msg is DERIVED from it, and callers read a field instead of sniffing
-// events.
+// 转弯的终端结果过去只能作为副作用观察到——
+// StreamFinished/StreamError Msg被推入接收器，
+// 呼叫者必须拦截并重新-decode以了解“这个转弯是否错误？是已取消吗？
+// 重试 提示是什么？”。 StreamResult 使该结果成为第一个
+// -class 返回值：`stream()`（和 finish_stream）
+// 将其交回，发出的 终端 Msg 是其中的 派生，调用者读取一个字段而不是嗅探
+// 事件。
 //
-// (Distinct from provider::TurnResult in acp_backend.hpp, which is the ACP
-// backend abstraction's per-ROUND result carrying a richer TurnError. This is
-// the in-process SSE/NDJSON epilogue's outcome, keyed on StreamEnd + the raw
-// HTTP status — the two describe adjacent layers and are intentionally not the
-// same type.)
+// (与acp_backend.hpp中的provider::TurnResult不同，
+// ACP后端抽象的per-ROUND结果带有更丰富的TurnError。
+// 这是in-process SSE/NDJSON尾声的结果，
+// 以StreamEnd +原始HTTP状态为关键——两者描述相邻层并且故意不是
+// 同一类型。)
 //
-// `end` is the classified precedence winner (see classify_stream_end). The
-// derived accessors below fold the StreamEnd + payload into the two questions
-// callers actually ask.
+// `end`是分类优先获胜者（参见classify_stream_end)。
+// 下面的派生访问器 归并 和 StreamEnd + 载荷 转化为调用者
+// 实际询问的两个问题。
 struct StreamResult {
     StreamEnd                             end = StreamEnd::CleanClose;
     StopReason                            stop = StopReason::EndTurn;
-    std::optional<std::string>            error;        // set iff the turn failed
-    std::optional<std::chrono::seconds>   retry_after;  // server hint on 429/529
+    std::optional<std::string>            error;        // 当且仅当转弯失败时设置
+    std::optional<std::chrono::seconds>   retry_after;  // 429/529 上的服务器提示
     int                                   http_status = 0;
     bool                                  non_replayable = false;
 
-    // Did the turn end successfully (clean close, or the body already finished
-    // with a terminal we respect)? False for cancel / HTTP / transport error.
+    // 回合是否成功结束（完全关闭，或者 正文 已经以我们尊重的
+    // 终端 结束）？ 取消 / HTTP / 传输层 错误为假。
     [[nodiscard]] bool ok() const noexcept { return !error.has_value(); }
-    // Was this a user-initiated cancel (vs. a genuine failure)?
+    // 这是用户-initiated 取消（相对于真正的故障）吗？
     [[nodiscard]] bool cancelled() const noexcept {
         return end == StreamEnd::UserCancelled;
     }
-    // Did the body already fire its own terminal, so the epilogue emitted
-    // nothing? (A clean early-abort / `[DONE]` before the post-loop.)
+    // 正文是否已经发射了自己的终端，所以尾声什么也没发出？ （在 post
+    // -loop 之前干净的早期-abort / `[DONE]`。）
     [[nodiscard]] bool already_terminated() const noexcept {
         return end == StreamEnd::AlreadyTerminated;
     }
 
-    // For the handful of pre-flight bail-outs a transport handles itself
-    // (not authenticated / request-build failure) before the stream loop even
-    // starts — it emits its own StreamError and returns this so the value still
-    // reflects reality.
+    // 对于少数 pre-flight bail-outs，
+    // 传输层 在 数据流 循环甚至开始之前就处理自身（未验证/请求-build
+    // 失败）——它发出自己的 StreamError 并返回它，
+    // 因此该值仍然反映现实。
     static StreamResult failed(std::string msg) {
         StreamResult r;
         r.end   = StreamEnd::TransportError;
@@ -155,10 +155,10 @@ struct StreamResult {
     }
 };
 
-// Classify the loop exit. `result_ok` is `bool(result)` for the transport's
-// std::expected return; `http_status` is the observed response status (0 if
-// headers never arrived — treated as not-an-HTTP-error so a transport error or
-// cancel wins). Precedence is fixed and identical for every provider.
+// 对循环出口进行分类。 `result_ok` 是 `bool(result)`，
+// 代表 传输层 的 std::expected 返回； `http_status` 是
+// 观察到的响应状态（如果 头文件 从未到达，则为 0 — 被视为 not-an-HTTP-error，
+// 因此 传输层 错误或 取消 获胜）。每个提供商的优先级都是固定且相同的。
 [[nodiscard]] inline StreamEnd classify_stream_end(
         bool terminated,
         bool result_ok,
@@ -171,69 +171,69 @@ struct StreamResult {
     return StreamEnd::CleanClose;
 }
 
-// Everything a transport's post-loop needs to end a turn, in one bundle. All
-// hooks are optional; sensible defaults keep the common case terse. Every fact
-// is stated ONCE: `terminated` is a reference to the transport's own latch (not
-// a copy passed twice), and `sink` is the transport's EventSink — so
-// finish_stream takes exactly this one argument and nothing is duplicated at
-// the call site.
+// 传输层的post-loop结束回合所需的所有东西都集中在一个包中。
+// 所有挂钩都是可选的；合理的默认值使常见情况保持简洁。每一个事实都被陈述了
+// 一次：`terminated` 是对 传输层 自己的锁存器的引用（不是传递两次
+// 的副本），而 `sink` 是 传输层 的 EventSink —
+// 因此 finish_stream 正是采用这一参数，并且在 调用 站点上
+// 没有任何重复。
 struct StreamOutcome {
-    bool&              terminated;    // the transport's terminal latch (in/out)
-    const EventSink&   sink;          // where the terminal Msg is emitted
-    bool               result_ok;     // bool(result) of the http stream call
-    int                http_status;   // observed status (0 = headers never came)
-    bool               non_replayable = false; // accepted POST; never auto-retry
-    http::CancelTokenPtr cancel;      // caller's cancel token
-    StopReason         stop = StopReason::EndTurn;   // stop for CleanClose
+    bool&              terminated;    // 传输层的终端锁存器(in/out)
+    const EventSink&   sink;          // 终端 Msg被发射的地方
+    bool               result_ok;     // http 数据流 调用 的 bool(结果)
+    int                http_status;   // 观察到的状态（0=头文件从未到来）
+    bool               non_replayable = false; // 接受POST;从不 auto-retry
+    http::CancelTokenPtr cancel;      // 呼叫者的取消令牌
+    StopReason         stop = StopReason::EndTurn;   // 停于CleanClose
 
-    // Build the user-facing error message for an HTTP >= 400 status from the
-    // buffered error body. Required when a 4xx/5xx is possible.
+    // 根据缓冲的错误正文构建HTTP > = 400状态的user
+    // -facing错误消息。当 4xx/5xx 可能时需要。
     std::function<std::string()>                 http_error_message;
-    // Optional Retry-After hint to attach to an HTTP error (429/529).
+    // 可选的重试-After提示附加到HTTP错误(429/529)。
     std::optional<std::chrono::seconds>          retry_after;
-    // Render the transport-level error (connection/TLS/reset). Required.
+    // 渲染 传输层-level错误(connection/TLS/reset)。必需的。
     std::function<std::string()>                 transport_error_message;
-    // Success-only hook: flush held text / close a tool block / salvage a
-    // truncated tool call, just before StreamFinished. Runs for CleanClose.
+    // Success-only钩子：刷新保持的文本/关闭工具块/抢救截断的工具调用，
+    // 就在StreamFinished之前。运行时间为 CleanClose。
     std::function<void()>                        before_finish;
-    // ALL-paths hook, run once before the terminal event on every non-
-    // AlreadyTerminated exit (success AND error). The place for cleanup that
-    // must happen whether or not the turn succeeded — e.g. Anthropic
-    // synthesises a StreamToolUseEnd here so the reducer's salvage path runs
-    // on partial tool JSON even when the peer died mid-tool-use.
+    // 全部-paths 钩子，在每次非 AlreadyTerminated
+    // 退出时在 终端 事件 之前运行一次（成功 和 错误）。无论转弯是否成功，
+    // 都必须进行清理的地方——e.g。 Anthropic 在这里合成了
+    // StreamToolUseEnd，因此 状态更新函数 的抢救路径在部分工具
+    // JSON 上运行，即使 对端 在 -tool-use 中期死亡。
     std::function<void()>                        on_any_end;
-    // The dialect always sends a terminal event (Anthropic message_stop,
-    // Responses response.completed, Chat [DONE]). When it does and the
-    // connection closes cleanly without one, the reply was cut off in
-    // transit: report that, so the turn is retried instead of silently
-    // ending half way. Off for dialects where a plain close is normal.
+    // 方言总是发送终端 事件 (Anthropic message_stop、
+    // 响应response.completed、聊天[DONE])。
+    // 当它这样做并且连接在没有连接的情况下干净地关闭时，
+    // 回复在传输过程中被切断：报告这一点，因此重试而不是
+    // 在中途默默结束。对于普通结束语是正常的方言，关闭。
     bool                                         expects_terminal_event = false;
 };
 
-// The WHOLE post-loop of a streaming transport, unified. Classify the loop
-// exit, then emit exactly one terminal event with the right message/precedence
-// — identical for every provider. Replaces each transport's bespoke
-// `emit_terminal` lambda + hand-rolled `if (!result) … if (!is_success) …`
-// ladder with a single call, so a new transport ends a turn correctly for free:
+// WHOLE后-loop为流式传输 传输层，统一。对循环出口进行分类，然后准确地发出
+// 一个 终端 事件 和正确的 message/precedence — 对于每个提供商
+// 来说都是相同的。将每个 传输层 的定制 `emit_terminal`
+// lambda 加手写判断，例如 if (!result) 和 if (!is_success)。
+// 梯子替换为单个 调用，因此新的 传输层 免费正确结束转弯：
 //
 //   return finish_stream({
-//       .terminated = ctx.terminated, .sink = ctx.sink,
-//       .result_ok = bool(result), .http_status = http_status,
-//       .cancel = cancel, .stop = ctx.stop,
-//       .http_error_message = [&]{ return build_http_error(); },
-//       .transport_error_message = [&]{ return result.error().render(); },
-//       .before_finish = [&]{ flush_and_salvage(ctx); },
+//       .terminate = ctx.terminated, .sink = ctx.sink,
+//       .result_ok = bool(结果), .http_status = http_status,
+//       .取消 = 取消, .stop = ctx.stop, .
+//       http_error_message = [&]{ return build_http_error(); },
+//       .transport_error_message = [&]{ 返回 result.error().render(); }, .
+//       before_finish = [&]{ flush_and_salvage(ctx); },
 //   });
 //
-// `o.terminated` is the transport's own latch (a reference), so a partial body
-// that already finished is respected and a later call can't double-finish. On
-// UserCancelled we emit StreamError{"cancelled"}; on AlreadyTerminated we emit
-// nothing.
+// `o.terminated`是传输层自己的锁存器（参考），因此已经完成的部分正文受到尊重，
+// 并且稍后的调用不能加倍-finish。在 UserCancelled 我们发出
+// StreamError{"cancelled"}；在 AlreadyTerminated 我们什么
+// 也没发出。
 //
-// Returns a StreamResult describing the outcome. The emitted terminal Msg is
-// derived from the SAME classification, so the return value and the sink event
-// never disagree — callers that want the outcome read the value, callers that
-// react to Msgs still see StreamFinished / StreamError.
+// 返回描述结果的StreamResult。发出的 终端 Msg
+// 源自 相同 分类，因此返回值和接收器 事件 永远不会不一致 - 想要
+// 结果的调用者读取该值，对消息做出反应的调用者仍然看到
+// StreamFinished / StreamError。
 inline StreamResult finish_stream(StreamOutcome o) {
     bool& terminated = o.terminated;
     const EventSink& sink = o.sink;
@@ -246,25 +246,25 @@ inline StreamResult finish_stream(StreamOutcome o) {
     tr.retry_after = o.retry_after;
     tr.non_replayable = o.non_replayable;
 
-    // EVERY provider's turn ends here, so one line records how every turn
-    // ended — for all four dialects, without touching a single transport.
+    // EVERY提供者的回合在此结束，因此一行记录了每一回
+    // 合如何结束——对于所有四种方言，而不触及单个传输层。
     //
-    // ABOVE the AlreadyTerminated early-return: a normal streaming turn ends
-    // by seeing its terminal SSE event, so it takes that branch. Logging
-    // after it recorded only the failures and made a healthy turn invisible —
-    // which is precisely the "did my turn even run?" question a support
-    // thread starts with.
+    // 上方 AlreadyTerminated早期-return:
+    // 正常的流式传输回合通过看到其终端 SSE 事件而结束，
+    // 因此它采取该分支。日志记录仅记录失败，而健康的转变则不可见——这
+    // 正是支持 线程 开头的 "did my turn even run?"
+    // 问题。
     //
-    // A failing turn is Warn, so it also lands in the flight recorder and
-    // therefore in a crash dump, even with file logging off.
+    // 失败的转弯是警告，因此即使文件注销，
+    // 它也会降落在飞行记录器中并因此降落在故障转储中。
     AGT_LOGL(Wire, end == StreamEnd::CleanClose
                        || end == StreamEnd::AlreadyTerminated
                    ? ::agentty::logx::Level::Debug
                    : ::agentty::logx::Level::Warn,
             "stream.end", "end={} http={} stop={} replayable={}",
-            // NAMES, not enum indices: a log a user pastes into a bug report
-            // has to be readable without the source tree open. `end=3` meant
-            // nothing to anyone; `end=transport_error` is the answer.
+            // NAMES，而不是 枚举 索引：用户粘贴到错误报告中的日志必须在
+            // 源码树 打开的情况下可读。 `end=3` 对任何人来说都毫无意义；
+            // `end=transport_error` 就是答案。
             end == StreamEnd::AlreadyTerminated ? "already_terminated"
           : end == StreamEnd::UserCancelled     ? "cancelled"
           : end == StreamEnd::HttpError         ? "http_error"
@@ -279,8 +279,8 @@ inline StreamResult finish_stream(StreamOutcome o) {
             !o.non_replayable);
 
     if (end == StreamEnd::AlreadyTerminated) return tr;
-    // All-paths cleanup (e.g. close an open tool block) before the terminal
-    // event, on both success and error. Runs exactly once.
+    // 在终端 事件之前进行所有-paths清理(e.g.
+    // 关闭打开的工具块)，无论成功还是错误。只运行一次。
     if (o.on_any_end) o.on_any_end();
     switch (end) {
         case StreamEnd::AlreadyTerminated:
@@ -293,13 +293,13 @@ inline StreamResult finish_stream(StreamOutcome o) {
             tr.error = o.http_error_message
                            ? o.http_error_message()
                            : std::string{"HTTP "} + std::to_string(o.http_status);
-            // The message the USER sees, in the log verbatim — so a support
-            // thread can start from the real provider text instead of a
-            // screenshot of it.
+            // USER在日志中逐字看到的消息——因此支持
+            // 线程可以从真实的提供者文本而不是它的
+            // 屏幕截图开始。
             AGT_LOG(Wire, Warn, "stream.http_error", "status={} msg={}",
                     o.http_status, *tr.error);
-            // Stamp the precise status on the Msg so the retry reducer can
-            // classify via the typed provider::classify(HttpError) path.
+            // 在Msg上标记精确状态，以便重试 状态更新函数可以通过带类型的
+            // provider::classify(HttpError)路径进行分类。
             finish_turn_once(terminated, sink, o.stop, tr.error, o.retry_after,
                              {}, o.http_status);
             return tr;
@@ -307,9 +307,9 @@ inline StreamResult finish_stream(StreamOutcome o) {
             tr.error = o.transport_error_message
                            ? o.transport_error_message()
                            : std::string{"transport error"};
-            // The message the USER sees, in the log verbatim — so a support
-            // thread can start from the real provider text instead of a
-            // screenshot of it.
+            // USER在日志中逐字看到的消息——因此支持
+            // 线程可以从真实的提供者文本而不是它的
+            // 屏幕截图开始。
             AGT_LOG(Wire, Warn, "stream.transport_error", "status={} msg={}",
                     o.http_status, *tr.error);
             finish_turn_once(terminated, sink, o.stop, tr.error,
@@ -331,16 +331,16 @@ inline StreamResult finish_stream(StreamOutcome o) {
     return tr;
 }
 
-// ── Shared Retry-After header parser ────────────────────────────────────────
+// ── 共享 重试-After 头文件 解析器 ────────────────────────────────────────
 //
-// Every transport's on_headers callback used to hand-roll the SAME loop to
-// pull a server backoff hint out of the response headers — scan for
-// `retry-after` (case-insensitive), parse whole seconds, reject anything that
-// isn't a clean positive integer (HTTP-date form is deliberately NOT honoured;
-// we'd rather fall back to our own schedule than mis-parse a date). The copies
-// drifted: the Ollama transport silently omitted it entirely and ignored
-// server backoff. This is the single source of truth — every transport calls
-// it from on_headers and feeds the result to finish_stream's `retry_after`.
+// 每个 传输层 的 on_headers 回调 用于处理 -roll 相同 循环，
+// 以从响应 头文件 中提取服务器 退避 提示 — 扫描
+// `retry-after` (case-insensitive)、解析 整秒，
+// 拒绝任何不是干净正整数的内容 (HTTP-date 形式是故意的NOT 很荣幸；
+// 我们宁愿回到自己的日程，也不愿错过 -parse 的约会）。副本发生了漂移：
+// Ollama 传输层 默默地完全忽略了它并忽略了服务器 退避。
+// 这是唯一的事实来源——每个 传输层 调用 都来自 on_headers，
+// 并将结果提供给 finish_stream 的 `retry_after`。
 [[nodiscard]] inline std::optional<std::chrono::seconds>
 parse_retry_after(const http::Headers& headers) noexcept {
     auto eq_ci = [](std::string_view a, std::string_view b) {
@@ -361,17 +361,17 @@ parse_retry_after(const http::Headers& headers) noexcept {
             if (consumed == h.value.size() && v > 0)
                 return std::chrono::seconds(v);
         } catch (...) {
-            // Non-integer (or HTTP-date) — leave unset; the runtime falls back
-            // to its own backoff schedule.
+            // Non-integer (或 HTTP-date) — 保留未设置；
+            // 运行时 回到其自己的 退避 时间表。
         }
-        return std::nullopt;   // matched the header; don't scan further
+        return std::nullopt;   // 匹配头文件;不要进一步扫描
     }
     return std::nullopt;
 }
 
-// A Go-style duration ("6043s", "43.39s", "1h40m43.390047655s", "500ms")
-// at the start of `s`, rounded up to whole seconds. nullopt if `s` doesn't
-// start with one.
+// `s`开始处的Go-style持续时间（"6043s"、"43.39s"、
+// "1h40m43.390047655s"、"500ms")，向上舍入到整秒。如果 `s` 不以 1 开头，
+// 则为 nullopt。
 [[nodiscard]] inline std::optional<std::chrono::seconds>
 parse_go_duration(std::string_view s) noexcept {
     double total = 0;
@@ -407,12 +407,12 @@ parse_go_duration(std::string_view s) noexcept {
     return std::chrono::seconds(whole + (total > static_cast<double>(whole) ? 1 : 0));
 }
 
-// The server's "wait this long" when it's in the BODY instead of a
-// Retry-After header. Google's Gemini API does this: its 429 carries a
-// google.rpc.RetryInfo detail (`"retryDelay": "6043s"`) and repeats it in
-// the message ("Please retry in 1h40m43.39s."), with no header at all.
-// Without this a daily quota looked like a burst limit and was retried for
-// minutes before failing with the message the first response already had.
+// 服务器在 BODY 中时是 "wait this long"，而不是 重试-After 头文件。
+// Google 的 Gemini API 就是这样做的：它的 429 带有
+// google.rpc.RetryInfo 详细信息 (`"retryDelay": "6043s"`) 并
+// 在消息中重复它 ("Please retry in 1h40m43.39s.")，根本没有 头文件。
+// 如果没有这个，每日配额看起来就像是突发限制，
+// 并且在失败并显示第一个响应已经有的消息之前重试了几分钟。
 [[nodiscard]] inline std::optional<std::chrono::seconds>
 parse_retry_after_body(std::string_view body) noexcept {
     if (auto k = body.find("\"retryDelay\""); k != std::string_view::npos) {

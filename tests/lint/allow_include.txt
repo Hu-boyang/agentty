@@ -1,69 +1,69 @@
-# Header-side allowlist for the concurrency ban-list (see allowlist.txt for
-# the rationale; this file covers include/, that one covers src/).
+# 头文件-side 允许清单 货币禁令 -list (见A/C.5/61/L.48,第16段)
+# allowlist.txt 理由; 此文件覆盖 include/ ,这个覆盖 src/).
 #
-# Paths are relative to include/.
+# 路径相对 include/.
 
-# ── Lock-order capability roots (cap_mint) ───────────────────────────────
-# See tests/lint/allowlist.txt for the rule. Effect seams: called only by
-# the effect host and init(), on the loop thread between steps, where no
-# lock is held (update() and view() can't take locks).
+# ── 锁-order 能力根( 根) cap_mint) ───────────────────────────────
+# 见 tests/lint/allowlist.txt 规则。 副作用 接口边界 : 仅由
+# 副作用 主办单位和 init() ,在循环中 线程 步数之间,如果无 锁 持有( 4)
+# update() 财务报告和已审计财务报表 view() 无法承受 锁).
 agentty/io/persistence.hpp: cap_mint
 agentty/runtime/app/deps.hpp: cap_mint
 agentty/runtime/app/host.hpp: cap_mint
-# Job entry: a background job starts on a pool thread holding nothing; this
-# is where its body receives the fresh thread's `unlocked`.
+# 工作条目:背景工作从一个开始 池 线程 持有无;
+# 这里是其 正文 接收新鲜的 线程's `unlocked`.
 agentty/util/background.hpp: cap_mint
 
-# ── Types whose whole job is to be the safe wrapper ──────────────────
-# NOTE: util/background.hpp (was isolated_thread.hpp) is deliberately NOT
-# here any more. It used to need `thread detach` because it hand-rolled a
-# detached worker, exempted on the grounds that the ACP process mode has no
-# jaal loop and therefore no task machinery. That premise was wrong:
-# maya::pool is standalone and needs no loop, so background.hpp now
-# posts to it and spawns no thread of its own.
+# ── 全部工作都是安全包装的 ──────────────────
+# NOTE: util/background.hpp (过去是)
+# isolated_thread.hpp )是故意的,是故意的(因为有人故意的)
+# 不 这里再多一点,它以前需要 `thread detach` 因为它手 -rolled
+# 离子 工作线程 ,以 ACP 进程模式没有 jaal 而不是任务机制。
+# maya::pool 独立,不需要循环,
+# 所以 background.hpp 瞷倒 线程 自己来的
 agentty/util/logx.hpp: atomic
 
-# ── The turn's cancel token ──────────────────────────────────────────────
-# agentty/io/http.hpp has NO entry. http::CancelToken is still the app's own
-# (a reducer tripping a specific in-flight request from a later step — see the
-# Sendable opt-in in runtime/cmd.hpp), but it is a std::stop_source now, not
-# an atomic flag, so it can hand out a real stop_token and needs no exemption.
-# backoff_with_jitter(): per-thread mt19937 for retry jitter. The generator
-# holds no shared state; each caller thread gets its own seeded from
-# random_device. thread_local is what makes this branch-free at the call
-# site without a per-turn allocation.
+# ── 转弯 取消 符号 ──────────────────────────────────────────────
+# agentty/io/http.hpp 已经 NO 输入。 http::CancelToken
+# 仍然是应用程序的(a) 状态更新函数 绊倒一个特定的在 -flight 后一步的请求——见可发送
+# 选项 -in 输入 runtime/cmd.hpp ),但它是一个 std::stop_source 现在,
+# 不是原子 标志 ,这样它就可以发出一个真实的 stop_token 并且不需要任何豁免。
+# backoff_with_jitter (单位:千美元) -thread 转帐: 重试
+# jitter。 生成器没有共享状态; 每个调用器 线程 获得自己的种子从
+# random_device. thread_local 是什么使这个分支 -free 现场
+# 调用 站点不包含每个站点 -turn 分配.
 agentty/provider/error_class.hpp: thread_local
 
-# ── Caches and registries below the loop ─────────────────────────────────
-# catalog: the fact registries are maya::snapshots (lock-free reads on the
-# per-frame render path); the atomic is the caps epoch counter.
+# ── 缓存 和环下方的注册表 ─────────────────────────────────
+# 目录 : 事实注册表 maya::snapshots (锁-free
+# 读数 -frame 渲染 路径);原子是顶点的切换计数器。
 agentty/domain/catalog.hpp: atomic
 agentty/domain/lazy_bytes.hpp: atomic
 agentty/domain/ui_theme.hpp: atomic
-# rag VectorCache: the vectors are a maya::published map (lock-free reads
-# from inside the RAG index lock, where a library virtual can't take a
-# lock). The atomics are a generation stamp for eviction order and hit/miss
-# counters for stats(); none is waited on or used as a claim.
+# 抹布( 擦抹布 ) VectorCache : 矢量为 a maya::published
+# 地图( E) 锁-free 从内部读取 RAG 指数 锁 ,其中,
+# 库 虚拟不能拿一个 锁 博物馆是一代人 的拆迁令和 hit/miss
+# 计数器用于 stats() ;没有任何人等待或被用作索赔。
 agentty/rag/vector_cache.hpp: atomic
-# const_cast on a std::variant alternative accessor, not on shared state.
+# const_cast 时间: std::variant 替代访问器,不使用共享状态。
 agentty/domain/smart_mode.hpp: const_cast
 
-# ── ACP: a separate process mode, no jaal loop ───────────────────────────
+# ── ACP : 单独的处理模式, 不 jaal 循环 ───────────────────────────
 agentty/acp/server.hpp: atomic
 
-# ── Process plumbing ─────────────────────────────────────────────────────
-# child_process: the child's stop/reap/close-stdin claim and the stdin
-# buf's closed/writing flags are single atomic words, claimed by CAS.
-# They are reached from a destructor and a std::streambuf::sync override,
-# which can't be handed a lock capability, so a lock there would sit outside
-# the compile-time order; a claim that loses does nothing (see the class
-# comments). The stdout buf's interrupt bit is a plain atomic flag.
+# ── 工艺管道 ─────────────────────────────────────────────────────
+# child_process : 儿童的 stop/reap/close-stdin
+# 索赔和Stdin buf的 closed/writing 标志 单原子词,由 CAS.
+# 他们从毁灭者那里得来一个(毁灭者)和(毁灭者)。
+# std::streambuf::sync 超接,不能交给 锁 能力,
+# 所以一个 锁 就会坐在外面, 编译-time 命令; 丢失的主张无所作为(
+# 请参见类评论)。 stdout buf 中断位是一个简单的原子 标志.
 agentty/util/child_process.hpp: atomic
-# mcp::Connection's reconnecting_ / turn gates: single-word claims taken by
-# CAS (atomic wait/notify, no sleep-poll) from tool workers and the MCP
-# reader alike; holding a guarded across reconnect would block every
-# caller behind a subprocess spawn.
+# mcp::Connection '重联_/ 转关: 单 -word 索赔要求
+# CAS (原子) wait/notify ,没有睡眠 -poll 从
+# 工具中 工作线程 编辑 MCP 读取器相同; 保持一个被监视的交叉重联
+# 会阻断每一个呼叫者在子进程产卵后.
 agentty/mcp/connection.hpp: atomic
-# Peer's default call timeout: MCP narrows it after the handshake while the
-# reader runs, and every call reads it. A relaxed atomic, never waited on.
+# 对端 默认 调用 超时: MCP 手握手后缩小范围,
+# 读者跑步,每 调用 读它,一个放松的原子,从未等待过。
 agentty/rpc/peer.hpp: atomic

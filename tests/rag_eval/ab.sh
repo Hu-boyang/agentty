@@ -1,10 +1,10 @@
 #!/bin/sh
-# A/B the search_code pipeline on the judged eval sets, BM25 only (fast, no
-# embedder needed). Usage: sh tests/rag_eval/ab.sh
+# A/B 编号 search_code 输油管在判断的 eval 套, BM25 仅(快速,
+# 不需要嵌入器)。 tests/rag_eval/ab.sh
 set -u
 cd "$(dirname "$0")/../.."
 B=./build/agentty
-run() {  # $1 label, rest: env
+run() {  # 1美元标签, 休息: env
     label=$1; shift
     for set in agentty_code agentty_code_heldout; do
         r=$(env AGENTTY_EMBED_BACKEND=disabled AGENTTY_RAG_PERSIST=0 "$@" $B rag-eval tests/rag_eval/$set.json 2>&1 \

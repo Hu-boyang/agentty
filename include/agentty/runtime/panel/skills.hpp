@@ -1,39 +1,39 @@
 #pragma once
-// Skills viewer — a read-only window onto what is installed and what it
-// can do.
+// 技能查看器 — 一个 read-only 窗口，显示已安装的内容及其可以执行
+// 的操作。
 //
-// Open it from the command palette (Ctrl+K → "Skills"). ↑/↓ move, Esc
-// closes. Nothing here mutates anything, and that is deliberate: this
-// panel does NOT approve skills.
+// 从命令选项板（Ctrl+K→"Skills"）打开它。 ↑/↓ 移动，
+// Esc 关闭。这里没有任何东西会改变任何东西，这是故意的：
+// 这个小组确实批准了 不 技能。
 //
-// ── Why there is no approve key ──────────────────────────────────────────
+// ── 为什么没有批准钥匙 ──────────────────────────────────────────
 //
-// Anthropic measured that Claude Code users approve 93% of permission
-// prompts; Akhawe & Felt measured 70% clickthrough on Chrome's SSL
-// interstitial. An approval that is one keystroke away from a list you
-// are already scrolling is an approval nobody reads — it becomes the
-// habituated default, which is exactly the failure mode the install flow
-// was designed to avoid.
+// Anthropic测得Claude代码用户认可93%
+// 的权限 提示词； Akhawe & Felt 测量
+// Chrome 的 SSL 插页式广告的点击率为 70%。
+// 距离您已经滚动的列表只需按一下键的批准是无人阅读
+// 的批准 - 它成为习惯性的默认值，这正是安装流程旨在
+// 避免的失败模式。
 //
-// So the panel ANSWERS questions ("what is installed, what did it
-// declare, what did agentty notice in it, is it approved") and refers the
-// one action out to `agentty skill approve NAME`, where the consent
-// screen can show the findings and the body. Visibility here, decision
-// there.
+// 因此，小组 ANSWERS 提出问题（
+// 安装了什么、声明了什么、检查发现了什么，以及是否获批。
+// 并将一项行动提交给 `agentty skill approve NAME`，
+// 其中同意屏幕可以显示调查结果和 正文。这里可见，
+// 那里决策。
 //
-// The same reasoning rules out a "trust all skills" toggle. A switch like
-// that becomes line one of every install guide.
+// 相同的推理排除了"trust all skills" 切换。
+// 这样的开关成为每个安装指南的第一行。
 //
-// ── What lives where ─────────────────────────────────────────────────────
+// ── 住在哪里吗? ─────────────────────────────────────────────────────
 //
-//   tool/skills.hpp          Skill, EffectSet, trust_of, screen_body
-//   panel/skills.hpp         this: selection + scroll, nothing else
-//   view/panels/skills.cpp   the view: Model → SkillsPane::Config
+//   tool/skills.hpp技能，EffectSet，trust_of，
+//   screen_body panel/skills.hpp这个：选择+滚动，
+//   没有别的view/panels/skills.cpp视图：Model→SkillsPane::Config
 //
-// The rows are a PROJECTION of what is on disk. Like the stats panel, the
-// cache lives on the open panel because its lifetime is exactly the
-// panel's: opening it scans, closing it frees, and a user who never opens
-// it pays nothing.
+// 这些行是磁盘上的PROJECTION。与统计面板一样，
+// 缓存 存在于打开的面板上，因为它的 生命周期 正是面板
+// 的：打开它进行扫描，关闭它则免费，并且从不打开它的用户无需
+// 支付任何费用。
 
 #include "agentty/runtime/library.hpp"
 #include "agentty/scope/scope.hpp"
@@ -47,59 +47,59 @@
 
 namespace agentty::skills_panel {
 
-// One row: a skill, resolved. Everything the view needs, computed once on
-// open rather than per frame — screen_body() walks the body line by line,
-// which is cheap but not free, and a panel that re-screened every skill on
-// every frame would be paying that for nothing.
+// 一排：一技能，已解决。视图所需的一切，在打开时计算一次，
+// 而不是按 帧 计算 — screen_body() 逐行遍历 正文，
+// 这很便宜，但不是免费的，而一个对每个 帧 上的每一项技能进行重新
+// -screened 的面板将是免费的。
 struct Row {
     std::string name;
-    std::string description;   // already sanitised — see below
-    std::string origin;        // "" for hand-authored
+    std::string description;   // 已经消毒——见下文
+    std::string origin;        // "" 手-authored
     std::string source;        // "user" | "project"
     std::string dir;
     tools::EffectSet effects{};
 
-    // Resolved trust at scan time.
-    bool gated   = false;      // declares effects, so trust applies
-    bool trusted = false;      // approved, or prose, or user-authored
+    // 在扫描时解决了信任。
+    bool gated   = false;      // 声明副作用，因此信任适用
+    bool trusted = false;      // 批准，或散文，或用户-authored
 
-    // What screening found in the body. Empty for almost every skill.
+    // 筛选发现什么在正文。几乎所有技能都是空的。
     std::vector<tools::skills::Finding> findings;
     bool has_critical = false;
 
-    // Another directory in the same scope declares this name, so a skill
-    // is sitting on disk that never loads. The losing copy is invisible
-    // everywhere — including here — so the winning row carries the flag.
+    // 同一范围内的另一个目录声明了该名称，因此技能位于磁盘上，
+    // 并且永远不会加载。失败的副本在任何地方都是不
+    // 可见的——包括这里——所以获胜的行带有标志。
     bool shadow_conflict = false;
 
     std::size_t resource_count = 0;
 };
 
 struct Open {
-    // Which row is selected. Mutable because the view corrects it when the
-    // list shrinks underneath (a skill removed in another terminal) —
-    // pointing past the end would render an empty detail pane with no
-    // explanation.
+    // 选择哪一行。 可变，因为当列表缩小到下方时，
+    // 视图会更正它（另一个 终端 中删除了一项技能）
+    // ——指向末尾会 渲染 一个空的细节 面板，
+    // 没有任何解释。
     mutable int index = 0;
 
-    // Body scroll, OWNED BY THE PANEL — same reasoning as stats_panel::Open:
-    // a scroll the view reads must be a scroll the frame gate sees, and
-    // visual_parts + parts_cover_all prove that at the type. Living on
-    // Model::UI is what made the "panel ignored me, then caught up when I
-    // typed" class of bug possible.
+    // 正文滚动，OWNED BY 该 PANEL-与stats_panel::Open相同的推理：
+    // 视图读取的卷轴必须是帧门看到的卷轴，并且visual_parts+
+    // parts_cover_all在类型上证明了这一点。存在于 Model::UI 上
+    // 使得 "panel ignored me, then caught up when I typed"
+    // 类 bug 成为可能。
     mutable maya::ScrollState scroll = [] {
         maya::ScrollState s;
-        s.auto_dispatch = false;   // the reducer owns this offset
+        s.auto_dispatch = false;   // 状态更新函数拥有该偏移量
         return s;
     }();
 
-    // The scan. Filled on open; not refreshed per frame.
+    // 扫描。打开时已充满；每 帧 不刷新。
     //
-    // Author-controlled strings in here are ALREADY sanitised
-    // (sanitize_author_text) because they are rendered inside agentty's own
-    // chrome — 91% of confirmed-malicious skills in Snyk's Feb-2026 audit
-    // carried prompt injection, and a description that can open a new line
-    // can impersonate the frame around it.
+    // 这里的Author-controlled字符串是ALREADY清理的
+    // (sanitize_author_text)，因为它们是在agentty
+    // 自己的chrome内呈现的——Snyk的2026年2月审计中
+    // 确认的-malicious技能中的91%进行了提示词注入，
+    // 并且可以打开新行的描述可以模仿它周围的帧。
     std::vector<Row> rows;
 
     [[nodiscard]] bool empty() const noexcept { return rows.empty(); }
@@ -114,8 +114,8 @@ struct Open {
         return &rows[i];
     }
 
-    // Counts for the header line — computed here so the view stays a pure
-    // formatter and the numbers can be asserted in a test without a render.
+    // 头文件行的计数——在此处计算，因此视图保持纯
+    // 格式化程序并且可以在没有渲染的测试中断言数字。
     [[nodiscard]] std::size_t pending_count() const noexcept {
         std::size_t n = 0;
         for (const auto& r : rows) if (r.gated && !r.trusted) ++n;
@@ -129,9 +129,9 @@ struct Open {
     }
 };
 
-// Scan every discovered skill into rows: resolve trust, screen the body,
-// sanitise author text. Pure with respect to the Model — it reads the
-// skills store and the approvals file, and returns.
+// 将每个发现的技能扫描成行：解析信任、筛选 正文、
+// 清理作者文本。对于 Model 来说是纯粹的——
+// 它读取技能存储和批准文件，然后返回。
 [[nodiscard]] Open scan(const Library& lib);
 
 } // namespace agentty::skills_panel

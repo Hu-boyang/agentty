@@ -31,23 +31,23 @@ namespace {
 using tools::util::run_argv_s;
 using tools::util::SubprocessResult;
 
-// The Secret Service item is identified by a stable (attribute → value) pair.
-// We use a single "service" attribute so lookups/deletes match exactly what
-// store wrote. Label is cosmetic (what the keyring UI shows).
+// 特勤局项目由稳定的(属性→值)对来标识。
+// 我们使用单个 "service" 属性，因此 lookups/deletes 与
+// 商店写入的内容完全匹配。标签是装饰性的（钥匙圈 UI 显示的内容）。
 constexpr const char* kAttrKey   = "service";
 constexpr const char* kLabel     = "agentty credentials";
 
-// ── Truthy env gate ────────────────────────────────────────────────────
+// ── 真理洞门 ────────────────────────────────────────────────────
 bool env_enabled() {
     const char* v = std::getenv("AGENTTY_USE_KEYSTORE");
     return v && *v && std::strcmp(v, "0") != 0 && std::strcmp(v, "false") != 0;
 }
 
-// Can we invoke `<exe> <probe-arg>` at all? Used to detect secret-tool /
-// security presence without a PATH walk. Exit status is irrelevant — a
-// clean spawn (started==true) means the binary exists.
-// [[maybe_unused]]: the Windows backend is WinCred unconditionally and never
-// probes an external binary, so this is dead there.
+// 我们可以调用`<exe> <probe-arg>`吗？
+// 用于检测秘密-tool/安全存在，无需PATH行走。退出状态无关紧要——干净的
+// 生成（started==true）意味着 二进制程序 存在。
+// [[maybe_unused]]：Windows后端无条件是WinCred
+// 并且从不探测外部二进制程序，所以这是死的。
 [[maybe_unused]] bool can_invoke(const std::vector<std::string>& argv) {
     auto r = run_argv_s(argv, 4096, std::chrono::seconds{5});
     return r.started;
@@ -60,11 +60,11 @@ Backend detect_backend() {
     if (can_invoke({"security", "help"})) return Backend::MacKeychain;
     return Backend::None;
 #elif defined(__linux__)
-    // `secret-tool --help` returns non-zero but spawns cleanly when present.
+    // `secret-tool --help`返回非-zero，但当存在时干净地产生。
     if (can_invoke({"secret-tool", "--help"})) return Backend::LibSecret;
     return Backend::None;
 #elif defined(_WIN32)
-    // Windows Credential Manager is always present on supported Windows.
+    // Windows 凭据管理器始终存在于受支持的Windows上。
     return Backend::WinCred;
 #else
     return Backend::None;
@@ -77,28 +77,28 @@ Backend backend() {
 }
 
 #if !defined(_WIN32)
-// Spawn argv, write `input` to its stdin, discard stdout/stderr, and return
-// the exit code (or -1 on spawn failure). Used for `secret-tool store`, which
-// reads the secret from stdin — so the secret never appears in the process
-// table / argv the way a `-w <secret>` flag would. Best-effort, short-lived.
+// 生成 argv，将 `input` 写入其标准输入，丢弃 stdout/stderr，
+// 并返回退出代码（或在生成失败时返回 -1）。用于 `secret-tool store`，
+// 它从 stdin 读取秘密 — 因此秘密永远不会像 `-w <secret>`
+// 标志 那样出现在进程表/argv 中。最佳-effort，短-lived。
 int spawn_feed_stdin(const std::vector<std::string>& argv, const std::string& input) {
-    // run_child puts the child in its own session, so it has no controlling
-    // terminal: macOS `security -w` reads via readpassphrase(), which opens
-    // /dev/tty when one exists and would ignore our pipe (and hang).
+    // run_child将子进程置于其自己的会话中，因此它无法控制终端：macOS
+    // `security -w`通过readpassphrase()读取，
+    // 当存在时打开/dev/tty并且将忽略我们的管道（并挂起）。
     tools::util::ChildRun run;
     run.argv       = argv;
     run.stdin_data = input;
     run.idle       = std::chrono::seconds{10};
     run.wall       = std::chrono::seconds{30};
-    run.max_output_bytes = 4096;   // output is discarded
+    run.max_output_bytes = 4096;   // 输出被丢弃
     const auto r = tools::util::run_child(run);
     return r.started && r.exited ? r.exit_code : -1;
 }
 #endif // !_WIN32
 
 #if defined(_WIN32)
-// The credential target name shown in Windows Credential Manager. One item
-// per logical key, namespaced so we never collide with other apps.
+// 凭据目标名称显示在Windows 凭据管理器中。每个逻辑键一个项目，
+// 命名空间，因此我们永远不会与其他应用程序发生冲突。
 std::wstring win_target(const std::string& key) {
     std::string t = "agentty:" + key;
     int n = MultiByteToWideChar(CP_UTF8, 0, t.c_str(), -1, nullptr, 0);
@@ -108,7 +108,7 @@ std::wstring win_target(const std::string& key) {
 }
 #endif
 
-} // namespace
+} // 命名空间结束。
 
 bool available() {
     static const bool ok = env_enabled() && backend() != Backend::None;
@@ -130,7 +130,7 @@ Status store(const std::string& key, const std::string& secret) {
     switch (backend()) {
 #if !defined(_WIN32)
         case Backend::LibSecret: {
-            // secret-tool store --label=<label> <attr> <key>  (secret on stdin)
+            // Secret-tool 存储 --label=<label> <attr> <key> (标准输入上的秘密)
             int rc = spawn_feed_stdin(
                 {"secret-tool", "store", std::string("--label=") + kLabel,
                  kAttrKey, key},
@@ -138,12 +138,12 @@ Status store(const std::string& key, const std::string& secret) {
             return rc == 0 ? Status::Ok : Status::Error;
         }
         case Backend::MacKeychain: {
-            // Replace any existing item first (add fails with dup otherwise),
-            // then add. CRITICAL: pass `-w` with NO value so `security` prompts
-            // for the password on stdin ("password data for new item:" then
-            // "retype password for new item:") instead of taking it from argv,
-            // where it would be visible in `ps`/the process table. We feed the
-            // secret twice (newline-separated) to satisfy the confirm prompt.
+            // 首先替换任何现有项目（否则添加会因 dup 而失败），然后添加。
+            // CRITICAL：传递 `-w` 和 NO 值，因此 `security`
+            // 提示词 作为标准输入上的密码（"password data for new item:"
+            // 然后 "retype password for new item:"），
+            // 而不是从 argv 中获取它，它在 `ps`/进程表中可见。
+            // 我们将秘密提供两次（换行-separated）以满足确认提示词。
             (void)run_argv_s({"security", "delete-generic-password",
                         "-s", key, "-a", "agentty"}, 4096, std::chrono::seconds{5});
             int rc = spawn_feed_stdin(
@@ -154,8 +154,8 @@ Status store(const std::string& key, const std::string& secret) {
         }
 #else
         case Backend::WinCred: {
-            // Windows Credential Manager: a per-user, DPAPI-protected generic
-            // credential. CRED_PERSIST_LOCAL_MACHINE keeps it on this box only.
+            // Windows 凭据经理：每-user、DPAPI-protected通用凭据。
+            // CRED_PERSIST_LOCAL_MACHINE 仅将其保留在这个盒子上。
             std::wstring target = win_target(key);
             CREDENTIALW cred{};
             cred.Type               = CRED_TYPE_GENERIC;
@@ -182,8 +182,8 @@ Status retrieve(const std::string& key, std::string& out) {
                                 1u << 20, std::chrono::seconds{10});
             if (!r.started) return Status::Error;
             if (r.exit_code != 0 || r.output.empty()) return Status::NotFound;
-            // secret-tool prints the secret with no trailing newline; but strip
-            // one defensively in case the platform adds it.
+            // Secret-tool 打印秘密，不带尾随换行符；
+            // 但防御性地剥离一个，以防平台添加它。
             out = r.output;
             if (!out.empty() && out.back() == '\n') out.pop_back();
             return Status::Ok;
@@ -230,7 +230,7 @@ Status remove(const std::string& key) {
             auto r = run_argv_s({"security", "delete-generic-password",
                                  "-s", key, "-a", "agentty"},
                                 4096, std::chrono::seconds{5});
-            // exit 44 == item not found; treat as NotFound, else Ok.
+            // 退出44==未找到项目；视为NotFound，否则好的。
             if (r.started && r.exit_code == 44) return Status::NotFound;
             return r.started ? Status::Ok : Status::Error;
         }

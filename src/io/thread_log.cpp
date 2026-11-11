@@ -1,5 +1,5 @@
-// agentty::ThreadLog — append-only message log + byte-offset index.
-// See thread_log.hpp for the design and the measurements behind it.
+// agentty::ThreadLog-附加-only消息日志+字节-offset索引。
+// 参见thread_log.hpp了解其背后的设计和测量。
 
 #include "agentty/io/thread_log.hpp"
 
@@ -20,11 +20,11 @@ using json = nlohmann::json;
 
 namespace {
 
-constexpr std::size_t kOffsetWidth = 8;   // uint64 little-endian
+constexpr std::size_t kOffsetWidth = 8;   // uint64little-endian
 
-// Little-endian by fiat so a threads/ directory copied between machines
-// keeps working. Endianness is the kind of thing that is free to get
-// right now and expensive to discover later.
+// Little-endian通过法令，
+// 因此在机器之间复制的threads/目录保持工作。字节序是一种
+// 现在可以免费获得但以后发现的代价昂贵的东西。
 void put_u64_le(char* dst, std::uint64_t v) noexcept {
     for (int i = 0; i < 8; ++i) dst[i] = static_cast<char>((v >> (i * 8)) & 0xFF);
 }
@@ -42,12 +42,12 @@ void put_u64_le(char* dst, std::uint64_t v) noexcept {
     return ec ? 0u : n;
 }
 
-// One message as it appears on a line: the shared codec, dumped compact.
+// 一条消息出现在一行上：共享编解码器，转储紧凑。
 //
-// dump() can still throw on input the UTF-8 scrub inside message_to_json
-// did not reach; a single unserialisable message must not take down the
-// save path for the whole thread, so the failure is contained here and
-// reported as an empty line the caller skips.
+// dump()仍然可以抛在输入UTF-8擦洗里面的
+// message_to_json没有达到的；单个不可序列
+// 化消息不得取消整个 线程 的 保存 路径，
+// 因此故障包含在此处并报告为调用者跳过的空行。
 [[nodiscard]] std::string encode_line(const Message& m) {
     try {
         return persistence::message_to_json(m).dump();
@@ -58,33 +58,33 @@ void put_u64_le(char* dst, std::uint64_t v) noexcept {
     }
 }
 
-// Smart Mode routing cards are view-only telemetry: they carry no wire
-// content, are never sent to the model, and are never persisted. The
-// whole-document writer has always skipped them, so the log must too —
-// otherwise a migrated thread grows a row on every reload, and the
-// save-time verification (which compares against the persistable set)
-// fails and correctly refuses to retire the legacy file.
+// 智能模式路由卡是view-only遥测：它们不携带
+// 传输内容，从不发送到模型，并且从不保留。
+// Whole-document 作者总是跳过它们，
+// 因此日志也必须跳过它们 - 否则迁移的 线程 在每次
+// 重新加载时都会增加一行，并且 保存-time 验证（与
+// 可持久集进行比较）失败并正确拒绝废弃旧文件。
 [[nodiscard]] bool persistable(const Message& m) noexcept {
     return !m.smart_routing;
 }
 
-// ── Line parsing ─────────────────────────────────────────────────
+// ── 解析号线 ─────────────────────────────────────────────────
 //
-// Parsing dominates a thread load: 28 ms of the ~37 ms spent opening a
-// 2519-message log, and the wire pays the same cost again before every
-// turn. simdjson parses the same bytes ~7.6x faster than nlohmann.
+// 解析支配线程 加载：打开2519-message日志所花费的〜37毫秒
+// 中的28毫秒，并且传输在每次转动之前再次支付相同的成本。 simdjson
+// 解析 与 字节 相同，比 nlohmann 快约 7.6 倍。
 //
-// But message_from_json is 170 lines of accumulated tolerance for every
-// shape a Message has ever had on disk, across 28 access sites. Porting
-// that to a second JSON API would be the riskiest change in this whole
-// project for a pure speed win — exactly the kind of rewrite that loses
-// a field nobody notices until their history is already saved without it.
+// 但是 message_from_json 是跨 28 个
+// 访问站点的消息在磁盘上曾经具有的每种形状的 170 行累积容差。
+// 将其移植到第二个 JSON API 将是整个项目中为了
+// 纯粹的速度胜利而进行的最危险的改变 - 正是这种重写会丢失
+// 一个没人注意到的字段，直到他们的历史已经是 已保存 没有它。
 //
-// So: parse with simdjson, CONVERT to nlohmann, and leave the reader
-// untouched. The conversion costs some of the win back — 3.9x rather than
-// 7.6x, measured on the real 7.5 MB log — and buys that the reader, and
-// every historical shape it handles, is byte-for-byte the code that has
-// been reading these threads all along.
+// 因此：解析与simdjson、CONVERT给nlohmann，
+// 并且让读者保持不变。这种转换花费了一些回报——3.9倍而不是
+// 7.6倍，在真实的7.5 MB日志上测量——并且购买了读者，
+// 以及它处理的每个历史形状，是字节-for-byte，
+// 一直在阅读这些线程的代码。
 [[nodiscard]] json to_nlohmann(simdjson::dom::element e) {
     using namespace simdjson;
     switch (e.type()) {
@@ -110,15 +110,15 @@ void put_u64_le(char* dst, std::uint64_t v) noexcept {
     }
 }
 
-// One log line -> a json document, or `discarded` if it isn't valid JSON.
+// 一个日志行-> JSON文档，或者`discarded`（如果它不是有效的JSON）。
 //
-// simdjson needs SIMDJSON_PADDING readable bytes past the end, which a
-// string_view into the read buffer cannot promise, so the line is copied
-// into a padded_string. That copy is already priced into the 3.9x above.
+// simdjson需要SIMDJSON_PADDING可读字节过去的结尾，
+// 其中一个string_view写入读取缓冲区无法保证，所以该行被复制
+// 成一个padded_string。该副本的定价已达到上述 3.9 倍。
 //
-// nlohmann is kept as the fallback rather than removed: if simdjson ever
-// rejects something nlohmann accepts, a user's history must not become
-// unreadable over a parser disagreement.
+// nlohmann 被保留为 回退 而不是被删除：如果 simdjson
+// 曾拒绝 nlohmann 接受的某些内容，则用户的历史
+// 不得因 解析器 分歧而变得不可读。
 [[nodiscard]] json parse_line(simdjson::dom::parser& parser,
                               std::string_view line) {
     simdjson::padded_string padded{line};
@@ -127,9 +127,9 @@ void put_u64_le(char* dst, std::uint64_t v) noexcept {
     return json::parse(line, nullptr, /*allow_exceptions=*/false);
 }
 
-} // namespace
+} // 命名空间结束。
 
-// ── open ─────────────────────────────────────────────────────────────
+// ── 打开 ─────────────────────────────────────────────────────────────
 
 std::expected<ThreadLog, persistence::DeserializeError>
 ThreadLog::open_path(fs::path log_path) { return open_impl(std::move(log_path), true); }
@@ -146,11 +146,11 @@ ThreadLog::open_impl(fs::path log_path, bool read_meta) {
     std::error_code ec;
     fs::create_directories(t.log_.parent_path(), ec);
 
-    // Metadata first: it is small, it is read exactly once, and a thread
-    // with no messages yet still has a title and timestamps. A missing or
-    // unreadable sidecar leaves a default-constructed Thread rather than
-    // failing the open — the messages are the irreplaceable part, and a
-    // thread that comes back untitled beats one that won't open.
+    // 元数据优先：它很小，只读取一次，并且没有消息但仍然
+    // 具有标题和时间戳的线程。丢失或不可读的 sidecar
+    // 会留下默认的 -constructed 线程，
+    // 而不是打开失败 - 消息是不可替代的部分，
+    // 并且返回无标题的 线程 会击败无法打开的消息。
     if (read_meta) {
         if (auto buf = persistence::read_file(::agentty::IoAccess::grant(), t.meta_)) {
             json mj = json::parse(*buf, nullptr, /*allow_exceptions=*/false);
@@ -168,13 +168,13 @@ ThreadLog::open_impl(fs::path log_path, bool read_meta) {
 
     const auto log_bytes = file_size_or_zero(t.log_);
     if (log_bytes == 0) {
-        // Absent or empty log is a legitimate state (a brand-new thread),
-        // not an error. Any index lying beside it is stale by definition.
+        // 日志不存在或为空是合法状态（品牌-new 线程），
+        // 而不是错误。根据定义，其旁边的任何索引都是 过期。
         t.offsets_.clear();
         return t;
     }
 
-    // Read the index, then decide whether to believe it.
+    // 阅读该索引，然后决定是否相信它。
     const auto idx_bytes = file_size_or_zero(t.idx_);
     bool usable = idx_bytes > 0 && (idx_bytes % kOffsetWidth) == 0;
     if (usable) {
@@ -188,15 +188,15 @@ ThreadLog::open_impl(fs::path log_path, bool read_meta) {
             for (std::size_t i = 0; i < n; ++i)
                 t.offsets_[i] = get_u64_le(buf.data() + i * kOffsetWidth);
 
-            // Validate against the log. These are cheap checks that catch
-            // every way the pair can fall out of step: a crash between the
-            // two appends, a truncated index, an index from a different
-            // (or rewritten) log, offsets that don't point into the file.
+            // 对照日志进行验证。这些是廉价的检查，
+            // 可以捕获该对可能失步的所有方式：两个
+            // 追加之间的崩溃、截断的索引、
+            // 来自不同（或重写）日志的索引、不指向文件的偏移量。
             //
-            // Deliberately NOT validated: that each offset lands on a real
-            // line boundary. That would cost a full scan, which is the
-            // thing the index exists to avoid — and a wrong-but-in-range
-            // offset is caught by the line failing to parse.
+            // 特意NOT验证：每个偏移落在真实的线边界上。
+            // 这将需要进行全面扫描，而索引的存在正是为了避免
+            // 这种情况——并且错误的 -but-in-range
+            // 偏移量会被未能到达 解析 的行捕获。
             if (t.offsets_.empty() || t.offsets_.front() != 0) usable = false;
             for (std::size_t i = 1; usable && i < n; ++i)
                 if (t.offsets_[i] <= t.offsets_[i - 1]) usable = false;
@@ -205,23 +205,23 @@ ThreadLog::open_impl(fs::path log_path, bool read_meta) {
     }
 
     if (!usable) {
-        // The index is a cache: rebuild silently rather than surfacing an
-        // error for a file the user isn't meant to think about. Costs one
-        // scan (12 ms for a 29 MB thread) and self-heals permanently.
+        // 索引是缓存：默默地重建而不是为用户不打算考虑的
+        // 文件显示错误。花费一次扫描（29 MB 线程
+        // 需要 12 毫秒）和永久 self-heals。
         t.rebuild_index_();
         if (!t.write_index_())
             AGT_LOG(General, Warn, "thread_log.index",
                     "could not persist rebuilt index for {}", t.log_.string());
     } else {
-        // The index was trusted, so the full scan never ran — but a torn
-        // final line is still possible (a crash writes the bytes, the
-        // '\n', and the index in that order, so an index can legitimately
-        // describe a log whose last line is incomplete).
+        // 索引是可信的，因此完整扫描从未运行——但
+        // 最后一行仍然有可能被破坏（崩溃会按顺序写
+        // 入 字节、'\n' 和索引，因此索引可以
+        // 合法地描述最后一行不完整的日志）。
         //
-        // Detecting it costs ONE byte: if the log does not end with a
-        // newline, the last recorded offset starts an unterminated line.
-        // Skipping this check would let the next append glue itself onto
-        // the partial line and lose both messages.
+        // 检测它花费ONE 字节：如果日志不以换行符结束，
+        // 则最后记录的偏移量开始未终止的行。
+        // 跳过该检查将使下一个附加将其自身粘合到
+        // 部分行上并丢失两条消息。
         std::ifstream in(t.log_, std::ios::binary);
         if (in) {
             in.seekg(-1, std::ios::end);
@@ -250,7 +250,7 @@ ThreadLog::open_for_write(const ThreadId& id) {
     return open_impl(persistence::threads_dir() / (id.value + ".jsonl"), false);
 }
 
-// ── index maintenance ────────────────────────────────────────────────
+// ── 指数维护 ────────────────────────────────────────────────
 
 void ThreadLog::rebuild_index_() {
     offsets_.clear();
@@ -258,8 +258,8 @@ void ThreadLog::rebuild_index_() {
     std::ifstream in(log_, std::ios::binary);
     if (!in) return;
 
-    // Stream in chunks: a 29 MB log must not become a 29 MB allocation
-    // just to find its line starts.
+    // 数据流以块的形式：29MB日志不得仅仅为了找到其行
+    // 开始而变成29MB分配。
     constexpr std::size_t kChunk = 1u << 16;
     std::string buf(kChunk, '\0');
     std::uint64_t pos = 0;
@@ -278,12 +278,12 @@ void ThreadLog::rebuild_index_() {
         }
         pos += static_cast<std::uint64_t>(got);
     }
-    // A final line with no terminating newline is a TORN APPEND: the
-    // process died between writing the bytes and writing the '\n'. It is
-    // recorded as an offset (so range() sees it, fails to parse it, and
-    // drops it) but also remembered here, because appending after it must
-    // NOT concatenate onto it — that would merge the corpse of the old
-    // message with the new one and lose BOTH.
+    // 没有终止换行符的最后一行是TORN APPEND：
+    // 进程在写入字节和写入'\n'之间终止。
+    // 它被记录为偏移量（因此 range() 看到它，
+    // 无法 解析 并删除它），但也在这里被记住，
+    // 因为在它后面附加必须将 不 连接到它上面 - 这会将旧
+    // 消息的残骸与新消息合并并丢失 两者。
     if (!at_line_start && !offsets_.empty()) torn_tail_at_ = last_start;
 }
 
@@ -295,9 +295,9 @@ bool ThreadLog::write_index_() const {
 }
 
 bool ThreadLog::append_offset_(std::uint64_t at) const {
-    // 8 bytes, one O_APPEND write. A crash can't tear it (a short index is
-    // a non-multiple of 8, which open() repairs by rescanning); the index is
-    // a cache, allowed to be wrong but never believed when it is.
+    // 8个字节，1个O_APPEND写入。崩溃无法撕裂它（短索引是
+    // 8 的非 -multiple，open() 通过重新扫描修复）；
+    // 索引是缓存，允许有错误，但从来不相信它是错误的。
     char b[kOffsetWidth];
     put_u64_le(b, at);
     return persistence::append_atomic(::agentty::IoAccess::grant(), idx_,
@@ -305,14 +305,14 @@ bool ThreadLog::append_offset_(std::uint64_t at) const {
 }
 
 bool ThreadLog::set_meta(const Thread& t) {
-    // Store the header only — the messages live in the log, and keeping a
-    // second copy here is how the two would drift.
+    // 仅 Store 和 头文件 — 消息存在于日志中，
+    // 并且在此处保留第二个副本是两者的漂移方式。
     meta_thread_ = t;
     meta_thread_.messages.clear();
     try {
         const auto cur = persistence::peek_file(meta_);
-        // A newer rename on disk (another agentty, or a rename that landed
-        // after this copy was taken) wins over the title this save carries.
+        // 磁盘上较新的重命名（另一个agentty，
+        // 或在获取此副本之后登陆的重命名）赢得了该保存所携带的标题。
         if (cur) {
             const json on_disk = json::parse(*cur, nullptr, /*allow_exceptions=*/false);
             const auto it = on_disk.is_object() ? on_disk.find("renamed_at") : on_disk.end();
@@ -324,9 +324,9 @@ bool ThreadLog::set_meta(const Thread& t) {
             }
         }
         std::string bytes = persistence::thread_meta_to_json(meta_thread_).dump(2);
-        // Most saves change nothing here (it holds the title, timestamps and
-        // compaction history). Rewriting and fsyncing ~45 KB every turn was
-        // the bulk of a tail save's IO, so a same-bytes header isn't written.
+        // 大多数 保存 在这里没有任何改变（它保存标题、
+        // 时间戳和压缩历史）。每回合重写和同步〜45 KB是末尾
+        // 保存的IO的大部分，因此不会写入相同的-bytes 头文件。
         if (cur && *cur == bytes) return true;
         return persistence::write_json_atomic(::agentty::IoAccess::grant(), meta_, bytes);
     } catch (const std::exception& e) {
@@ -337,7 +337,7 @@ bool ThreadLog::set_meta(const Thread& t) {
     }
 }
 
-// ── read ─────────────────────────────────────────────────────────────
+// ── 读 ─────────────────────────────────────────────────────────────
 
 std::vector<Message> ThreadLog::range(std::size_t from, std::size_t to) const {
     std::vector<Message> out;
@@ -348,10 +348,10 @@ std::vector<Message> ThreadLog::range(std::size_t from, std::size_t to) const {
     std::ifstream in(log_, std::ios::binary);
     if (!in) return out;
 
-    // One seek, then a single contiguous read to the end of the window.
-    // Reading line-by-line through the stream would issue a syscall per
-    // message; the window is bounded by the caller, so slurping it is
-    // both simpler and faster.
+    // 一次查找，然后一次连续读取至窗口的末尾。
+    // 通过数据流读取line-by-line将针对每条消息发出系统调用；
+    // 窗口受调用者限制，因此读取它既
+    // 简单又快捷。
     const std::uint64_t begin = offsets_[from];
     const std::uint64_t end   = (to < n) ? offsets_[to]
                                          : static_cast<std::uint64_t>(
@@ -364,9 +364,9 @@ std::vector<Message> ThreadLog::range(std::size_t from, std::size_t to) const {
     buf.resize(static_cast<std::size_t>(in.gcount()));
 
     out.reserve(to - from);
-    // One parser for the whole window: simdjson reuses its internal
-    // buffers across parses, so constructing it per line would throw away
-    // most of the win.
+    // 一个解析器用于整个窗口：simdjson在
+    // 解析上重复使用其内部缓冲区，因此每行构建它会失去
+    // 大部分胜利。
     simdjson::dom::parser parser;
     std::size_t pos = 0;
     while (pos < buf.size()) {
@@ -377,9 +377,9 @@ std::vector<Message> ThreadLog::range(std::size_t from, std::size_t to) const {
         pos = last ? buf.size() : nl + 1;
         if (line.empty()) continue;
 
-        // A bad line costs that message, not the thread. This is where a
-        // torn final append lands: it parses as garbage and is dropped,
-        // leaving every complete message intact.
+        // 坏线消耗该消息，而不是 线程。这是一个被撕裂
+        // 的最终附加的地方：它 解析 作为垃圾并被丢弃，
+        // 使每条完整的消息完好无损。
         json j = parse_line(parser, line);
         if (j.is_discarded()) {
             AGT_LOG(General, Warn, "thread_log.read",
@@ -398,25 +398,25 @@ std::vector<Message> ThreadLog::range(std::size_t from, std::size_t to) const {
     return out;
 }
 
-// ── write ────────────────────────────────────────────────────────────
+// ── 写入 ────────────────────────────────────────────────────────────
 
 bool ThreadLog::append(const Message& m) {
-    if (!persistable(m)) return true;   // silently not-persisted, as designed
+    if (!persistable(m)) return true;   // 默默地不是-persisted，正如设计的那样
     const std::string line = encode_line(m);
     if (line.empty()) return false;
 
-    // HEAL A TORN TAIL FIRST.
+    // HEAL A TORN TAIL 首次。
     //
-    // If the previous run died mid-append, the log ends with a partial
-    // line and no newline. Appending onto that would CONCATENATE the new
-    // message onto the corpse of the old one, producing a single
-    // unparseable line — losing the new message as well as the torn one,
-    // silently, forever. The bytes are already unrecoverable; what must
-    // not happen is taking a good message down with them.
+    // 如果上一次运行在 -append 中期终止，
+    // 则日志以部分行结束且没有换行符。将 CONCATENATE
+    // 附加到旧消息的尸体上，将新消息附加到旧消息的尸体上，
+    // 产生一行不可解析的行 - 丢失新消息以及撕裂的消息，
+    // 默默地，永远。 字节已经无法恢复；
+    // 绝对不能发生的事情就是把好消息带给他们。
     //
-    // Truncating to the last complete line is the honest repair: it is
-    // exactly what range() already reports, so the file now matches what
-    // every reader has been seeing.
+    // 截断到最后一个完整行是诚实的修复：这正是
+    // range() 已经报告的内容，因此该文件现在与每个
+    // 读者所看到的内容相匹配。
     if (torn_tail_at_ != kNoTear) {
         std::error_code ec;
         fs::resize_file(log_, static_cast<std::uintmax_t>(torn_tail_at_), ec);
@@ -434,11 +434,11 @@ bool ThreadLog::append(const Message& m) {
         torn_tail_at_ = kNoTear;
     }
 
-    // The line and its '\n' go out in ONE write, so a crash or another
-    // writer can't split a message. The offset is read back from the same
-    // descriptor, so it's where the bytes actually landed. Log before index:
-    // an offset past the end of the log is the one inconsistency open()
-    // can't self-correct.
+    // 该行及其 '\n' 在 一个 写入中消失，
+    // 因此崩溃或其他写入者无法分割消息。偏移量是从同一描述符读回的，
+    // 因此它是 字节 实际着陆的位置。索引之前的日志：
+    // 超过日志末尾的偏移量是一个不一致open()不能自身
+    // -correct。
     std::string rec;
     rec.reserve(line.size() + 1);
     rec += line;
@@ -449,17 +449,17 @@ bool ThreadLog::append(const Message& m) {
 
     offsets_.push_back(at);
 
-    // APPEND the one new offset — 8 bytes — rather than rewriting the whole
-    // index. The index is append-only for exactly the same reason the log
-    // is, so a turn costs O(1) bytes on both files and stays that way at
-    // any thread length. Rewriting it was O(messages) per turn: 20 KB on a
-    // 2519-message thread (unmeasurable) but 400 KB at 50k, growing
-    // without bound — the shape this whole design exists to avoid.
+    // APPEND 是一个新的偏移量——8 字节——而不是重写整个索引。
+    // 索引是append-only，原因与日志完全相同，因此两个文件
+    // 的一个回合成本为O(1) 字节，并且在任何线程长度下都保持这种状态。
+    // 每回合重写它的时间为 O（消息）：2519-message
+    // 线程（不可测量）上有 20 KB，但在 50k 时有
+    // 400 KB，无限制增长——整个设计要避免的形状。
     //
-    // If the append fails the in-memory offsets are still correct for this
-    // session, and open() repairs the file next time: it validates the
-    // index against the log and rebuilds on any mismatch. That is the same
-    // self-healing path a crash between the two writes takes.
+    // 如果追加失败，则 in-memory 偏移对于该会话仍然是正确的，
+    // 并且 open() 下次修复文件：它根据日志验证
+    // 索引并在任何不匹配时重建索引。这与两次写入之间的崩溃所
+    // 采用的 self-healing 路径相同。
     if (!append_offset_(at)) {
         AGT_LOG(General, Warn, "thread_log.append",
                 "index append failed for {} (will rebuild on next open)",
@@ -472,11 +472,11 @@ bool ThreadLog::truncate_to(std::size_t n) {
     if (n >= offsets_.size()) return true;
     const std::uint64_t cut = offsets_[n];
 
-    // Log FIRST, index second. A crash between the two leaves an index
-    // whose offset n equals the new log size, which open() already rejects
-    // (offsets_.back() >= log_bytes) and rebuilds by scanning. The other
-    // order would leave a short index over a long log, and the last indexed
-    // message would silently absorb the lines after it.
+    // 日志FIRST，索引第二。两者之间的崩溃会留下一个偏移量
+    // n 等于新日志大小的索引，该索引 open() 已经拒绝
+    // (offsets_.back() >= log_bytes)
+    // 并通过扫描重建。另一个命令会在长日志上留下一个短索引，
+    // 最后一个索引消息将默默地吸收其后面的行。
     std::error_code ec;
     fs::resize_file(log_, static_cast<std::uintmax_t>(cut), ec);
     if (ec) {
@@ -485,12 +485,12 @@ bool ThreadLog::truncate_to(std::size_t n) {
         return false;
     }
     offsets_.resize(n);
-    // Everything after `cut` is gone, including any torn final line.
+    // `cut`之后的所有内容都消失了，包括任何撕裂的最后一行。
     torn_tail_at_ = kNoTear;
 
-    // The index may be shorter than offsets_ if an earlier append_offset_
-    // failed; resizing it would pad with zeros. Rewrite it whole in that
-    // case (rare, O(n) of 8-byte entries), otherwise cut it in place.
+    // 如果较早的append_offset_失败，则索引可以比offsets_短；
+    // 调整大小会用零填充。在这种情况下，将其全部重写（罕见，
+    // O(n) 的 8-byte 条目），否则将其剪切到位。
     const auto want = static_cast<std::uintmax_t>(n) * kOffsetWidth;
     if (file_size_or_zero(idx_) >= want) {
         fs::resize_file(idx_, want, ec);
@@ -511,18 +511,18 @@ bool ThreadLog::rewrite(const std::vector<Message>& msgs) {
     for (const auto& m : msgs) {
         if (!persistable(m)) continue;
         const std::string line = encode_line(m);
-        if (line.empty()) continue;      // see encode_line: logged, skipped
+        if (line.empty()) continue;      // 参见encode_line：已记录，已跳过
         offs.push_back(static_cast<std::uint64_t>(body.size()));
         body += line;
         body += '\n';
     }
 
-    // Both files land atomically. write_json_atomic is temp+fsync+rename,
-    // so an interrupted rewrite leaves the previous log AND its matching
-    // index in place — never a new log with an old index.
+    // 两个文件都原子地着陆。 write_json_atomic 是
+    // temp+fsync+rename，因此中断的重写会将前一个日志
+    // 和 保留在适当的位置，而不会是带有旧索引的新日志。
     if (!persistence::write_json_atomic(::agentty::IoAccess::grant(), log_, body)) return false;
     offsets_ = std::move(offs);
-    torn_tail_at_ = kNoTear;   // a full rewrite always ends cleanly
+    torn_tail_at_ = kNoTear;   // 完全重写总是干净利落地结束
     if (!write_index_()) {
         AGT_LOG(General, Warn, "thread_log.rewrite",
                 "index write failed for {} (will rebuild on next open)",
@@ -531,13 +531,13 @@ bool ThreadLog::rewrite(const std::vector<Message>& msgs) {
     return true;
 }
 
-// ── whole-thread convenience ────────────────────────────────────
+// ── 整个-thread便利 ────────────────────────────────────
 
 bool ThreadLog::exists() const noexcept {
-    // is_regular_file, not exists: a directory (or a socket, or anything
-    // else) sitting at the log path is NOT a log. Treating it as one made
-    // the loader take the log branch, find no messages, and hand back an
-    // empty thread while a perfectly good legacy document sat beside it.
+    // is_regular_file，不存在：位于日志路径
+    // 的目录（或套接字，或其他任何东西）是NOT日志。
+    // 将其视为一个，使得加载程序获取日志分支，找不到任何消息，
+    // 并交回一个空的 线程，而旁边有一份完美的遗留文档。
     std::error_code ec;
     return fs::is_regular_file(log_, ec);
 }
@@ -545,18 +545,18 @@ bool ThreadLog::exists() const noexcept {
 Thread ThreadLog::load_thread() const {
     Thread t = meta_thread_;
     t.messages = all();
-    // The compaction records were read before the message count was
-    // known (metadata is a separate file), so apply the same bound the
-    // whole-document loader applies: a record pointing past the end of
-    // the transcript is from an interrupted save and must not survive.
+    // 压缩记录在消息计数已知之前被读取（元数据
+    // 是单独的文件），因此应用整个
+    // -document加载器所应用的相同的界限：指向
+    // 超过记录末尾的记录来自中断的保存并且不能存活。
     persistence::clamp_compactions(t);
     return t;
 }
 
 bool ThreadLog::store_thread(const Thread& t) {
-    // Messages first. If the log write fails the metadata is left alone,
-    // so the pair on disk stays the one that was last written whole —
-    // rather than new metadata describing old history.
+    // 首先消息。如果日志写入失败，元数据将被保留，
+    // 因此磁盘上的元数据对将保留上次完整写入的元数据，
+    // 而不是描述旧历史记录的新元数据。
     if (!rewrite(t.messages)) return false;
     return set_meta(t);
 }

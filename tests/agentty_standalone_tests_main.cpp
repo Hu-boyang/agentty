@@ -1,19 +1,19 @@
-// agentty_standalone_tests — one binary, argv-dispatched, for the full-stack
-// standalone tests that CANNOT be doctest cases in a shared process (they
-// fork/exec, drive a PTY, run fuzz seed loops, or spawn subprocesses). Each is
-// still run in its OWN process per ctest entry:  agentty_standalone_tests <name>
-// [args…] → the test's original main.  Folds ~16 heavy 100 MB+ links into one.
+// agentty_standalone_tests - 一个 二进制程序 , argv 数据
+// -dispatched ,为全文 -stack 独立测试 CANNOT 将 doctest
+// 共同程序中的案件(它们) fork/exec 驱动 a PTY ,运行模糊的种子循环,或产卵子进程。
+// 每个子进程仍在运行中。 自身 每个测试条目的处理 : agentty_standalone_tests
+// <name> [args...] ——测试的原主. 归并 ~16 重100 重号 MB+ 链接 变成一个
 //
-// Each test's `int main(...)` is renamed to `<name>_main` at compile time via a
-// per-source `-Dmain=<name>_main` (see cmake/AgenttyTests.cmake). A test's
-// ORIGINAL signature is preserved by the rename, so the .def below records each
-// test's arity: NOARGS (int main()) vs ARGS (int main(int,char**)).  For an ARGS
-// test we pass argv[1..] through so it parses its own flags (anthropic_md_stream:
-// `det <fixture> --cps …`).
+// 每一个测试 `int main(...)` 已更名为 `<name>_main` 时间 编译 时间通过每架 -source
+// `-Dmain=<name>_main` (见A/C.5/61/L.48,第16段)
+// cmake/AgenttyTests.cmake 测试 ORIGINAL 签名由重命名保存, 所以下面的 .def 记录每个
+// 测试的 ality : NOARGS (单位:千美元) main() ) 对 ARGS (int main(int,char**))。
+// ARGS 测试我们通过 argv[1..] 所以它。 解析 其所属 标志 (anthropic_md_stream:
+// 2019年,第2期,第2版. `det <fixture> --cps …`.
 //
-// The 3 sanitizer-narrow tests (concurrency_primitives / cred_crypt / keystore)
-// are NOT here — they link a deliberately minimal source subset to stay
-// asan-clean, which folding into the full object set would defeat.
+// 3个消毒器 -narrow 测试( concurrency_primitives /
+// cred_crypt / keytore)为 不 在这里,他们 链接 故意
+// 最小源子集以保留 asan -clean ,折叠到完整的对象集中,将失败。
 #include <cstdio>
 #include <cstdlib>
 #include <chrono>
@@ -23,7 +23,7 @@
 
 #include <maya/runtime.hpp>
 
-// Declarations — arity per the original main().
+// 申报——按原main()计算,为平均值.
 #define FOLD_NOARGS(name) extern int name##_main();
 #define FOLD_ARGS(name)   extern int name##_main(int, char**);
 #include "agentty_standalone_tests.def"
@@ -31,18 +31,18 @@
 #undef FOLD_ARGS
 
 int main(int argc, char** argv) {
-    // Sandbox the per-user root for the whole binary before any test
-    // runs — these are full-runtime tests that write credentials,
-    // threads and settings; without this they mutate the developer's
-    // real ~/.agentty. Mirrors tests/test_main.cpp; see the rationale
-    // there and the tripwire in util/user_root.cpp.
+    // 沙箱 数字 -user 整个根 二进制程序 任何测试运行前,
+    // 这些都已经满了 -runtime 写作的测试 凭据, 线程 和设置;
+    // 没有此选项,它们会改变开发者的真假 ~/.agentty.
+    // 镜像 tests/test_main.cpp ; 查看其中的理由
+    // 和绊线 util/user_root.cpp.
     //
-    // It also mirrors that file's CLEANUP, which it did not before and which
-    // cost 12 GB of /tmp and a failed build. test_main.cpp creates one sandbox
-    // per BINARY; this binary is re-exec'd per folded test, so ctest spawns it
-    // ~150 times a run and every one leaked a ~250 MB directory. The symptom
-    // arrives much later and looks unrelated: "No space left on device" while
-    // compiling something else entirely.
+    // 也反映了文件的 CLEANUP ,它以前没有,而且费用为12美元
+    // GB 的/tmp和失败的构建。 test_main.cpp 创建一个
+    // 沙箱 百分比 BINARY ; 此选项 二进制程序 重新为 -exec
+    // 一次折叠试验,试产一次150次,每一次漏出一次250次 MB 症状在
+    // 很久之后才出现,看起来与这个无关: "No space left on device"
+    // 完全编译其他东西
     namespace fs = std::filesystem;
     fs::path sandbox;
     {
@@ -60,13 +60,13 @@ int main(int argc, char** argv) {
         ::setenv("AGENTTY_UNDER_TEST", "1", 1);
 #endif
     }
-    // Sweep sandboxes an EARLIER run abandoned (a crash or SIGKILL skips the
-    // cleanup at exit, and those runs are exactly the ones worth
-    // investigating) -- so only directories older than a day go, never a
-    // sibling ctest worker's live one. Same rule and same reasoning as
-    // test_main.cpp, including the breadth: the whole `agentty_*` namespace
-    // rather than this binary's own prefix, because individual tests mint
-    // their own temp dirs and most never clean up. One rule beats 47.
+    // 扫沙盒 an EARLIER 已丢弃( 崩溃或 SIGKILL
+    // 跳过出口的清理,这些运行正是值得调查的)——所以
+    // 只有一天后老的目录,从不做兄弟的测试. 工作线程 活的一样,
+    // 规则和推理都一样 test_main.cpp ,
+    // 包括广度:整体 `agentty_*` 名称空间而不是此
+    // 二进制程序 自己的前缀,因为个人测试 薄荷自己的临时迪尔,
+    // 并且大多数从来没有清理。 一条规则比47。
     {
         std::error_code ec;
         const auto now = fs::file_time_type::clock::now();
@@ -84,15 +84,15 @@ int main(int argc, char** argv) {
             fs::remove_all(it->path(), rec);
         }
     }
-    // Remove it on the way out, on EVERY path.
+    // 离开时把它取出来, 在EVERY路径上。
     //
-    // RAII rather than code at the end of main, because the dispatch below is
-    // a wall of `return name##_main(...)` macros -- there is no single exit to
-    // put cleanup after, and a `return` added by the next person would skip it
-    // silently. A destructor cannot be forgotten.
+    // RAII 而不是主机的结尾编码,因为 分派 下方是一堵墙
+    // `return name##_main(...)` 宏 -
+    // 之后没有单一的退出设置清理,并且 a `return` 下一个
+    // 人会悄悄跳过它 毁灭者是不会被遗忘的
     //
-    // Best-effort: a leaked sandbox is a slow leak, and a failed remove is not
-    // worth failing a green test over.
+    // 最佳( 最佳) -effort : 一个漏水 沙箱 是一个缓慢的漏泄,
+    // 而失败的删除并不值得失败一次绿色测试结束.
     struct SandboxCleanup {
         fs::path dir;
         ~SandboxCleanup() {
@@ -102,19 +102,19 @@ int main(int argc, char** argv) {
         }
     } cleanup{sandbox};
 
-    // These tests drive the real app reducers, some of which fire a network
-    // prewarm (a detached background TLS handshake). A standalone test never
-    // calls join_prewarm(), so that thread would outlive main() and race
-    // libcrypto/allocator atexit teardown — an intermittent shutdown SIGSEGV
-    // (e.g. fork_test's ForkThread reducer). Tests don't need the latency win.
+    // 这些测试驱动真正的应用 状态更新函数 ,其中部分发射网络预热(一个脱落的背景)
+    // TLS 单项测试从未 调用 join_prewarm (),这样 线程 将会
+    // 超过寿命 main() 财务报告和已审计财务报表 竞态
+    // libcrypto/allocator 断断续续的关闭 SIGSEGV (e.g.
+    // fork_test's ForkThread 状态更新函数 测试不需要 暂时的胜利。
 #if defined(_WIN32)
     _putenv_s("AGENTTY_NO_PREWARM", "1");
     _putenv_s("AGENTTY_NO_UPDATE_CHECK", "1");
 #else
     ::setenv("AGENTTY_NO_PREWARM", "1", 1);
-    // Never let init()'s release check replace this binary.
+    // 永远不要让 init() 'release check 替换此选项 二进制程序.
     ::setenv("AGENTTY_NO_UPDATE_CHECK", "1", 1);
-    // Tests' own temp dirs go inside the sandbox, so cleanup takes them too.
+    // 测试本身的 临时底盘进入 沙箱 清理也带走了
     {
         const fs::path tmp = sandbox / "tmp";
         std::error_code ec;
@@ -134,23 +134,23 @@ int main(int argc, char** argv) {
     }
     const std::string_view which{argv[1]};
 
-    // Stand in for the kernel's loop thread. Same reasoning as
-    // tests/test_main.cpp: these tests drive reducers and view() directly on
-    // the main thread rather than running a kernel, and view() touches
-    // loop-bound render state. Off the loop that is an abort by design, so
-    // the harness has to say "this thread is the loop" — which is true here.
+    // 准备内核的循环 线程。与 tests/test_main.cpp
+    // : 这些测试驱动器 状态更新函数 财务报告和已审计财务报表 view()
+    // 直接在主机上 线程 而不是运行内核,和 view() 触摸环路
+    // -bound 渲染 状态。在循环中,这是 设计中止,所以,
+    // 绳子必须说 "this thread is the loop" - 这儿就是这样
     //
-    // A worker spawned inside a test still has no token, so the guarantee is
-    // intact where it matters.
+    // A 工作线程 试产中产物仍然没有任何标志 所以保证在它
+    // 重要的地方是完好无损的
     const auto loop_id = maya::arm_loop_for_tests();
-    // Build the sub-argv: keep argv[0] as the REAL executable path (a test may
-    // re-exec itself — external_acp_backend_test spawns argv[0] as a fake ACP
-    // agent), drop the dispatch name at argv[1], keep the rest as the test's
-    // own flags. So `agentty_standalone_tests anthropic_md_stream det X --cps 45`
-    // reaches the test as argv = {<exe-path>, "det", "X", "--cps", "45"}.
+    // 构建子 -argv : 保留 argv[0] 作为 真实 可执行路径( 测试可能重新 -exec 本身 --
+    // -- . external_acp_backend_test 产卵 argv[0] 假 ACP 探员,
+    // 放下 分派 名称在 argv [1],其余部分作为测试的自有 标志。所以,我们想让您知道
+    // `agentty_standalone_tests anthropic_md_stream det X --cps 45`
+    // 以 argv = { 达到测试 <exe-path>, "det", "X", "--cps", "45"}.
     int    sub_argc = argc - 1;
     char** sub_argv = argv + 1;
-    sub_argv[0] = argv[0];   // real exe path, not the test name
+    sub_argv[0] = argv[0];   // 真实的exe路径, 不是测试名称
 
 #define FOLD_NOARGS(name) if (which == #name) return name##_main();
 #define FOLD_ARGS(name)   if (which == #name) return name##_main(sub_argc, sub_argv);

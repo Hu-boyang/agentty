@@ -1,15 +1,15 @@
-// tests/win_posix_compat.hpp -- POSIX environment calls for the test suite on
-// Windows (MinGW/UCRT).
+// tests/win_posix_compat.hpp -- POSIX 环境 调用 测试套件 Windows
+// (MinGW/UCRT).
 //
-// The suite points the process at temp HOME / workspace dirs with setenv and
-// unsetenv, which UCRT doesn't declare. Force-included into every test TU on
-// Windows (CMakeLists.txt, AGENTTY_BUILD_TESTS block), so the tests stay
-// written against POSIX and the shim lives in one place. Not used by the
-// product: src/ never sets environment variables after startup.
+// 套房将过程点到临时 HOME / 工作区 带有setenv和unsetenev
+// 的二维 UCRT 强迫 强迫 -included 输入每个测试 TU
+// 打开 Windows (CMakeLists.txt,
+// AGENTTY_BUILD_TESTS 测试时要写在 POSIX 和
+// shimim住在一个地方。 src/ 启动后从不设置环境变量。
 //
-// Tests that need more of POSIX are made portable at the call site instead
-// (tests/wire_pipe.hpp for pipe+Writer, #ifdef SIGPIPE, a watchdog thread
-// for alarm). The openpty-driven tests are UNIX-only in AgenttyTests.cmake.
+// 需要更多测试 POSIX 的便携式 调用 改为网站( tests/wire_pipe.hpp
+// 用于管道+ Writer, #ifdef SIGPIPE, a 看门狗 线程 提醒。
+// 打开的 -driven 测试是 UNIX-only 输入 AgenttyTests.cmake.
 #pragma once
 
 #if defined(_WIN32)
@@ -19,7 +19,7 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
-#include <process.h>   // getpid: mingw declares it here (deprecated, but works)
+#include <process.h>   // 明沃在此宣布(已贬值,但已生效)
 #include <windows.h>
 
 #include <cstdlib>
@@ -33,12 +33,12 @@ inline int setenv(const char* name, const char* value, int overwrite) {
 
 inline int unsetenv(const char* name) {
     if (!name || !*name) return -1;
-    // An empty value removes the variable under _putenv_s.
+    // 一个空值会删除_putenv_s下的变量.
     return _putenv_s(name, "");
 }
 
-// Tests write `setenv("HOME", dir.c_str(), 1)` with a std::filesystem::path,
-// whose c_str() is wchar_t* on Windows. Same meaning, wide value.
+// 测试写入 `setenv("HOME", dir.c_str(), 1)` 带 std::filesystem::path ,
+// 其名称为 c_str ( ) 系 , ( ) wchar_t * 开着 Windows。相同的含义, 广义的价值。
 inline int setenv(const char* name, const wchar_t* value, int overwrite) {
     if (!name || !*name) return -1;
     if (!overwrite && std::getenv(name)) return 0;

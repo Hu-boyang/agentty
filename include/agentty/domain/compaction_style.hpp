@@ -1,10 +1,10 @@
 #pragma once
-// agentty::CompactionStyle — how a thread's history gets summarized when
-// compacting in place OR when forking a thread. Each style maps to a distinct
-// summarisation prompt (see cmd_factory.cpp compaction_prompt_for). The set is
-// the "all the ways to summarize" the fork picker offers; Recoverable is the
-// default (the original recoverable continuation summary) and MUST stay zero
-// so a legacy StreamState / persisted default resolves to it.
+// agentty::CompactionStyle-在分叉 线程 时在适当
+// 位置压缩 OR 时如何总结 线程 的历史。每种样式都映射到不同的摘要 提示词
+// （请参阅 cmd_factory.cpp compaction_prompt_for）。
+// 该套件是 "all the ways to summarize" 前叉
+// 选择面板 提供的；可恢复是默认值（原始可恢复延续摘要），必须 保持为零，
+// 因此遗留的 StreamState/持久默认值解析为它。
 
 #include <cstdint>
 #include <string_view>
@@ -12,12 +12,12 @@
 namespace agentty {
 
 enum class CompactionStyle : std::uint8_t {
-    Recoverable = 0,  // structured Task/State/Discoveries/Next-Steps handoff
-    Brief,            // one short paragraph — TL;DR
-    Bullets,         // key points as a bullet outline
-    Decisions,       // decisions made + rationale (why, not what)
-    Handoff,         // actionable next-steps only, for a fresh agent
-    Narrative,       // flowing prose recap of the whole session
+    Recoverable = 0,  // 结构化Task/State/Discoveries/Next-Steps切换
+    Brief,            // 一小段——TL;DR
+    Bullets,         // 要点作为项目符号轮廓
+    Decisions,       // 做出的决定+理由（为什么，而不是什么）
+    Handoff,         // 仅可操作的next-steps，对于新代理
+    Narrative,       // 流畅的散文回顾整个会议
 };
 
 inline constexpr CompactionStyle kCompactionStyles[] = {
@@ -38,7 +38,7 @@ inline constexpr CompactionStyle kCompactionStyles[] = {
     return "?";
 }
 
-// One-line human description for the picker rows.
+// One-line对选择面板行的人类描述。
 [[nodiscard]] constexpr std::string_view describe(CompactionStyle s) noexcept {
     switch (s) {
         case CompactionStyle::Recoverable:

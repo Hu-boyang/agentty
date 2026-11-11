@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// update.cpp — self-update against the GitHub releases of agentty-org/agentty.
-// See include/agentty/util/update.hpp for the design contract.
+// update.cpp - 自我 -update 反 对 GitHub 释放 agentty-org/agentty.
+// 设计合同见include/agentty/util/update.hpp.
 
 #include "agentty/util/update.hpp"
 #include "agentty/version.hpp"
 #include "agentty/util/digits.hpp"
 
-#include "agentty/util/user_root.hpp"   // user_cache_dir()
+#include "agentty/util/user_root.hpp"   // user_cache_dir( ) (中文( ) ).
 #include "agentty/util/self_exe.hpp"
 #include "agentty/io/http.hpp"
 #include "agentty/io/shared_file.hpp"
 #include "agentty/util/dbglog.hpp"
-#include "agentty/auth/auth.hpp"     // sha256_hex: verify the asset digest
+#include "agentty/auth/auth.hpp"     // sha256_hex: 核实资产摘要
 
 #include <nlohmann/json.hpp>
 
@@ -25,7 +25,7 @@
 #include <string>
 
 #ifndef _WIN32
-#include <unistd.h>     // readlink
+#include <unistd.h>     // 读取链接
 #include <sys/stat.h>   // chmod
 #endif
 
@@ -39,12 +39,12 @@ namespace {
 
 constexpr const char* kRepo = "agentty-org/agentty";
 constexpr auto kCacheTtl = std::chrono::hours{24};
-// While a release is still building its binaries, look again this soon.
+// 正当发行时, 二进制程序 很快再看一遍 很快的
 constexpr auto kPendingTtl = std::chrono::minutes{20};
 
 fs::path cache_path() { return util::user_cache_dir() / "update_check.json"; }
 
-// Where is the running binary? (Windows self-replace isn't wired; MSI is the channel.)
+// 跑到哪里去了? 跑到哪儿去了? 飞到哪里去了 二进制程序? (Windows 自己 -replace 没有传输; MSI 是频道。 )
 fs::path self_path() {
 #ifdef _WIN32
     return {};
@@ -85,7 +85,7 @@ HttpResult https_get(std::string_view host, std::string_view path,
     return r;
 }
 
-// Split "https://host/path" → {host, path}. Empty host on parse failure.
+// 拆分( E) "https://host/path" {host, path}。 空主机打开 解析 失败。
 std::pair<std::string, std::string> split_url(const std::string& url) {
     auto scheme = url.find("://");
     if (scheme == std::string::npos) return {};
@@ -108,13 +108,13 @@ void write_cache(const CheckResult& c) {
         {"pending", c.pending},
         {"update_available", c.update_available},
     };
-    // Was a truncating write: two instances checking at once could leave a
-    // torn cache that parsed as "no update". Atomic now; a cache, so no fsync.
+    // 写短篇小说: 两次检查一次,就可能留下撕裂 缓存 被解说成
+    // "no update" 原子现在;a 缓存 ,所以没有fsync。
     (void)persistence::write_atomic(::agentty::IoAccess::grant(), cache_path(), j.dump(2),
                                     {.durability = persistence::Durability::Atomic});
 }
 
-} // namespace
+} // 命名空间结束。
 
 bool version_less(const std::string& a, const std::string& b) {
     auto parse = [](const std::string& s, int out[3]) {
@@ -183,14 +183,14 @@ std::optional<CheckResult> cached_check() {
         c.asset_sha256     = j.value("asset_sha256", std::string{});
         c.pending          = j.value("pending", false);
         c.update_available = j.value("update_available", false);
-        // A cache written by an OLDER binary is stale the moment the binary
-        // changed (post-update relaunch must not re-announce the old delta).
+        // A 缓存 由一个 OLDER 二进制程序 谓 过期 时刻 二进制程序 已
+        // 改变(员额) -update 不能再重开 -announce 旧三角洲。
         if (c.current != current_version()) return std::nullopt;
-        // Written before `target` existed: its update_available meant "a
-        // newer tag exists", which is exactly the claim #119 broke. Re-check.
+        // 之前写 `target` 存在: update_available 谓
+        // "a newer tag exists" ,这恰恰是119号索赔被打破。 -check.
         if (!j.contains("target")) return std::nullopt;
-        // A pending release is about to become installable; a 24h-old
-        // "still building" would hide the update for a day. Re-check sooner.
+        // A 待处理 即将安装; 24小时 -old
+        // "still building" 将更新隐藏一天。 -check 早点
         if (c.pending && age > kPendingTtl) return std::nullopt;
         return c;
     } catch (...) {
@@ -212,9 +212,9 @@ CheckResult choose_release(const std::string& releases_json, const std::string& 
     if (!arr.is_array()) { c.error = "release JSON: expected a list"; return c; }
 
     auto strip_v = [](std::string t) { return (!t.empty() && t.front() == 'v') ? t.substr(1) : t; };
-    // An asset counts only once GitHub has the whole file: `state` is
-    // "uploaded" (a half-sent --clobber is "starter"), and it is big enough
-    // to be a binary, not a placeholder.
+    // 资产只算一次 GitHub 拥有整个文件 : `state` 谓 "uploaded"
+    // (单位:千美元) -sent --clobber 谓 "starter" ),
+    // 它已经足够大成为 二进制程序 而不是占位符。
     auto ships = [&](const json& rel, std::string& sha) {
         if (asset.empty() || !rel.contains("assets") || !rel["assets"].is_array()) return false;
         for (const auto& a : rel["assets"]) {
@@ -237,9 +237,9 @@ CheckResult choose_release(const std::string& releases_json, const std::string& 
             c.latest = ver;
             if (c.url.empty()) c.url = rel.value("html_url", std::string{});
         }
-        // Not newer than us: nothing older can be an update either, but keep
-        // scanning only for `latest` -- the list is newest-first in practice
-        // and not guaranteed, so do not break on order.
+        // 也不可能是更新, 但继续扫描 `latest`
+        // - 名单是最新 -first 在实践中,
+        // 没有保证,所以不要违反命令。
         if (!version_less(current, ver)) continue;
         std::string sha;
         if (!ships(rel, sha)) continue;
@@ -251,8 +251,8 @@ CheckResult choose_release(const std::string& releases_json, const std::string& 
     }
     if (c.url.empty()) c.url = std::string{"https://github.com/"} + kRepo + "/releases";
     c.update_available = !c.target.empty();
-    // The newest release is ahead of us but not installable here yet -- the
-    // streaming window. Said distinctly so the UI can wait instead of failing.
+    // 最新版本已经摆在我们面前,但尚无法安装在这里 -- --
+    // 即 流式传输 窗口。显然如此。 UI 能够等待而不是失败。
     c.pending = !c.latest.empty() && version_less(current, c.latest) && c.target != c.latest;
     return c;
 }
@@ -264,9 +264,9 @@ CheckResult check_latest(bool force) {
     CheckResult c;
     c.current = current_version();
 
-    // The last few releases, not /releases/latest: "latest" can be a release
-    // whose binary for this platform is still building (#119), and the one
-    // before it is then the newest thing that can actually be installed.
+    // 后几版发行,而非/releases/latest:
+    // "latest"可以是这个平台的二进制程序仍在建设中的
+    // 发行(#119),而之前的发行是当时可以实际安装的最新的.
     auto r = https_get("api.github.com",
                        std::string{"/repos/"} + kRepo + "/releases?per_page=5",
                        4 * 1024 * 1024);
@@ -291,8 +291,8 @@ bool self_update_possible(std::string& reason) {
 #else
     constexpr bool dev_build = false;
 #endif
-    // A dev build lives in a build tree. Replacing it with the release
-    // binary silently swaps out the code you're working on.
+    // 人造建筑中的生活 源码树 . 以释放取代它
+    // 二进制程序 悄悄地交换你正在研究的密码
     if (dev_build) {
         reason = "this is a development build; rebuild it instead";
         return false;
@@ -303,14 +303,14 @@ bool self_update_possible(std::string& reason) {
         return false;
     }
     std::string p = self.string();
-    // Once the binary is replaced, /proc/self/exe reads "<path> (deleted)".
-    // Writing there creates a stray file instead of updating anything.
+    // 一次, 二进制程序 替换,/ proc/self/exe 读取 "<path> (deleted)".
+    // 写入此文件会创建一个流文件, 而不是更新任何文件。
     if (p.ends_with(" (deleted)")) {
         reason = "the running binary was replaced on disk; restart agentty first";
         return false;
     }
-    // Package-manager territory: overwriting under /usr (except /usr/local
-    // hand-installs) fights rpm/pacman/portage — tell the user to use them.
+    // 软件包 -manager 领土: / usr(除外) 下覆盖( usr/local 手执
+    // -installs (战斗) rpm/pacman/portage ——告诉用户使用.
     if (p.starts_with("/usr/") && !p.starts_with("/usr/local/")) {
         reason = "installed by a package manager (" + p +
                  ") — update with your package manager instead";
@@ -320,7 +320,7 @@ bool self_update_possible(std::string& reason) {
         reason = "installed via nix — update through your nix configuration";
         return false;
     }
-    // Writable check on the parent dir (the atomic rename target).
+    // 可写入父目录(原子重命名目标)的检查.
     auto dir = self.parent_path();
 #ifndef _WIN32
     if (::access(dir.c_str(), W_OK) != 0) {
@@ -345,7 +345,7 @@ std::string perform_update(
 
     const std::string vtag = tag.starts_with("v") ? tag : "v" + tag;
 
-    // GitHub's stable download URL 302s to a CDN; follow up to 4 hops.
+    // GitHub稳定下载URL 302s至CDN;后续4hps.
     std::string host = "github.com";
     std::string path = "/" + std::string{kRepo} + "/releases/download/" +
                        vtag + "/" + asset;
@@ -363,9 +363,9 @@ std::string perform_update(
         }
         break;
     }
-    // A 404 here is almost always the streaming window (#119): the release
-    // exists, this platform's binary is still building. Say THAT, not a bare
-    // status code -- the user's next move is "wait", not "file a bug".
+    // 这儿的404几乎总是 流式传输 窗口 (# 119): 发布存在,
+    // 此平台的 二进制程序 还在建设中 该 ,不是光状态代码——用户的
+    // 下一步是 "wait" ,没有 "file a bug".
     if (r.status == 404)
         return "the " + vtag + " binary for this platform (" + asset +
                ") isn't published yet \xe2\x80\x94 release builds take up to an hour. "
@@ -376,23 +376,23 @@ std::string perform_update(
     if (r.body.size() < 1024 * 1024)
         return "downloaded binary suspiciously small (" +
                std::to_string(r.body.size()) + " bytes) — aborting";
-    // ELF/Mach-O magic sanity: never install an HTML error page as a binary.
+    // ELF/Mach-O 魔法理智: 永远不要安装 HTML 错误页面为 a 二进制程序.
 #ifndef _WIN32
     const bool looks_binary =
         (r.body.size() > 4)
         && ((r.body[0] == 0x7f && r.body[1] == 'E' && r.body[2] == 'L'
              && r.body[3] == 'F')                                    // ELF
             || ((unsigned char)r.body[0] == 0xcf
-                && (unsigned char)r.body[1] == 0xfa)                 // Mach-O 64
+                && (unsigned char)r.body[1] == 0xfa)                 // 迈什-O 64
             || ((unsigned char)r.body[0] == 0xca
-                && (unsigned char)r.body[1] == 0xfe));               // Mach-O fat
+                && (unsigned char)r.body[1] == 0xfe));               // 肥胖的Mach-O
     if (!looks_binary)
         return "downloaded file is not an executable — aborting";
 #endif
-    // GitHub records a sha256 for every release asset. When the check gave
-    // us one, the bytes must match it before anything is installed: a
-    // truncated CDN response or a swapped asset would otherwise become the
-    // next launch's binary.
+    // GitHub 检查时,每一份释放资产记录一次
+    // sha256。 字节 安装前必须匹配 :
+    // CDN 反应或交换资产将变成下一个发射的
+    // 二进制程序.
     if (!expected_sha256.empty()) {
         const std::string got = auth::sha256_hex(r.body);
         if (got != expected_sha256)
@@ -400,16 +400,16 @@ std::string perform_update(
                    "\xe2\x80\xa6, expected " + expected_sha256.substr(0, 12) + "\xe2\x80\xa6) \xe2\x80\x94 nothing installed";
     }
 
-    // Atomic swap over the live binary: the running process keeps executing
-    // its old (unlinked) image, the next launch gets the new one. Born 0755,
-    // and durable, so a power cut can't leave a half-written agentty.
+    // 原子弹换了现场 二进制程序 :运行过程持续执行旧的(无连接)图像,
+    // 下一次发射获得新的图像. Born 0755, 并且持久,
+    // 所以断电不能留下一半. -written agentty.
     fs::path self = self_path();
     if (!persistence::write_atomic(::agentty::IoAccess::grant(), self, r.body,
                                    {.durability = persistence::Durability::Durable,
                                     .mode = 0755}))
         return "could not replace " + self.string();
     std::error_code ec;
-    // Invalidate the check cache so the fresh binary re-checks cleanly.
+    // 取消检查 缓存 所以新鲜的 二进制程序 内容 -checks 干净的
     fs::remove(cache_path(), ec);
     return {};
 }

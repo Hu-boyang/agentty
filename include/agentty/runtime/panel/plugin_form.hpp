@@ -1,19 +1,19 @@
 #pragma once
-// plugin_form — the plugin editor's row model (detail + add).
+// plugin_form — 插件编辑器的行模型（详细信息+添加）。
 //
-// Pure: reads a value snapshot (PluginFormInputs), emits a form::Form. The
-// reducer resolves the snapshot from mcp.json + the live PluginModel and
-// hands it in; this file only decides what the rows ARE. Same division of
-// labour as smart_form.hpp — a config surface is a projection, not a pane
-// with opinions.
+// 纯：读取值快照 (PluginFormInputs)，
+// 发出form::Form。 状态更新函数从mcp.json+现场
+// PluginModel解析出快照并上交；该文件仅决定 ARE 行。
+// 与 smart_form.hpp 的分工相同——配置表面是一个投影，
+// 而不是带有意见的 面板。
 //
-// KIND-FIRST ADD: in add mode the first row is a `kind` choice
-// (stdio/http/sse/passthrough + the python/uvx/npx shorthands). Changing it
-// REBUILDS the form with exactly the field set that kind needs, preserving
-// whatever name/url/command text the user already typed — a wizard without
-// wizard chrome. In detail mode the kind is locked (changing a server's
-// transport in place is a remove+add, not an edit — the spawn identity and
-// trust hash change with it).
+// KIND-FIRST ADD:在添加模式下第一行是
+// `kind`选择(stdio/http/sse/passthrough+python/uvx/npx简写)。
+// 将其 REBUILDS 更改为具有所需字段集的表单，
+// 保留用户已经 带类型的 的任何 name/url/command
+// 文本 — 一个没有向导镶边的向导。在详细模式下，
+// 类型被锁定（更改服务器的 传输层 是删除+添加，而不是编辑 - 生成
+// 身份和信任哈希随之更改）。
 
 #include <string>
 #include <vector>
@@ -22,30 +22,30 @@
 
 namespace agentty::plugin_form {
 
-// Field ids (stable; the reducer switches on these).
+// 字段 ids (稳定；状态更新函数 打开这些)。
 inline constexpr const char* kKind        = "kind";
 inline constexpr const char* kName        = "name";
 inline constexpr const char* kCommand     = "command";
 inline constexpr const char* kArgs        = "args";
 inline constexpr const char* kUrl         = "url";
-inline constexpr const char* kTools       = "tools";      // passthrough names
-inline constexpr const char* kAdvertise   = "advertise";  // passthrough
+inline constexpr const char* kTools       = "tools";      // 直通名称
+inline constexpr const char* kAdvertise   = "advertise";  // 直通
 inline constexpr const char* kEnabled     = "enabled";
-inline constexpr const char* kScopeProject= "scope_project";  // add mode only
+inline constexpr const char* kScopeProject= "scope_project";  // 仅添加模式
 inline constexpr const char* kSave        = "save";
 inline constexpr const char* kApprove     = "approve";
 inline constexpr const char* kRemove      = "remove";
-// Per-tool toggle rows use the id "tool:<bare-name>".
+// Per-tool 切换行使用id "tool:<bare-name>"。
 inline constexpr const char* kToolPrefix  = "tool:";
 
-// Footer notes — the shared key grammar is rendered by form_config for
-// every form pane; these carry ONLY pane-specific content. The armed-
-// remove warning replaces the grammar line (note_replaces_grammar) so a
-// destructive confirm is the only thing the footer says.
+// 页脚注释——共享密钥语法由form_config为每个表格
+// 面板呈现；这些带有 仅 面板-specific 内容。
+// 武装删除警告取代了语法行（note_replaces_grammar），
+// 因此破坏性确认是页脚唯一显示的内容。
 inline constexpr const char* kNoteRemoveArmed =
     "Enter again to REMOVE — any other key keeps it";
 
-// Kind ids for the choice row.
+// 选择行的种类ID。
 inline constexpr const char* kKindStdio       = "stdio";
 inline constexpr const char* kKindHttp        = "http";
 inline constexpr const char* kKindSse         = "sse";
@@ -60,25 +60,25 @@ struct ToolRow {
 struct PluginFormInputs {
     bool add_mode = false;
 
-    // Identity + transport (detail: from config; add: user-typed so far).
-    std::string kind = kKindStdio;   // one of the kKind* ids
+    // 身份+传输层（详细信息：来自配置；添加：到目前为止的user-typed）。
+    std::string kind = kKindStdio;   // kKind* id之一
     std::string name;
     std::string command;
-    std::string args;                // space-joined for the text row
+    std::string args;                // space-joined 为文本行
     std::string url;
-    std::string tools;               // passthrough: comma-joined names
-    bool        advertise = false;   // passthrough: advertise on the wire too
+    std::string tools;               // 直通：逗号-joined名称
+    bool        advertise = false;   // 透传：也在传输上做广告
 
-    // Detail-mode state.
+    // 详细信息-mode状态。
     bool        enabled   = true;    // !disabled in config
     bool        connected = false;
-    std::string error;               // connect error / gate reason
-    std::string scope_label;         // "user" / "project" / "explicit"
-    std::string config_file;         // the mcp.json this entry lives in
-    bool        untrusted = false;   // project entry awaiting approval
-    std::vector<ToolRow> tool_rows;  // live/declared tools (detail mode)
+    std::string error;               // 连接错误/门原因
+    std::string scope_label;         // "user"/"project"/"explicit"
+    std::string config_file;         // 该条目所在的mcp.json
+    bool        untrusted = false;   // 项目立项待批
+    std::vector<ToolRow> tool_rows;  // live/declared工具(详细模式)
 
-    bool        project = false;     // add mode: write to project config
+    bool        project = false;     // 添加模式：写入项目配置
 };
 
 [[nodiscard]] form::Form build_form(const PluginFormInputs& in);

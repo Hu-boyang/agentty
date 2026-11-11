@@ -1,18 +1,18 @@
 #pragma once
-// mcp_tools_bridge — adapts mcp-cpp's batteries-included toolset
-// (mcp::tools::make_provider) back into agentty's native ToolDef surface.
+// mcp_tools_bridge-将mcp-cpp的电池-included工具组（
+// mcp::tools::make_provider)改编回agentty的原生ToolDef表面。
 //
-//   The Tier-1 tool *implementations* now live in mcp-cpp (read/write/edit/
-//   list_dir, bash, grep/glob/find_definition, diagnostics, git_*, web_*).
-//   agentty consumes them through a cap::CapabilityProvider and re-wraps each
-//   advertised tool as a ToolDef whose execute() closure dispatches into the
-//   provider and reads the typed effects + FileChange off each Result back
-//   into agentty's ToolOutput. The diff-review UI, changes-strip, and
-//   permission policy keep seeing exactly the types they always did.
+//   第 1 层工具*实现*现在位于 mcp-cpp (read/write/edit/ list_dir、
+//   bash、grep/glob/find_definition、诊断、git_*、web_*)。
+//   agentty通过cap::CapabilityProvider和re-wraps来消耗它们，
+//   每个广告工具作为ToolDef，其execute()闭包分派到提供者中，
+//   并将每个结果的带类型的 副作用 + FileChange读回到agentty
+//   的ToolOutput中。 diff-review UI、
+//   change-strip 和 权限 策略始终准确地查看它们始终执行的类型。
 //
-//   Host-coupled tools (remember/forget/wipe, todo, skill, search_docs, task)
-//   are SHELLS owned by mcp-cpp; agentty injects their backends via
-//   HostServices adapters built here.
+//   Host-coupled工具(remember/forget/wipe、待办事项、技能、search_docs、
+//   任务)是SHELLS，由mcp-cpp拥有； agentty 通过此处构建的
+//   HostServices 适配器注入其后端。
 
 #include <memory>
 #include <string_view>
@@ -23,12 +23,12 @@
 
 namespace agentty::tools {
 
-// Build the agentty-facing ToolDef list from the mcp-cpp provider. Called
-// once by build_registry(). Constructs the HostServices adapters (memory/
-// todo/skill/retriever/subagent/http), spins up make_provider(), keeps the
-// provider alive for the process lifetime (its handlers are captured in the
-// returned ToolDef::execute closures), and returns one ToolDef per advertised
-// tool. Tool order follows the provider's list() order.
+// 从 mcp-cpp 提供商构建 agentty-facing ToolDef 列表。
+// 由 build_registry() 调用一次。构造 HostServices 适配器
+// (memory/ todo/skill/retriever/subagent/http)，
+// 启动 make_provider()，使提供者在进程 生命周期 中保持活动状态（其 处理
+// 函数 在返回的 ToolDef::execute 闭包中捕获），并为每个广告工具返回一个
+// ToolDef。 Tool 订单遵循提供商的 list() 订单。
 [[nodiscard]] std::vector<ToolDef> build_mcp_tool_defs();
 
 

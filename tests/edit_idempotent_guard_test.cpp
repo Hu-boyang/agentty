@@ -1,20 +1,20 @@
-// edit_idempotent_guard_test — a mistyped old_text must not read as success.
+// edit_idempotent_guard_test ——打错了字 old_text 绝不能将它看成是成功。
 //
-// ── WHY ──────────────────────────────────────────────────────────────────
+// ── 原因 ──────────────────────────────────────────────────────────────────
 //
-// `edit` has an "already applied" shortcut: if old_text is gone and new_text
-// is present, a re-run of an edit that already landed reports success instead
-// of a confusing no-match. That is worth having.
+// `edit` 有个 "already applied" 快捷键:如果 old_text
+// 不见了,而且 new_text 存在,一个 -run 编辑器,但已登陆的编辑器
+// 报告成功,而不是混淆的否 -match 值得一试
 //
-// The signal was too weak. It accepted new_text occurring ANYWHERE, with a
-// floor of 8 bytes. So a MISTYPED old_text whose new_text happens to be a
-// common line -- `return false;`, `    });`, `#include <string>` -- found its
-// new_text elsewhere in the file and the tool answered "identical content
-// (file unchanged on disk)". Nothing was written, the call succeeded, and the
-// model carried on building on a change that never happened.
+// 信号太弱了,它接受了 new_text 发生 ANYWHERE ,有8层 字节。所以,
+// 一个 MISTYPED old_text 其 人 名 new_text 恰好是一条普通
+// 的线条 -- `return false;`, `    });`,
+// `#include <string>` - 找到了它,我们找到了它 new_text 文件的
+// 其他地方和工具都答了题 "identical content (file unchanged on disk)"
+// 什么都没有写, 调用 成功,模型继续 建立在从未发生的变化之上。
 //
-// That is the worst shape of bug this tool can have short of corruption: not
-// a wrong edit, a believed one.
+// 这是这个工具最糟糕的缺陷:不是错误的编辑,
+// 是相信的。
 #include "agtest.hpp"
 
 #include "agentty/tool/registry.hpp"
@@ -31,9 +31,9 @@ namespace fs = std::filesystem;
 
 namespace {
 
-// A file inside the workspace root, since the fs tools refuse anything else.
-// NOT under .agentty/ -- the handoff gate treats that as host-trusted (hooks
-// run from there) and denies the write, which is correct of it.
+// 工作区 根内的文件,因为 fs 工具拒绝其它任何文件。
+// .agentty/下的NOT - 交接门将那作为host-trusted(
+// hoks run from there)处理,并否认写作,这是正确的.
 fs::path scratch(const char* tag) {
     auto dir = agentty::tools::util::workspace_root() / "build" / "test-scratch";
     std::error_code ec;
@@ -60,13 +60,13 @@ agentty::tools::ExecResult do_edit(const fs::path& p,
                                                  {"new_text", std::move(new_text)}}})}});
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("edit guard: a mistyped old_text does not pass as already-applied") {
-    // `    return false;` appears TWICE at the same indentation, so it is not
-    // a uniquely-placed new_text. The model asks to replace a line that isn't
-    // in the file. Before the fix, presence anywhere was enough: this
-    // reported "already present, move on" and wrote nothing.
+    // `    return false;` 显示 TWICE 在同一缩影中,
+    // 它不是独一无二的 -placed new_text。模型要求替换一个没有在
+    // 文件中的行。在修复之前,任何地方的存在都足够:这个报告
+    // "already present, move on" 写了些什么
     const auto p = scratch("mistyped");
     put(p,
         "int a() {\n"
@@ -88,8 +88,8 @@ TEST_CASE("edit guard: a mistyped old_text does not pass as already-applied") {
 }
 
 TEST_CASE("edit guard: a genuine retry still reports already-applied") {
-    // The case the shortcut exists for: the edit landed, the model retries
-    // the same call. new_text is distinctive and present exactly once.
+    // 快捷键存在于: 编辑器已登陆, 模式 重试 同样的 调用.
+    // new_text 与众不同,而且一次就在场
     const auto p = scratch("retry");
     put(p,
         "int a() {\n"
@@ -121,9 +121,9 @@ TEST_CASE("edit guard: a normal edit still applies") {
 }
 
 TEST_CASE("edit guard: the no-op message does not tell the model to move on") {
-    // It is a heuristic, so it must report what was OBSERVED and say how to
-    // check. The old wording asserted "the desired state is already in place;
-    // move on", which is exactly what a mistyped old_text should not be told.
+    // 这是一种热力,所以它必须报告什么是 OBSERVED 并说如何检查。
+    // "the desired state is already in place; move on" ,
+    // 这正是一个错误的类型 old_text 不应告诉。
     const auto p = scratch("message");
     put(p, "int a() {\n    return compute_the_answer(42);\n}\n");
 
@@ -136,19 +136,19 @@ TEST_CASE("edit guard: the no-op message does not tell the model to move on") {
     fs::remove(p);
 }
 
-// ── editing through a symlink ───────────────────────────────────────────
+// ── 通过符号链接编辑 ───────────────────────────────────────────
 //
-// The publish step is rename(), which replaces the NAME it is given. For a
-// symlink that is the link itself, so an edit through one did three wrong
-// things at once, silently:
+// 出版步骤是 rename() ,替换 NAME 用来
+// 连接一个符号 链接 自己,所以编辑一个 一次做三个错误的事情,
+// 默默地:
 //
-//   * the symlink became a regular file (the link is destroyed),
-//   * the real target kept its old contents (the edit went nowhere), and
-//   * the tool reported success, with a diff of the change.
+//   * 符号链接成为普通文件(链接被销毁),
+//   * 真正的目标保留了旧内容(编辑没有进行),
+//   * 该工具报告成功,变化很大。
 //
-// Measured, not reasoned: I made a link, edited through it, and found the
-// link gone and the target untouched. Dotfiles repos and symlinked generated
-// files (compile_commands.json) hit this on the first edit.
+// 量度的,没有说明理由: 我做了一个 链接 ,编辑后,找到了 链接
+// 目标没有被移动。 仓库 和 共线生成的文件( Q)
+// compile_commands.json )在第一次编辑时点击此功能.
 
 TEST_CASE("edit through a symlink writes the target and keeps the link") {
     const auto dir = agentty::tools::util::workspace_root() / "build" / "test-scratch";
@@ -161,7 +161,7 @@ TEST_CASE("edit through a symlink writes the target and keeps the link") {
     fs::remove(target, ec);
     put(target, "alpha\nbeta\n");
     fs::create_symlink(target.filename(), link, ec);
-    if (ec) return;   // no symlink support on this host (Windows w/o privilege)
+    if (ec) return;   // 此主机上没有符号链接支持( N) Windows w/o 特权)
     REQUIRE(fs::is_symlink(link, ec));
 
     auto r = agentty::tool::DynamicDispatch::execute(
@@ -182,26 +182,26 @@ TEST_CASE("edit through a symlink writes the target and keeps the link") {
     fs::remove(target, ec);
 }
 
-// ── the `line:` hint ────────────────────────────────────────────────────
+// ── `line:` 提示 ────────────────────────────────────────────────────
 //
-// `line:` is documented as a DISAMBIGUATOR, and as a hard filter it would do
-// harm: line numbers go stale constantly (an earlier edit grew the file), and
-// refusing a correct edit over a stale number is worse than ignoring it.
+// `line:` 现作为文件记录。 DISAMBIGUATOR ,
+// 作为硬过滤器,它会伤害:行号走 过期 不断( 早先编辑时已扩展
+// 文件) , 拒绝正确的编辑。 过期 数字比忽略它更糟糕。
 //
-// But it used to be discarded entirely whenever the DP produced exactly one
-// candidate -- precisely the case with no other evidence. A lone fuzzy match
-// 900 lines from where the caller said to look was applied silently.
+// 但曾经是完全抛弃的 DP 只有一个候选人,
+// 而这个案子没有其他证据。 孤独的模糊与900行相匹配,
+// 而所谓的来电者却默默地使用了这些线。
 //
-// The rule: the hint binds only where we are ALREADY guessing.
+// 规则:提示只约束我们所在的地方 ALREADY 猜的,你猜对了,我猜对了
 //
-//   exact match, any distance     -> apply (returns before the hint is read)
-//   fuzzy, near the hint          -> apply
-//   fuzzy, no hint given          -> apply (nothing was claimed)
-//   fuzzy, far from a given hint  -> refuse, and name the line it found
+//   精确匹配, 任意距离 - > 应用( 读取提示前返回) 模糊,
+//   接近提示 - > 适用模糊,
+//   无提示 - >应用( 无主张) 模糊 ,
+//   远离给定提示 - > reference, 并指定它发现的行
 
 namespace {
 
-// A file with a distinctive line far from the top, plus filler.
+// 离顶部很远的有特殊行的文件,加填充符.
 std::string spread_file(const char* needle_line, int at_line) {
     std::string s;
     for (int i = 1; i < at_line; ++i)
@@ -220,16 +220,16 @@ agentty::tools::ExecResult edit_at(const fs::path& p, std::string old_text,
         agtest::cap(), "edit", json{{"path", p.string()}, {"edits", json::array({one})}});
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("line hint: an EXACT match is applied however stale the hint") {
-    // The common case this must never break: the region moved, the caller's
-    // remembered line number is wrong, but the text is exact.
+    // 普通案例这绝不能打破:区域移动,
+    // 呼叫者记忆中的行号错误,但文字准确.
     const auto p = scratch("hint_exact");
     put(p, spread_file("    const int target = 7;", 600));
 
     auto r = edit_at(p, "    const int target = 7;",
-                        "    const int target = 8;", /*line=*/5);
+                        "    const int target = 8;", /*线条=*/5);
     REQUIRE_MESSAGE(r.has_value(),
                     "an exact match must not be refused over a stale line");
     CHECK(get(p).find("target = 8;") != std::string::npos);
@@ -237,15 +237,15 @@ TEST_CASE("line hint: an EXACT match is applied however stale the hint") {
 }
 
 TEST_CASE("line hint: a FUZZY match far from the hint is refused, with the line") {
-    // Only an approximate candidate, and it sits ~600 lines from where the
-    // caller said. Weak on both axes at once -- the shape of a silently
-    // wrong edit.
+    // 只有一个大致的候选者,它坐着~600行,
+    // 从呼叫者说到这里。两轴上都同时弱,这是默默错误编辑
+    // 的形状。
     const auto p = scratch("hint_far");
     put(p, spread_file("    const int target = 7;   // trailing note", 600));
     const auto before = get(p);
 
     auto r = edit_at(p, "    const int target = 7;   // trailing note!",
-                        "    const int target = 8;", /*line=*/5);
+                        "    const int target = 8;", /*线条=*/5);
 
     REQUIRE_FALSE(r.has_value());
     const auto& detail = r.error().detail;
@@ -263,7 +263,7 @@ TEST_CASE("line hint: a FUZZY match near the hint still applies") {
     put(p, spread_file("    const int target = 7;   // trailing note", 600));
 
     auto r = edit_at(p, "    const int target = 7;   // trailing note!",
-                        "    const int target = 8;", /*line=*/595);
+                        "    const int target = 8;", /*线条=*/595);
     REQUIRE_MESSAGE(r.has_value(),
                     "within tolerance the hint corroborates rather than blocks");
     CHECK(get(p).find("target = 8;") != std::string::npos);
@@ -271,13 +271,13 @@ TEST_CASE("line hint: a FUZZY match near the hint still applies") {
 }
 
 TEST_CASE("line hint: with NO hint a lone fuzzy match still applies") {
-    // Nothing was claimed, so there is nothing to contradict. Unchanged
-    // behaviour -- the fix must not make hint-less edits stricter.
+    // 没有任何东西可以声称,所以没有什么可以相互矛盾的。
+    // 没有改变的行为—— 定律不能让提示-less编辑更加严格。
     const auto p = scratch("hint_none");
     put(p, spread_file("    const int target = 7;   // trailing note", 600));
 
     auto r = edit_at(p, "    const int target = 7;   // trailing note!",
-                        "    const int target = 8;", /*line=*/0);
+                        "    const int target = 8;", /*线条=*/0);
     REQUIRE(r.has_value());
     CHECK(get(p).find("target = 8;") != std::string::npos);
     fs::remove(p);

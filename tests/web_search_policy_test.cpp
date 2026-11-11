@@ -1,12 +1,12 @@
-// web_search policy (Settings → Web Search): the request rewrite agentty
-// applies at the dispatch seam, and the registry rows that persist it.
+// web_search 政策( 设置 ) : 请求重写 agentty
+// 适用于 分派 接口边界 ,并显示 注册表 坚持下去的排队
 //
-// The rewrite is the whole of what the setting DOES at call time, so it is
-// pinned here directly rather than through a live search: the three modes
-// (auto leaves the count to the model, on applies the user's default and
-// ceiling, off is refused), count resolution in on, and the
-// -site: exclusions (documented by DuckDuckGo, observed on Brave; services with a
-// native domain filter get the list as a field instead - see domain/web_search_config.hpp).
+// 重写是整个背景 执行 时间 调用 时间,所以它直接被固定在这里,
+// 而不是通过一个直播搜索:三种模式(自动将计数留给模型,
+// 在应用用户的默认和上限时,关闭被拒绝),计数解析度在上,
+// 以及 -site : 除外情形(由 DuckDuckGo ,
+// 在 Brave 上观察到;使用本地域过滤器的服务将列表作为字段
+// - 见 domain/web_search_config.hpp).
 
 #include "agtest.hpp"
 
@@ -26,8 +26,8 @@ namespace reg = agentty::settings::registry;
 using nlohmann::json;
 
 TEST_CASE("web search policy: exclusions normalise what a user pastes") {
-    // Address-bar URLs, a habit-typed operator, case and www. all reduce to
-    // the bare host the `site:` operator wants.
+    // 地址 -bar URL,一种习惯 -typed 操作员、大小写和www.
+    // 全部缩小为空宿主 `site:` 接线员想要
     const auto v = sc::exclude_list(
         "https://www.Pinterest.com/pin/123, -site:w3schools.com;"
         "  medium.com:443  site:EXAMPLE.org/");
@@ -36,8 +36,8 @@ TEST_CASE("web search policy: exclusions normalise what a user pastes") {
 }
 
 TEST_CASE("web search policy: junk entries are dropped, duplicates collapse") {
-    // No dot, a bare word, a leading hyphen label and a non-ASCII host would
-    // each become an operator no engine reads the way the user meant.
+    // 没有点,一个空字,一个领先的连字符标签和一个非-ASCII主机,
+    // 每个主机都会成为操作员,没有引擎读取用户的意思.
     const auto v = sc::exclude_list(
         "localhost foo -bad.com pinterest.com PINTEREST.COM www.pinterest.com "
         "b\xc3\xbc" "cher.de xn--bcher-kva.de");
@@ -47,26 +47,26 @@ TEST_CASE("web search policy: junk entries are dropped, duplicates collapse") {
 }
 
 TEST_CASE("web search policy: count — default, model's request, clamped") {
-    sc::Config c;                 // count 10, max 20
+    sc::Config c;                 // 数十,最大20
     CHECK(sc::effective_count(c, json::object()) == 10);
     CHECK((sc::effective_count(c, json{{"count", 5}}) == 5));
-    CHECK((sc::effective_count(c, json{{"count", 500}}) == 20));   // ceiling
-    CHECK((sc::effective_count(c, json{{"count", 0}}) == 1));      // floor
+    CHECK((sc::effective_count(c, json{{"count", 500}}) == 20));   // 上限
+    CHECK((sc::effective_count(c, json{{"count", 0}}) == 1));      // 楼层
     CHECK((sc::effective_count(c, json{{"count", -3}}) == 1));
-    // Models send numbers every which way; take them, or fall back.
+    // 模型会以不同的方式发送数字; 带走,或倒回去。
     CHECK((sc::effective_count(c, json{{"count", "7"}}) == 7));
     CHECK((sc::effective_count(c, json{{"count", 7.9}}) == 7));
     CHECK((sc::effective_count(c, json{{"count", "lots"}}) == 10));
     CHECK((sc::effective_count(c, json{{"count", nullptr}}) == 10));
-    // Never a crash, never a silent prefix parse.
+    // 永远不要崩溃,永远不要沉默的前缀解析.
     CHECK((sc::effective_count(c, json{{"count", true}}) == 10));
     CHECK((sc::effective_count(c, json{{"count", "7abc"}}) == 10));
     CHECK((sc::effective_count(c, json{{"count", " 7 "}}) == 7));
     CHECK((sc::effective_count(c, json{{"count", 18446744073709551615ULL}}) == 20));
     CHECK((sc::effective_count(c, json{{"count", 1e300}}) == 20));
 
-    // The user's default above their own ceiling resolves to the ceiling,
-    // never past it.
+    // 用户在自己上限之上的默认会解决上限,
+    // 永远无法通过.
     c.count = 15; c.max_count = 5;
     CHECK(sc::effective_count(c, json::object()) == 5);
 }
@@ -75,10 +75,10 @@ TEST_CASE("web search policy: exclusions append once, model's own kept") {
     const std::vector<std::string> sites{"pinterest.com", "medium.com"};
     CHECK(sc::apply_exclusions("rust async", sites)
           == "rust async -site:pinterest.com -site:medium.com");
-    // Already excluded by the model (any case): not repeated.
+    // 模式(任何案件)已排除在外:不再重复。
     CHECK(sc::apply_exclusions("rust -SITE:Pinterest.com", sites)
           == "rust -SITE:Pinterest.com -site:medium.com");
-    // A query with a trailing space gets no double space.
+    // 带有后排空间的查询不会获得双排空间。
     CHECK(sc::apply_exclusions("rust ", sites)
           == "rust -site:pinterest.com -site:medium.com");
     CHECK((sc::apply_exclusions("q", {}) == "q"));
@@ -86,7 +86,7 @@ TEST_CASE("web search policy: exclusions append once, model's own kept") {
 
 TEST_CASE("web search policy: rewrite_args owns count + query, nothing else") {
     sc::Config c;
-    c.mode_text = "on";   // the count is applied only in On
+    c.mode_text = "on";   // 计数只应用在 On
     c.count = 6;
     c.exclude_sites = "pinterest.com";
     const json in{{"query", "css grid"}, {"display_description", "why"},
@@ -97,37 +97,37 @@ TEST_CASE("web search policy: rewrite_args owns count + query, nothing else") {
     CHECK(out["display_description"] == "why");
     CHECK(out["future_arg"] == 1);
 
-    // No query, wrong type: left for mcp-cpp to reject with its own error.
+    // 无查询, 类型错误 : 留给 mcp-cpp 以自有错误拒绝。
     CHECK((sc::rewrite_args(c, json{{"query", 3}})["query"] == 3));
     CHECK(sc::rewrite_args(c, json::array()).is_array());
 
-    // Defaults are Auto: the count is the model's, so nothing is written for
-    // it; the query still gets exclusions in the wire shape.
+    // 默认是Auto:计数是模型的,所以没有为它写;
+    // 查询仍然得到传输形状的排除.
     const json plain = sc::rewrite_args(sc::Config{}, json{{"query", "x"}});
     CHECK(plain["query"] == "x");
     CHECK(!plain.contains("count"));
 
-    // On applies the user's default when the model is silent.
+    // 操作时, 当模型静默时, 应用用户的默认值。
     sc::Config on; on.mode_text = "on";
     CHECK(sc::rewrite_args(on, json{{"query", "x"}})["count"] == 10);
 }
 
 TEST_CASE("web search policy: auto passes the model's count through untouched") {
-    sc::Config c;                       // auto by default
+    sc::Config c;                       // 默认自动
     CHECK(sc::mode(c) == sc::Mode::Auto);
-    // The model asks for 50; Auto neither clamps it nor fills a default in.
+    // 模型要求50;自动既不夹住它,也不填充默认值.
     CHECK(sc::rewrite_args(c, json{{"query", "x"}, {"count", 50}})["count"] == 50);
-    // Exclusions still apply in Auto.
+    // 排除条款仍然适用于Auto。
     c.exclude_sites = "pinterest.com";
     CHECK(sc::rewrite_args(c, json{{"query", "x"}})["query"] == "x -site:pinterest.com");
-    // A typo or hand edit reads as Auto, never as On or Off.
+    // 字典或手编辑读作 Auto, 绝不是 On 或 Out。
     sc::Config typo; typo.mode_text = "ON ";
     CHECK(sc::mode(typo) == sc::Mode::Auto);
 }
 
 TEST_CASE("web search policy: every web_search.* row round-trips through the registry") {
-    // The same contract smart_settings_roundtrip pins for Smart Mode: a row
-    // the pane can show must be writable back, whatever its control type.
+    // 同一合同 smart_settings_roundtrip 智能
+    // 模式的针: 列 面板 能够显示必须可以写回, 不管它的控制类型。
     int seen = 0;
     for (const auto& d : reg::kSettings) {
         if (d.owner() != reg::Owner::WebSearch) continue;
@@ -144,21 +144,21 @@ TEST_CASE("web search policy: every web_search.* row round-trips through the reg
             case reg::Type::Int:
                 CHECK(reg::set(c, d, "3"));
                 CHECK(reg::get(c, d) == "3");
-                // Clamped on the way in, from every source.
+                // 冲进来的路上,从每个来源。
                 CHECK(reg::set(c, d, "100000"));
                 CHECK(reg::get(c, d) == std::to_string(static_cast<int>(d.max)));
                 break;
             case reg::Type::Text:
                 CHECK(reg::set(c, d, "pinterest.com\nmedium.com"));
-                // A pasted newline cannot reach settings.json.
+                // 粘贴的新线无法达到settings.json.
                 CHECK(reg::get(c, d) == "pinterest.commedium.com");
                 CHECK(reg::set(c, d, ""));
                 CHECK(reg::is_default(c, d));
                 break;
             case reg::Type::Enum: {
-                // Every declared option round-trips (web_search.mode, the three
-                // service slots, language); case is folded to the canonical
-                // word; anything else is refused and leaves the row unchanged.
+                // 每一轮宣布的选项回合 -trips (
+                // web_search.mode ,三个服务槽,
+                // 语言);案件折叠到犬字;其他任何内容都拒绝,使行不变.
                 INFO(d.id);
                 std::vector<std::string> opts;
                 for (std::string_view rest = d.options; !rest.empty();) {
@@ -182,14 +182,14 @@ TEST_CASE("web search policy: every web_search.* row round-trips through the reg
                 break;
             }
             case reg::Type::Real:
-                CHECK(false);   // no search row uses this today
+                CHECK(false);   // 今天没有搜索行使用此功能
                 break;
         }
         reg::reset(c, d);
         CHECK(reg::is_default(c, d));
     }
-    // Named, not counted (an exact count fails for being right when a row is
-    // added): the rows the pane and the plan depend on must all be here.
+    // 命名, 不计数( 当添加一行时, 准确的计数失败
+    // ) : 列的面板 和计划所依赖的必须全部在这里。
     CHECK(seen >= 8);
     for (const char* id : {"web_search.mode", "web_search.count", "web_search.max_count",
                            "web_search.exclude_sites", "web_search.primary",
@@ -202,16 +202,16 @@ TEST_CASE("web search policy: every web_search.* row round-trips through the reg
 }
 
 TEST_CASE("web search policy: the row a user sees first is the master switch") {
-    // The pane walks the table in order; the on/off row leads so it is the
-    // one the cursor opens on.
+    // 电话 面板 将桌子按顺序排列; on/off 排行引线,
+    // 所以是光标打开的。
     const reg::SettingDef* first = nullptr;
     for (const auto& d : reg::kSettings)
         if (d.owner() == reg::Owner::WebSearch) { first = &d; break; }
     REQUIRE(first != nullptr);
     CHECK((first->id == std::string_view{"web_search.mode"}));
     CHECK(first->type == reg::Type::Enum);
-    // auto first: the dropdown opens on the default, and the order the pane
-    // shows is the order the test helpers step through.
+    // 自动第一:默认情况下的下拉打开,
+    // 面板显示的顺序是测试帮助者步入的命令.
     CHECK(first->options == std::string_view{"auto|on|off"});
 }
 
@@ -231,14 +231,14 @@ TEST_CASE("web search policy: AGENTTY_WEB_SEARCH accepts boolean spellings") {
 #endif
         return sc::mode(c);
     };
-    // Old spellings: false is off; true was "available, model picks the
-    // count" — Auto, never On (On would start clamping unasked).
+    // 旧拼写:假的已关闭;真实的为"available, model picks the count"
+    // ——Auto,从不On(On将开始夹住未询问的).
     for (const char* v : {"0", "false", "no", "OFF"}) CHECK(with(v) == sc::Mode::Off);
     for (const char* v : {"1", "true", "yes"})        CHECK(with(v) == sc::Mode::Auto);
-    // The mode words themselves.
+    // 模式词本身。
     CHECK(with("on")   == sc::Mode::On);
     CHECK(with("On")   == sc::Mode::On);
     CHECK(with("auto") == sc::Mode::Auto);
-    // Junk is ignored: the default stands.
+    // 容克被忽略:默认站.
     CHECK(with("maybe") == sc::Mode::Auto);
 }

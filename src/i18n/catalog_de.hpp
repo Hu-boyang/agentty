@@ -1,35 +1,35 @@
-// agentty::i18n — the German catalog.
+// agentty::i18n-德国目录。
 //
-// Why German is the SECOND language and not, say, Spanish: it is the longest.
-// Measured on real agentty labels, de runs 1.35-1.61x English, and the
-// pressure point is the settings panes, which are two columns inside a hard
-// frame. If the layout survives German it survives every other Latin-script
-// language in the set. (Chinese is the other extreme -- half the width, twice
-// the columns per character -- and is the next one to land for the same
-// reason.)
+// 为什么德语是SECOND语言而不是西班牙语：它是最长的。
+// 在真实的agentty标签上测量，德运行1.35-1.61x英文，
+// 压力点是设置面板，其是硬帧内的两列。如果布局在德语中幸存下来，
+// 那么它在该集合中的所有其他拉丁语-script语言中都幸存下来。
+// （中文是另一个极端——宽度是一半，每个字符的列
+// 数是两倍——并且是下一个出于同样原因登陆
+// 的。）
 //
-// TRANSLATION NOTES, written down because the next person to touch these will
-// otherwise "fix" them:
+// TRANSLATION NOTES，写下来，因为下一个接触这些的
+// 人将会"fix"：
 //
-//   * "Sandbox" stays "Sandbox". German tech German borrows it, and
-//     "Sandkasten" means a children's play area. Same for "Tokens".
+//   * "Sandbox" 保持 "Sandbox"。德国科技德国人借用了它，并且
+//     "Sandkasten"表示儿童游乐区。与 "Tokens" 相同。
 //
-//   * Row labels are NOUN PHRASES, not sentences, matching the English. German
-//     capitalises every noun, so "Auch lesbar" is correct where an English
-//     reader might expect "Auch Lesbar" -- lesbar is an adjective.
+//   * 行标签是NOUN PHRASES，不是句子，匹配英文。德语
+//     每个名词都大写，因此 "Auch lesbar" 是正确的，
+//     而英语读者可能期望 "Auch Lesbar"——lesbar 是形容词。
 //
-//   * Help lines keep the English's lower-case opening and its "·" separators.
-//     They are fragments, not sentences, and the punctuation is load-bearing
-//     in the layout.
+//   *帮助行保留英语的下-case开头及其"·"分隔符。
+//     它们是片段，不是句子，布局中标点符号为加载
+//     -bearing。
 //
-//   * The one deliberate shortening is appearance.help.prose_width: the
-//     literal translation runs 71 columns against the English's 53, which
-//     overflows the help slot at 80 columns. "Fließtext" for "assistant text"
-//     is the standard typographic term and buys back 12.
+//   * 一个有意缩短的是appearance.help.prose_width：
+//     直译运行71列，而英语运行53列，这在80列处溢出了帮助槽。
+//     "assistant text" 的 "Fließtext"
+//     是标准印刷术语，回购 12 个。
 //
-// UNTRANSLATED ON PURPOSE: nothing here. This catalog is complete against
-// en.json as of this commit, which is what makes it useful as a layout test
-// -- a partial catalog would fall back to English and hide the overflow.
+// UNTRANSLATED ON PURPOSE：这里什么都没有。
+// 截至本次提交，这个 目录 相对于 en.json 是完整的，
+// 这使得它作为布局测试很有用——部分 目录 将回退到英语并隐藏溢出。
 
 #include <string_view>
 

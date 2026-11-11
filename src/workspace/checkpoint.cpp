@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// checkpoint.cpp — git-based workspace checkpoints (see header for the
-// contract). Design mirrors Zed's agent checkpoints: a parentless commit
-// object pinned under refs/agentty/checkpoints/<id>, built against a
-// THROWAWAY index file so the user's real index, HEAD, stash and reflog
-// are never disturbed. The commit is invisible to normal git porcelain
-// (no branch points at it) and survives until pruned by our own
-// keep-count policy or a `git gc` after the ref is deleted.
+// checkpoint.cpp - 盖特 -based 工作区 检查
+// 站(见 头文件 设计镜像 Zed 的代理检查站:无父母承诺的物体被钉在
+// 下面 refs/agentty/checkpoints/<id> ,
+// 针对 THROWAWAY 索引文件,所以用户的真实索引, HEAD ,
+// 隐藏和反转记录从未被扰动。承诺对普通的 ⁇ 瓷(没有分枝点)是看不见的,
+// 并且会生存到被我们自己的保存所磨灭为止。 -count
+// 政策或一个 `git gc` 可在删除参考后删除。
 
 #include "agentty/workspace/checkpoint.hpp"
 #include "agentty/util/digits.hpp"
@@ -36,7 +36,7 @@
 #  endif
 #  include <windows.h>   // GetCurrentProcessId
 #else
-#  include <unistd.h>    // getpid
+#  include <unistd.h>    // 发作
 #endif
 
 namespace agentty::workspace {
@@ -46,62 +46,62 @@ namespace util = agentty::tools::util;
 
 namespace {
 
-// Keep at most this many checkpoint refs; oldest beyond the cap are
-// dropped at create time. 64 user turns of history is plenty — restore
-// targets are almost always the last handful of turns, and each ref
-// pins whole blobs for every file that has since changed.
+// 最多保留这么多的检查站裁判;最古老的超过上限
+// 的是在创建时间被放弃. 64个用户历史转折是充足
+// 的——恢复目标几乎总是最后的几圈转折,
+// 每个裁判为后来改变的每个文件都打出整圈的针.
 constexpr int kKeepCheckpoints = 64;
 
 constexpr std::string_view kRefPrefix = "refs/agentty/checkpoints/";
 
 struct RepoInfo {
     bool        in_repo = false;
-    std::string root;      // worktree top-level (absolute)
-    std::string git_dir;   // absolute .git dir (worktree-aware)
+    std::string root;      // 工作树顶端-level(绝对)
+    std::string git_dir;   // 绝对数.git dir( 工作树-aware)
 };
 
-// Trim trailing newline(s) a git plumbing call leaves on single-line output.
+// 沿新线线的引线 调用 单叶 -line 输出。
 std::string chomp(std::string s) {
     while (!s.empty() && (s.back() == '\n' || s.back() == '\r')) s.pop_back();
     return s;
 }
 
-// Discover the enclosing repo ONCE per process. Repo-ness and layout
-// don't change mid-session; caching avoids two subprocess spawns per
-// checkpoint. (A user running `git init` mid-session picks it up on
-// restart — acceptable.)
+// 发现附件 仓库 一次 每个进程。 仓库-ness 和布局不改变中点
+// -session ; 缓存每个检查点避免两个子进程产物。
+// (用户运行) `git init` 中点 -session 重新启动
+// 时捡起它——可接受。 )
 //
-// We probe from the PROCESS CWD, not util::workspace_root(). The
-// workspace root is the filesystem *access* boundary and is routinely
-// widened (`-w /` for full-disk power) — but `-w /` must not make the
-// checkpoint layer think the project is `/` (which is never a repo, so
-// checkpoints would silently die). cwd is the directory the user
-// launched agentty from — i.e. their project — and agentty never
-// chdir's away from it, so `git -C <cwd> rev-parse` walks up to the
-// real enclosing repo regardless of how wide the sandbox gate is.
-// Falls back to the workspace root if cwd is somehow unreadable.
+// 我们从这里探险 PROCESS CWD ,
+// 没有 util::workspace_root () 有关 工作区
+// root 是文件系统 * 访问 * 边界, 并例行拓宽( Q) `-w /`
+// 全部用于 -disk ——但, `-w /` 千万不要让检查层认为工程
+// 是 `/` (这从来就不是) 仓库 )cwd是用户启动的目录。
+// agentty 调自 -- -- i.e . 其项目——和
+// agentty 永远不要离它而去 所以 `git -C <cwd> rev-parse`
+// 走到真正的包围 仓库 不管我们有多宽 沙箱 门是。
+// 如果cwd不知何故无法读取,则会倒回到工作区根.
 const RepoInfo& repo() {
     static const RepoInfo info = [] {
         RepoInfo r;
-        // The ACTIVE PROJECT (cwd clamped inside the access boundary), not
-        // the raw boundary: `-w /` must not make the checkpoint layer think
-        // the project is `/`. project_root() centralises this cwd-vs-boundary
-        // resolution (shared with git tools + normalize_path).
+        // 活动 PROJECT(在进入边界内夹住),而不是原始边界:
+        // `-w /`不得使检查站层认为工程是`/`.
+        // project_root()集中了这个cwd-vs-boundary分辨率
+        // (与git工具+normalize_path共享).
         std::string ws = util::project_root().string();
         if (ws.empty()) ws = util::workspace_root().string();
-        // ONE spawn, not two. `git rev-parse` prints each requested value on
-        // its own line in option order, so a single invocation yields both
-        // the worktree top-level (line 1) and the absolute git dir (line 2).
-        // Process creation is the expensive part on Windows, and this probe
-        // sits on the first turn's critical path (submit_message ->
-        // in_git_repo) -- halving the spawns halves that cost.
+        // 一个 产卵,不是两个。 `git rev-parse` 按
+        // 选项顺序打印每个请求的值, 因此单引用即可同时生成工作树顶
+        // -level (第1行)和绝对的git dir(第2行)。
+        // 过程创建是昂贵的 Windows ,这个探测器坐落在第一个转弯的关键
+        // 路径上( submit_message -> in_git_repo
+        // ) -- -- 将产卵量减半,使成本减半。
         auto res = util::run_argv_s(
             {"git", "-C", ws, "rev-parse", "--show-toplevel",
              "--absolute-git-dir"}, 8192, std::chrono::seconds{10});
         if (!res.started || res.exit_code != 0) return r;
         std::string out = res.output;
         const auto nl = out.find('\n');
-        if (nl == std::string::npos) return r;   // need both lines
+        if (nl == std::string::npos) return r;   // 需要两行
         r.root    = chomp(out.substr(0, nl));
         r.git_dir = chomp(out.substr(nl + 1));
         r.in_repo = !r.root.empty() && !r.git_dir.empty();
@@ -110,10 +110,10 @@ const RepoInfo& repo() {
     return info;
 }
 
-// Run git with GIT_INDEX_FILE pointing at our scratch index. POSIX gets
-// the coreutils `env` prefix (always present on Linux/macOS); Windows
-// routes through cmd's `set … &&` shell form. Output capped generously —
-// plumbing output here is refs/paths, not file bodies.
+// 运行时带 GIT_INDEX_FILE 指着我们的刮伤指数。 POSIX
+// 获取核心 `env` 前缀( 总是在 Linux/macOS);
+// Windows 途经 CMD 的路线 `set … &&` 外壳形式。 输出封顶慷慨,
+// 这里有管道输出。 refs/paths ,而非文件 正文.
 util::SubprocessResult run_git_scratch(const std::string& index_file,
                                        std::vector<std::string> git_argv,
                                        std::size_t max_bytes = 512 * 1024) {
@@ -146,10 +146,10 @@ bool ok(const util::SubprocessResult& r) {
     return r.started && !r.timed_out && r.exit_code == 0;
 }
 
-// Scratch index files left behind by a process killed mid-operation. A git
-// call here may run 120s, so only files idle well past that are stale; a
-// live operation (this process or another agentty) touches its file.
-// Swept every 16th new one, which is often enough.
+// 切除进程中被杀死的索引文件 -operation。一个基特 调用
+// 这里可能运行120,所以只有文件闲置 远过去,这是 过期 ;
+// 运行(此进程或其它进程) agentty ) 触摸其档案.
+// 每十六新洗一汗,常足为足.
 void sweep_stale_scratch_indexes() {
     std::error_code ec;
     const auto cutoff = fs::file_time_type::clock::now() - std::chrono::minutes{10};
@@ -162,22 +162,22 @@ void sweep_stale_scratch_indexes() {
     }
 }
 
-// Scratch index path inside the git dir, UNIQUE per call. Seeded from a
-// COPY of the real index so `add -A` only re-hashes files whose stat info
-// changed — without the seed, every checkpoint would re-hash the entire
-// worktree. Distinct files per operation replace the old guarded lock:
-// its body spanned the git subprocesses, and exec.cpp's Windows
-// stdin-feeder join mints thread_root inside run_child — a capability
-// minted under a held lock aborts (jaal), which killed the process on the
-// first submit in a repo. With one index file per operation the lock has
-// nothing left to guard, and the create-vs-restore worktree race stays
-// excluded at the app level (restore runs only from Idle with
-// thread_loading set; submit refuses while it is).
+// 切除 git dir 内的索引路径, UNIQUE 百分比 调
+// 用 种子从a COPY 实际指数的数值 `add -A` 仅重
+// -hashes 数据信息有变化的文件——没有种子,
+// 每个检查点都会重新 -hash 将每个操作的区分文件替换为旧的守护 锁:
+// 编号 正文 跨越了 git 子进程, 以及 exec.cpp's
+// Windows 标准 -feeder 加入薄荷块 thread_root
+// 内 run_child 被扣押的 锁 中止( 3) jaal ),
+// 从而在第一次提交(A/C.5/52/L.48)中使进程失去活力。 仓库。
+// 每个操作有一个索引文件, 锁 没有什么可以保护的, 和创造者 -vs-restore
+// 工作树 竞态 保留在应用程序级别( 仅从 Idle 运行到
+// thread_loading 设置; 拒绝时提交。
 std::string prepare_scratch_index() {
     static std::atomic<unsigned> seq{0};
     const unsigned n = seq.fetch_add(1, std::memory_order_relaxed);
     if (n % 16 == 0) sweep_stale_scratch_indexes();
-    // pid in the name too: two agentty in one repo must not share a file.
+    // 名字里也写着"皮德": 2 agentty 在一个 仓库 不可共享文件。
 #ifdef _WIN32
     const unsigned long pid = ::GetCurrentProcessId();
 #else
@@ -190,8 +190,8 @@ std::string prepare_scratch_index() {
     fs::remove(idx, ec);
     fs::copy_file(fs::path(repo().git_dir) / "index", idx,
                   fs::copy_options::overwrite_existing, ec);
-    // Copy failure (fresh repo with no index yet) is fine — git creates
-    // the scratch index from scratch, just slower.
+    // 复制失败( 新鲜的仓库 尚未有索引) 是好的 ——
+    // git 从头创建抓痕指数, 速度更慢。
     return idx.string();
 }
 
@@ -204,17 +204,17 @@ std::string ref_for(const std::string& id) {
     return std::string{kRefPrefix} + id;
 }
 
-// Delete oldest checkpoint refs beyond kKeepCheckpoints. creatordate
-// sorts oldest-first; everything before the keep-window tail goes.
+// Delete 检查点以外的最古老的检查点。 Creativedate somes
+// older -first ; 保存前的一切 -window 末尾 继续
 //
-// Two creates can prune at once now (no lock). Each delete names the commit
-// the ref held when listed, so git drops it only if nobody moved it since;
-// a ref another prune already deleted just fails that one call.
+// 两个创造可以同时磨磨( 不) 锁。每个删除列表中
+// 包含的强制值, 只有当此后没有人移动它时,
+// 才会放弃; 已删除的强制值则失败。 调用.
 void prune_old_checkpoints() {
     auto r = run_git({"for-each-ref", "--sort=creatordate",
                       "--format=%(refname) %(objectname)", std::string{kRefPrefix}});
     if (!ok(r)) return;
-    std::vector<std::pair<std::string, std::string>> refs;   // ref, sha
+    std::vector<std::pair<std::string, std::string>> refs;   // 参考书目,sha
     std::istringstream in(r.output);
     for (std::string line; std::getline(in, line); ) {
         line = chomp(std::move(line));
@@ -227,18 +227,18 @@ void prune_old_checkpoints() {
         (void)run_git({"update-ref", "-d", refs[i].first, refs[i].second});
 }
 
-// Repo-relative paths of every file recorded in the checkpoint tree.
+// 仓库-relative 检查点中记录的每个文件的路径 源码树.
 //
-// NEWLINE-separated, NOT -z: the subprocess runner scrubs terminal control
-// bytes from all captured output (strip_terminal_controls), and NUL is a
-// C0 control — every \0 separator was silently dropped, the parser found
-// no separators, and both listings came back EMPTY. Restore's delete-half
-// (remove files created after the checkpoint) never ran, and the summary
-// baseline was wrong. -c core.quotePath=false emits raw UTF-8 bytes (no
-// C-style quoting of non-ASCII names); a filename containing a NEWLINE is
-// still ambiguous in this format, so such entries are skipped defensively
-// (git quotes them even with quotePath=false, and a quoted entry starts
-// with '"' — filter those rather than mis-delete).
+// NEWLINE-separated, 不 -z : 子进程运行器擦除
+// 终端 控制 字节 全部捕获产出( strip_terminal_controls ),
+// 以及 NUL 是一个 C0 控制器 – 每个\0 分隔符被默默地丢弃,
+// 解析器 没有分离器, 和两个列表都回来了 空 恢复 -half
+// (删除检查站后创建的文件)从未运行,简要基线错误.
+// -c core.quotePath =假发生 UTF-8 字节
+// (无C) -style 引用非 -ASCII 名称); 包含一个
+// NEWLINE 格式上仍然模糊不清,因此这些条目被防守性跳过(
+// 引用时甚至有 quotePath =虚假,引用条目的开头是 '"'
+// ——过滤这些而不是错误 -delete).
 bool snapshot_paths(const std::string& commit,
                     std::unordered_set<std::string>& out) {
     auto r = run_git({"-c", "core.quotePath=false",
@@ -254,9 +254,9 @@ bool snapshot_paths(const std::string& commit,
     return true;
 }
 
-// Repo-relative paths of everything present in the worktree right now:
-// tracked (-c) plus untracked-but-not-ignored (-o --exclude-standard).
-// Same newline/quotePath rationale as snapshot_paths.
+// 仓库-relative 工作树上的一切道路:
+// 跟踪( -c 加上未跟踪 -but-not-ignored (-o --exclude-standard).
+// 一样 newline/quotePath 理由说明 snapshot_paths.
 bool current_paths(std::vector<std::string>& out) {
     auto r = run_git({"-c", "core.quotePath=false",
                       "ls-files", "-c", "-o", "--exclude-standard"},
@@ -271,32 +271,32 @@ bool current_paths(std::vector<std::string>& out) {
     return true;
 }
 
-} // namespace
+} // 命名空间结束。
 
 bool in_git_repo(Io) { return repo().in_repo; }
 
-// Set true once repo() has been forced at least once (by the startup
-// prewarm OR by any earlier blocking caller). The submit path reads this to
-// decide whether in_git_repo() would answer instantly (cache warm) or would
-// have to spawn `git` on the UI thread (cache cold). See
-// in_git_repo_if_ready().
+// 一旦repo()至少被迫一次(由启动前的OR由任何较早的
+// 阻断呼叫者强制),则设定为真。提交路径读取此文,
+// 以决定in_git_repo()是立即回答(缓存温暖),还是必须在UI线程
+// (缓存寒冷)上产出`git`。
+// 见in_git_repo_if_ready()。
 namespace {
 std::atomic<bool> g_repo_ready{false};
 }
 
 std::optional<bool> in_git_repo_if_ready(Io) {
     if (!g_repo_ready.load(std::memory_order_acquire)) return std::nullopt;
-    return repo().in_repo;   // cache already built: this is a pure field read
+    return repo().in_repo;   // 已经建的 缓存 : 这是一个纯字段 读取
 }
 
 void prewarm_repo_info(std::stop_token stop) {
-    // SYNCHRONOUS. Touching repo() forces its function-local static to
-    // initialise, running the two `git rev-parse` probes here instead of
-    // on the first submit.
+    // SYNCHRONOUS 触摸( 触摸) repo() 强制其职能 -local
+    // 静态到备忘列表, 运行两个 `git rev-parse` 这里的探测
+    // 器 而不是第一次提交。
     //
-    // Runs as Cmd::task_isolated. At shutdown jaal stops `stop` and waits
+    // 运行为 Cmd::task_isolated 关闭时 jaal 停止( L) `stop` 等待着
     // for us to return; the probe fills a static, so skip it once stopped
-    // or a fast exit races static destruction.
+    // 或快速出口竞态静态破坏.
     if (stop.stop_requested()) return;
     (void)repo();
     g_repo_ready.store(true, std::memory_order_release);
@@ -305,12 +305,12 @@ void prewarm_repo_info(std::stop_token stop) {
 namespace {
 bool create_checkpoint_locked(const std::string& id);
 
-// Tree id of the current worktree, built in a scratch index (seeded from
-// the real one so `add -A` only re-hashes changed files). nullopt on failure.
+// 源码树 以刮痕指数构建的当前工作树的 id(种子来自真实的)
+// `add -A` 仅重 -hashes 已更改文件),失败时无效。
 std::optional<std::string> worktree_tree() {
     const std::string idx = prepare_scratch_index();
-    // --ignore-errors: an unreadable file (perms, vanished mid-scan) degrades
-    // to "not in the tree", not a failure.
+    // --ignore-errors : 一个无法读取的文件( 纸质, 中段已消失) -scan 降解为
+    // "not in the tree" 而不是失败。
     if (!ok(run_git_scratch(idx, {"git", "-C", repo().root, "add", "-A",
                                   "--ignore-errors"}))) {
         drop_scratch_index(idx);
@@ -321,32 +321,32 @@ std::optional<std::string> worktree_tree() {
     if (!ok(tree)) return std::nullopt;
     return chomp(tree.output);
 }
-} // namespace
+} // 命名空间结束。
 
 CheckpointDiff checkpoint_summary(const std::string& id) {
     CheckpointDiff out;
     if (!repo().in_repo || id.empty()) return out;
 
-    // Resolve the checkpoint commit; bail quietly if it was pruned.
+    // 解决检查站的犯案问题;如果被查封,则不动声色地保释。
     auto rev = run_git({"rev-parse", "--verify", "--quiet",
                         ref_for(id) + "^{commit}"});
     if (!ok(rev)) return out;
     const std::string commit = chomp(rev.output);
 
-    // Build a throwaway tree of the CURRENT worktree exactly like
-    // create_checkpoint does (scratch index seeded from the real one so
-    // `add -A` only re-hashes changed files), then numstat-diff the
-    // checkpoint tree against it. Doing it tree-vs-tree (not
-    // tree-vs-worktree) keeps the untracked/new-file accounting identical
-    // to what a rewind would actually revert.
+    // 建造丢弃 源码树 会 议 日 程 和 议 程 当前 工作树完全
+    // 一样 create_checkpoint 做(从真种中切出索引)
+    // `add -A` 仅重 -hashes 已更改文件,然后是数字
+    // -diff 检查站 源码树 对抗它,做它 源码树-vs-tree
+    // (无) 源码树-vs-worktree 保持其历史
+    // untracked/new-file 与实际回落的倒数相同。
     const auto tree = worktree_tree();
     if (!tree) return out;
     const std::string& cur_tree = *tree;
 
-    // --numstat: one line per changed file, "<added>\t<deleted>\t<path>".
-    // Binary files report "-\t-\t<path>" — counted as a changed file, no
-    // line deltas. -M enables rename detection so a moved file is one
-    // change, not an add+delete pair.
+    // --numstat : 每更改文件一条行, "<added>\t<deleted>\t<path>".
+    // 二进制程序 文件报表 "-\t-\t<path>" ——算作一个已更改的文件,
+    // 没有线条三角洲. -M 允许重命名检测, 因此移动的文件是更改,
+    // 而不是添加+删除对。
     auto ns = run_git({"diff", "--numstat", "-M", commit, cur_tree},
                       16 * 1024 * 1024);
     if (!ok(ns)) return out;
@@ -356,8 +356,8 @@ CheckpointDiff checkpoint_summary(const std::string& id) {
         line = chomp(std::move(line));
         if (line.empty()) continue;
         ++out.files_changed;
-        // Parse the two leading tab-separated integer columns; "-" (binary)
-        // contributes zero line deltas but still a changed file.
+        // 解析 双主标签 -separated 整数列; "-" (二
+        // 进制程序 ) 提供零行三角洲,但仍是一个已更改的文件.
         auto t1 = line.find('\t');
         if (t1 == std::string::npos) continue;
         auto t2 = line.find('\t', t1 + 1);
@@ -382,14 +382,14 @@ bool create_checkpoint(const std::string& id) {
 
 namespace {
 bool create_checkpoint_locked(const std::string& id) {
-    // Stage EVERYTHING (tracked changes + new files, deletions included).
+    // EVERYTHING阶段(跟踪更改+新文件,包含删除内容).
     const auto tree = worktree_tree();
     if (!tree) return false;
 
-    // Parentless commit: restore never walks history, and no parent
-    // means dropping the ref makes the whole snapshot collectable.
-    // Identity is forced inline so checkpoints work in repos where the
-    // user hasn't configured user.name/email yet.
+    // 无父母责任: 永远不恢复历史, 任何父母都
+    // 无法放弃裁判, 使得整个 快照 是可以收集的。
+    // 身份证被强制内在 所以检查站在工作 仓库 用户未配置的
+    // user.name/email 还没呢
     auto commit = run_git({"-c", "user.name=agentty",
                            "-c", "user.email=checkpoint@agentty",
                            "commit-tree", *tree,
@@ -402,7 +402,7 @@ bool create_checkpoint_locked(const std::string& id) {
     prune_old_checkpoints();
     return true;
 }
-} // namespace
+} // 命名空间结束。
 
 bool checkpoint_exists(const std::string& id) {
     if (!repo().in_repo || id.empty()) return false;
@@ -424,18 +424,18 @@ bool restore_checkpoint(const std::string& id,
     if (!ok(rev)) return fail("checkpoint no longer exists (pruned?)");
     const std::string commit = chomp(rev.output);
 
-    // Snapshot + current file sets FIRST — if either listing fails we
-    // bail before touching a single byte of the worktree.
+    // 快照 + 当前文件集 首次 如果名单中的任何一项都
+    // 失败了 我们先保释再碰上一个 字节 工作树。
     std::unordered_set<std::string> snap;
     if (!snapshot_paths(commit, snap)) return fail("failed to list checkpoint contents");
     std::vector<std::string> now;
     if (!current_paths(now)) return fail("failed to list current files");
 
-    // Rewrite every snapshotted file from the checkpoint tree via a
-    // scratch index: read-tree populates it, checkout-index -a -f
-    // force-writes the files. The real index and HEAD stay untouched —
-    // `git status` afterwards shows the restored state as ordinary
-    // working-tree changes, which is exactly what the user expects.
+    // 重写检查点上的所有快照文件 源码树 通过刮痕索引:
+    // 已读 -tree 充电, 退票 -index -a
+    // -f 部队 -writes。真实索引和 HEAD 保持无
+    // 动于衷 -- `git status` 之后显示恢复
+    // 状态为普通工作 -tree 更改,这正是用户的期望。
     const std::string idx = prepare_scratch_index();
     const bool wrote =
         ok(run_git_scratch(idx, {"git", "-C", repo().root, "read-tree", commit}))
@@ -444,11 +444,11 @@ bool restore_checkpoint(const std::string& id,
     drop_scratch_index(idx);
     if (!wrote) return fail("failed to write checkpoint files");
 
-    // Delete files that exist now but weren't in the snapshot — the
-    // "agent created a file after this point" half of the rewind.
-    // Ignored files (build outputs, caches) never appear in `now`, so
-    // they survive. Deletion is best-effort; a failed unlink degrades
-    // to a leftover file, not a failed restore.
+    // Delete 已存在但未在 快照 - 电话
+    // "agent created a file after this point" 倒带的一半。
+    // 忽略的文件( 构建输出, ) 缓存 ) 从未出现在
+    // `now` 最好还是删除 -effort ;失败的解链接
+    // 会降解为剩余文件,而不是失败的恢复.
     const fs::path root{repo().root};
     for (const auto& rel : now) {
         if (snap.contains(rel)) continue;

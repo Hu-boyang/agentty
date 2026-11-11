@@ -1,24 +1,24 @@
-# AgenttySources.cmake — the per-domain source group lists. Pure variable
-# declarations (set(AGENTTY_*_SOURCES ...)) consumed by the object libraries
-# and the main exe. No targets, no flags — safe to include anywhere before the
-# objlib/exe definitions.
+# AgenttySources.cmake-per-domain源组列表。
+# 由对象 库 和主 exe 使用的纯变量声明 (set(AGENTTY_*_SOURCES
+# ...))。没有目标，就没有 标志——可以安全地包含在 objlib/exe
+# 定义之前的任何地方。
 
-# ── Source groups, by domain ──────────────────────────────────────────────
-# The header tree under include/agentty/ mirrors this grouping one-for-one:
-#   domain/    — pure value types (no I/O, no UI). Headers only.
-#   io/        — sockets, TLS, HTTP/2, OAuth, on-disk persistence, OS
-#                clipboard. Anything that talks to the kernel or the
-#                wire and isn't tied to a specific provider.
-#   provider/  — wire-format adapters for upstream LLM APIs.
-#   diff/      — unified-diff parser used by the edit tool & review modal.
-#   tool/      — the agent's capability surface: registry + per-tool impls.
-#   workspace/ — pure-I/O scanners over the active workspace root (file
-#                enumeration for @mention, symbol enumeration for #).
-#                Consumed by the runtime's pickers but separate from the
-#                UI state they feed.
-#   airgap/    — the `agentty airgap` CLI subcommand (exec's into ssh,
-#                never returns).  Not part of the maya runtime.
-#   runtime/   — the Elm-style app: model, update, subscriptions, view tree.
+# ── 按域分列的来源组 ──────────────────────────────────────────────
+# include/agentty/下的头文件 源码树镜像该分组一个-for-one：
+#   domain/-纯值类型(没有I/O，没有UI)。仅限 头文件。
+#   io/ — 套接字、TLS、HTTP/2、OAuth、
+#                on-disk 持久化、OS 剪贴板。
+#                任何与内核或 传输 对话且不依赖于特定提供商的内容。
+#   provider/ —用于 上游 LLM API 的 传输-format 适配器。
+#   diff/ —由编辑工具和审阅弹出面板使用的统一-diff 解析器。
+#   tool/-代理的能力表面：注册表 + per-tool impls。
+#   workspace/ — pure-I/O 扫描器扫描活动的 工作区
+#                根（@mention 的文件枚举，# 的 符号 枚举）。
+#                由 运行时 的 选择面板 消耗，但与它们供给的
+#                UI 状态分开。
+#   airgap/ — `agentty airgap` CLI 子命令（执行到 ssh，
+#                从不返回）。  不是 maya 运行时 的一部分。
+#   runtime/—Elm-style应用程序：模型、更新、事件订阅、视图源码树。
 
 set(AGENTTY_IO_SOURCES
     src/version.cpp
@@ -78,9 +78,9 @@ set(AGENTTY_PROVIDER_SOURCES
     src/provider/chatgpt/provider.cpp
     src/provider/chatgpt/codex_oauth.cpp
     src/provider/chatgpt/responses.cpp
-    # The OpenAI Responses-API dialect, shared by every host that speaks it
-    # (ChatGPT/Codex today, GitHub Copilot next). Extracted from
-    # chatgpt/responses.cpp — see responses/responses.hpp for the contract.
+    # OpenAI响应-API方言，由讲该方言的每个主机共享（今天是ChatGPT/Codex，
+    # 接下来是GitHub副驾驶）。摘自 chatgpt/responses.cpp
+    # ——合同见 responses/responses.hpp。
     src/provider/responses/codec.cpp
     src/provider/copilot/provider.cpp
     src/provider/copilot/copilot_oauth.cpp
@@ -90,44 +90,44 @@ set(AGENTTY_PROVIDER_SOURCES
     src/provider/openai/responses_site.cpp
     src/provider/ollama/transport.cpp
     src/provider/selection.cpp
-    # Registry predicates that need a provider's own knowledge (the
-    # model-aware reasoning-text answer consults Copilot's dialect table).
+    # 注册表谓词需要提供者自己的知识（模型
+    # -aware推理-text答案查阅Copilot的方言表）。
     src/provider/registry.cpp
     src/provider/dialect.cpp
     src/provider/credentials.cpp
     src/provider/auth_state.cpp
     src/provider/prompt_policy.cpp
-    # The ONE provider-routing seam — dispatch_stream(). Provider-agnostic
-    # (type-erased Routes, incl. the ACP arm), so it has no acp-TU dependency
-    # and lives in the provider objlib every test links. main.cpp binds the
-    # long-lived + external routes; dispatch just routes on the Selection.
+    # ONE提供者-routing 接口边界 —dispatch_stream()。
+    # Provider-agnostic（类型 -erased 路由，包括 ACP 臂），
+    # 因此它没有 acp-TU 依赖性，并且每次测试 链接 都存在于提供程序 objlib 中。
+    # main.cpp绑定long-lived+外部路由； 分派 仅在选择上进行路由。
     src/provider/dispatch.cpp
-    # ACP agent launch registry (config loader). Pure nlohmann/json, no acp-cpp
-    # dep, and referenced by selection.cpp (is_acp_agent_id) — so it lives in
-    # the provider objlib every test links, NOT in agentty_acp_obj.
+    # ACP代理启动注册表(配置加载器)。纯 nlohmann/json，没有 acp-cpp 依赖，
+    # 并由 selection.cpp (is_acp_agent_id) 引用 - 因此它存在于
+    # agentty_acp_obj 中每次测试 链接、不 的提供程序 objlib 中。
     src/provider/acp_agents.cpp
 )
 
-# ACP (Agent Client Protocol) — lets agentty run as a headless agent
-# subprocess that Zed (or any ACP client) drives over JSON-RPC on stdio.
-# The wire protocol/engine/transport live in the acp-cpp submodule (linked
-# as acp::acp); server.cpp is the agentty-specific glue (turn loop + tools).
+# ACP (代理客户端协议）-让 agentty 作为 Zed (或任何 ACP
+# 客户端）在 stdio 上的 JSON-RPC 上驱动的无头代理子进程运行。
+# 传输 protocol/engine/transport存在于acp-cpp 子模块中(链接为
+# acp::acp)； server.cpp 是 agentty-specific 胶水（转环 + 工具）。
 set(AGENTTY_ACP_SOURCES
     src/acp/server.cpp
     src/provider/external_acp_backend.cpp
     src/provider/acp_provider_adapter.cpp
 )
 
-# MCP (Model Context Protocol) client glue — spawns external MCP servers and
-# exposes their tools as agentty ToolDefs. The heavy mcp-cpp templates are
-# confined to these TUs (linked as mcp::mcp). Only compiled when AGENTTY_MCP.
+# MCP (Model上下文协议)客户端粘合——产生外部MCP服务器并将其工具
+# 公开为agentty ToolDefs。重型 mcp-cpp 模板仅限于
+# 这些 编译单元（链接为 mcp::mcp）。仅在AGENTTY_MCP时编译。
 set(AGENTTY_MCP_SOURCES
-    # The JSON-RPC peer both MCP and ACP run on. Here, in the objects every
-    # binary links, because MCP connections use it.
+    # JSON-RPC、对端两者都在MCP和ACP上运行。这里，在对象中每个
+    # 二进制程序 链接，因为 MCP 连接使用它。
     src/rpc/peer.cpp
     src/mcp/bridge.cpp
-    # Adopting another tool's servers, rather than growing a sixth read root
-    # for each one. See include/agentty/mcp/import.hpp for the argument.
+    # 采用另一工具的服务器，而不是为每个工具增加第六个读根。有关参数，
+    # 请参阅 include/agentty/mcp/import.hpp。
     src/mcp/import.cpp
     src/foreign/sessions.cpp
     src/mcp/connection.cpp
@@ -142,9 +142,9 @@ set(AGENTTY_DIFF_SOURCES
     src/diff/diff.cpp
 )
 
-# The RAG engine is now the external rag-cpp library (submodule rag-cpp/,
-# target ragcpp::ragcpp). Only the thin agentty adapter that maps the app's
-# retrieval boundary onto rag::Engine remains in-tree.
+# RAG引擎现在是外部rag-cpp 库 (子模块 rag-cpp/，
+# 目标ragcpp::ragcpp)。只有将应用程序的检索边界映射到 rag::Engine
+# 的瘦 agentty 适配器保留在 -tree 中。
 set(AGENTTY_RAG_SOURCES
     src/rag/adapter.cpp
     src/rag/embed_backend.cpp
@@ -164,20 +164,20 @@ set(AGENTTY_TOOL_SOURCES
     src/tool/web_search_secret.cpp
     src/scope/scope.cpp
     src/scope/trust.cpp
-    # The app-level inventory: the ONE declaration of every Layout/Spec, read
-    # by the features and printed by `agentty config`. Sits above both
-    # primitives and depends on both; neither knows it exists.
+    # app-level清单：每个Layout/Spec的ONE声明，
+    # 由特征读取并由`agentty config`打印。
+    # 位于两个基元之上并依赖于两者；两人都不知道它的存在。
     src/config/inventory.cpp
-    # The write-side peer of scope. Lives in this group for the same reason
-    # scope does: it needs util::project_root() from tool/util/fs_helpers.
+    # write-side范围为对端。出于与作用域相同的原因生活在这个组中：它需要来自
+    # tool/util/fs_helpers. 的 util::project_root()
     src/dirs/dirs.cpp
     src/tool/progress.cpp
     src/tool/util/utf8.cpp
     src/tool/util/fs_helpers.cpp
     src/tool/util/disk_files.cpp
-    # The ONE place agentty runs another program: mcp-cpp's Exec capability,
-    # implemented over jaal's process + reactor. Replaces the two poll loops
-    # (this tree's subprocess.cpp and mcp-cpp's) that drifted apart.
+    # ONE地方agentty运行另一个程序：mcp-cpp的Exec能力，
+    # 通过jaal的进程+反应器实现。替换两个偏离的轮询循环（源码树 的
+    # subprocess.cpp 和 mcp-cpp 的）。
     src/tool/util/exec.cpp
     src/tool/util/subprocess.cpp
     src/tool/util/sandbox.cpp
@@ -197,8 +197,8 @@ set(AGENTTY_TOOL_SOURCES
     src/tool/memory_store.cpp
 )
 
-# Everything except the entry point — so tests can link the same runtime
-# without fighting main().
+# 除了入口点之外的一切——因此测试可以使链接与运行时相同，
+# 而无需与main()战斗。
 set(AGENTTY_RUNTIME_NOMAIN_SOURCES
     src/runtime/composer_attachment.cpp
     src/runtime/library.cpp
@@ -292,8 +292,8 @@ set(AGENTTY_RUNTIME_NOMAIN_SOURCES
     src/runtime/view/status_bar/status_bar.cpp
     src/runtime/view/changes_strip.cpp
     src/runtime/view/slash_menu.cpp
-    # One panel = one view file (view/panels/<name>.cpp); shared scaffolding
-    # in panels_prologue.hpp / panels_common.hpp / form_common.cpp.
+    # 一个面板=一个视图文件(view/panels/<name>.cpp)； panels_prologue.hpp
+    # / panels_common.hpp / form_common.cpp 共用脚手架。
     src/runtime/view/panels/models.cpp
     src/runtime/view/panels/providers.cpp
     src/runtime/view/panels/thread_list.cpp

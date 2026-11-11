@@ -1,15 +1,15 @@
-// ws_bind_probe — does the SAVED sandbox policy actually reach the walls?
+// ws_bind_probe - 做吗? SAVED 沙箱 保险真的到达墙壁?
 //
-// Two questions, and they have different answers when something is broken:
+// 有两个问题,当有问题被打破时,他们有不同的答案:
 //
-//   1. does ~/.agentty/settings.json round-trip through load_settings()?
-//   2. does the config that load_settings() returns actually shape the
-//      sandbox a real `bash` call lands in?
+//   1. ~/.agentty/settings.json 回合-trip 至load_settings()是否?
+//   2. load_settings() 返回时的配置是否实际塑造了
+//      沙箱 一个真实 `bash` 调用 着陆?
 //
-// Driven through the SHIPPED path on both counts: persistence::load_settings()
-// then sandbox::set_config() in the same order main.cpp uses, then
-// run_shell_command(). A mirrored posture would prove nothing — the bug under
-// investigation is precisely that the saved block and the live walls disagree.
+// 驱动在两个计数上通过SHIPPED路径:persistence::load_settings
+// ()然后sandbox::set_config()在
+// main.cpp使用的顺序中,然后是run_shell_command().
+// 镜像的姿态将证明什么也没有——被调查的bug正是已保存块和活墙不同意.
 
 #include "agentty/tool/util/sandbox.hpp"
 #include "agentty/tool/util/fs_helpers.hpp"
@@ -47,13 +47,13 @@ const char* scope_name(sc::FsScope s) {
     return "?";
 }
 
-}  // namespace
+}  // 命名空间结束。
 
-// Mirror of persistence.cpp's sandbox reader. Mirrored rather than linked
-// because pulling in persistence.cpp drags the whole thread/auth/registry
-// graph behind it; this file only needs the one block. If the two ever
-// disagree THAT is itself the finding -- so every field is read with the
-// same key and the same fallback-to-current-value rule.
+// 镜像 persistence.cpp's 沙箱 读取器。
+// persistence.cpp 拖动整个 thread/auth/registry
+// 后面的图表; 此文件只需要一个块。 如果两者有分歧 该 本身
+// 就是发现——所以每个字段都用相同的键读取,同样用相同的键来读取
+// 回退-to-current-value 规则。
 sc::Config read_saved_sandbox() {
     sc::Config c;
     std::ifstream ifs(agentty::util::user_root() / "settings.json");
@@ -90,7 +90,7 @@ int main(int argc, char** argv) {
                                     : std::filesystem::current_path().string();
     agentty::tools::util::set_workspace_root(::agentty::IoAccess::grant(), ws);
 
-    // ── 1. what is ON DISK ──────────────────────────────────────────────
+    // ── 1. 什么是 ON DISK ──────────────────────────────────────────────
     const auto saved = read_saved_sandbox();
     std::printf("SAVED policy (~/.agentty/settings.json)\n");
     std::printf("  configured     %s\n", saved.configured ? "true" : "false");
@@ -102,7 +102,7 @@ int main(int argc, char** argv) {
     std::printf("  wall_clock_secs %d\n", saved.wall_clock_secs);
     std::printf("  mask_scan_depth %u\n", saved.mask_scan_depth);
 
-    // ── 2. seal it, exactly as main.cpp does ────────────────────────────
+    // ── 2. 封印,确切地说 main.cpp 已经 ────────────────────────────
     sb::set_config(saved);
     sb::init(sb::Mode::On);
 
@@ -119,7 +119,7 @@ int main(int argc, char** argv) {
                     && live.max_procs == saved.max_procs;
     std::printf("\n  saved == live  %s\n", match ? "YES" : "NO  <-- the bug");
 
-    // ── 3. does the LIVE policy actually shape a real command? ──────────
+    // ── 3. LIVE政策是否真正形成真正的命令? ──────────
     std::printf("\nOBSERVED in a real run_shell_command child\n");
     struct Probe { const char* label; const char* cmd; };
     const Probe probes[] = {

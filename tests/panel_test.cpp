@@ -1,14 +1,14 @@
-// maya::Panel — the degenerate cases.
+// maya::Panel ——堕落的病例.
 //
-// Panel is now the ONLY overlay widget: every picker and every settings form
-// in the app renders through it. That makes its edge behaviour load-bearing in
-// a way a single-use widget's never is — a caller that hands it an empty list,
-// an out-of-range cursor, or a one-row terminal must still get a usable frame,
-// because the alternative is an overlay that is open, modal, and invisible.
+// 面板现在 仅 覆盖面板 部件: 每一个 选择面板 和应用程序中的
+// 所有设置 渲染 让它变得边缘行为 加载-bearing 在某种程度上,
+// 一个 -use 部件从来就不是——一个给它带空列表的呼叫者,
+// 一个出局者 -of-range 光标,或一个 -row 终端 仍然必须
+// 获得可用性 帧 ,因为替代方案是 覆盖面板 开着呢 弹出面板 和隐形。
 //
-// These are the inputs a caller can legitimately produce (an empty match set,
-// a cursor left over from a longer list, a resized terminal) plus the ones
-// only a bug produces. Both must render.
+// 这些是呼叫者可以合法生成的输入(空匹配集、
+// 从更长的列表中留下的光标、调整大小) 终端 ) 加上只产生
+// 一个错误的。两者都必须 渲染.
 
 #include "agtest.hpp"
 
@@ -39,29 +39,29 @@ Panel::Item header_row(const char* label) {
     return r;
 }
 
-// Render a panel at `width`.
+// 渲染 面板在 `width`.
 //
-// COLUMNS is set to the same width, because the panel derives its content
-// budgets from the terminal and those budgets have to be about the width it
-// is actually painted at. Rendering at 70 while the ambient terminal says
-// 200 is a state that cannot happen in the app — the overlay stretches to
-// the terminal — and it makes a windowed value look unwindowed.
+// COLUMNS 设置到相同的宽度,因为面板从“从
+// “从”中获取其内容预算。 终端 预算必须和它实际的
+// 宽度有关。 渲染 70岁,而环境 终端 说200
+// 是无法在应用中发生的状态, 覆盖面板 伸缩至
+// 终端 ——它使一个窗口值看起来没有被接受.
 std::string render(Panel::Config c, int width = 60) {
     std::string saved;
     const bool had = std::getenv("COLUMNS") != nullptr;
     if (had) saved = std::getenv("COLUMNS");
-    setenv("COLUMNS", std::to_string(width).c_str(), /*overwrite=*/1);
+    setenv("COLUMNS", std::to_string(width).c_str(), /*覆盖=*/1);
 
     auto out = maya::render_to_string(Panel{std::move(c)}.build(), width);
 
-    if (had) setenv("COLUMNS", saved.c_str(), /*overwrite=*/1);
+    if (had) setenv("COLUMNS", saved.c_str(), /*覆盖=*/1);
     else     unsetenv("COLUMNS");
     return out;
 }
 
-// Does the frame have a top and bottom border? A panel that fails to draw one
-// is the "open but invisible" failure — the overlay owns the keyboard while
-// showing nothing.
+// 是否为 帧 带有上下边框 ? 无法绘制边框的面板是
+// "open but invisible" 失败—— 覆盖面板 拥有键盘,
+// 而未显示任何内容。
 bool framed(const std::string& out) {
     return out.find("\xe2\x95\xad") != std::string::npos    // ╭
         && out.find("\xe2\x95\xb0") != std::string::npos;   // ╰
@@ -74,9 +74,9 @@ int count_of(const std::string& hay, const std::string& needle) {
     return n;
 }
 
-// A list whose rows deliberately disagree in height: some carry help (which
-// renders only under the FOCUSED row, so content height depends on where the
-// cursor is), some an error, some are headers.
+// 排行图中故意有分歧的高度列表: 一些带行帮助( 哪些)
+// 渲染 仅列在 FOCUSED 列,所以内容高度取决于光标所在之处,
+// 有些错误,有些错误 头文件.
 std::vector<Panel::Item> mixed_rows(int n) {
     std::vector<Panel::Item> rows;
     for (int i = 0; i < n; ++i) {
@@ -84,18 +84,18 @@ std::vector<Panel::Item> mixed_rows(int n) {
         r.leading = "row" + std::to_string(i);
         if (i % 3 == 0)  r.help    = "help for row " + std::to_string(i);
         if (i % 5 == 0)  r.error   = "bad value";
-        if (i % 11 == 0) r.control = maya::panel::Header{};   // headers outrank both
+        if (i % 11 == 0) r.control = maya::panel::Header{};   // 头文件 都比这要高
         rows.push_back(std::move(r));
     }
     return rows;
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("panel: an empty body still renders a frame") {
-    // A picker whose query matches nothing. It must draw its border, its
-    // header and its footer — the user needs somewhere to see "no matches"
-    // and a reminder that Esc exits.
+    // A 选择面板 其查询与无异。它必须绘制其边界, 其 头文件
+    // 及其页脚——用户需要到某处看 "no matches" 并提醒
+    // 人们: Esc 出口 门关上
     Panel::Config c;
     c.title  = " Empty ";
     c.footer.push_back(maya::Element{maya::TextElement{.content = "  Esc close"}});
@@ -107,9 +107,9 @@ TEST_CASE("panel: an empty body still renders a frame") {
 }
 
 TEST_CASE("panel: an empty body with a scroll state does not collapse") {
-    // The dangerous combination: scrolling ON, nothing to scroll. A viewport
-    // computed as min(viewport_h, 0) is zero rows, and a zero-height scroll
-    // region collapses the panel to its border.
+    // 危险的组合: 滚动 ON ,没有卷轴。 可视区域 按分钟计算(
+    // N) viewport_h , 0)为零行,为零行 -height
+    // 滚动区域会崩溃面板到它的边界。
     maya::ScrollState s;
     Panel::Config c;
     c.title      = " Empty ";
@@ -122,8 +122,8 @@ TEST_CASE("panel: an empty body with a scroll state does not collapse") {
 }
 
 TEST_CASE("panel: an out-of-range cursor focuses nothing") {
-    // A stale index — the query narrowed the list but the cursor did not move
-    // yet. It must not paint focus on an arbitrary row, and must not crash.
+    // 过期 索引 — 查询缩小了列表, 但光标尚未移动。
+    // 它不能将焦点画在任意行上, 也不能崩溃。
     for (int sel : {-1, 5, 99, -99}) {
         Panel::Config c;
         c.title = " Stale ";
@@ -134,30 +134,30 @@ TEST_CASE("panel: an out-of-range cursor focuses nothing") {
 
         CHECK(framed(out));
         CHECK(out.find("Alpha") != std::string::npos);
-        // No cursor bar anywhere: out of range means nothing is focused.
+        // 任何地方都没有光标栏:超出范围意味着没有焦点.
         CHECK(out.find("\xe2\x96\x8e") == std::string::npos);   // ▎
     }
 }
 
 TEST_CASE("panel: the cursor never lands on a header") {
-    // Headers carry no action. Pointing `selected` at one is a caller bug,
-    // and the widget refuses rather than rendering a focus the user cannot
-    // act on — an arrow key that appears to do nothing.
+    // 头文件 显示 `selected` 其中一个是呼叫器错误,
+    // 部件拒绝而不是 渲染 用户无法采取行动的焦点
+    // ——一个似乎无所作为的箭头键。
     Panel::Config c;
     c.title = " Grouped ";
     c.items.push_back(header_row("Section"));
     c.items.push_back(text_row("Alpha"));
-    c.selected = 0;                       // the header
+    c.selected = 0;                       // 编号 头文件
     const auto out = render(std::move(c));
 
     CHECK(framed(out));
     CHECK(out.find("SECTION") != std::string::npos);
-    CHECK(out.find("\xe2\x96\x8e") == std::string::npos);   // no cursor bar
+    CHECK(out.find("\xe2\x96\x8e") == std::string::npos);   // 无光标栏
 }
 
 TEST_CASE("panel: a menu only opens on a Choice row") {
-    // `menu_row` pointing at a toggle is a caller bug. Rendering the option
-    // list anyway would put a dropdown under a control that cannot use it.
+    // `menu_row` 指着一个 切换 是一个呼叫器错误。
+    // 渲染 选项列表将让一个无法使用它的控制下下拉。
     Panel::Config c;
     c.title = " Mismatch ";
     Panel::Item t;
@@ -169,7 +169,7 @@ TEST_CASE("panel: a menu only opens on a Choice row") {
     Panel::Menu m;
     m.options = {"One", "Two"};
     c.menu     = m;
-    c.menu_row = 0;                        // NOT a Choice row
+    c.menu_row = 0;                        // 不 a 选择行
 
     const auto out = render(std::move(c));
     CHECK(framed(out));
@@ -178,7 +178,7 @@ TEST_CASE("panel: a menu only opens on a Choice row") {
 }
 
 TEST_CASE("panel: a menu on a Choice row renders its options") {
-    // The positive case, so the guard above cannot pass by disabling menus.
+    // 正面的个案,因此上面的警卫不能通过失效菜单通过.
     Panel::Config c;
     c.title = " Choice ";
     Panel::Item ch;
@@ -197,14 +197,14 @@ TEST_CASE("panel: a menu on a Choice row renders its options") {
     const auto out = render(std::move(c));
     CHECK(out.find("One") != std::string::npos);
     CHECK(out.find("Two") != std::string::npos);
-    // ◉ marks the COMMITTED value, ❯ the cursor — two facts, two markers.
+    // QQ标为COMMITTED值,QQ标光标——两个事实,两个标记.
     CHECK(out.find("\xe2\x97\x89") != std::string::npos);   // ◉
     CHECK(out.find("\xe2\x9d\xaf") != std::string::npos);   // ❯
 }
 
 TEST_CASE("panel: a menu with fewer hints than options is safe") {
-    // `hints` is optional and may be short. Indexing it by the highlighted
-    // option without a bounds check reads past the end.
+    // `hints` 是可选的, 可能很短。 用突出显示的选项索引它,
+    // 而无需边框检查会读过结尾。
     Panel::Config c;
     c.title = " Hints ";
     Panel::Item ch;
@@ -215,8 +215,8 @@ TEST_CASE("panel: a menu with fewer hints than options is safe") {
 
     Panel::Menu m;
     m.options     = {"A", "B", "C"};
-    m.hints       = {"only the first"};    // shorter than options
-    m.highlighted = 2;                     // past the end of hints
+    m.hints       = {"only the first"};    // 短于选项
+    m.highlighted = 2;                     // 超过提示的结尾
     c.menu     = m;
     c.menu_row = 0;
 
@@ -226,13 +226,13 @@ TEST_CASE("panel: a menu with fewer hints than options is safe") {
 }
 
 TEST_CASE("panel: highlight offsets outside the label are ignored") {
-    // Fuzzy-match positions come from a scorer run against a string that may
-    // since have been truncated or replaced. Out-of-range offsets must not
-    // index past the label.
+    // 模糊 -match 位置来自计分器对一个字符串运行,
+    // 该字符串可能自此被切换或替换。 Out -of-range 缩
+    // 进不能通过标签索引。
     Panel::Config c;
     c.title = " Highlight ";
     Panel::Item r = text_row("abc");
-    r.highlight = {0, 2, 99, -1};          // 99 and -1 are out of range
+    r.highlight = {0, 2, 99, -1};          // 99和1 已经超出范围
     c.items.push_back(std::move(r));
     c.selected = 0;
 
@@ -242,7 +242,7 @@ TEST_CASE("panel: highlight offsets outside the label are ignored") {
 }
 
 TEST_CASE("panel: an empty label with highlights is safe") {
-    // The degenerate pairing: highlight offsets against no text at all.
+    // 变形配对:突出部分与任何文本都抵消。
     Panel::Config c;
     c.title = " Empty label ";
     Panel::Item r;
@@ -254,13 +254,13 @@ TEST_CASE("panel: an empty label with highlights is safe") {
 }
 
 TEST_CASE("panel: a tiny viewport still shows a row") {
-    // A short terminal. The viewport floor is what keeps at least one row and
-    // the frame visible instead of collapsing to a border.
+    // 短篇小说 终端。该词 可视区域 地板是至少保持
+    // 一行和 帧 可见,而不是崩溃到边框。
     maya::ScrollState s;
     Panel::Config c;
     c.title      = " Tiny ";
     c.scroll     = &s;
-    c.viewport_h = 0;                      // degenerate
+    c.viewport_h = 0;                      // 堕落
     for (int i = 0; i < 20; ++i)
         c.items.push_back(text_row("Row"));
     c.selected = 19;
@@ -271,11 +271,11 @@ TEST_CASE("panel: a tiny viewport still shows a row") {
 }
 
 TEST_CASE("panel: a narrow terminal keeps the frame closed") {
-    // min_width has a floor: below it the border text overflows the frame and
-    // the panel stops being a box.
+    // min_width 下方有一层: 帧 面板
+    // 就不再是盒子了。
     Panel::Config c;
     c.title     = " N ";
-    c.min_width = 1;                       // degenerate
+    c.min_width = 1;                       // 堕落
     c.items.push_back(text_row("Alpha", "value"));
     c.selected = 0;
 
@@ -284,9 +284,9 @@ TEST_CASE("panel: a narrow terminal keeps the frame closed") {
 }
 
 TEST_CASE("panel: the cursor row's help is kept in view when scrolled") {
-    // A field's help line belongs to its row. Scrolling to the row alone left
-    // the description one row past the bottom edge — it vanished exactly when
-    // you arrowed onto the row to read it.
+    // 一个字段的帮助行属于它的行。 单向行滚动就
+    // 留下了一条经过底边的描述—— 它在您箭头
+    // 射到行上读取时就消失了。
     maya::ScrollState s;
     Panel::Config c;
     c.title      = " Help ";
@@ -296,16 +296,16 @@ TEST_CASE("panel: the cursor row's help is kept in view when scrolled") {
     Panel::Item last = text_row("Last");
     last.help = "the description of the last row";
     c.items.push_back(std::move(last));
-    c.selected = 12;                       // the last row
+    c.selected = 12;                       // 最后一行
 
     const auto out = render(std::move(c));
     CHECK(out.find("the description of the last row") != std::string::npos);
 }
 
 TEST_CASE("panel: rows stay inside the border at any width") {
-    // The layout is flex, not arithmetic. Every previous version measured the
-    // row and padded it against a guessed reserve, and each guess drifted from
-    // the real clip — values slid under the scrollbar and off the frame.
+    // 版式是弹性的,而不是算术的。以前每个版本都
+    // 根据一个猜到的储备量度行并加进,每个猜想从真实
+    // 的夹片中漂移——值在卷轴栏下滑动,并离开帧。
     maya::ScrollState s;
     for (int w : {30, 40, 60, 100}) {
         Panel::Config c;
@@ -319,8 +319,8 @@ TEST_CASE("panel: rows stay inside the border at any width") {
         c.selected = 0;
 
         const auto out = render(std::move(c), w);
-        // Every line is exactly `w` columns of painted cells: the frame closes
-        // on both sides of every row.
+        // 每条线路完全为涂装的存储单元的`w`列:
+        // 帧每行两侧关闭.
         std::size_t start = 0;
         while (start <= out.size()) {
             const std::size_t nl = out.find('\n', start);
@@ -334,10 +334,10 @@ TEST_CASE("panel: rows stay inside the border at any width") {
 }
 
 TEST_CASE("panel: the caret stays visible in a value longer than its column") {
-    // Typing past the column width used to push the caret — and everything you
-    // were typing — off the right edge behind the truncation ellipsis. You
-    // could still edit; you just could not see it. The value now scrolls
-    // horizontally under the caret, the way every single-line editor does.
+    // 将 光标 和您打过的所有字都从短线椭圆后面
+    // 的右边缘打出。 您仍然可以编辑;
+    // 您只是看不到它。 现在的值在 光标 下水平滚动,
+    // 与每个 -line 编辑器一样。
     const std::string v =
         "a-very-long-endpoint-name-that-will-not-fit-in-the-column-at-all";
 
@@ -351,15 +351,15 @@ TEST_CASE("panel: the caret stays visible in a value longer than its column") {
         c.selected = 0;
 
         const auto out = render(std::move(c), 70);
-        // The caret is on screen at every position.
+        // 光标在每一个位置上都显示在屏幕上.
         CHECK(out.find("\xe2\x96\x88") != std::string::npos);   // █
     }
 }
 
 TEST_CASE("panel: a scrolled value says which way it is scrolled") {
-    // ‹ / › mark a horizontal scroll — deliberately not the … that
-    // TruncateEnd uses, so "there is more text this way" reads differently
-    // from "this was cut off".
+    // ⁇ / ⁇  标一个水平卷轴——故意不... TruncateEnd 使用,所以,
+    // "there is more text this way" 与《公约》第2条不同
+    // "this was cut off".
     const std::string v =
         "a-very-long-endpoint-name-that-will-not-fit-in-the-column-at-all";
 
@@ -367,18 +367,18 @@ TEST_CASE("panel: a scrolled value says which way it is scrolled") {
     c.title = " Caret ";
     Panel::Item r;
     r.leading = "Host";
-    r.control = maya::panel::Text{v, v.size()};   // caret at the END
+    r.control = maya::panel::Text{v, v.size()};   // 光标 现场 END
     c.items.push_back(std::move(r));
     c.selected = 0;
 
     const auto out = render(std::move(c), 70);
-    CHECK(out.find("\xe2\x80\xb9") != std::string::npos);   // ‹ more to the left
+    CHECK(out.find("\xe2\x80\xb9") != std::string::npos);   // 左转更多
 }
 
 TEST_CASE("panel: the text caret is not the row cursor bar") {
-    // Both used U+258E, so an edited row showed the same glyph in column 0 and
-    // mid-value — the caret read as a second cursor. The caret is now a full
-    // block, which cannot be confused with the quarter-block edge marker.
+    // 两者都使用了 U+258E,所以一行编辑后,在0栏和中段显示相同
+    // 的格言 -value - 电话 光标 读作第二个光标。
+    // 光标 现在已经是整块的,不能与季度混淆 -block 边缘标记。
     Panel::Config c;
     c.title = " Distinct ";
     Panel::Item r;
@@ -388,13 +388,13 @@ TEST_CASE("panel: the text caret is not the row cursor bar") {
     c.selected = 0;
 
     const auto out = render(std::move(c));
-    CHECK(out.find("\xe2\x96\x88") != std::string::npos);   // █ caret
-    CHECK(count_of(out, "\xe2\x96\x8e") == 1);              // ▎ exactly once
+    CHECK(out.find("\xe2\x96\x88") != std::string::npos);   // 光标 国 家
+    CHECK(count_of(out, "\xe2\x96\x8e") == 1);              // 完全一次 一次 一次
 }
 
 TEST_CASE("panel: an empty field being edited says so") {
-    // A lone caret in the value column is indistinguishable from a rendering
-    // artefact. An empty edited field keeps its placeholder beside the caret.
+    // 孤独 光标 值栏中与 a 无法区分 渲染 艺术。
+    // 一个空的编辑字段保留其占位符,放在 光标.
     Panel::Config c;
     c.title = " Empty edit ";
     Panel::Item t;
@@ -413,9 +413,9 @@ TEST_CASE("panel: an empty field being edited says so") {
 }
 
 TEST_CASE("panel: dropdown options align with the value column") {
-    // The option list replaces the value it belongs to, so it must sit in the
-    // same column. A one-column margin (rows use two) nudged the list right,
-    // so opening a dropdown appeared to move the column.
+    // 选项列表取代它所属的值, 因此它必须坐在同一列。
+    // $ -column 边距( 数组使用 2) 将列表右向调整,
+    // 因此打开一个下移似乎可以移动列。
     Panel::Config c;
     c.title = " Align ";
     Panel::Item ch;
@@ -432,8 +432,8 @@ TEST_CASE("panel: dropdown options align with the value column") {
 
     const auto out = render(std::move(c), 60);
 
-    // Find the right edge of the closed control's chevron row and of an
-    // option row; they must end at the same column.
+    // 查找闭锁控制器的切夫龙行和选项行的右边缘;
+    // 它们必须在同一列结束.
     const auto right_edge = [&](const std::string& needle) -> std::size_t {
         std::size_t start = 0;
         while (start <= out.size()) {
@@ -453,23 +453,23 @@ TEST_CASE("panel: dropdown options align with the value column") {
 }
 
 TEST_CASE("panel: a frame settles in a single render") {
-    // The run loop re-renders whenever the renderer's post-layout writeback
-    // disagrees with the scroll state the view was built from
-    // (detail::scroll_writeback_dirty). So any quantity the panel and the
-    // renderer BOTH compute is a latency bug waiting to happen: the first
-    // frame paints from the panel's answer, the writeback substitutes the
-    // renderer's, and the whole overlay is drawn again.
+    // 运行循环 -renders 任何时候 渲染器 员额
+    // -layout 回写不同意视图从( ) 中创建
+    // 的滚动状态。 detail::scroll_writeback_dirty。
+    // 所以,任何数量面板和 渲染器 两者 计算是等待
+    // 发生的一个暂时性错误:第一个 帧 复写方式取代了
+    // 渲染器 和整个 覆盖面板 重新绘制。
     //
-    // `max_y` was exactly that. scrollbar_y sizes its thumb from it, but the
-    // renderer only writes it back after layout — so the bar was drawn from
-    // the PREVIOUS frame's content height, and every arrow press that changed
-    // the height (the focused row's help line appearing) cost two renders,
-    // some with a visibly wrong thumb in between.
+    // `max_y` 这正是。 scrollbar_y
+    // 大小的拇指从它,但 渲染器 仅按版式写回,
+    // 因此栏从 PREVIOUS 帧 内容高度, 改变高度的
+    // 箭头按下( 焦点行的帮助线出现) 需要2 个 渲染
+    // 有一些手插在中间明显错的拇指上
     //
-    // Panel measures the body, so it knows the extent before layout runs.
-    // It publishes it, and the writeback then agrees instead of arbitrating.
-    // This test asserts the agreement: rendering the SAME input twice must
-    // leave the state untouched the second time.
+    // 小组测量正文,因此在布局运行前就知道了范围.
+    // 它出版, 并回信 然后同意而不是仲裁。
+    // 这项试验主张协议: 渲染 编号 相同 两次输入必须
+    // 使状态在第二次时保持未受影响。
     constexpr int kRows = 60;
     constexpr int kVh   = 8;
 
@@ -484,15 +484,15 @@ TEST_CASE("panel: a frame settles in a single render") {
         return render(std::move(c), 72);
     };
 
-    frame(0);   // establish a steady state
+    frame(0);   // 建立稳定状态;
 
     for (int sel = 0; sel < kRows; ++sel) {
         const auto first = frame(sel);
         const int  y = s.y, max_y = s.max_y;
 
-        // Re-rendering identical input must be a no-op: same pixels, same
-        // scroll geometry. If it is not, the user saw the first frame and
-        // then a correction — a flicker, and a doubled input->photon.
+        // Re-rendering 相同的输入必须是 no-op : 相同的像素,
+        // 相同的卷轴几何。 如果不是, 用户会看到第一个帧 ,
+        // 然后是修正—— 闪存器, 和双倍的输入- > photon。
         maya::detail::scroll_writeback_dirty = false;
         const auto second = frame(sel);
 
@@ -504,20 +504,20 @@ TEST_CASE("panel: a frame settles in a single render") {
 }
 
 TEST_CASE("panel: the scrollbar is sized from the CURRENT frame's content") {
-    // scrollbar_y sizes its thumb by reading s.max_y at BUILD time, but the
-    // renderer only writes max_y back AFTER layout. A panel that leaves max_y
-    // to the renderer therefore paints its bar from whatever the PREVIOUS
-    // frame left behind; the writeback then notices, dirties the scroll state,
-    // and the run loop draws the entire overlay again to correct it.
+    // scrollbar_y 通过读取大小 s.max_y 时间
+    // BUILD 时间,但 渲染器 只写 max_y 返回时 之后。
+    // 一张离开的面板 max_y 编号 渲染器 因此,
+    // 它从任何方面画出它的栏杆, PREVIOUS 帧 留下; 回写后通知,
+    // 模糊滚动状态, 运行循环绘制整个 覆盖面板 重新纠正它。
     //
-    // The evidence has to be sampled at BUILD time. Rendering and then reading
-    // s.max_y proves nothing — by then the writeback has corrected it, which
-    // is exactly the second render this exists to prevent. So: build() the
-    // element and inspect the state WITHOUT rendering. Whatever max_y holds at
-    // that moment is what the scrollbar was sized from.
+    // 证据必须抽样 BUILD 时间 渲染 读取
+    // s.max_y 证明什么也没有,到那时回信已经改正了,
+    // 这恰恰是第二个 渲染 用于预防。
+    // 所以: build() 检查国家 无需 渲染。
+    // 随你便 max_y 此时此刻,是卷轴条的大小。
     for (int rows : {20, 60, 200}) {
         for (int vh : {4, 8, 14}) {
-            maya::ScrollState s;          // cold, exactly as an overlay opens
+            maya::ScrollState s;          // 冷,就像一个 覆盖面板 打开
             Panel::Config c;
             c.title      = " Cold ";
             c.viewport_h = vh;
@@ -531,14 +531,14 @@ TEST_CASE("panel: the scrollbar is sized from the CURRENT frame's content") {
 
             const maya::Element frame = Panel{std::move(c)}.build();
             (void)frame;
-            // Plain rows are one line each, so the extent is exact arithmetic
-            // — and it is known here, before any layout has run.
+            // 平面行是各一行,所以范围是精确的算术——这里,
+            // 在任何布局运行之前,它就已经知道.
             CHECK(s.max_y == rows - vh);
         }
     }
 
-    // A body that FITS publishes no scrollable extent, so the bar draws a
-    // full-height thumb rather than a misleading sliver.
+    // A 正文 说 FITS 发布无可滚动范围, 因此栏画一个
+    // 完整的 -height 而不是一个误导人的滑稽
     {
         maya::ScrollState s;
         Panel::Config c;
@@ -558,26 +558,26 @@ TEST_CASE("panel: the scrollbar is sized from the CURRENT frame's content") {
 }
 
 TEST_CASE("panel: independent panels do not interfere across threads") {
-    // Panel is a pure value transform (Config in, Element out) with exactly one
-    // piece of shared mutable state: the BORROWED ScrollState*. maya's scroll
-    // bookkeeping (the live-state registry and the writeback-dirty flag) is
-    // thread_local, so panels on different threads with different states must
-    // be fully independent.
+    // 面板是一个纯值转换( 包含, 元素输出) , 完全共享一块 可变 状态:
+    // BORROWED ScrollState*. maya 滚动簿记(
+    // 直播) -state 注册表 和回信时的记述, -dirty 标志
+    // )是(这是) thread_local ,所以不同的面板 线程 与
+    // 不同州必须完全独立。
     //
-    // Worth asserting rather than assuming, because the panel now WRITES
-    // s.max_y itself. A shared registry would have made that a race on every
-    // overlay render; this pins the confinement that makes it safe.
+    // 值得坚持而不是假设 因为现在的小组 WRITES
+    // s.max_y 共享的 注册表 本来会让 竞态
+    // 时值 覆盖面板 渲染 将锁在牢里,让它安全
     constexpr int kThreads = 8;
     std::atomic<int> failures{0};
     std::vector<std::thread> threads;
-    // render() sets COLUMNS around each call, and setenv from eight threads
-    // races. Every thread uses width 72, so set it once here instead.
+    // render()将COLUMNS设定在每调用左右,Setenv
+    // 设定在8线程XX竞态. 每线程使用宽度72,所以在此设定一次.
     setenv("COLUMNS", "72", 1);
 
     for (int t = 0; t < kThreads; ++t) {
         threads.emplace_back([&, t] {
-            maya::ScrollState s;                  // per-thread, not shared
-            const int rows = 40 + t * 10;         // a different size per thread
+            maya::ScrollState s;                  // 百分比 -thread ,未共享
+            const int rows = 40 + t * 10;         // 每线程 个不同大小
             for (int sel = 0; sel < rows; ++sel) {
                 Panel::Config c;
                 c.title      = " T ";
@@ -591,9 +591,9 @@ TEST_CASE("panel: independent panels do not interfere across threads") {
                 }
                 if (maya::render_to_string(Panel{std::move(c)}.build(), 72).empty()) ++failures;
             }
-            // Each thread's state must describe ITS OWN content. A shared
-            // registry or dirty flag would show up as a neighbour's extent
-            // landing here.
+            // 每一个 线程 '状态必须描述 ITS 自身 内容。
+            // 共享 注册表 或脏 标志 以邻居的境界
+            // 登陆这里
             if (s.max_y != rows - 8) ++failures;
         });
     }
@@ -604,11 +604,11 @@ TEST_CASE("panel: independent panels do not interfere across threads") {
 }
 
 TEST_CASE("panel: a built Element outlives the Config it came from") {
-    // Rows render into deferred ComponentElements (the section header measures
-    // itself against the final width). If one of those captured a reference
-    // into the Config — or `this` — the capture dangles the moment the
-    // temporary Panel dies, and the crash lands at PAINT time, far from the
-    // build that caused it. Build inside a scope, paint outside it.
+    // 行数 渲染 改为推迟 ComponentElements
+    // (本节) 头文件 如果其中一人在“配置”中找到参考,
+    // 则指“组合”中的任何一种。 `this` ——
+    // 捕捉在临时小组死亡时纠缠,坠机降落在 PAINT 时间,
+    // 远离制造它的建筑,在范围内,在外涂漆。
     maya::Element e = [] {
         Panel::Config c;
         c.title = " Scoped ";
@@ -625,20 +625,20 @@ TEST_CASE("panel: a built Element outlives the Config it came from") {
 }
 
 TEST_CASE("panel: landing on a header does not move the view") {
-    // A header cannot take focus — it carries no action, so the widget refuses
-    // to render it as the cursor. But "no row is focused" is NOT the same as
-    // "the cursor is on line 0", and conflating them made the keep-in-view
-    // clamp dutifully scroll line 0 into view: navigating down a long grouped
-    // list snapped it back to the top the moment the cursor crossed a section
-    // header, losing the user's place entirely.
+    // A 头文件 无法集中焦点——它不带任何动作,所以部件拒绝 渲染
+    // 以光标为主。 "no row is focused" 谓 不
+    // 与第2款相同,但该款适用于第2款。
+    // "the cursor is on line 0" 使他们相聚,
+    // -in-view 将卷轴 0 夹在视图中: 将长组列表下移到光标穿过某一
+    // 区域时折回顶端 头文件 ,完全失去用户位置.
     //
-    // The same applies to an absent or out-of-range selection, which is how a
-    // picker with no matches renders while the user is still scrolling.
+    // 缺勤或离职也一样 -of-range 选择,
+    // 即如何 选择面板 没有匹配 渲染 时,用户仍在滚动。
     constexpr int kRows = 60;
     constexpr int kVh   = 8;
 
     const auto scrolled_state = [&](maya::ScrollState& s) {
-        // Walk far enough down that the view is genuinely scrolled.
+        // 走到下面足够远 风景真的卷了起来
         for (int sel = 0; sel < 40; ++sel) {
             Panel::Config c;
             c.title = " Nav "; c.viewport_h = kVh; c.scroll = &s;
@@ -653,7 +653,7 @@ TEST_CASE("panel: landing on a header does not move the view") {
         (void)render(std::move(c), 72);
     };
 
-    // mixed_rows makes every 11th row a header.
+    // mixed_rows 使每11行的一行 头文件.
     {
         maya::ScrollState s;
         scrolled_state(s);
@@ -662,7 +662,7 @@ TEST_CASE("panel: landing on a header does not move the view") {
         render_at(s, 44);                     // a header
         CHECK(s.y == before);
     }
-    // No selection at all.
+    // 完全没有选择权。
     {
         maya::ScrollState s;
         scrolled_state(s);
@@ -671,7 +671,7 @@ TEST_CASE("panel: landing on a header does not move the view") {
         render_at(s, -1);
         CHECK(s.y == before);
     }
-    // A selection left over from a longer list.
+    // 长名单中留下的选题
     {
         maya::ScrollState s;
         scrolled_state(s);
@@ -683,11 +683,11 @@ TEST_CASE("panel: landing on a header does not move the view") {
 }
 
 TEST_CASE("panel: multi-row items scroll in row space") {
-    // Config::items are caller-built Elements and may be MULTI-ROW: the todo
-    // picker pushes one PlanView covering every task. Measuring them as one
-    // line each put the auto-scroll clamp in INDEX space, so the last of four
-    // 3-row items — which begins at row 9, not row 3 — scrolled to 0 and left
-    // the selection off-screen entirely.
+    // Config::items 呼叫者( C) -built 要件和可能 MULTI
+    // -ROW : 待办事宜 选择面板 推一个 PlanView 覆盖每个任务。
+    // 用一个线来测量它们,每个线都放自动 -scroll 夹在 INDEX 空间,
+    // 所以最后的四 3 -row 项-从第9行开始,而不是第3行——滚动到0,
+    // 并删除所选内容 -screen 完全没有。
     maya::ScrollState s;
     Panel::Config c;
     c.title      = " Items ";
@@ -704,23 +704,23 @@ TEST_CASE("panel: multi-row items scroll in row space") {
 
     const auto out = render(std::move(c), 50);
 
-    // Four 3-row items = 12 rows, viewport 4 ⇒ the last item ends at row 12,
-    // so the offset must be 8. Index space would have said 0.
+    // 四 3 3 4 3 6 6 3 5 6 4 6 5 3 7 6 7 3 10 6 10 3 11 6 11 3 16 6 16 3 15 3 14 3 13 3
+    // -row 12行, 可视区域 4,QQ最后一行结束,所以抵消必须为8. Index space would have said 0.
     CHECK(s.y == 8);
     CHECK(out.find("item3-c") != std::string::npos);
 }
 
 TEST_CASE("panel: the dropdown reads as one attached block") {
-    // The dropdown's job is to look like a dropdown — a list belonging to the
-    // row above it — and not like four more panel rows that happen to sit
-    // nearby. Two properties carry that, and both were absent when every
-    // option was right-aligned on its own:
+    // 下拉的工作是看起来像下拉 — — 属于上面一行的列表 —
+    // 而不是像另外四行恰巧坐落在附近的面板。有两个属性带有它,
+    // 而且当每个选项都正确的时候,两者都不存在。
+    // -aligned 自行决定:
     //
-    //   1. The radios share a COLUMN. Independently right-aligned lines put
-    //      them in as many columns as there were distinct label lengths, and
-    //      a radio group whose radios do not line up does not read as a group.
-    //   2. The block has a BOUNDARY, so where the options start and stop is
-    //      drawn rather than inferred.
+    //   1. 无线电台共用a COLUMN 独立正确 -aligned 线条设置
+    //      并且无线电组的无线电组不排队 无法
+    //      作为一个组读出来 无线电组的频率是每组的
+    //   2. 区块有BOUNDARY,所以选择开始和停止的地点是
+    //      引出而不是推论。
     maya::ScrollState s;
     Panel::Config c;
     c.title      = " Menu ";
@@ -734,8 +734,8 @@ TEST_CASE("panel: the dropdown reads as one attached block") {
         c.items.push_back(std::move(r));
     }
     Panel::Menu m;
-    // Deliberately ragged: the shortest and longest differ by a lot, which is
-    // exactly when per-line alignment scattered the radios.
+    // 故意乱划:最短和最长者大不相同,即每架直升机的准确时间。
+    // -line 调头分散了无线电
     m.options     = {"a", "beta", "a considerably longer option label"};
     m.highlighted = 1;
     m.current     = 1;
@@ -746,7 +746,7 @@ TEST_CASE("panel: the dropdown reads as one attached block") {
 
     const auto out = render(std::move(c), 72);
 
-    // Column of the radio glyph on each option line. All three must agree.
+    // 每个选项行的无线电格言栏,所有三个必须同意。
     std::vector<std::size_t> radio_cols;
     std::size_t start = 0;
     while (start <= out.size()) {
@@ -754,12 +754,12 @@ TEST_CASE("panel: the dropdown reads as one attached block") {
         const std::string line =
             out.substr(start, nl == std::string::npos ? std::string::npos
                                                       : nl - start);
-        // ◉ (selected) or ○ (unselected)
+        // QQ( 选中) 或 ○( 未选中)
         std::size_t at = line.find("\xe2\x97\x89");
         if (at == std::string::npos) at = line.find("\xe2\x97\x8b");
         if (at != std::string::npos) {
-            // Count DISPLAY columns, not bytes: the chevron ahead of it is
-            // multi-byte, so a byte offset would differ per line by construction.
+            // 计数 DISPLAY 栏,不 字节 :前方的切夫龙是多面的
+            // -byte ,所以一个 字节 建筑工程的每个项目抵消额将有所不同。
             radio_cols.push_back(
                 static_cast<std::size_t>(maya::string_width(line.substr(0, at))));
         }
@@ -771,38 +771,38 @@ TEST_CASE("panel: the dropdown reads as one attached block") {
     CHECK(radio_cols[0] == radio_cols[1]);
     CHECK(radio_cols[1] == radio_cols[2]);
 
-    // And the block is bracketed above and below.
+    // 且块上下方各置于括号内.
     CHECK(out.find("\xe2\x95\xad") != std::string::npos);   // ╭ opens it
     CHECK(out.find("\xe2\x95\xb0") != std::string::npos);   // ╰ closes it
-    // The top rule ties back to the row's chevron.
+    // 最高规则与排行榜的切夫龙有联系.
     CHECK(out.find("\xe2\x94\xb4") != std::string::npos);   // ┴
 }
 
 TEST_CASE("panel: a vertical list has no horizontal scroll extent") {
-    // A section header PAINTS a rule out to the right edge, but its natural
-    // size is just its label — the rule is decoration that expands into space
-    // offered, not content demanding room. Conflating the two made its
-    // ComponentElement::measure answer "I need all the width you have", and
-    // the width offered during measurement is not a terminal width: a scroll
-    // viewport probes its children against an UNBOUNDED width to discover the
-    // content extent, so the header claimed ~2^24 columns.
+    // 一节 头文件 PAINTS 规则是,装饰可以扩展成空间,
+    // 而不是满足要求的空间。
+    // ComponentElement::measure
+    // 回答 "I need all the width you have" ,
+    // 测量时提供的宽度不是 终端 宽度: 滚动 可视区域
+    // 调查其子孙与 UNBOUNDED 宽度以发现内容范围,
+    // 所以 头文件 索赔的~2^24栏。
     //
-    // Two consequences, both real. The panel reported itself horizontally
-    // scrollable by sixteen million columns, which is what the scrollbar and
-    // wheel-routing machinery reads. And because the bogus number was derived
-    // from the offered width, it CHANGED on every resize — dirtying the scroll
-    // state and making the run loop redraw the whole overlay a second time on
-    // 25 of 31 widths.
+    // 两种结果,两者都是真实的。面板报告自己横向可
+    // 滚动的1600万列,这就是滚动条和轮子的所在。
+    // -routing 假数字来自宽度,所以 CHANGED
+    // 显示每次调整大小时—— 将滚动状态弄脏,
+    // 并进行循环运行 重绘 整个 覆盖面板 a 第二次为
+    // 25度31宽。
     //
-    // The panel is a vertical list. max_x is 0, at every width, with any mix
-    // of rows.
+    // 面板为垂直列表. max_x为0,每宽,
+    // 任意组合行.
     for (int width : {40, 60, 80, 120, 160}) {
         maya::ScrollState s;
         Panel::Config c;
         c.title      = " Wide ";
         c.viewport_h = 10;
         c.scroll     = &s;
-        c.items       = mixed_rows(50);      // includes headers, help, errors
+        c.items       = mixed_rows(50);      // 包括头文件、帮助、错误
         c.selected   = 1;
         (void)render(std::move(c), width);
         CHECK(s.max_x == 0);
@@ -810,11 +810,11 @@ TEST_CASE("panel: a vertical list has no horizontal scroll extent") {
 }
 
 TEST_CASE("panel: resizing settles in a single render") {
-    // The resize counterpart to the keystroke fixed-point test. Sweeping the
-    // terminal width must not leave the scroll state dirty: nothing about a
-    // panel's CONTENT height depends on its width (rows are one line, help and
-    // errors are NoWrap), so a writeback that disagrees is reporting geometry
-    // the view got wrong rather than a genuine reflow.
+    // 调整键盘的对等器大小已固定 -point 测试。
+    // 终端 宽度不能让滚动状态脏:没有关于面板的
+    // CONTENT 高度取决于其宽度( 数列为一行,
+    // 帮助和错误为 NoWrap 因此,一个不同意的回文是报告几何学,
+    // 视图被错误而不是真正的回流。
     maya::ScrollState s;
     const auto frame = [&](int width) {
         Panel::Config c;
@@ -826,7 +826,7 @@ TEST_CASE("panel: resizing settles in a single render") {
         return render(std::move(c), width);
     };
 
-    frame(60);                              // establish a steady state
+    frame(60);                              // 建立稳定状态;
 
     int dirty = 0, unstable = 0;
     for (int width = 40; width <= 160; width += 4) {
@@ -835,7 +835,7 @@ TEST_CASE("panel: resizing settles in a single render") {
         const int max_y = s.max_y, y = s.y;
         if (maya::detail::scroll_writeback_dirty) ++dirty;
 
-        const auto f2 = frame(width);       // same width twice: a fixed point
+        const auto f2 = frame(width);       // 相同宽度的两次:固定点
         if (f1 != f2 || s.max_y != max_y || s.y != y) ++unstable;
     }
     CHECK(dirty == 0);
@@ -843,8 +843,8 @@ TEST_CASE("panel: resizing settles in a single render") {
 }
 
 TEST_CASE("panel: a Secret is never rendered in the clear") {
-    // The control carries a LENGTH, not a string — there is no plaintext in
-    // the widget's inputs, so no render path can leak one.
+    // 控制器带有一个 LENGTH ,不是字符串——部件输入中没有简写,
+    // 所以没有 渲染 路径可以漏出一个。
     Panel::Config c;
     c.title = " Secret ";
     Panel::Item r;
@@ -859,39 +859,39 @@ TEST_CASE("panel: a Secret is never rendered in the clear") {
 }
 
 // ============================================================================
-//  Virtualisation
+//  虚拟化
 // ============================================================================
 //
-// The panel MEASURES the body (counting lines, building nothing) to decide
-// which rows the viewport intersects, then renders only those — the thread
-// list is thousands of rows behind a fourteen-row window, and painting the
-// other 4986 cost ~67ms a frame.
+// 小组 MEASURES 编号 正文 (计算行数,无建置) 决定哪个
+// 行 可视区域 交叉,然后 渲染 只有那些... ... . .
+// 线程 列表为 14 后面的 数千行 -row 窗口,并绘制其他4986
+// 个成本~67ms a 帧.
 //
-// That splits one piece of knowledge in two: how tall a row is, and how tall
-// a row draws. If they drift by a line, the skipped-row spacers no longer
-// match the rows they stand for, and a field silently scrolls off its own
-// help text. These tests pin them together THROUGH THE RENDERER, which is the
-// only referee that sees both: max_y is computed by the layout from the
-// actually-painted children, while the scroll clamp uses the measured total.
-// If the two disagree, max_y disagrees with the arithmetic below.
+// 将一线知识分成两段:一线多高,一线多长。如果它们按线漂移,
+// 跳过的人 -row 空间器不再符合它们所代表的行,
+// 一个字段静静地滚动了它自己的帮助文本。这些测试将它们
+// 固定在一起。 THROUGH 该 RENDERER ,
+// 这是唯一一个看到两者的裁判: max_y 由实际的
+// 布局计算 -painted 子,而卷轴夹则使用测量的总数.
+// 如果两者意见不一致,max_y不同意下面的算术.
 
 namespace {
 
-// The documented rule, restated independently of the widget: a row is one
-// line, plus one for the help of the FOCUSED row, plus one for an error.
-// A header is always exactly one.
+// 文档规则, 独立于部件重排 : 一行是一行,
+// 加上 FOCUSED 行的帮助, 加上一个错误。
+// A 头文件 总是一个
 int expected_lines(const Panel::Item& r, bool focused) {
     if (r.is_header()) return 1;
     return 1 + (focused && !r.help.empty() ? 1 : 0) + (!r.error.empty() ? 1 : 0);
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("panel: the measured body is exactly as tall as the painted body") {
-    // Walk the cursor over a list of mixed-height rows. At every stop the
-    // content extent the LAYOUT computes from the painted children must equal
-    // the total the MEASURE pass predicted — that equality is the whole
-    // premise of rendering only a window.
+    // 将光标翻过混合列表 -height 横行。
+    // 每站内容范围 LAYOUT 涂鸦儿童计算数必须等于
+    // MEASURE 预言的通过——平等是实现平等的全部前提。
+    // 渲染 只有一个窗口。
     constexpr int kRows = 60;
     constexpr int kVh   = 8;
 
@@ -910,24 +910,24 @@ TEST_CASE("panel: the measured body is exactly as tall as the painted body") {
                                     i == sel);
 
         (void)render(std::move(c));
-        // content = viewport + max_y, by the renderer's own definition.
+        // 内容 = 可视区域 + max_y ,由 渲染器 自己定义的
         CHECK(s.max_y == total - kVh);
     }
 }
 
 TEST_CASE("panel: an open menu is measured at the height it draws") {
-    // The menu is the tallest thing a single row can contribute, and its
-    // height is conditional three ways (a hint for the focused option, a
-    // position counter only when windowed, an empty-list placeholder).
+    // 菜单是单行所能贡献的高度最高的东西,
+    // 其高度是有条件的三种方式(一个焦点选项的提示,
+    // 一个位置计数器,只在窗口打开时,一个空-list占位符).
     //
-    // The assertion is VISIBILITY, not extent: the scroll keeps the focused
-    // row's whole span on screen, and that span is what measure computed. If
-    // measure undercounts the menu by even one line, the scroll stops one
-    // line short and the bottom of the option list — the counter that says
-    // there is more, or the hint explaining the option under the cursor —
-    // sits just past the bottom edge. Asserting the painted extent instead
-    // would prove nothing: it is computed from what was drawn, so a measure
-    // that disagrees with the drawing cancels out of the comparison.
+    // 断言是VISIBILITY,
+    // 不是程度:滚动将焦点行的整个跨度保持在屏幕上,
+    // 而跨度是计算量。如果计量比单行数少,
+    // 滚动会短短一行,选项列表的底部 — —
+    // 显示更多,或者光标下解释选项的提示 —
+    // — 仅坐落在底边。 测量所绘的跨度
+    // 不会证明什么:它是从所画的中计算出来的,
+    // 因此,与绘图相提并论的度量会取消。
     const auto frame = [](int opts, int viewport, int hi, bool with_hints,
                           int vh) -> std::string {
         maya::ScrollState s;
@@ -956,32 +956,32 @@ TEST_CASE("panel: an open menu is measured at the height it draws") {
         return render(std::move(c), 60);
     };
 
-    // A windowed list with a hint: row + the block's two rules + 3 options +
-    // hint + "2/5". Every one of those lines must be on screen at once, which
-    // is what the measure pass has to have predicted for the scroll to keep
-    // the group together.
+    // 带有提示的窗口列表: 行+ 块的两条规则+
+    // 3 选项+ 提示+ "2/5". 每一条线必须
+    // 同时在屏幕上,这就是测量通过必须预言的卷轴
+    // 才能保持组团.
     {
         const auto out = frame(5, 3, 1, true, 8);
         CHECK(out.find("field3")  != std::string::npos);
         CHECK(out.find("option0") != std::string::npos);
         CHECK(out.find("option2") != std::string::npos);
-        CHECK(out.find("about1")  != std::string::npos);   // the hint
-        CHECK(out.find("2/5")     != std::string::npos);   // the counter
+        CHECK(out.find("about1")  != std::string::npos);   // 提示
+        CHECK(out.find("2/5")     != std::string::npos);   // 计数器
     }
-    // No hints: the counter is then the last line of the group.
+    // 无提示:然后是计数器是组的最后一行.
     {
         const auto out = frame(5, 3, 1, false, 7);
         CHECK(out.find("option2") != std::string::npos);
         CHECK(out.find("2/5")     != std::string::npos);
         CHECK(out.find("about1")  == std::string::npos);
     }
-    // Fits: no counter at all, and the last option is the last line.
+    // 适配:完全没有计数器,最后选项是最后一行.
     {
         const auto out = frame(3, 5, 1, false, 6);
         CHECK(out.find("option2") != std::string::npos);
         CHECK(out.find("3/3")     == std::string::npos);
     }
-    // Empty option set: the placeholder still gets its line.
+    // 空选项集:占位符仍然得到其行.
     {
         const auto out = frame(0, 5, 0, false, 2);
         CHECK(out.find("(no options)") != std::string::npos);
@@ -989,10 +989,10 @@ TEST_CASE("panel: an open menu is measured at the height it draws") {
 }
 
 TEST_CASE("panel: a row is rendered whenever any part of it is on screen") {
-    // The window is chosen from LINE offsets, so a row straddling either edge
-    // must still be built — the scroll offset then clips it. Dropping a
-    // partially-visible row is how virtualisation shows a blank strip at the
-    // top or bottom of the viewport.
+    // 窗口选择从 LINE 以缩放方式,所以必须先建起
+    // 横跨任意边的行 — 滚动轴抵消然后剪贴。
+    // -visible 线条是虚拟化如何在上或下方显示
+    // 空白条条 可视区域.
     constexpr int kRows = 40;
     constexpr int kVh   = 6;
 
@@ -1001,7 +1001,7 @@ TEST_CASE("panel: a row is rendered whenever any part of it is on screen") {
         Panel::Config c;
         c.title      = " Window ";
         c.viewport_h = kVh;
-        c.scroll     = &s;          // shared: this is a real key-nav walk
+        c.scroll     = &s;          // 共享: 这是真正的 key-nav 步
         c.items       = mixed_rows(kRows);
         c.selected   = sel;
 
@@ -1012,18 +1012,18 @@ TEST_CASE("panel: a row is rendered whenever any part of it is on screen") {
         const auto out = render(std::move(c));
 
         CHECK(framed(out));
-        // The row you are on is always on screen...
+        // 你上的那排总是在屏幕上...
         if (!is_header) CHECK(out.find(label) != std::string::npos);
-        // ...and so is the help it owns, because the scroll keeps the row's
-        // whole span in view. This is what a one-line measure error breaks.
+        // . . 它拥有的帮助也是一样, 因为滚动可以让整个
+        // 行的长度都保持视线。 -line 测量错误的断开。
         if (!is_header && !help.empty())
             CHECK(out.find(help) != std::string::npos);
     }
 }
 
 TEST_CASE("panel: a huge list renders only its viewport") {
-    // The point of the exercise. Five thousand rows, fourteen visible: the
-    // frame must contain the rows around the cursor and none of the rest.
+    // 锻炼的点. 5000行,14可见:帧
+    // 必须包含光标周围的行,其余的则不包含.
     maya::ScrollState s;
     Panel::Config c;
     c.title      = " Huge ";
@@ -1041,10 +1041,10 @@ TEST_CASE("panel: a huge list renders only its viewport") {
 
     CHECK(framed(out));
     CHECK(out.find("entry-2500") != std::string::npos);
-    // Neither end of the list is anywhere near the window.
+    // 名单的两端都离窗户很近
     CHECK(out.find("entry-0\n") == std::string::npos);
     CHECK(out.find("entry-4999") == std::string::npos);
-    // The scrollbar still knows the true size of the list.
+    // 滚动栏仍然知道列表的真实大小.
     CHECK(s.max_y == 5000 - 14);
 }
 

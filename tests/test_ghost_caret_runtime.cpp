@@ -1,18 +1,18 @@
-// test_ghost_caret_runtime.cpp — REPRO at the FULL RUNTIME level for the
-// "ghost caret on line 2" report (test + diagnosis credit: davidwed,
+// test_ghost_caret_runtime.cpp — REPRO 现场 完整 RUNTIME 职等
+// "ghost caret on line 2" 报告(检测+诊断功劳: davidwed,
 // agentty PR #24):
 //
-//   fill the composer line to the wrap edge → type 1 char (composer
-//   wraps to a 2nd visual row) → backspace (composer shrinks back to 1
-//   visual row). User sees the painted caret still on the (erased)
-//   second row until the next repaint.
+//   将编曲行填充到包装边缘 → 第1 字节( 组合包装
+//   到第2 个视觉行) → 后空格( 组合缩写回1 个视觉列)。
+//   用户看到所绘的 光标 仍然在(已废除)第二排,
+//   直到下一排 重绘.
 //
-// Drives the REAL agentty view() + update() + REAL maya Screen::present
-// through a PTY into a compact VT emulator, then inspects the SCREEN
-// rows: after the shrink, the caret block must be back on the line
-// above, and the previously-caret-holding row must be empty.
+// 驱动 真实 agentty view() + update() + 真实 maya
+// Screen::present 以电子邮件方式发送 PTY 变成一个紧凑的
+// VT 模拟器,然后检查 SCREEN 排: 收缩后, 光标 块必须回到上面的线上,
+// 以及以前的 -caret-holding 排行必须空.
 //
-// Build: link against the agentty tests lib (see CMake agentty_test()).
+// 构建 : 链接 反 对 agentty 测试 库 (见A/C.5/61/L.48,第16段) CMake agentty_test()).
 #include <atomic>
 #include <cerrno>
 #include <chrono>
@@ -36,7 +36,7 @@
 
 #include <maya/screen.hpp>
 #include <maya/core/anim_clock.hpp>
-#include <maya/terminal/tmux.hpp>   // reset_cache_for_test — the probe is one-shot
+#include <maya/terminal/tmux.hpp>   // reset_cache_for_test 探测器是一 -shot
 
 #include "agentty/runtime/app/update.hpp"
 #include "agentty/runtime/msg.hpp"
@@ -47,7 +47,7 @@
 using agentty::Model;
 using agentty::Msg;
 
-// ── Compact VT emulator (screen + cursor only; scrollback not needed) ──
+// ── 压缩 VT 模拟器(仅显示屏幕+光标); 回滚缓冲区 不需要) (中文(简体) ). ──
 struct VtEmu {
     int w, h;
     int cx = 0, cy = 0;
@@ -75,7 +75,7 @@ struct VtEmu {
         }
         if (cy >= h) newline();
         char vis = (cp < 128) ? static_cast<char>(cp) : '?';
-        // We only need geometry + ASCII; render the block glyph as '#'.
+        // 我们只需要几何+ ASCII; 渲染 块格为 '#'.
         if (cp == 0x2588) vis = '#';
         else if (cp >= 0x2500 && cp <= 0x25FF) vis = '?';
         screen[static_cast<std::size_t>(cy)]
@@ -93,8 +93,8 @@ struct VtEmu {
             char32_t cp = 0; int len = 0;
             if (!carry.empty()) {
                 carry += (i < n) ? std::string(1, s[i]) : std::string();
-                if (i >= n && carry.size() < 4) break;   // incomplete tail
-                // decode from carry
+                if (i >= n && carry.size() < 4) break;   // 不完整的末尾
+                // 从载运中解码
                 unsigned char c0 = static_cast<unsigned char>(carry[0]);
                 len = (c0 < 0x80) ? 1 : (c0 >> 5) == 0x6 ? 2 :
                       (c0 >> 4) == 0xE ? 3 : (c0 >> 3) == 0x1E ? 4 : 1;
@@ -110,7 +110,7 @@ struct VtEmu {
             } else {
                 unsigned char c0 = static_cast<unsigned char>(s[i]);
                 if (c0 == 0x1B) {
-                    // CSI parse
+                    // CSI 解析 国 务 院
                     if (i + 1 >= n) break;
                     if (s[i + 1] == '[') {
                         std::size_t j = i + 2;
@@ -119,11 +119,11 @@ struct VtEmu {
                                       || s[j] == ';' || s[j] == '?')) {
                             params += s[j]; ++j;
                         }
-                        // Intermediate bytes (0x20-0x2F): e.g. the SP in
-                        // DECSCUSR `CSI 5 SP q`. Consume so the final
-                        // byte lands in `fin`, not printed as a glyph.
+                        // 中级 字节 (0x20-0x2F): e.g。该 SP 输入
+                        // DECSCUSR `CSI 5 SP q` . . ..
+                        // . 来 . 字节 土地在 `fin` ,而不是印刷为格言。
                         while (j < n && s[j] >= 0x20 && s[j] <= 0x2F) ++j;
-                        if (j >= n) { carry.clear(); break; }  // partial CSI
+                        if (j >= n) { carry.clear(); break; }  // 部分 CSI
                         char fin = s[j];
                         i = j + 1;
                         auto num = [&](int def) {
@@ -192,14 +192,14 @@ struct VtEmu {
                         }
                         continue;
                     }
-                    i += 2;   // other escape: skip 2 bytes
+                    i += 2;   // 其他越狱:跳过2 字节
                     continue;
                 }
                 if (c0 == '\r') { cx = 0; ++i; continue; }
                 if (c0 == '\n') { newline(); ++i; continue; }
                 if (c0 == '\x08') { if (cx > 0) --cx; ++i; continue; }
                 if (c0 == '\x07') { ++i; continue; }
-                // UTF-8 decode from the stream (complete sequences only).
+                // UTF -8号从 数据流 (仅完成序列).
                 len = (c0 < 0x80) ? 1 : (c0 >> 5) == 0x6 ? 2 :
                       (c0 >> 4) == 0xE ? 3 : (c0 >> 3) == 0x1E ? 4 : 1;
                 if (i + static_cast<std::size_t>(len) > n) {
@@ -224,8 +224,8 @@ struct VtEmu {
     }
 };
 
-// Drain until the pty goes quiet (macOS delivers pty bytes asynchronously,
-// so the first EAGAIN is not the end of what was written).
+// 排水,直到小便安静 macOS 送出小便 送出大便 送入小便 字
+// 节 同步,所以第一个 EAGAIN 并不是写完的。
 static std::string read_all(int fd) {
     std::string s;
     char buf[8192];
@@ -252,36 +252,36 @@ static void dump(const VtEmu& emu, const char* why) {
 }
 
 int main() {
-    // Make the Witness-Chain gate tripwire FATAL: any committed-prefix
-    // corruption (the scrollback-safety property a mis-parked cursor
-    // would violate) aborts loudly instead of soft-recovering.
+    // 使证人 -Chain 闸门绊线 FATAL : 任何已承诺 -prefix
+    // 腐败问题 回滚缓冲区-safety 属性错误 -parked
+    // 光标会违反) 大声中止而不是软 -recovering.
     setenv("MAYA_GATE_ABORT", "1", 1);
-    setenv("MAYA_NO_SYNC", "1", 1);   // no synchronized-output wrapper — unsynced wire
-    // Force the hardware-caret path: under tmux the composer falls back
-    // to the painted caret (tmux copy-mode ghosts a live cursor), so
-    // the hardware-caret assertions below require a tmux-free env.
-    // The tmux fallback itself is covered by the painted-mode run
-    // (AGENTTY_PAINTED_CARET=1) which shares the composer's painted
-    // path.
+    setenv("MAYA_NO_SYNC", "1", 1);   // 无同步-output 包装器 — 未同步传输
+    // 硬币硬币 -caret 路径: 在 tmux 下, 作曲者返回到所
+    // 绘 光标 (tmux 副本) -mode 鬼魂是活光标 所以硬件
+    // -caret 以下断言需要 tmux。 -free 内线。
+    // 调音器 回退 被涂上涂着的图画覆盖 -mode 运行( R)
+    // AGENTTY_PAINTED_CARET =1),与作曲家的绘画路径
+    // 相同.
     unsetenv("TMUX");
     setenv("TERM", "xterm-256color", 1);
     setlocale(LC_ALL, "C.UTF-8");
 
-    // tmux presence is toggled through the FAKE probe seam, never by
-    // setting $TMUX alone. Two reasons, both of which bit this test:
+    // tmux 存在通过 FAKE 探测器 接口边界 ,
+    // 从不设定 $TMUX 有两个原因 都比这个测试更简单
     //
-    //   1. maya's tmux probe is ONE-SHOT and cached per process. Setting
-    //      $TMUX after the first composer_config() call changes nothing,
-    //      because the probe already answered "not in tmux" and froze.
-    //      Every tmux assertion below was silently running tmux-FREE.
-    //   2. Without MAYA_TMUX_FAKE the probe shells out to the developer's
-    //      REAL tmux server, so the result depends on whose machine and
-    //      whose config is loaded — green on a box whose termfeatures
-    //      advertise cstyle, red on a box without a server. A capability
-    //      test must not ask the developer's environment for the answer.
+    //   1. maya ⁇ 娥贝贝琌 一个-SHOT 设置
+    //      第一次第composer_config() 调用 之后的 $TMUX
+    //      变化无所改变,因为探测器已经回答 "not in tmux" 并冻结了。
+    //      下面每个 tmux 的断言都是默默运行 tmux-FREE.
+    //   2. 不含 MAYA_TMUX_FAKE 探测器的弹壳 向开发者
+    //      真实 tmux 服务器,所以结果取决于谁
+    //      的机器和谁的配置 已加载 ——在一个
+    //      名词广告ctyle,红色在没有服务器的盒子上,
+    //      一个能力测试不能问开发者的环境来回答.
     //
-    // The feature list mirrors what a modern tmux reports; cstyle is the
-    // one the caret gate actually consults (DECSCUSR shaping).
+    // 特性列表反映了现代 tmux 报告的内容; ctyle 是其中之一 光标 门实际上咨询(
+    // NAME OF TRANSLATORS) DECSCUSR )),"("编程").
     auto set_tmux = [](bool on) {
         if (on) {
             setenv("TMUX", "/tmp/tmux-0/default,1,0", 1);
@@ -293,16 +293,16 @@ int main() {
             unsetenv("MAYA_TMUX_FAKE");
             unsetenv("MAYA_TMUX_FEATURES");
         }
-        maya::tmux::reset_cache_for_test();   // re-probe under the new env
+        maya::tmux::reset_cache_for_test();   // 新的掩体下为 re-probe
     };
     set_tmux(false);
 
-    // ── Gate unit-check ─────────────────────────────────────
-    // The composer only shows the hardware caret when it is safe. Each
-    // gate below fixes a real ghost-cursor report; assert the decision
-    // directly (cheaper + more precise than driving the whole app).
-    // Skipped under the AGENTTY_PAINTED_CARET wholesale opt-out (which
-    // forces every gate off) — the painted-mode run covers that path.
+    // ── 门单位-check ─────────────────────────────────────
+    // 作曲家只显示硬件 光标 安全的时候,
+    // 每个门下都修一个真正的鬼 -cursor 报告;
+    // 直接坚持决定(比驱动整个应用程序更精确)。
+    // 跳过到 AGENTTY_PAINTED_CARET 批发选择
+    // -out (这迫使每个门都关)——画的 -mode 运行覆盖了路径。
     if (std::getenv("AGENTTY_PAINTED_CARET") == nullptr) {
         Model g;
         g.d.current.messages.push_back({});
@@ -312,20 +312,20 @@ int main() {
         g.ui.terminal_focused = true;
         g.s.phase = agentty::phase::Idle{};
 
-        // Base case (tmux-free, focused, idle): hardware caret ON.
+        // 基本情况(tmux) -free ,焦点,闲点:硬件 光标 ON.
         set_tmux(false);
         if (!agentty::ui::composer_config(g).hardware_caret) {
             std::fprintf(stderr, "FAIL(gate): hardware caret off in the "
                          "safe base case (tmux-free, focused, idle)\n");
             return 1;
         }
-        // tmux + idle: caret ON. The copy-mode ghost is a streaming-
-        // plus-scroll problem; an idle screen is static, so tmux's
-        // copy-mode cursor tracks a stable position and never lands on
-        // shifting content. (Earlier this was force-hidden under tmux,
-        // leaving the common idle state caret-LESS — "tmux doesn't have
-        // the hardware caret.") The right-margin park handles the
-        // streaming-scroll case; idle no longer pays for it.
+        // tmux + 闲置 : 光标 ON 复制本时 -mode 鬼是一头 流式
+        // 传输 - 临Τ -scroll 问题; 闲置屏幕是静态的,
+        // 所以 tmux 的副本 -mode 光标跟踪一个稳定的位置, 并且从不在移动内容上降落。
+        // 此前采用强制隐藏。
+        // 在 tmux 下,离开常见的闲置状态 光标-LESS —
+        // tmux 没有硬件光标。
+        // 右侧 -margin 公园处理 流式传输-scroll 案件;闲置不再支付。
         set_tmux(true);
         if (!agentty::ui::composer_config(g).hardware_caret) {
             std::fprintf(stderr, "FAIL(gate): hardware caret OFF under tmux "
@@ -333,7 +333,7 @@ int main() {
             return 1;
         }
         set_tmux(false);
-        // Unfocused terminal: off (no blinking bar in an inactive pane).
+        // 无重点 终端 : 关闭( 不活动时不眨眼栏) 面板).
         g.ui.terminal_focused = false;
         if (agentty::ui::composer_config(g).hardware_caret) {
             std::fprintf(stderr, "FAIL(gate): hardware caret ON while the "
@@ -341,33 +341,33 @@ int main() {
             return 1;
         }
         g.ui.terminal_focused = true;
-        // tmux + streaming with no recent edit: still OFF (rows scroll;
-        // a reading user scrolled up must not have a caret re-aimed onto
-        // thread content — the ghost the right-margin park mitigates but
-        // doesn't fully remove while the screen is moving). Verify the
-        // gate holds under tmux specifically, not just tmux-free.
+        // tmux + 流式传输 没有最近的编辑: 仍然为OFF(
+        // rows 滚动; 向上滚动的阅读用户不能将 光标 re-aimed
+        // 移动到 线程 内容上—— 鬼魂右-margin 公园减轻了,
+        // 而在屏幕移动时没有完全删除)。 请检查tmux 下方的门是否被保存,
+        // 具体地说, 不只是 tmux-free。
         set_tmux(true);
         g.s.phase = agentty::phase::Streaming{agentty::phase::Active{}};
         g.ui.composer.last_edit_ms = maya::anim::default_clock().now_ms();
-        maya::testing::advance_anim_clock_ms(10'000);   // 10 s later
+        maya::testing::advance_anim_clock_ms(10'000);   // 10s 过后
         if (agentty::ui::composer_config(g).hardware_caret) {
             std::fprintf(stderr, "FAIL(gate): hardware caret ON while "
                          "streaming with no recent edit (under tmux)\n");
             return 1;
         }
         set_tmux(false);
-        // …and a RECENT edit during streaming does NOT bring it back:
-        // composer_uses_hardware_caret() drops the hardware caret for the
-        // whole duration of an on-screen animation (a live stream repaints
-        // at ~30 fps, and the caret's per-frame ?25l→move→?25h dance makes
-        // cursor-animating terminals replay their fade every frame — a
-        // visible flicker). The painted block caret is used instead, so
-        // typing a queued message mid-stream stays flicker-free. tmux-free
-        // for this one so an outer `env TMUX=…` can't mask it.
-        // (Behaviour set by f7ced849 — the recent-typing exception was
-        // deliberately removed.)
+        // ..还有一个 RECENT 编辑期间 流式传输 已经 不 带回来:
+        // composer_uses_hardware_caret ()
+        // 减少硬件 光标 整个期间的 -screen 动画( 直播) 数据流
+        // 重绘 ~30时 FPS ,并显示 光标 单位 -frame 25l
+        // – 移动 – 25h 舞蹈使光标 -animating 终端
+        // 重播他们的淡出 帧 可见闪光灯 涂鸦块 光标 中键入队列中的信件
+        // -stream 保持闪烁 -free . tmux 调制解析器 -free
+        // 这个人如此外在 `env TMUX=…` 无法掩盖
+        // (行为由f7ced849设定——最近-typing例外被故意删除.
+        // )
         g.ui.composer.last_edit_ms = maya::anim::default_clock().now_ms();
-        maya::testing::advance_anim_clock_ms(500);      // 0.5 s later
+        maya::testing::advance_anim_clock_ms(500);      // 0.5 秒后开始
         if (agentty::ui::composer_config(g).hardware_caret) {
             std::fprintf(stderr, "FAIL(gate): hardware caret ON while "
                          "streaming (painted caret expected, even when "
@@ -379,14 +379,14 @@ int main() {
                      "off when unfocused.\n");
     }
 
-    // Small terminal so the composer text wraps at a reachable edge AND
-    // the whole frame (thread + composer + status bar) OVERFLOWS the
-    // viewport — the composer rides the bottom edge, so the wrap frame
-    // scrolls a row into native scrollback and the shrink frame must
-    // erase past committed rows. That is the geometry the bug report
-    // comes from (long conversation, composer pinned at the bottom).
+    // 小点 终端 作曲者将文字包裹在一个可以到达的边缘
+    // 和 整个 帧 (线程 + 作曲家+状态栏)
+    // OVERFLOWS 编号 可视区域 ——作曲家骑着底边,
+    // 所以包裹 帧 滚动到本地 回滚缓冲区 和缩水者,
+    // 帧 必须删除过去承诺的行。这就是错误报告
+    // 来自的几何学(长话、被钉在底部的作曲)。
     const int W = 46, H = 10;
-    const int H2 = 16;   // resize-phase height (pad variant)
+    const int H2 = 16;   // 调整大小 -phase 高度( 纸) 变体)
 
     int master = -1, slave = -1;
     if (openpty(&master, &slave, nullptr, nullptr, nullptr) != 0) {
@@ -401,10 +401,10 @@ int main() {
     ::close(slave);
     fcntl(master, F_SETFL, fcntl(master, F_GETFL, 0) | O_NONBLOCK);
 
-    // The host split replaced maya::detail::Runtime + RunConfig with
-    // maya::Screen + maya::Options. Screen owns the device and cleans up in
-    // its destructor; `impl()` is the escape hatch for the finalize-bytes
-    // assertion at the bottom, which needs the explicit cleanup() call.
+    // 替换主机分割 maya::detail::Runtime +
+    // RunConfig 与 maya::Screen + maya::Options
+    // 屏幕拥有设备,并清理其销毁器; `impl()` 最终决定的逃生舱门
+    // -bytes 下方的断言,需要明确 cleanup() 调用.
     maya::Options cfg;
     cfg.mode = maya::Mode::Inline;
     auto scr_r = maya::Screen::open(cfg);
@@ -413,8 +413,8 @@ int main() {
     maya::detail::Device& rt = scr.impl();
 
     Model m;
-    // The host sends the size as a Msg at attach and on every SIGWINCH;
-    // view() reads it from the Model, so the test has to do the same.
+    // 主持人发送大小为 Msg 随函附上和逐项 SIGWINCH;
+    // view() 读它从 Model ,所以测试必须同样。
     auto resized = [&](int cols, int rows) {
         auto [m2, cmd] = agentty::app::update(std::move(m),
                                               Msg{agentty::TerminalResized{cols, rows}});
@@ -422,19 +422,19 @@ int main() {
         (void)cmd;
     };
     resized(W, H);
-    // Welcome screen off → plain composer-only frame.
+    // 欢迎收看屏幕 —— 平庸的作曲家 -only 帧.
     m.d.current.messages.push_back({});
     m.d.current.messages.back().role = agentty::Role::User;
 
-    VtEmu emu(W, H2);   // sized for the LATER resize phase (H2=16)
+    VtEmu emu(W, H2);   // LATER调整规模阶段的大小(H216)
 
     auto frame = [&](const char* tag) {
         tick(20);
         maya::Element root = agentty::ui::view(m);
-        // Drain the master WHILE rendering. A macOS pty buffers only a few
-        // KB; a full-frame write larger than that stalls (or is deferred by
-        // a non-blocking writer) until someone reads, so draining after the
-        // fact sees a torn frame. Linux's 4K+ line discipline buffer hid it.
+        // 排水师傅 WHILE 渲染. A macOS ty( 双胞胎)
+        // 缓冲区 仅几个 KB ; 满 -frame 写大于该摊位(或
+        // 被非拖放) -blocking 写作,直到有人读,
+        // 如此排水 后发现撕裂 帧. Linux 4K+线条学科 缓冲区 藏起来
         std::string got;
         std::atomic<bool> done{false};
         std::thread drain([&] {
@@ -443,13 +443,13 @@ int main() {
                 ssize_t k = ::read(master, buf, sizeof(buf));
                 if (k > 0) { got.append(buf, static_cast<std::size_t>(k)); continue; }
                 if (done.load()) {
-                    // render() has returned, so every byte of the frame has
-                    // been written; the wait is only for the pty to hand the
-                    // tail across. 60ms of silence, not 25: a shared CI VM
-                    // can stall that long, and a short window would feed the
-                    // emulator a torn frame -- the bug this test exists for.
+                    // render() 已经回来了,所以,每个 字节
+                    // 会 议 日 程 和 议 程 帧 已经写好了,
+                    // 等待的只是小提琴手 末尾 60米的沉默,
+                    // 而不是25米:共享 CI VM 能够拖那么久,
+                    // 一个短的窗口会喂喂模具的撕裂 帧 - 这个测试的bug存在。
                     pollfd pfd{master, POLLIN, 0};
-                    if (::poll(&pfd, 1, 60) <= 0) break;   // quiet: frame complete
+                    if (::poll(&pfd, 1, 60) <= 0) break;   // 静态: 帧 完成
                 } else {
                     pollfd pfd{master, POLLIN, 0};
                     (void)::poll(&pfd, 1, 5);
@@ -476,22 +476,22 @@ int main() {
         (void)cmd;
     };
 
-    // ── Baseline: empty composer ──────────────────────────────────────
+    // ── 基线:空作曲 ──────────────────────────────────────
     frame("initial");
     dump(emu, "initial");
 
-    // Fill the line ONE CHAR PER FRAME until the composer visually
-    // wraps (caret drops to a row below the first text row). This mirrors
-    // the user's keystroke cadence: every char is its own frame, so the
-    // wrap-inducing char is the ONLY delta of its frame.
+    // 填充行数 一个 CHAR PER FRAME 直到作曲家
+    // 用视觉包装为止( 以 光标 滴到第一行下方的一行。
+    // 这映射了用户的键盘键盘: 每个字符都是自己的 帧 ,
+    // 所以包装 -inducing 字符是 仅 其三角洲 帧.
     int first_text_row = -1, caret_row = -1, caret_col = -1;
     auto scan = [&]() {
         first_text_row = caret_row = caret_col = -1;
-        // The caret is EITHER the visible hardware cursor (hardware-
-        // caret mode — the default since the maya CursorHint work) OR a
-        // painted '#' block (painted mode / AGENTTY_PAINTED_CARET).
-        // Both map to "exactly one caret on screen"; the assertions
-        // below are mode-agnostic.
+        // 电话 光标 谓 EITHER 可见的硬件光标( 硬件 -) 光标 模式
+        // — 自 maya CursorHint 工作) ) 翻译: OR 绘画 '#'
+        // 块( 涂抹模式 /) AGENTTY_PAINTED_CARET).
+        // 两种地图都到 "exactly one caret on screen" ;
+        // 以下断言是模式 -agnostic.
         if (!emu.cursor_hidden) {
             caret_row = emu.cy;
             caret_col = emu.cx;
@@ -506,14 +506,14 @@ int main() {
             if (r.find("BBBB") != std::string::npos) { first_text_row = y; break; }
         }
     };
-    // Seed one word so first_text_row is findable.
+    // 种子一个词,所以first_text_row是可以找到的.
     for (const char* p = "BBBB"; *p; ++p) type(static_cast<char32_t>(*p));
     frame("seed");
     for (int guard = 0; guard < 80; ++guard) {
         type(U'B');
         frame("typed-1");
         scan();
-        if (first_text_row >= 0 && caret_row > first_text_row) break;   // wrapped
+        if (first_text_row >= 0 && caret_row > first_text_row) break;   // 包起来
     }
     dump(emu, "after fill (wrapped)");
     if (caret_row < 0) {
@@ -523,14 +523,14 @@ int main() {
     std::fprintf(stderr, "after fill: caret at row %d col %d "
                  "(first text row %d)\n", caret_row, caret_col, first_text_row);
 
-    // The wrapped state: caret row > first text row.
+    // 包裹状态:光标行 > 第一文本行.
     if (first_text_row < 0 || caret_row <= first_text_row) {
         std::fprintf(stderr, "SKIP: composer did not wrap (caret row %d, "
                              "first text row %d)\n", caret_row, first_text_row);
         return 77;
     }
 
-    // ── The backspace ─────────────────────────────────────────────────
+    // ── 后方空间 ─────────────────────────────────────────────────
     backspace();
     frame("backspace");
 
@@ -558,7 +558,7 @@ int main() {
         return 42;
     }
 
-    // Also verify: the row the caret used to occupy must be gone/blank.
+    // 并核实:行 光标 曾经占据的必须是 gone/blank.
     if (br == caret_row) {
         dump(emu, "BUG state");
         std::fprintf(stderr,
@@ -567,14 +567,14 @@ int main() {
         return 43;
     }
 
-    // ── Oscillation: type/backspace cycles with blink frames between.
-    // The blink toggles the caret cell every 530 ms; drive several
-    // cycles so a stale diff slot has every chance to surface.
+    // 振荡：输入和退格交替进行，期间插入光标闪烁帧。
+    // 眨眼时 切换 编号 光标 存储单元 每530 ms;
+    // 驱动多个循环, 如此 过期 diff槽有 每一个机会浮出水面。
     for (int cycle = 0; cycle < 6; ++cycle) {
         type(U'B');
         frame("osc-type");
         backspace();
-        tick(540);           // cross a blink toggle boundary
+        tick(540);           // 跨越闪烁的切换边界
         frame("osc-backspace+blink");
         scan_caret(br, bc);
         if (br < 0) {
@@ -588,10 +588,10 @@ int main() {
                 "shrink.\n", cycle, br);
             return 42;
         }
-        // Stale-caret DUPLICATE check, mode-agnostic. Hardware-caret
-        // mode: the terminal's own cursor IS the caret — it must be
-        // visible and there must be ZERO painted '#' blocks (any '#' is
-        // a stale painted cell). Painted mode: exactly one '#'.
+        // 过期-caret DUPLICATE 检查, 模式 -agnostic
+        // 硬件 -caret 模式: 模式 终端 自己的光标 IS 编号 光
+        // 标 ——必须可见,必须存在. ZERO 绘制 '#' 块( 任意 '#'
+        // 是一个 过期 绘制 存储单元。油漆模式: 完全一个 '#'.
         int n = 0;
         for (int y = 0; y < H; ++y)
             for (char ch : emu.screen[static_cast<std::size_t>(y)])
@@ -610,14 +610,14 @@ int main() {
     std::fprintf(stderr, "PASS: caret tracks wrap/shrink through %d "
                  "oscillation cycles.\n", 6);
 
-    // ── Streaming variant: same wrap/shrink dance while the composer is
-    // in Streaming state — that is the ONLY state where build() routes
-    // through the cross-frame ComponentCache (keyed on cache_id, which
-    // folds text+cursor+state, so a cached blit must never serve stale
-    // wrap geometry).
+    // 流式变体：流式过程中，输入框执行相同的换行与收缩过程。
+    // 输入 流式传输 状态——即: 仅 说明在哪里 build() 穿过十字路口的
+    // 路线 -frame ComponentCache (按键) cache_id ,
+    // 哪个 归并 文本+ cursor+状态,所以缓存的 blit 绝不能服务
+    // 过期 包几何学).
     m.s.phase = agentty::phase::Streaming{agentty::phase::Active{}};
 
-    // Type until wrapped again.
+    // 键入到再次包裹。
     scan();
     for (int guard = 0; guard < 80; ++guard) {
         type(U'B');
@@ -657,7 +657,7 @@ int main() {
         return 45;
     }
 
-    // Two more cycles in streaming (cache warm now).
+    // 还要两个周期 流式传输 (缓存 热的现在。
     for (int cycle = 0; cycle < 2; ++cycle) {
         type(U'B');
         frame("stream-osc-type");
@@ -676,28 +676,28 @@ int main() {
     std::fprintf(stderr, "PASS: streaming-state (component-cache) path "
                  "tracks wrap/shrink too.\n");
 
-    // ── Pad-variant (the actual user report): in a FITTING terminal the
-    // composer does NOT sit in the overflow band, so maya's composer
-    // anti-bounce hold (inline_min_content pad, kMaxHoldPad=2) is free to
-    // bridge the 1-row dip the backspace produces. The pad decays after
-    // kHoldDecayFrames=6 NON-RISING frames — but only in frames that
-    // actually render. After the last backspace the ONLY render driver is
-    // the idle caret blink (~4 renders/s) — and once blink stops (15 s
-    // idle), NOTHING renders: a stranded pad row = the "composer still
-    // two lines tall / cursor on the ghost second line" report.
+    // 填充变体：实际用户报告中，终端能够容纳内容时，
+    // 作曲家会 不 坐在溢出的带子里,所以 maya 反作曲家的反作曲 -bounce
+    // 持有( 时间) inline_min_content 垫, kMaxHoldPad
+    // =2 自由连接 1 -row 缩小后空格。 垫在 kHoldDecayFrames
+    // =6 之后衰变。 NON-RISING 帧 -但只有现在 帧 其实 渲染。
+    // 在最后一个后空格后, 仅 渲染 驱动程序是闲置的 光标 闪烁( ~ 4)
+    // renders/s ——一旦眨眼停止(15秒闲), 无内容 渲染 : 搁浅的垫
+    // 行 = "composer still two lines tall / cursor on the ghost second line"
+    // 报告。
     //
-    // Reproduce: new small session in a taller terminal, wrap, backspace,
-    // then drive ~12 frames (enough for the hold to decay) and assert the
-    // pad row is GONE — i.e. the status bar's top border sits DIRECTLY
-    // below the composer's bottom border.
+    // 重排: 高一点的新小会话 终端 ,然后将 ~12
+    // 驱动 帧 (足够被束缚到衰败) 并断言垫行是 GONE
+    // — i.e 状态栏的顶端边框坐落着 DIRECTLY
+    // 位于作曲家底边框之下.
     {
         struct winsize ws2{};
         ws2.ws_col = (unsigned short)W;
         ws2.ws_row = (unsigned short)H2;
         ioctl(master, TIOCSWINSZ, &ws2);
         resized(W, H2);
-        // maya picks the resize up on the next frame via its width-
-        // backstop / SIGWINCH path.
+        // maya 将下个调整大小 帧 通过其宽度- 后退 /
+        // SIGWINCH 路径。
         tick(50);
         frame("resize-tall");
 
@@ -710,21 +710,21 @@ int main() {
 
         int prev_bottom = -1;
         auto composer_bottom = [&]() {
-            // The composer's bottom border row: the LAST row holding the
-            // box bottom-left corner '╰' (rendered '?'). Find the last
-            // row containing a '?', skipping the status bar (its rows
-            // also have '?'); the composer's bottom border is the row
-            // immediately above the status bar's top border. We identify
-            // the status bar's TOP border row as the second-to-last
-            // bordered row and take the one above it.
+            // 作曲家的底边框行: 最后 将框底按住 -left
+            // 转角 '╰' (已移交) '?'。
+            // 查找最后一行中包含 '?' ,跳过状态栏(
+            // 其行中也包含 '?' ); 作曲家的底边框
+            // 是位于状态栏顶边框上方的行。我们识别状态栏的
+            // 边框 TOP 边框行为第二行 -to-last 边排,
+            // 并取其上方者.
             int bordered[3] = {-1, -1, -1};
             int nb = 0;
             for (int y = H2 - 1; y >= 0 && nb < 3; --y) {
                 std::size_t p = emu.screen[static_cast<std::size_t>(y)].find('?');
                 if (p != std::string::npos) bordered[nb++] = y;
             }
-            // bordered[0]=status top, bordered[1]=composer bottom,
-            // bordered[2]=composer top.
+            // 边框 [0] = 状态上,边框 [1] =组合器底部,
+            // 边框[2] =聚合器顶部.
             return bordered[1];
         };
         prev_bottom = composer_bottom();
@@ -733,7 +733,7 @@ int main() {
             return 1;
         }
 
-        // Wrap it again.
+        // 再来一次
         scan();
         for (int guard = 0; guard < 80; ++guard) {
             type(U'B');
@@ -760,12 +760,12 @@ int main() {
         std::fprintf(stderr, "pad-variant: bottom after backspace %d\n",
                      after_bs_bottom);
 
-        // Drive the hold out: 12 more frames with blink cadence. The pad
-        // must decay to 0 and the composer bottom must return to
-        // prev_bottom. If it stays a row taller, the ghost pad row is
-        // stranded — exactly what the user sees.
+        // 推开 12个 帧。 垫必须衰减到 0 ,
+        // 编曲底部必须返回 prev_bottom
+        // 如果它保持高一行,则幽灵垫行就搁浅了
+        // ——这正是用户所看到的.
         for (int f = 0; f < 12; ++f) {
-            tick(265);           // blink half-period: real render drivers
+            tick(265);           // 闪烁一半 -period : 真实 渲染 驱动程序
             frame("pad-decay");
         }
         const int settled_bottom = composer_bottom();
@@ -783,31 +783,31 @@ int main() {
                      "shrink (no ghost row).\n");
     }
 
-    // ── WELCOME-SCREEN variant (the user's exact report: "only on FIRST
-    // start, once the first prompt is gone it doesn't happen").
+    // 欢迎界面变体：复现用户所说的“仅首次出现”的情况。
+    // 开始,一旦第一个提示词消失,它不会发生".
     //
-    // On a fresh session the thread is EMPTY and Thread::Config routes
-    // to the WelcomeScreen (thread.cpp: messages.empty() → is_empty +
-    // welcome cfg). That subtree differs from the conversation in three
-    // ways that interact with the wrap/shrink dance:
-    //   • the welcome is CLAMPED to term_rows-11 (welcome_screen.cpp
-    //     kIdleChromeRows) — the composer does NOT ride the viewport
-    //     bottom;
-    //   • the welcome wordmark Bobs (sine per-letter), which keeps the
-    //     visual_hash advancing at its own cadence;
-    //   • typing the first char swaps welcome→conversation (the
-    //     "starters card" first_run path only exists while threads are
-    //     empty).
-    // My earlier variants pushed a user message to SUPPRESS the welcome
-    // — so none of them exercised this subtree. Reproduce exactly:
-    // fresh empty thread (welcome), fill to wrap, ONE backspace, then
-    // idle-drive the blink and assert the composer returns to its
-    // single-row height.
+    // 新的课上, 线程 谓 空 财务报告和已审计财务报表 Thread::Config
+    // 通往该地的路线 WelcomeScreen (thread.cpp:
+    // messages.empty() → is_empty + 欢迎 cfg。 树下与对话有三种不同,
+    // 与对话有相互作用。 wrap/shrink 舞蹈: 音乐
+    //   - 欢迎你 CLAMPED 改为 term_rows-11 (welcome_screen.cpp
+    //     kidleChromeRows)——作曲家确实如此. 不 骑着 可视区域 底部; 下部; 底部, 下部, 底部 ; 底端, 底端; 底底, 底底; 底边, 底边; 底面, 底面; 底侧, 底侧; 底层, 底层; 底座, 底座; 底板, 底板; 底门, 底门; 底角, 底角; 底口, 底口;
+    //     底线, 底线; 底框, 底框; 底
+    //   • 欢迎词签Bobs(每秒1) -letter ),保留了
+    //     visual_hash 以自己的气质推进;
+    //   • 输入第一个字符交换欢迎字-对话字(繁体字)
+    //     "starters card" first_run 路径仅存在于 线程 空的) (中文(
+    //     简体) ).
+    // 我之前的电话 变体 将用户信件推到 SUPPRESS
+    // ——欢迎——所以他们没有一个能行使这副树。
+    // 新鲜空 线程 来,你应当填满, 一个 后空格,
+    // 空格 -drive 闪烁并断言作曲家返回到它的单曲
+    // -row 身高 高点
     for (const int Hw : {H2, 10}) {
-        // Small-height pass: welcome (clamped to 4 rows) + composer +
-        // status bar OVERFLOW the viewport — the composer rides the
-        // bottom edge and the wrap scroll commits rows. That is the
-        // first-start-on-a-small-terminal geometry.
+        // 小点 -height 传:欢迎( 已宣布为4行) + 作曲家
+        // + 状态栏 OVERFLOW 编号 可视区域 ——作曲家骑在底边,
+        // 包装卷轴则会行。这是第一个
+        // -start-on-a-small-terminal 几何学.
         {
             struct winsize wsw{};
             wsw.ws_col = (unsigned short)W;
@@ -817,8 +817,8 @@ int main() {
             tick(50);
             frame("welcome-resize");
         }
-        m.d.current.messages.clear();          // back to welcome screen
-        m.d.threads.clear();                   // first_run starters path
+        m.d.current.messages.clear();          // 返回欢迎屏幕
+        m.d.threads.clear();                   // first_run 启动路径
         m.s.threads_loading = false;
         m.s.phase = agentty::phase::Idle{};
         m.ui.composer.text.clear();
@@ -837,12 +837,12 @@ int main() {
             }
             return bordered[1];
         };
-        // Scroll-invariant composer height: rows between the composer's
-        // BOTTOM border and the STATUS BAR's top border. The welcome
-        // wordmark bob can shift absolute rows (its wrapped-tagline rest
-        // line scrolls in/out), so absolute anchors misread as a ghost
-        // row; this gap can only grow if a real row appears between
-        // composer and status bar.
+        // 滚动 -invariant 作曲高度:作曲者之间的行
+        // BOTTOM 边框和边框 STATUS BAR 上边框。
+        // 欢迎的单词标记 bob 可以移动绝对行( 它包着)
+        // -tagline 休息线滚动 in/out ),
+        // 因此绝对主播误读为鬼行;只有作曲家和状态栏之间出现真正的一行,
+        // 这个差距才能扩大.
         auto composer_gap = [&]() {
             int status_top = -1, comp_bottom = -1;
             for (int y = H2 - 1; y >= 0; --y) {
@@ -863,14 +863,14 @@ int main() {
         }
         std::fprintf(stderr, "welcome: composer bottom row %d\n", welcome_bottom);
 
-        // Fill until wrapped. NOTE: the FIRST char swaps the welcome
-        // subtree out (thread.cpp is_empty → conversation), so the real
-        // wrap/shrink dance happens against the conversation view — but
-        // the frame that MATTERS for the user report is the one where
-        // the welcome was JUST swapped: fresh session, first prompt
-        // being typed, transient geometry, swap handoff (the
-        // thinking-indicator-style seam dip the AppLayout pad comment
-        // names). Drive it identically: type until wrapped.
+        // 填满直到包裹。 NOTE : 数据 首次 字符交换欢迎树
+        // ( C) thread.cpp is_empty ~ 谈话),
+        // 所以真实的 wrap/shrink 舞蹈会与对话的视角相悖,
+        // 帧 说 MATTERS 用户报告是欢迎的 JUST 已
+        // 互换: 新鲜会话, 首页 提示词 正在执行中 带类型的 ,
+        // 瞬间几何,互换交接(思维) -indicator-style
+        // 接口边界 来,来,来 AppLayout 选项
+        // 选项注释名。按相同的方式驱动:键到包。
         scan();
         for (int guard = 0; guard < 80; ++guard) {
             type(U'B');
@@ -892,13 +892,13 @@ int main() {
                      caret_row, first_text_row);
         dump(emu, "welcome wrapped");
 
-        // ONE backspace → single row again.
+        // ONE后空 ~ 又单行.
         backspace();
         frame("welcome-backspace");
         dump(emu, "welcome right after backspace");
 
-        // Idle-drive the blink (the ONLY render driver now) for well
-        // past kHoldDecayFrames=6 renders.
+        // 闲置 -drive 闪烁( 闪烁) 仅 渲染 驱动程序),
+        // 用于远超 kHoldDecayFrames=6的 渲染.
         for (int f = 0; f < 12; ++f) {
             tick(265);
             frame("welcome-decay");
@@ -918,7 +918,7 @@ int main() {
             return 47;
         }
 
-        // Caret must be back on the single text row.
+        // 光标必须回到单行文字上.
         scan_caret(br, bc);
         scan();
         if (br < 0 || (first_text_row >= 0 && br > first_text_row)) {
@@ -932,23 +932,23 @@ int main() {
                      "wrap/shrink is clean.\n", Hw);
     }
 
-    // ── Exit path: the "agentty eats composer lines on close" repro ───
-    // In hardware-caret mode every frame ends with the physical cursor
-    // AT THE CARET CELL — inside the composer box, rows above the frame
-    // bottom. Runtime::cleanup() must emit the finalize bytes (CUD back
-    // to the resting row) BEFORE the Terminal dtor's teardown \r\n;
-    // otherwise the shell prompt lands mid-box and its output eats the
-    // remaining composer rows from scrollback.
+    // ── 退出路径: "agentty eats composer lines on close" 重排 ───
+    // 硬件 -caret 模式。 帧 以物理光标结尾 AT 该
+    // CARET CELL - 在作曲盒里, 上面的行 帧 下边。
+    // Runtime::cleanup ( )必须发出定稿 字节 (
+    // CUD 回到休息的行). 之前 编号 终端 dtor 的
+    // 撕裂 \r\ n; 否则, 弹壳 提示词 中点陆地 -box
+    // 输出时会吃掉剩下的作曲行 回滚缓冲区.
     {
-        // Ensure a normal focused idle composer with the caret shown.
+        // 保证一个正常的焦点闲置作曲家, 并显示 光标。
         m.s.phase = agentty::phase::Idle{};
         frame("pre-exit");
         scan_caret(br, bc);
         const bool caret_was_shown = !emu.cursor_hidden;
         const int  caret_row_pre   = br;
 
-        // Find the frame's bottom row: the status bar's bottom border is
-        // the last non-blank row on screen.
+        // 找到那个 帧 '下行:状态栏的下边框是最后一个非
+        // -blank 排在屏幕上。
         int frame_bottom = -1;
         for (int y = emu.h - 1; y >= 0; --y) {
             if (emu.row(y).find_first_not_of(' ') != std::string::npos) {
@@ -957,13 +957,13 @@ int main() {
             }
         }
 
-        // Tear down the runtime the way a real quit does.
+        // 拆掉那个 运行时 真正的戒烟方式
         (void)rt.cleanup();
         emu.feed(read_all(master));
 
-        // The cursor must now sit AT or BELOW the frame's last row —
-        // never inside the composer box — so the shell prompt that
-        // follows starts on a fresh line below the transcript.
+        // 光标现在必须坐着 AT 或 或 时 间 下方 编号
+        // 帧 最后一行——从不在作曲盒里——所以贝壳
+        // 提示词 接下来的开始 在记录稿下面的一条新线。
         if (caret_was_shown && caret_row_pre >= 0 && frame_bottom >= 0
             && emu.cy < frame_bottom) {
             dump(emu, "exit state");
@@ -974,8 +974,8 @@ int main() {
                 "report).\n", emu.cy, frame_bottom);
             return 49;
         }
-        // Simulate the shell prompt the terminal prints next; it must
-        // land on a fresh row, not inside the box.
+        // 模拟壳体 提示词 编号 终端 下一个字;
+        // 它必须降落在新行上,而不是在盒子内。
         const int prompt_row = emu.cy;
         emu.feed("$ \r\n");
         if (frame_bottom >= 0 && prompt_row < frame_bottom) {

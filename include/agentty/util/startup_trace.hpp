@@ -1,9 +1,9 @@
-// agentty/util/startup_trace.hpp — where launch time goes, by hand.
+// agentty/util/startup_trace.hpp — 手动启动时间。
 //
-// AGENTTY_STARTUP_TRACE=<path> appends "+12.3 ms  name" lines to <path> at
-// each mark, measured from process start (the first mark). stderr would be
-// lost once the TUI owns the terminal, hence a file. Unset: one cached
-// getenv, nothing else.
+// AGENTTY_STARTUP_TRACE=<path>在每个标记处将
+// "+12.3 ms  name"行附加到<path>，从处理开始（第一标记）开始测量。
+// 一旦 TUI 拥有 终端，stderr 就会丢失，因此是一个文件。未设置：一个缓存的
+// getenv，没有其他。
 #pragma once
 
 #include <chrono>

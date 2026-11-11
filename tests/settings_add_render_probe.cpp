@@ -1,8 +1,8 @@
-// settings_add_render_probe — the settings-list add-prompt, mid-edit:
-//   ./agentty_standalone_tests settings_add_render_probe            short input
-//   ./agentty_standalone_tests settings_add_render_probe --long     pasted long line (must WINDOW, not overflow)
-//   ./agentty_standalone_tests settings_add_render_probe --mid      caret mid-string (←←←)
-//   ./agentty_standalone_tests settings_add_render_probe --armed    browsing, delete armed
+// settings_add_render_probe ——设置 -list 添加( E) -prompt 中间 -edit:
+//   ./agentty_standalone_tests settings_add_render_probe 简短输入
+//   ./agentty_standalone_tests settings_add_render_probe --long 粘贴长线( 必须) WINDOW ,
+//   不溢出) ./agentty_standalone_tests settings_add_render_probe --mid      光标 中点 -string
+//   (←←←) ./agentty_standalone_tests settings_add_render_probe --armed 浏览, 删除武装
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -39,8 +39,8 @@ int main(int argc, char** argv) {
     pn::SettingsList o;
     o.concern = settings::Category::Plugins;
     if (arg == "--plugins") {
-        // A realistic pane: the #98 server (75 tools, most on demand), a
-        // small healthy one, a pinned tool, a disabled server, a broken one.
+        // 一个现实的面板:#98服务器(75个工具,最需要时),
+        // 一个小的健康工具,一个被绑定的工具,一个被禁用的服务器,一个被损坏的服务器.
         auto& pm = m.ui.plugins;
         pm.native_tool_count = 45;
         pm.loading = "auto";
@@ -87,7 +87,7 @@ int main(int argc, char** argv) {
             o.cursor = static_cast<int>(o.input.size());
         } else if (arg == "--mid") {
             o.input  = "my-server npx -y @example/mcp-thing";
-            o.cursor = 9;   // just after "my-server"
+            o.cursor = 9;   // 刚刚之后 "my-server"
         } else {
             o.input  = "my-server npx -y @example/mcp-thing";
             o.cursor = static_cast<int>(o.input.size());

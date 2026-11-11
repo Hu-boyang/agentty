@@ -1,7 +1,7 @@
-// fuzz_text.cpp — libFuzzer harness for agentty's pure text parsers: the
-// ones that take untrusted bytes (tool output, streamed tool-call JSON,
-// pasted text, model ids from a provider). Checks invariants, not just
-// crashes. Build and run: tests/fuzz/run.sh
+// fuzz_text.cpp — libFuzzer 调制解析器 agentty
+// 纯文本 解析器 :那些不值得信赖的人 字节 (工具输出,流化工具)
+// -call JSON ,贴上文本,提供商的模型代号。检查 不变量 ,
+// 不仅仅是崩溃。 tests/fuzz/run.sh
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -20,13 +20,13 @@ namespace u = agentty::tools::util;
 
 extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size) {
     if (size == 0) return 0;
-    // First byte picks a split point so two-argument functions get two inputs.
+    // 第一届 字节 选择一个分点, 所以两个 -argument 函数得到两个输入。
     const std::size_t split = size > 1 ? data[0] % size : 0;
     const std::string_view all{reinterpret_cast<const char*>(data) + 1, size - 1};
     const std::string_view a = all.substr(0, std::min(split, all.size()));
     const std::string_view b = all.substr(std::min(split, all.size()));
 
-    // utf8: every output is valid UTF-8, cuts stay in bounds.
+    // utf8:每个输出都是有效的UTF-8,切片会停留在界限内.
     CHECK(u::is_valid_utf8(u::sanitize_utf8(all)));
     CHECK(u::is_valid_utf8(u::to_valid_utf8(std::string{all})));
     const std::size_t lim = static_cast<std::size_t>(data[0]) * 7;
@@ -43,7 +43,7 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
     CHECK(tail.size() <= all.size());
     CHECK(tail.data() >= all.data() && tail.data() + tail.size() == all.data() + all.size());
 
-    // partial JSON as it streams in, byte by byte through a growing prefix.
+    // 部分 JSON 随它 数据流 内, 字节 由 字节 穿过一个不断增长的前缀。
     (void)u::close_partial_json(all);
     (void)u::ended_inside_string(all);
     const std::string key{a.substr(0, std::min<std::size_t>(a.size(), 12))};
@@ -60,17 +60,17 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
             CHECK(through <= end);
         }
         (void)u::decode_string_append(b, &through, inc, &closed);
-        CHECK(inc == whole);   // incremental decode matches the one-shot one
+        CHECK(inc == whole);   // 递增解码匹配其中的 -shot 单曲
     }
 
-    // base64 round trip.
+    // base64 圆行.
     const std::string enc = agentty::util::base64_encode(all);
     CHECK(agentty::util::base64_decode(enc) == all);
     (void)agentty::util::base64_decode(all);
 
-    // model id decoding (ids and display names come from provider APIs).
-    // A tag-only id (":latest") decodes to an empty name on purpose, so
-    // check what must always hold: bounded output, no control bytes.
+    // 模型 id 解码(ids和显示名称来自提供者 APIs).
+    // 标记-only id(":latest")在故意时解码为空名,
+    // 所以检查必须始终持有的: 绑定输出,没有控制字节.
     const auto mn = agentty::model_name::decode(a, b);
     CHECK(mn.name.size() <= 64 && mn.qualifier.size() <= 64 && mn.version.size() <= 64);
     for (char c : mn.full()) {

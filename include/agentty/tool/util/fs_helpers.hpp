@@ -1,31 +1,31 @@
 #pragma once
-// Shared filesystem helpers. Tool implementations need normalized paths,
-// binary detection, and a predictable "which directories to skip during
-// traversal" list — centralised here so the rules are consistent across
-// grep / glob / list_dir / find_definition.
+// 共享文件系统助手。 Tool 实现需要标准化路径、二进制程序 检测和可预测的
+// 遍历时应该跳过哪些目录。
+// 列表 - 集中在此处，以便规则在 grep / glob / list_dir
+// / find_definition 中保持一致。
 //
-// ── WHICH `util` IS THIS? ──────────────────────────────────────────
-// There are two, and the split is deliberate even though the name collides:
+// ── 对应的 `util` IS 此? ──────────────────────────────────────────
+// 有两个，尽管名称冲突，但分裂是故意的：
 //
-//   agentty::tools::util   (include/agentty/tool/util/, src/tool/util/)
-//       The TOOL BOUNDARY. Everything here exists because a MODEL asked for
-//       something and we have to be careful about it: workspace clamping,
-//       path normalisation, subprocess spawning, the sandbox, the trust
-//       handoff gate, argument reading, partial-JSON salvage. The unifying
-//       property is UNTRUSTED INPUT — these are the walls and the parsers
-//       that stand between a model's request and the machine.
+//   agentty::tools::util(
+//       include/agentty/tool/util/，
+//       src/tool/util/)TOOLBOUNDARY。
+//       这里所有的东西都存在，因为 MODEL 要求了一些东西，
+//       我们必须小心它：工作区 钳位、路径规范化、子进程生成、沙箱、信任切换门、
+//       参数读取、partial-JSON 挽救。统一属性是 UNTRUSTED
+//       INPUT — 这些是模型请求和机器之间的墙壁和 解析器。
 //
-//   agentty::util          (include/agentty/util/, src/util/)
-//       APP-WIDE PLUMBING, with no notion of a tool call: logging (logx),
-//       home/root resolution, base64, teardown ordering, the self-updater,
-//       the models.dev cache. Callable from anywhere, including from
-//       tools::util itself (fs_helpers uses util::home_dir), which is why
-//       the dependency runs one way only: tools::util may use util, never
-//       the reverse.
+//   agentty::util(include/agentty/util/，
+//       src/util/)APP-WIDEPLUMBING，没有工具调用的概念：记录
+//       (logx)、home/root分辨率、base64、拆卸排序、self-updater、
+//       models.dev缓存。可从任何地方调用，包括从 tools::util
+//       本身（fs_helpers 使用 util::home_dir），
+//       这就是依赖项仅以一种方式运行的原因：tools::util 可以使用 util，
+//       而不是相反。
 //
-// Rule of thumb when adding something: does it only make sense because a
-// model is on the other end of it? Then it belongs here. Otherwise it is
-// agentty::util.
+// 添加某物时的经验法则：仅因为模型位于其另一端才有意义吗？
+// 那么它就属于这里。否则就是agentty::
+// util。
 
 #include <expected>
 #include <filesystem>
@@ -33,46 +33,46 @@
 #include <string>
 #include <string_view>
 
-#include "agentty/tool/registry.hpp"   // ToolError + factories
+#include "agentty/tool/registry.hpp"   // ToolError + 工厂
 #include "agentty/util/io.hpp"
 
 namespace agentty::tools::util {
 
 namespace fs = std::filesystem;
 
-// Forward declarations — WorkspacePath sits below ToolError-using factories.
+// 前向声明 — WorkspacePath 位于 ToolError-using 工厂下方。
 class WorkspacePath;
 
-// Read an entire file as a binary blob. Returns "" on open failure (callers
-// that need to distinguish missing vs empty should stat first).
+// 将整个文件读取为 二进制程序 blob。打开失败时返回
+// ""（需要区分缺失与空的调用者应首先进行统计）。
 //
-// Two overloads: the `WorkspacePath` form is the workspace-checked entry
-// the model-facing tools should use; the `fs::path` form is the
-// unchecked escape hatch for paths the runtime owns (credentials,
-// thread persistence, memory store under ~/.agentty/). Routing through
-// a typed parameter keeps the boundary visible at the call site —
-// reviewers can see at a glance which form a tool picked.
+// 两个重载：`WorkspacePath`形式是model
+// -facing工具应该使用的工作区-checked条目；
+// `fs::path` 形式是 运行时 拥有的路径的未经检查的
+// 逃生舱口（凭据、线程 持久化、内存 存储在 ~/.agentty/ 下）。
+// 通过 带类型的 参数进行路由使边界在 调用 站点上保持
+// 可见 - 审阅者可以一目了然地看到所选工具的形式。
 [[nodiscard]] std::string read_file(const fs::path& p);
 [[nodiscard]] std::string read_file(const WorkspacePath& p);
 
-// Write content atomically-ish (truncate + write + flush). Returns the
-// empty string on success, or a human-readable error otherwise. Keeps tool
-// lambdas terse while still forcing callers to surface failures.
+// Write内容原子地-ish(截断+写入+刷新)。
+// 成功时返回空字符串，否则返回 human-readable 错误。
+// 保持工具 lambda 简洁，同时仍然迫使调用者暴露故障。
 //
-// See `read_file` above for the WorkspacePath vs fs::path overload split.
+// 关于 WorkspacePath 与 fs::path 过载划分，请参阅上面的 `read_file`。
 [[nodiscard]] std::string write_file(const fs::path& p, std::string_view content);
 [[nodiscard]] std::string write_file(const WorkspacePath& p, std::string_view content);
 
-// Normalise a user-supplied path. Accepts forward slashes on Windows
-// (the model frequently produces them), strips surrounding whitespace and
-// quotes, and returns an absolute path relative to cwd when not already
-// absolute — so error messages name an unambiguous location.
+// 规范化user-supplied路径。
+// 接受 Windows 上的正斜杠（模型经常生成它们），
+// 去除周围的空格和引号，并在还不是绝对路径时返回相对于 cwd
+// 的绝对路径 — 因此错误消息会命名一个明确的位置。
 [[nodiscard]] fs::path normalize_path(std::string_view s);
 
-// Strong typedef for an already-normalised filesystem path. The only way
-// to construct one is from a raw string via `NormalizedPath{"..."}`, which
-// calls `normalize_path` — so "did I already normalize this?" is answered
-// by the type. Passed by value (cheap: holds a single fs::path).
+// 针对已经-normalised文件系统路径的强类型定义。构造一个的唯一方法是通过
+// `NormalizedPath{"..."}` 从原始字符串，其中 调用
+// `normalize_path` — 因此 "did I already normalize this?"
+// 由类型回答。按值传递（便宜：保存单个 fs::path）。
 struct NormalizedPath {
     fs::path value;
 
@@ -83,66 +83,66 @@ struct NormalizedPath {
     [[nodiscard]] bool empty() const noexcept { return value.empty(); }
 };
 
-// ── Workspace boundary ──────────────────────────────────────────────────
-// Every filesystem-touching tool refuses paths outside this root. Set
-// once at startup (main.cpp from cwd, or from the --workspace CLI flag);
-// query freely from tool implementations. The default before
-// `set_workspace_root` is called is the process's cwd at first call —
-// safe for tests and standalone helper use.
+// ── 工作区 边界 ──────────────────────────────────────────────────
+// 每个文件系统-touching工具拒绝该根之外的路径。
+// 启动时设置一次（来自cwd的main.cpp，或来自--workspace
+// CLI 标志）；从工具实现中自由查询。
+// 调用 `set_workspace_root` 之前的默认值是进程的 cwd 首先是
+// 调用 — 对于测试和独立帮助程序使用是安全的。
 //
-// The boundary is the simplest sandbox layer: it doesn't stop a model
-// from running shell commands that walk anywhere, but it does stop the
-// fast path of "model casually `read`s ~/.ssh/id_rsa or `write`s to
-// /etc/hosts". Pair with bash gating + a future OS-native sandbox
-// (sandbox-exec / bwrap / firejail) for a defense-in-depth story.
+// 边界是最简单的沙箱层：它不会阻止模型运行走到任何地方的shell命令，
+// 但它确实阻止"model casually `read`s ~/.ssh/id_rsa or `write`s to /etc/hosts"
+// 的快速路径。与 bash gating + 未来的 OS
+// -native 沙箱 (沙箱-exec / bwrap /
+// firejail) 配对，用于防御-in-depth 故事。
 void set_workspace_root(Io, fs::path root);
 
 [[nodiscard]] const fs::path& workspace_root();
 
-// The ACTIVE PROJECT directory: the process cwd (the dir agentty was
-// launched in), clamped inside the access boundary. Distinct from
-// workspace_root(), the widenable ACCESS BOUNDARY (`--workspace /`).
-// Relative tool paths and repo-scoped defaults resolve from HERE so that
-// `read src/foo.cpp` under `--workspace /` lands in the launched project,
-// not at `/src/foo.cpp`. By default project_root() == workspace_root().
-// Mirrors mcp-cpp's util::project_root(); the two stay in sync via the
-// shared set_workspace_root() plumbing.
+// 活动 PROJECT目录：进程cwd(目录agentty被启动)，
+// 被夹在访问边界内。与 workspace_root() 不同，
+// 可扩展的 ACCESS BOUNDARY (`--workspace /`)。
+// 相对工具路径和仓库-scoped默认从HERE解析，使得`--workspace /`下
+// 的`read src/foo.cpp`落在启动的项目中，而不是在`/src/foo.cpp`处。
+// 默认情况下 project_root() == workspace_root()。
+// 镜像mcp-cpp的util::project_root()；两者通过共享的
+// set_workspace_root() 管道保持同步。
 [[nodiscard]] fs::path project_root();
 
-// True if `target` is at-or-under the workspace root after canonicalising
-// both sides. Symlink escape is blocked: a link inside the workspace that
-// points to /etc would resolve to /etc and fail the prefix check. Uses
-// weakly_canonical so a not-yet-existing path (e.g. write target) is
-// still checked correctly against its existing parent components.
+// 如果 `target` 位于规范化两侧之后的 工作区 根的 -or-under 处，
+// 则为真。符号链接转义被阻止：工作区 内指向 /etc 的 链接
+// 将解析为 /etc 并导致前缀检查失败。
+// 使用 weakly_canonical，因此仍会根据其现有父组件正确
+// 检查 not-yet-existing 路径（e.g.写入目标）。
 [[nodiscard]] bool is_within_workspace(const fs::path& target);
 
-// Construct a NormalizedPath that's been workspace-checked in one shot.
-// Tools call:
+// 一次性构造出 工作区-checked 的 NormalizedPath。
+// 工具调用:
 //     auto p = util::make_workspace_path(*raw, "read");
 //     if (!p) return std::unexpected(p.error());
-// `tool_name` only appears in the error message and is purely cosmetic.
+// `tool_name`仅出现在错误消息中并且纯粹是装饰性的。
 [[nodiscard]] std::expected<struct NormalizedPath, ToolError>
 make_workspace_path(std::string_view raw, std::string_view tool_name);
 
 // ── WorkspacePath ───────────────────────────────────────────
-// A NormalizedPath that carries a *type-level* proof of workspace
-// containment. The only public way to obtain one is through
-// `WorkspacePath::checked` (or the gated builder factories below),
-// which delegate to is_within_workspace(). Once a function accepts
-// `const WorkspacePath&`, reviewers know the containment check has
-// already happened — forgetting it is a compile error, not a missing
-// runtime gate.
+// 携带工作区遏制的*type-level*证明的NormalizedPath。
+// 获取它的唯一公开方法是通过
+// `WorkspacePath::checked`（或下面的门控构
+// 建器工厂），它委托给 is_within_workspace()。
+// 一旦函数接受 `const WorkspacePath&`，
+// 审阅者就知道遏制检查已经发生 - 忘记这是 编译 错误，
+// 而不是丢失 运行时 门。
 //
-// Today's tools already route every fs path through make_workspace_path
-// before any IO; this type makes that discipline a property of the type
-// system instead of a code-review convention. New fs APIs should accept
-// `WorkspacePath`; only the runtime's own non-workspace paths (under
-// ~/.agentty/ for threads/memory/credentials) bypass it via the
-// `fs::path` overloads of read_file/write_file.
+// 如今的工具已经在任何IO之前将每个fs路径路由通过make_workspace_path；
+// 这种类型使该规则成为类型系统的属性，而不是 code-review 约定。
+// 新的 fs API 应接受 `WorkspacePath`；只有 运行时 自己的非
+// -workspace 路径（在 threads/memory/credentials
+// 的 ~/.agentty/ 下）通过 read_file/write_file.
+// 的 `fs::path` 重载绕过它
 class WorkspacePath {
     NormalizedPath inner_;
-    // Private; only the factory friends can mint one. No public ctor =
-    // no way to skip the containment check.
+    // 私人；只有厂友才能铸造一枚。没有公共 ctor
+    // = 无法跳过收容检查。
     explicit WorkspacePath(NormalizedPath n) noexcept : inner_(std::move(n)) {}
 
     friend std::expected<WorkspacePath, ToolError>
@@ -162,101 +162,101 @@ public:
     [[nodiscard]] const NormalizedPath& normalized() const noexcept { return inner_; }
 };
 
-// Workspace-checked factory. Same contract as make_workspace_path but
-// yields a WorkspacePath instead of a NormalizedPath — use this in new
-// code so the gate's success travels with the value.
+// 工作区-checked工厂。与 make_workspace_path 相同的合约，
+// 但产生 WorkspacePath 而不是 NormalizedPath
+// ——在新代码中使用它，这样门的成功就会伴随着价值。
 [[nodiscard]] std::expected<WorkspacePath, ToolError>
 make_workspace_path_checked(std::string_view raw, std::string_view tool_name);
 
-// ── Read-only allowlist roots ───────────────────────────────────────────
-// Skill directories (agentskills.io tier-3 resources) may live OUTSIDE
-// the workspace (~/.agentty/skills/, ~/.agents/skills/). The spec's
-// client-implementation guidance: allowlist skill directories for reads
-// so the model can fetch bundled scripts/references without the
-// boundary refusing them. The allowlist is READ-ONLY by construction —
-// only `make_readable_path_checked` consults it; the write/edit gates
-// (make_workspace_path_checked) never do, so an allowlisted root can't
-// become a write escape.
+// ── 读取 -only 允许清单 根根根根头 ───────────────────────────────────────────
+// 技能目录(agentskills.io三级资源)可能存在OUTSIDE、
+// 工作区(~/.agentty/skills/、~/.agents/skills/)。
+// 该规范的 client-implementation 指南：用于读取的 允许清单 技能目录，
+// 以便模型可以获取捆绑的 scripts/references 而不会被边界拒绝。
+// 允许清单 的结构是 READ-ONLY — 只有
+// `make_readable_path_checked` 会查阅它； write/edit
+// 门（make_workspace_path_checked）永远不会这样做，
+// 因此 列入允许清单 根不能成为写转义。
 //
-// Registered by the skills scanner at discovery time. Idempotent;
-// bounded by the skill cap (≤ 64×2 roots per scope).
+// 由技能扫描器在发现时注册。 幂等；
+// 受技能上限限制（每个范围≤ 64×2 根）。
 void allow_read_root(Io, const fs::path& root);
 
-// True when `target` sits under a registered read-allowlist root
-// (post-canonicalisation, symlink-escape checked like the workspace).
+// 当 `target` 位于注册的 read-allowlist 根下时为真（
+// post-canonicalisation，符号链接-escape 像 工作区 一样检查）。
 [[nodiscard]] bool is_read_allowlisted(const fs::path& target);
 
-// The read roots registered so far (canonical).
+// 到目前为止注册的读取根（规范的）。
 [[nodiscard]] std::vector<fs::path> read_roots_now();
 
-// A forked thread points at its parent's transcript under the threads dir,
-// outside the workspace. Make exactly those files readable (not the dir),
-// so the fork still works when it is reopened in a later session. Only
-// files that exist directly in `threads_dir` and end in .transcript.md.
+// 分叉的线程指向工作区之外的线程目录下的其父代的转录本。
+// 使这些文件准确可读（而不是目录），以便在稍后的会话中重新打开时，
+// fork 仍然可以工作。仅直接存在于 `threads_dir`
+// 中且以 .transcript.md 结尾的文件。
 void allow_fork_transcripts(Io, const fs::path& threads_dir,
                             const std::vector<std::string>& paths);
 
-// Read-gate factory: passes when the path is within the workspace OR
-// under a read-allowlist root. Use ONLY in read-side tools (`read`).
+// Read-gate工厂：当路径位于read-allowlist根下的工作区
+// OR内时通过。在 read-side 工具 (`read`) 中使用 仅。
 [[nodiscard]] std::expected<WorkspacePath, ToolError>
 make_readable_path_checked(std::string_view raw, std::string_view tool_name);
 
-// Promote an already-normalised path through the containment gate.
-// Useful when the caller composed a NormalizedPath itself (e.g.
-// resolving an attachment path against workspace_root()) and now
-// wants the typed proof.
+// 提升已经-normalised的路径通过收容门。
+// 当调用者自己编写 NormalizedPath (e.g.XX) 时很有用。
+// 解析针对workspace_root())的附件路径并且
+// 现在想要带类型的证明。
 [[nodiscard]] std::expected<WorkspacePath, ToolError>
 promote_to_workspace_path(NormalizedPath p, std::string_view tool_name);
 
-// True for directory names we want recursive traversals (grep / glob /
-// list_dir) to skip by default. Keeps the skip list in one place so tools
-// stay in sync (e.g. adding `_deps` to every tool at once).
+// 对于目录名来说，我们希望默认情况下跳过递归遍历（
+// grep/glob/list_dir）。将跳过列表保留在一处，
+// 以便工具保持同步（e.g。立即将 `_deps` 添加到每个工具）。
 [[nodiscard]] bool should_skip_dir(std::string_view name) noexcept;
 
-// Heuristic: scan the first 512 bytes for a NUL. Good enough to avoid
-// grep'ing PNGs / executables / model weights into the prompt.
+// 启发式：扫描前512个字节以查找NUL。足以避免将
+// PNG/可执行文件/模型权重放入 提示词 中。
 [[nodiscard]] bool is_binary_file(const fs::path& p);
 
-// ── Per-file state cache ────────────────────────────────────────────────
-// Shared across tools so edit/write can detect "the file changed since the
-// model last looked at it". Keyed on canonical path; value is the mtime
-// the tool saw plus a content-fingerprint hash so we catch sub-second
-// edits that don't bump mtime (some filesystems have 1 s mtime resolution).
+// ── 人数 -file 状态 缓存 ────────────────────────────────────────────────
+// 跨工具共享，因此edit/write可以检测
+// 模型上次查看后，文件已经发生变化。
+// 以规范路径为关键；值是工具看到的 mtime 加上 content-fingerprint 哈希值，
+// 因此我们捕获不会影响 mtime 的 sub-second 编辑（某些文件系统具有 1s mtime 分辨率）。
 //
-// Records are written by `read` after every successful read, and by
-// `write` / `edit` after a successful mutation (so the next call from
-// the same session sees the new state and doesn't false-alarm on its
-// own change). Lookups never block on IO — the cache is purely an
-// in-memory hint surface.
+// 记录在每次成功读取后由 `read` 写入，并在成功突变后由
+// `write`/`edit` 写入（因此来自同一会话的下一个
+// 调用 看到新状态并且不会因自身变化而 false-alarm）。
+// 查找永远不会在 IO 上阻塞 - 缓存 纯粹是 in
+// -memory 提示表面。
 //
-// The cache is process-wide and persists for the lifetime of the agent.
-// A long-running session that keeps editing the same files only pays
-// the stat cost once per file per change — every subsequent staleness
-// check is a hash-table hit.
+// 缓存是进程-wide并且持续存在于代理的生命周期。
+// 持续编辑相同文件的 long-running 会话只需为每个
+// 文件每次更改支付一次统计成本——每个后续的过时性检查都是
+// hash-table 命中。
 struct FileSnapshot {
     fs::file_time_type mtime{};
     std::uintmax_t     size = 0;
-    std::uint64_t      content_hash = 0;   // FNV-1a of the bytes the tool saw
+    std::uint64_t      content_hash = 0;   // FNV-1a 字节工具锯
 };
 
-// Record that `path` was observed at `mtime` / `size` with the given
-// content hash. `path` is canonicalised internally. Pass `0` for
-// `content_hash` when the caller doesn't have the bytes handy (e.g.
-// stat-only paths); staleness checks then degrade to mtime+size only.
+// 记录利用给定的内容散列在`mtime`/`size`观察到`path`。
+// `path` 在内部进行了规范化。当呼叫者手边没有 字节 时，
+// 将 `0` 传递给 `content_hash` (e.g.
+// stat-only路径）；然后，陈旧性检查降级为仅 mtime+size。
 void record_file_seen(const fs::path& path,
                       fs::file_time_type mtime,
                       std::uintmax_t size,
                       std::uint64_t content_hash) noexcept;
 
-// Look up the snapshot the tools last saw for `path`. Returns nullopt
-// when no tool has touched the file this session. `path` is canonicalised.
+// 查找工具最后看到的 快照 的 `path`。当没有工具在本次
+// 会话中触及该文件时，返回 nullopt。 `path` 已标准化。
 [[nodiscard]] std::optional<FileSnapshot> last_seen_file(const fs::path& path) noexcept;
 
-// Compute FNV-1a 64-bit over a byte range. Inlineable; used by tools
-// that have already read the file to record its hash in the snapshot.
-// FNV-1a was picked over xxHash because it's branch-free, zero-alloc,
-// and pulls in no dependencies — collision risk at 64 bits across one
-// session's worth of files is negligible.
+// 计算 字节 范围内的 FNV-1a 64-bit。
+// 可内联；已读取文件的工具使用它在 快照 中记录其哈希值。
+// FNV-1a被选择而不是xxHash，因为它是分支-free、
+// zero-alloc，并且没有依赖性——在一个会话的文件价值
+// 中的64位的冲突风险可以忽略不计。
 [[nodiscard]] inline std::uint64_t content_fnv1a(std::string_view bytes) noexcept {
     constexpr std::uint64_t kOffset = 0xcbf29ce484222325ULL;
     constexpr std::uint64_t kPrime  = 0x00000100000001b3ULL;
@@ -268,19 +268,19 @@ void record_file_seen(const fs::path& path,
     return h;
 }
 
-// Staleness classification. Computed by checking the file's current
-// (mtime, size) and optionally content hash against the cached snapshot.
+// 陈旧性分类。通过对照缓存的 快照 检查文件的
+// 当前（mtime、大小）和可选的内容哈希来计算。
 enum class StaleVerdict : std::uint8_t {
-    Unknown,      // no prior snapshot — caller decides what to do
-    Fresh,        // snapshot matches current on-disk state
-    Stale,        // file changed since the snapshot was recorded
+    Unknown,      // 没有先前的快照——呼叫者决定做什么
+    Fresh,        // 快照匹配当前on-disk状态
+    Stale,        // 自记录 快照 以来文件已更改
 };
 
-// Check whether `path` looks stale relative to its last snapshot.
-// Stat-based (cheap): compares mtime + size. Returns Unknown when no
-// snapshot exists or stat fails. For a stronger guarantee, the caller
-// can additionally hash the file's current bytes and compare against
-// the snapshot's `content_hash`.
+// 检查`path`相对于其最后的快照是否看起来过期。
+// Stat-based (廉价)：比较mtime+大小。当不存在 快照
+// 或 stat 失败时，返回 Unknown。为了获得更强的保证，
+// 调用者还可以对文件的当前 字节 进行哈希处理，并与 快照 的
+// `content_hash` 进行比较。
 [[nodiscard]] StaleVerdict staleness_of(const fs::path& path) noexcept;
 
 } // namespace agentty::tools::util

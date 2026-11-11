@@ -1,55 +1,55 @@
 #pragma once
-// agentty::ui::panel — the EXCLUSIVE panel slot, as a sum type.
+// agentty::ui::panel-EXCLUSIVE面板插槽，作为和类型。
 //
-// Model::UI used to carry 16 independent panel fields (pick::OneAxis
-// here, an ad-hoc Closed|Open variant there). "Only one overlay open at
-// a time" was a CONVENTION enforced by ~17 scattered
-// `m.ui.X = pick::Closed{}` writes inside every Open* reducer — forget
-// one and two overlays were open at once, with the router (overlay.hpp)
-// papering over the ambiguity at dispatch time.
+// Model::UI用于承载16个独立面板字段（此处为pick::OneAxis，
+// 此处为ad-hoc Closed|Open 变体）。
+// "Only one overlay open at a time" 是
+// 一个 CONVENTION，由大约 17 个分散的 `m.ui.X = pick::Closed{}`
+// 写入在每个 Open* 状态更新函数 内强制执行 - 忘记一个和两个 覆盖面板 同时打开，
+// 路由器 (overlay.hpp) 在 分派 时间掩盖了歧义。
 //
-// Now every exclusive panel lives in ONE slot:
+// 现在每个专用面板都位于ONE槽中：
 //
-//     m.ui.panel.descend(pn::Models{{.index = 3}});  // open OVER (Esc unwinds)
-//     m.ui.panel.replace(pn::Providers{{2}});         // hop SIDEWAYS (keep parent)
-//     m.ui.panel.is<pn::Models>()                     // open?
-//     m.ui.panel.get<pn::Models>()                    // payload* or nullptr
-//     m.ui.panel.close<pn::Models>()                  // close IF topmost
+//     m.ui.panel.descend(pn::Models{{.index = 3}});  // 打开 OVER (
+//     Esc 展开) m.ui.panel.replace(pn::Providers{{2}});         // 跳
+//     SIDEWAYS （保留父级） m.ui.panel.is<pn::Models>() // 打开？
+//     m.ui.panel.get<pn::Models>() // 载荷* 或 nullptr
+//     m.ui.panel.close<pn::Models>() // 关闭最顶层的 IF
 //
-// One slot, one variant — so "two exclusive panels open" is not a bug we
-// guard against anymore, it is UNREPRESENTABLE. All the rival-closing
-// writes are deleted, not relocated.
+// 一个槽，一个变体——所以"two exclusive panels open"不再是
+// 我们防范的错误，它是UNREPRESENTABLE。所有对cipal
+// -closing的写入都被删除，而不是重新定位。
 //
-// What a variant does NOT give you is the parent chain, and that is where
-// every navigation bug has lived. Assignment used to be the way to open,
-// and it discarded the chain silently — so Esc from a panel opened out of
-// another panel left the stack entirely. Assignment is now DELETED; see
-// the three moves (descend / replace / restore) on State below, which is
-// the single place that story is told.
+// NOT给你的变体是母链，这就是每个导航错误存在的地方。
+// 分配曾经是打开的方式，它会默默地丢弃链 -
+// 因此从另一个面板打开的面板中的 Esc 完全离开了堆栈。
+// 作业现在是 DELETED；
+// 请参阅下面状态中的三个动作（下降/替换/恢复），
+// 这是讲述故事的唯一地方。
 //
-// Deliberate NON-members (the exceptions that shape the design):
-//   • login      — a 9-state auth machine with Origin-frame navigation;
-//                  Closed is a first-class member of ITS variant.
-//   • permission — m.d.pending_permission is DOMAIN state: the stream
-//                  reducer raises it mid-turn, potentially while an
-//                  overlay is open. Both must coexist; the router just
-//                  hands permission the keyboard.
-//   • todo       — an AMBIENT pane, not a modal: it stays open UNDER a
-//                  picker and unclaimed keys fall through to global. Its
-//                  open flag stays on TodoState.
-// panel::top() (overlay.hpp) composes these four sources — login,
-// permission, this slot, todo — into the one priority answer, which is
-// now four checks instead of twenty.
+// 有意的 NON-members (塑造设计的例外情况）：
+//   ·登录——具有Origin-frame导航的9-state认证机；
+//                  关闭的是ITS 变体的第一-class成员。
+//   ·权限 —m.d.pending_permission为DOMAIN状态：数据流
+//                  状态更新函数可能在覆盖面板打开时在
+//                  -turn中期提高它。两者必须共存；
+//                  路由器只是将键盘交给 权限。
+//   ·todo — AMBIENT 面板，不是 弹出面板：它保持打开状态 UNDER
+//                  选择面板和无人认领的密钥落入全局。其打开的 标志
+//                  保留在 TodoState 上。
+// panel::top()(overlay.hpp)将这四
+// 个源——登录、权限、这个槽、待办事项——组合成一个优先级答案，
+// 现在是四次检查而不是二十次。
 //
-// Each alternative INHERITS its overlay's existing Open payload
-// (pick::OpenAt, palette::Open, …): same fields, same invariants, same
-// manipulation code — plus a distinct TYPE so the slot can tell overlays
-// apart and call sites name them directly.
+// 每个备选INHERITS其覆盖面板的现有开放载荷 (
+// pick::OpenAt、palette::Open、…)：相同的字段、
+// 相同的不变量、相同的操作代码——加上不同的TYPE，
+// 因此槽可以区分覆盖面板并且调用站点直接命名它们。
 //
-// Pointer lifetime: get<K>() points INTO the slot. Assigning the slot
-// destroys the previous alternative — capture what you need BEFORE
-// opening a different overlay. (This was equally true with separate
-// fields: assigning pick::Closed{} destroyed the payload too.)
+// 指针生命周期:get<K>()指向INTO槽。
+// 分配插槽破坏了之前的替代方案 - 捕获您需要的 之前，
+// 打开不同的 覆盖面板。 （对于单独的字段来说同样如此：
+// 分配 pick::Closed{} 也会破坏 载荷。）
 
 #include <cstdint>
 #include <memory>
@@ -81,31 +81,31 @@ namespace agentty::ui::panel {
 
 struct None {};
 
-// ── From: the panel this one was opened OVER, as a full snapshot ──────
+// ── 从: 面板 打开 OVER, 成为 XX00120 的全版 快照 ──────
 //
-// Esc must unwind ONE level, and "one level up" depends on how you got
-// here — which a panel cannot know unless it is told. The old answer
-// (settings_origin::Origin) named the parent KIND plus hand-picked fields
-// (a palette row, a settings category+row) and back_to() RECONSTRUCTED the
-// parent from them — every field the reconstruction forgot (the palette's
-// half-typed query) was user state silently thrown away, and every panel
-// that wanted the behaviour needed its own stamp at every opener.
+// Esc必须解除ONE关卡，而"one level up"取决于你
+// 如何到达这里——除非被告知，否则小组无法知道这一点。
+// 旧的答案（settings_origin::Origin）将父级KIND
+// 加上hand-picked字段（一个调色板行，一个设置类别+行）和
+// back_to（）RECONSTRUCTED命名为它们的父级 - 重建
+// 忘记的每个字段（调色板的half-typed查询）都是用户状态默默地丢弃，
+// 并且每个想要该行为的面板在每个打开器上都需要自己的标记。
 //
-// A From carries the parent's ENTIRE slot value instead. Restoring is
-// copying it back — nothing to reconstruct, nothing to forget — and the
-// stashed parent contains ITS from, so palette → settings list → pane
-// unwinds level by level without any stack to keep in sync with the slot:
-// the chain lives inside the values, bounded by how deep a user actually
-// descended.
+// From 改为携带父代的ENTIRE槽值。
+// 恢复就是将其复制回来 - 无需重建，无需忘记 -
+// 并且隐藏的父级包含 ITS，因此调色板 → 设置
+// 列表 → 面板 逐级展开，无需任何堆栈来与插槽保持同步：
+// 链存在于值内，以用户实际下降的深度为
+// 界。
 //
-// shared_ptr<const>: Model is copied by value in the reducer loop, so the
-// snapshot must be cheap to copy and safe to share — immutable, restored
-// BY COPY, never mutated in place. Snapshot is defined after Variant (the
-// type is self-referential through this one indirection).
+// shared_ptr<const>:Model在状态更新函数
+// 循环中按值复制，因此快照必须廉价复制并且安全共享-不可变，
+// 恢复BY COPY，从未就地变异。 快照是在变体之后定义的（通过这
+// 一间接的类型是self-referential）。
 //
-// Restored state can be STALE — the model may have changed while the child
-// was open (a stream ended; a setting was applied). ascend()'s caller owns
-// revalidation: clamp cursors, rebuild forms. See app::detail::ascend().
+// 恢复的状态可以是STALE——当子项打开时模型可能已经改变（数据流结束；
+// 应用了设置）。 ascend() 的调用者拥有重新验证：夹紧游标、
+// 重建表单。参见 app::detail::ascend()。
 struct Snapshot;
 class From {
 public:
@@ -117,98 +117,98 @@ private:
     std::shared_ptr<const Snapshot> s_;
 };
 
-// Base every alternative inherits: where Esc goes. Default-empty = "opened
-// over the thread", so Esc closes.
+// 每个替代方案继承的基础：Esc去哪里。默认-empty = "opened over the thread"，
+// 所以Esc关闭。
 struct WithFrom { From from; };
 
-// ── The exclusive panels: one distinct type each, payload inherited ───
+// ── 排他性小组:各一个不同的类别, 载荷 继承 ───
 struct Models     : pick::OpenAt, WithFrom {
-    // Smart-Mode slot-assign mode: this picker was opened BY a SmartMode
-    // Pick row to pin a model into `assign_slot`, and Enter writes the pin
-    // instead of switching the model. Carried ON the panel — the mode is a
-    // property of THIS picker instance, not of the app — so abandoning the
-    // picker (close, hop to providers) structurally abandons the mode; no
-    // parked flag to remember to reset. The SmartMode pane it must restore
-    // rides in `from` like every other parent (the snapshot carries the
-    // form, advanced flag and nested chain — nothing else to park).
+    // Smart-Mode slot-assign模式：这个选择面板
+    // 被打开BY一个SmartMode Pick行以将模型固定到
+    // `assign_slot`中，并且Enter写入引脚而不是切换模型。
+    // 携带 ON 面板 - 该模式是 此 选择面板 实例的属性，
+    // 而不是应用程序的属性 - 因此放弃 选择面板（关闭，跳至提供商）
+    // 从结构上放弃了该模式；没有停放标志记得重置。 SmartMode
+    // 面板 必须像其他家长一样恢复 `from` 中的游乐设施（快照
+    // 携带表格、高级 标志 和嵌套链 - 没有其他可以停放的）。
     std::optional<smart::ModelRole> assign_slot;
 };
-// The provider picker. `show_all` reveals the providers you have NOT
-// configured, which browse collapses into a single "N more" signpost. A
-// view-only flag: it widens the row list, nothing else.
+// 提供商选择面板。 `show_all` 显示您已配置 不
+// 的提供程序，其浏览会折叠成单个 "N more" 路标。
+// view-only 标志：它扩大了行列表，仅此而已。
 struct Providers  : pick::OpenAt, WithFrom { bool show_all = false; };
-// The thread picker, plus the ^R title editor. `renaming` holds the id of
-// the thread being retitled (empty = browsing): an id, not a row, so an
-// async list refresh that reorders rows can't move the edit to another
-// thread. `rename_input` is the draft; `rename_cursor` is the caret, a byte
-// offset into it that always sits on a code-point boundary.
+// 线程 选择面板，加上^R标题编辑器。 `renaming` 保存正在重
+// 命名的 线程 的 id（空 = 浏览）：一个 id，而不是一行，
+// 因此重新排序行的异步列表刷新无法将编辑移动到另一个 线程。
+// `rename_input` 为草稿； `rename_cursor` 是 光标，
+// 是 字节 的偏移量，始终位于代码 -point 边界上。
 struct ThreadList      : pick::OpenAt, WithFrom {
     std::string renaming;
     std::string rename_input;
     int         rename_cursor = 0;
-    // Tab narrows to this folder's threads. Starts on ALL: threads saved
-    // before folders were recorded have none, and hiding them by default
-    // looked like the history was gone.
+    // Tab缩小到该文件夹​​的线程。从 全部:线程 已保存 开始，
+    // 在记录文件夹之前没有任何文件夹，默认隐藏它们
+    // 看起来历史记录已经消失了。
     bool        all_workspaces = true;
-    // ^O shows only sessions from other tools (Codex, Claude Code).
+    // ^O仅显示来自其他工具的会话（Codex、Claude代码）。
     bool        only_foreign = false;
-    // The peek: which thread it shows, and how many turns back from the
-    // latest its view is scrolled (0 = latest). Reset per thread.
+    // 窥视：其显示哪个线程，以及其视图从最新返回
+    // 多少圈（0 =最新）。按照 线程 重置。
     std::string peek_id;
     int         peek_turn = 0;
 };
-// Smart Mode carries a typed ROW, not an index. The other pickers list a
-// variable number of runtime-derived entries, so an int cursor is the honest
-// representation there; Smart Mode's rows are a fixed, named set, and
-// spelling them as an int is what let the cursor drift onto rows that do not
-// exist (see smart::OverlayRow for the full post-mortem).
-// Smart Mode carries its FORM, not an int cursor. Row identity, navigation,
-// the env-pin lock and the picker hand-off all come from the shared form
-// layer, so this pane behaves identically to Retrieval and to every future
-// config surface — and an out-of-range cursor is not representable.
+// 智能模式携带带类型的 ROW，而不是索引。另一个 选择面板 列出
+// 了可变数量的 运行时-derived 条目，因此 int 游标是
+// 那里的诚实表示；智能模式的行是一个固定的命名集，将它们拼写为
+// int 会让光标漂移到不存在的行上（有关完整的 post-mortem，
+// 请参阅 smart::OverlayRow）。
+// 智能模式携带其FORM，而不是int光标。行标识、导航、
+// env-pin 锁 和 选择面板 hand-off 都来自
+// 共享表单层，因此这个 面板 的行为与检索和每个未来的配置表面
+// 相同 - 并且 out-of-range 游标不可表示。
 struct SmartMode : WithFrom {
     agentty::form::Form form;
-    // Show the advanced routing-policy rows (^A). View state, not config — it
-    // dies with the overlay and is not persisted. Held HERE because every
-    // rebuild (a slot assignment reopens the pane) must preserve it, or the
-    // rows would vanish the moment the user pinned a model.
+    // 显示高级路由-policy行(^A)。查看状态，
+    // 而不是配置 - 它随 覆盖面板 一起终止并且不会持久化。
+    // 保留 此处 是因为每次重建（插槽分配重新打开 面板）都必须保留它，
+    // 否则在用户固定模型时这些行就会消失。
     bool advanced = false;
 };
-// Settings → Web Search. Carries its FORM, like Smart Mode: rows, cursor,
-// the env lock and text editing all come from the shared form layer. The
-// rows are the settings registry's web_search.* rows, so this pane holds no
-// config of its own — it is rebuilt from the Model after every commit.
+// 设置→网络搜索。带有FORM，就像智能​​模式一样：行、
+// 光标、环境锁和文本编辑都来自共享表单层。这些行是设置 注册
+// 表 的 web_search.* 行，因此这个 面板 没有
+// 自己的配置 - 它是在每次提交后从 Model 重建的。
 //
-// The scroll offset lives HERE, not in Model::UI's scroll bag: the slot walk
-// hashes it (so the frame gate sees a scroll), and it dies with the pane (so
-// reopening starts at the top). The shape pn::Stats established.
+// 滚动偏移存在于 此处 中，而不是在 Model::UI 的滚动包中：槽
+// 游走对其进行散列（因此 帧 门看到滚动），并且它与 面板 一起消亡（
+// 因此从顶部开始重新打开）。形状 pn::Stats 已建立。
 struct WebSearch : WithFrom {
     agentty::form::Form form;
     mutable maya::ScrollState scroll = [] {
         maya::ScrollState s;
-        s.auto_dispatch = false;   // the form layer owns movement
+        s.auto_dispatch = false;   // 表格层拥有运动
         return s;
     }();
-    // Where each keyed service's API key comes from, as read off the UI
-    // thread when the pane opened (WebSearchKeysRead): service id ->
-    // "stored", "env: ...", or "" for none. Never the key itself. Until the
-    // read answers, `keys_read` is false and the key rows say so.
+    // 每个密钥服务的API密钥来自何处，如在面板打开时（
+    // WebSearchKeysRead)读取UI 线程：服务ID->
+    // "stored"、"env: ..."或""（无）。从来没有钥匙本身。
+    // 在读取答案之前，`keys_read` 为假，关键行也是如此。
     std::vector<std::pair<std::string, std::string>> key_origins;
     bool          keys_read = false;
-    // Bumped by every key read, store and removal, so only the newest read's
-    // answer is shown.
+    // 受到每个密钥读取、存储和移除的影响，因此仅显示最新
+    // 读取的答案。
     std::uint64_t keys_gen  = 0;
-    // Key origins arrived while a field was being edited; rebuild the rows as
-    // soon as the edit ends.
+    // 关键源在字段被编辑时到达；
+    // 编辑结束后立即重建行。
     bool          rows_stale = false;
 };
-// Settings → Paste. Every row is a paste.* registry row, so like WebSearch it
-// holds no config of its own and is rebuilt from the Model after a commit.
+// 设置→粘贴。每一行都是粘贴。* 注册表 行，因此与 WebSearch 一样，
+// 它没有自己的配置，并且在提交后从 Model 重建。
 struct PasteSettings : WithFrom {
     agentty::form::Form form;
     mutable maya::ScrollState scroll = [] {
         maya::ScrollState s;
-        s.auto_dispatch = false;   // the form layer owns movement
+        s.auto_dispatch = false;   // 表格层拥有运动
         return s;
     }();
 };
@@ -221,45 +221,45 @@ struct ToolOutput      : agentty::tool_output::Open, WithFrom {};
 struct Checkpoints     : agentty::checkpoints::Open, WithFrom {};
 struct Rag     : agentty::rag_settings::Open, WithFrom {};
 struct SettingsList    : agentty::settings::ListOpen, WithFrom {};
-// Plugin detail/add editor — one form pane for BOTH flows. `server` empty
-// == ADD mode (the `kind` choice row rebuilds the field set as the user
-// picks stdio/http/passthrough…); non-empty == editing that server's entry
-// (identity rows locked, config rows editable, Save force-overwrites).
-// `project` routes the write to ./.agentty/mcp.json vs the user file.
+// 插件 detail/add 编辑器 — 用于 两者 流程的 面板 的一种形式。
+// `server` 空 == ADD 模式（当用户选择 stdio/http/passthrough 时，
+// `kind` 选择行重建字段集...）； non-empty == 编辑该服务
+// 器的条目（身份行已锁定，配置行可编辑，保存 强制-overwrites）。
+// `project` 将写入路由到 ./.agentty/mcp.json 与用户文件。
 struct PluginEdit : WithFrom {
     agentty::form::Form form;
-    std::string server;      // "" = add mode
+    std::string server;      // ""=添加模式
     bool        project = false;
-    // The kind the CURRENT field set was built for. When the `kind` choice
-    // changes, the reducer rebuilds the form for the new kind while
-    // preserving name/url text the user already typed — same rebuild-
-    // preserve pattern as SmartMode's advanced toggle.
+    // CURRENT现场装置是为这种类型而构建的。当 `kind` 选择更改时，
+    // 状态更新函数 会重建新类型的表单，同时保留用户已经 带
+    // 类型的 的 name/url 文本 — 与 SmartMode
+    // 的高级 切换 相同的重建保留模式。
     std::string built_kind;
 };
-// The Appearance pane. A form, like SmartMode/PluginEdit — grouped rows,
-// live on every keystroke. `picking` + `picker` are the theme browser
-// floating OVER it: a Pick row hands off rather than growing the dropdown
-// into a worse picker, and the pane stays painted behind so the list is
-// its own preview.
+// 外观面板。诸如 SmartMode/PluginEdit 之类的表单
+// ——分组行，在每次击键时都会存在。 `picking` +
+// `picker` 是浮动 OVER 的主题浏览器：选择行不予理睬，
+// 而不是将下拉菜单增长为更糟糕的 选择面板，并且 面板 保持在后面，
+// 因此列表是其自己的预览。
 //
-// Composed, not doubly-inherited: the visual gate decomposes a panel via
-// structured bindings, which two bases with members make ill-formed.
+// 组合，不双重-inherited:视觉门通过结构化绑定分解面板，
+// 这两个带有构件的底座构成Ill-formed。
 struct Appearance : WithFrom {
     agentty::ui::panel::AppearancePane pane;
 };
-// The Sandbox pane. Also composed rather than doubly-inherited, for the same
-// structured-binding reason. Carries the whole pane (form + live wall
-// preview + blocked log) because the preview is recomputed from the form on
-// every edit, so the two have to travel together.
+// 沙箱 面板。出于相同的结构化-binding原因，
+// 也由组合而不是双重-inherited组成。
+// 携带整个面板（表单+实时墙预览+阻塞日志），因为预览是在每次编辑
+// 时从表单重新计算的，所以两者必须一起旅行。
 struct Sandbox : WithFrom {
     agentty::ui::panel::SandboxPane pane;
 };
-// The path/port list editor, opened FROM a Sandbox Pick row.
+// path/port列表编辑器，打开FROM一沙箱 Pick行。
 //
-// Its own slot rather than a mode of Sandbox: it has its own form, its own
-// keys, its own commit and its own completer. Folding it in would give one
-// pane two forms plus a "which am I editing" flag -- the two-bools-for-three-
-// states shape that has already produced two bugs in this pane.
+// 它自己的槽而不是沙箱的模式：它具有它自己的形式、它自己的密钥、
+// 它自己的提交和它自己的完成器。将其折叠起来会给一个 面板 两种形式加上一个
+// "which am I editing" 标志——两个 -bools-for-three-
+// 状态形状已经在这个 面板 中产生了两个错误。
 struct SandboxList : WithFrom {
     agentty::ui::panel::SandboxListPane pane;
 };
@@ -276,8 +276,8 @@ using Variant = std::variant<
     Rag, SettingsList, PluginEdit, Appearance, Sandbox, SandboxList, Fork,
     DiffReview, Stats, Skills>;
 
-// The one indirection that lets the type refer to itself: a stashed parent
-// is a whole slot value, from included.
+// 让类型引用自身的一种间接方式：隐藏的父代
+// 是从包含的整个槽值。
 struct Snapshot { Variant v; };
 inline From From::of(Snapshot s) {
     From f;
@@ -288,47 +288,47 @@ inline From From::of(Snapshot s) {
 template <class K>
 concept Alternative = requires(Variant v) { std::holds_alternative<K>(v); };
 
-// The slot itself: a thin wrapper so call sites read as intent
-// (`m.ui.panel.is<pn::Models>()`) rather than as variant plumbing.
+// 槽本身：薄包装，因此调用站点被读取为意图（
+// `m.ui.panel.is<pn::Models>()`)而不是变体管道。
 //
-// ── The three moves ────────────────────────────────────────────────
+// ── 三个动作 ────────────────────────────────────────────────
 //
-// Navigation is a STACK, and there are exactly three things you can do to
-// it. They differ ONLY in what happens to the parent chain, which is
-// precisely the part a call site kept getting wrong:
+// 导航是 STACK，您可以对其执行三件事。
+// 它们与 仅 的不同之处在于母链发生的情况，
+// 这正是 调用 网站不断出错的部分：
 //
-//   descend(k)  DOWN.     k.from snapshots what is open. Esc unwinds to it.
-//                         For an Open* handler: "open k over here".
-//   replace(k)  SIDEWAYS. k INHERITS the current panel's parent. For a hop
-//                         between siblings (^P from the model picker to the
-//                         provider picker) — the panel you leave is gone,
-//                         but where you CAME FROM is unchanged.
-//   restore(k)  UP.       k is put back verbatim, chain included. For
-//                         ascend(), and for rebuilding the panel you are
-//                         already inside.
+//   下降(k)DOWN。     k.from 快照 什么是开放的。 Esc 放松下来。
+//                         对于公开*处理函数:"open k over here"。
+//   替换(k)SIDEWAYS。 k INHERITS 当前面板的父面板。
+//                         对于同级之间的跳跃（从型号 选择面板 到提供商
+//                         选择面板 的 ^P）——您离开的面板消失了，
+//                         但 CAME FROM 的位置没有改变。
+//   恢复(k)UP。       k 被逐字放回，包括链。
+//                         对于 ascend()，以及重建面板，
+//                         您已经在里面了。
 //
-// Every one of these has been a bug at least once, always the same shape:
-// a call site that meant one and spelled another, with no type to stop it.
+// 其中每一个都至少出现过一次，并且总是相同的形状：
+// 调用网站，意思是一个，拼写另一个，没有类型来阻止它。
 //
-//   • `operator=` was a fourth, unnamed move that DROPPED the chain. It
-//     was documented as "use descend at OPEN sites" — a comment, so it was
-//     not enforced: 13 Open* reducers assigned and 8 descended. palette →
-//     providers → Esc left the stack entirely. It is now DELETED.
-//   • The sideways hop was spelled `close<Old>(); descend(New);`, which
-//     reads like "swap panels" and means "drop the grandparent": close()
-//     leaves None, so descend() finds nothing to stash. palette → models →
-//     ^P → Esc exited instead of returning to the palette. That is what
-//     replace() exists to say.
+//   ·`operator=`是DROPPED链的第四个未命名的举动。它
+//     被记录为 "use descend at OPEN sites" — 注释，
+//     因此未强制执行：分配了 13 个开放* 状态更新函数 和 8 个下降。
+//     调色板 → 提供者 → Esc 完全离开了堆栈。现在是DELETED。
+//   ·侧向跳跃被拼写为`close<Old>(); descend(New);`，其
+//     读起来像"swap panels"，意味着"drop the grandparent":
+//     close()没有留下任何内容，所以descend()找不到任何可以隐藏的东西。
+//     调色板 → 模型 → ^P → Esc 退出而不是返回到调色板。
+//     这就是 replace() 存在的意义。
 //
-// So the rule is: if you are changing what is in the slot, you must name
-// which of the three you mean. There is no unnamed way left.
+// 所以规则是：如果您要改变槽中的内容，您必须说出您指
+// 的是三个中的哪一个。已经没有无名的路了。
 class State {
 public:
     State() = default;
 
-    // Assignment is deleted: it silently discarded the parent chain. Say
-    // descend(k) to go DOWN, replace(k) to go SIDEWAYS, or restore(k) to
-    // put a panel back with the chain it already carries.
+    // 分配被删除：它默默地丢弃了父链。说下降（k）去DOWN，
+    // 替换（k）去SIDEWAYS，
+    // 或者恢复（k）将面板与它已经携带的链条放回去。
     template <Alternative K>
     State& operator=(K k) = delete;
 
@@ -345,27 +345,27 @@ public:
         return !std::holds_alternative<None>(v_);
     }
 
-    // Close K IF it is the open overlay; leave any other overlay alone.
-    // Mirrors the old per-field close semantics: a stale CloseModels
-    // arriving after the user hopped to the provider picker must not
-    // close the provider picker.
+    // 关闭K IF为打开覆盖面板;保留任何其他 覆盖面板。
+    // 镜像旧的per-field关闭语义：在用户跳到提供
+    // 者选择面板之后到达的过期 CloseModels
+    // 不得关闭提供者选择面板。
     template <Alternative K>
     void close() noexcept {
         if (std::holds_alternative<K>(v_)) v_ = None{};
     }
-    // Close unconditionally (whatever is open).
+    // 无条件关闭（无论打开什么）。
     void close_all() noexcept { v_ = None{}; }
 
-    // Open K OVER the current overlay: K's `from` becomes a snapshot of
-    // whatever is open now, so Esc can restore it verbatim — query, cursor,
-    // nested from and all. Opening over None stashes nothing (from stays
-    // empty) and Esc simply closes: "the thread" needs no snapshot.
+    // 打开 K OVER 当前的 覆盖面板：K 的 `from`
+    // 变成现在打开的任何内容的 快照，因此 Esc 可以逐字恢复它 — 查询、
+    // 游标、嵌套等等。打开 None 不会隐藏任何内容（从保持空），
+    // Esc 只是关闭："the thread" 不需要 快照。
     //
-    // Re-opening the SAME kind is a rebuild, not a descent. Without that
-    // check, a reducer that reopens its own panel to refresh it (Smart Mode
-    // does this on every slot assignment) would stash the panel as its own
-    // parent, and Esc would peel identical copies one at a time instead of
-    // leaving. The new panel keeps the chain the old one had.
+    // Re-opening SAME类型是重建，而不是血统。
+    // 如果没有这项检查，重新打开自己的面板以刷新它的
+    // 状态更新函数（智能模式在每个插槽分配上都会执行此操作）会
+    // 将面板隐藏为自己的父面板，而 Esc 会一次剥离一个相同
+    // 的副本而不是离开。新面板保留了旧面板的链条。
     template <Alternative K>
     void descend(K k) {
         if (std::holds_alternative<K>(v_)) {
@@ -376,10 +376,10 @@ public:
         v_ = std::move(k);
     }
 
-    // DOWN into K even when K is what's open: the current panel becomes the
-    // parent. For a panel that opens another instance of its own kind, like
-    // the Settings hub opening the Plugins list. descend() would treat that
-    // as a rebuild and Esc would skip the hub.
+    // DOWN进入K，即使K是打开的：当前面板成为父面板。
+    // 对于打开同类实例的面板，例如打开插件列表的设置中心。
+    // descend() 会将其视为重建，
+    // 而 Esc 将跳过集线器。
     template <Alternative K>
     void push(K k) {
         if (!std::holds_alternative<None>(v_))
@@ -387,20 +387,20 @@ public:
         v_ = std::move(k);
     }
 
-    // SIDEWAYS: swap the open panel for K, keeping ITS parent.
+    // SIDEWAYS:将打开的面板交换为K，保留ITS父面板。
     //
-    // A hop between siblings — ^P from the model picker to the provider
-    // picker, or any "leave this, open that at the same level". The panel
-    // you are leaving is discarded; where you CAME FROM is not.
+    // 同级之间的跳跃——从型号选择面板到提供者选择面板或任何
+    // "leave this, open that at the same level"的^P。
+    // 您要离开的面板将被丢弃；你 CAME FROM 不是。
     //
-    // This used to be spelled `close<Old>(); descend(New);`, which reads
-    // like a swap and behaves like a truncation: close() leaves None, so
-    // the descend() that follows finds nothing to stash and silently drops
-    // the grandparent. palette → models → ^P → Esc then exited the stack
-    // instead of returning to the palette.
+    // 这过去被拼写为 `close<Old>(); descend(New);`，
+    // 读起来像交换并且表现得像截断：close() 没有留下
+    // 任何内容，因此后面的 descend() 找不到任何东西
+    // 可以隐藏并默默地丢弃祖父母。调色板→模型→^P→Esc
+    // 然后退出堆栈而不是返回到调色板。
     //
-    // Over None this is just an open with no parent, which is the same
-    // thing descend() would do — a hop from nothing lands on nothing.
+    // Over None 这只是一个没有父级的开放，
+    // 这与 descend() 会做的事情是一样的——从无到有的跳跃。
     template <Alternative K>
     void replace(K k) {
         k.from = std::visit(
@@ -412,20 +412,20 @@ public:
         v_ = std::move(k);
     }
 
-    // Put K back exactly as given — its `from` is already whatever it should
-    // be. For ascend() restoring a stashed parent, and for a reducer
-    // rebuilding the panel it is already inside.
+    // 将 K 完全按照给定的方式放回 — 它的 `from` 已经是它应该的样子。
+    // 对于 ascend() 恢复隐藏的父项，
+    // 对于 状态更新函数 重建面板，它已经在里面了。
     //
-    // The counterpart to descend: a restore that descended would stash the
-    // child as its own parent and Esc would cycle instead of unwinding.
+    // 下降的对应部分：下降的恢复将把子项藏起来作为
+    // 其自己的父项，并且Esc将循环而不是展开。
     template <Alternative K>
     void restore(K k) {
         v_ = std::move(k);
     }
 
-    // How many panels Esc would have to walk to leave. 0 = nothing open.
-    // Exposed for tests and diagnostics: the depth is the property the
-    // navigation contract is actually about.
+    // 需要步行多少个面板Esc才能离开。 0 = 没有打开任何内容。
+    // 暴露用于测试和诊断：深度是导航
+    // 合同实际上涉及的属性。
     [[nodiscard]] int depth() const noexcept {
         int n = 0;
         const Variant* cur = &v_;
@@ -443,13 +443,13 @@ public:
         return n;
     }
 
-    // Give the CURRENTLY-OPEN overlay a parent, if it has none yet. The
-    // caller pattern: a dispatcher (palette select, settings-list action)
-    // snapshots itself, closes, runs the command — and then adopts, so
-    // WHATEVER the command opened inherits the dispatcher as its Esc
-    // target. Generic: the dispatcher needs no per-command knowledge, and
-    // a command that opened nothing (None) or re-opened something that
-    // already has a parent is left alone.
+    // 给CURRENTLY-OPEN 覆盖面板一个父代，
+    // 如果它还没有的话。调用者模式：分派器（调色板选择，
+    // 设置-list操作）快照本身，关闭，运行命令 - 然后采用，
+    // 因此打开的命令WHATEVER继承分派器作为其Esc目标。
+    // 通用：分派器 不需要 per-command 知识，
+    // 并且不打开任何内容（无）或 re-opened 已
+    // 具有父级的内容的命令将被保留。
     void adopt(From f) {
         std::visit(
             [&](auto& a) {
@@ -459,10 +459,10 @@ public:
             v_);
     }
 
-    // Restore the parent this overlay was opened over. False if there is
-    // none (opened over the thread, or a pre-descend code path) — the
-    // caller closes instead. The restored state may be STALE; the caller
-    // owns revalidation (app::detail::ascend wraps both).
+    // 恢复该覆盖面板被打开的父项。如果没有（通过 线程 或 pre
+    // -descend 代码路径打开），则为 False — 调用
+    // 者将关闭。恢复后的状态可能是STALE；调用者拥有重新验证（
+    // app::detail::ascend 包装两者）。
     [[nodiscard]] bool ascend() {
         const From* f = std::visit(
             [](const auto& a) -> const From* {
@@ -471,7 +471,7 @@ public:
             },
             v_);
         if (!f || f->empty()) return false;
-        // Copy out BEFORE overwriting: the snapshot lives inside v_.
+        // 复制出BEFORE覆盖：快照位于v_内。
         auto keep = f->get();
         Variant restored = keep->v;
         v_ = std::move(restored);
@@ -484,7 +484,7 @@ private:
     Variant v_;
 };
 
-// ── Kind: the routing name shared by dispatcher and view ────────────────
+// ── kind: 分派器 共享的路由名称和视图 ────────────────
 enum class Kind {
     None,
     Login,
@@ -515,8 +515,8 @@ enum class Kind {
     Skills,
 };
 
-// Slot alternative → Kind. An exhaustive visitor: adding an alternative
-// without an arm here is a compile error, not a silent misroute.
+// 槽替代方案→种类。一位详尽的访客：在这里添加一个没有手臂
+// 的替代方案是一个 编译 错误，而不是无声的错误路线。
 [[nodiscard]] inline Kind kind_of(const State& s) noexcept {
     struct V {
         Kind operator()(const None&)            const { return Kind::None; }

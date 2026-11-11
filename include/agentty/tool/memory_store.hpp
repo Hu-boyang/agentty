@@ -1,32 +1,32 @@
 #pragma once
-// agentty::tools::memory — the storage layer behind the `remember` and
-// `forget` tools, and the loader the system-prompt builder reads on
-// every turn.
+// agentty::tools::memory-`remember`和
+// `forget`工具背后的存储层，以及system
+// -prompt构建器每次读取的加载器。
 //
-// Storage shape: newline-delimited JSON ("JSONL"). One record per line:
+// 存储形状：换行-delimited JSON("JSONL")。每行一条记录：
 //
 //   {"id":"a1b2c3d4","ts":1731860000,"scope":"project","text":"prefer fish"}
 //
-// JSONL was picked over a single JSON document for three reasons:
+// JSONL 被选中而不是单个 JSON 文档有以下三个原因：
 //
-//   1. Appending a new record is one `O_APPEND` write of `<record>\n` —
-//      no read-modify-write of the whole file, no atomic-rename dance,
-//      no risk of clobbering a concurrent edit.
-//   2. The file is line-addressable: `forget` strips matching lines
-//      and rewrites the survivors. A corrupted line affects only that
-//      record; loaders skip-and-continue on parse failures.
-//   3. The on-disk format is grep-friendly for a human auditing what
-//      the agent has stored about them.
+//   1. 追加一条新记录是对 `<record>\n` 进行一次 `O_APPEND` 写入 —
+//      整个文件没有read-modify-write，没有atomic
+//      -rename舞蹈，没有破坏并发编辑的风险。
+//   2.文件为line-addressable:`forget`条带匹配行
+//      并重写了幸存者。损坏的行仅影响该记录；加载程序在
+//      解析 失败时跳过 -and-continue。
+//   3.on-disk格式为grep-friendly，用于人工审核什么
+//      代理已经存储了关于它们的信息。
 //
-// Two scopes:
+// 两个范围：
 //
-//   User    ~/.agentty/memory.jsonl                  shared across workspaces
-//   Project <workspace>/.agentty/memory.jsonl        per-project, gitignored
+//   用户 ~/.agentty/memory.jsonl 在 工作区 项目 <workspace>
+//   /.agentty/memory.jsonl per-project 中共享，gitignored
 //
-// `local` scope is intentionally NOT exposed via these tools — the
-// equivalent in agentty's existing memory hierarchy is the user-authored
-// CLAUDE.local.md, which the human owns. Letting the model write to
-// "local" felt like blurring the boundary.
+// `local`范围是故意通过这些工具暴露的NOT——
+// agentty的现有内存层次结构中的等价物是人类拥有的用户
+// -authored CLAUDE.local.md。
+// 让模型写入 "local" 感觉就像模糊了边界。
 
 #include <cstdint>
 #include <filesystem>
@@ -47,217 +47,217 @@ enum class Scope : std::uint8_t { User, Project };
     return s == Scope::User ? "user" : "project";
 }
 
-// Returns std::nullopt if the string isn't a recognised scope.
+// 如果字符串不是可识别的范围，则返回 std::nullopt。
 [[nodiscard]] std::optional<Scope> parse_scope(std::string_view s) noexcept;
 
 struct Record {
-    std::string id;          // 8 hex chars; assigned at append time
-    std::int64_t ts;         // unix seconds (UTC) — last-touched (bumps on dedup hit)
+    std::string id;          // 8个十六进制字符；在追加时分配
+    std::int64_t ts;         // unix 秒 (UTC) — Last-touched（重复数据删除命中时的碰撞）
     Scope scope;
-    std::string text;        // capped at kMaxTextBytes by `append`
-    bool pinned = false;     // pinned records never roll on cap overflow
-    std::vector<std::string> tags;  // optional grouping labels (lower-case, sorted, deduped)
-    std::int32_t hits = 0;   // bumps on dedup append; signal of "this fact keeps coming up"
+    std::string text;        // kMaxTextBytes 上限为 `append`
+    bool pinned = false;     // 固定记录永远不会在上限溢出时滚动
+    std::vector<std::string> tags;  // 可选的分组标签（lower-case、排序、重复数据删除）
+    std::int32_t hits = 0;   // 去重附加上的碰撞； "this fact keeps coming up" 信号
 };
 
-// Hard caps. Anything beyond these is rejected at append time so a
-// runaway model can't fill the disk or poison every subsequent system
-// prompt with megabytes of "memory".
-inline constexpr std::size_t kMaxTextBytes        = 2u * 1024u;    // 2 KiB / record
-inline constexpr std::size_t kMaxFileBytes        = 256u * 1024u;  // 256 KiB / file
-inline constexpr std::size_t kMaxRecordsPerScope  = 200;           // hard cap on lines
-inline constexpr std::size_t kTailLoadCount       = 50;            // load tail-N into prompt
+// 硬上限。超出这些的任何内容都会在附加时被拒绝，
+// 因此失控模型无法填充磁盘或用兆字节的 "memory"
+// 毒害每个后续系统 提示词。
+inline constexpr std::size_t kMaxTextBytes        = 2u * 1024u;    // 2 KiB/条
+inline constexpr std::size_t kMaxFileBytes        = 256u * 1024u;  // 256KiB/文件
+inline constexpr std::size_t kMaxRecordsPerScope  = 200;           // 线路硬上限
+inline constexpr std::size_t kTailLoadCount       = 50;            // 加载 末尾-N 进入 提示词
 
-// ── Prompt-budget caps (the defence against memory eating the context) ──
+// ── 提示词-budget 上限(针对 内存 吃上下文)  ⁇ . ──
 //
-// load_recent_*() returns the tail-N records, but the system prompt must
-// not grow without bound as the store fills up — a user who stores
-// hundreds of facts would otherwise pay ~100 KiB of prompt on EVERY turn,
-// pushing the conversation toward compaction far sooner. select_for_prompt
-// applies a hard BYTE budget on top of tail-N, ranked so the
-// highest-signal facts survive when the budget is tight:
+// load_recent_*()返回末尾-N记录，但是系统提示
+// 词不能随着存储填满而无限制地增长——否则，存储数百个事实
+// 的用户将在EVERY轮上支付提示词的约100KiB，
+// 从而将会话更快地推向压缩。 select_for_prompt 在
+// 末尾-N 之上应用了严格的 BYTE 预算，
+// 因此排名最高的 -signal 事实在预算紧张时仍然存在：
 //
-//   1. pinned records are always kept (cap-exempt by design);
-//   2. remaining budget filled by rank = (hits, then recency);
-//   3. any single record longer than kPromptRecordCap is shown truncated
-//      with an ellipsis note (the on-disk record stays whole — only the
-//      prompt copy is clipped);
-//   4. records that don't fit are dropped from the prompt (still on disk,
-//      still editable, the dropped count is reported so the loader can
-//      emit a "+N more stored" footer).
+//   1.始终保留固定记录（设计为cap-exempt）；
+//   2.按排名填充的剩余预算=(点击数，然后新近度)；
+//   3.任何长于kPromptRecordCap的单个记录被显示为截断的
+//      带有省略号注释（on-disk记录保持完整——仅
+//      提示词副本被剪裁）；
+//   4.不适合的记录从提示词中删除（仍在磁盘上，
+//      仍然可编辑，报告丢弃的计数，以便加载器可以发出
+//      "+N more stored"页脚）。
 //
-// Budget sized so the WHOLE learned-memory block (both scopes combined)
-// stays a few KiB — a rounding error against a 200 K-token window — no
-// matter how much has accumulated on disk.
-inline constexpr std::size_t kPromptByteBudget = 6u * 1024u;   // ~6 KiB / scope block
-inline constexpr std::size_t kPromptRecordCap  = 400;          // clip any one record to this in-prompt
+// 预算大小使得WHOLE学习的-memory块（两个范围
+// 组合）保持几个KiB——相对于200K-token窗口的舍入误差
+// ——无论磁盘上累积了多少。
+inline constexpr std::size_t kPromptByteBudget = 6u * 1024u;   // ~6 KiB/范围块
+inline constexpr std::size_t kPromptRecordCap  = 400;          // 将任意一条记录剪辑到该-prompt中
 
-// Resolve the on-disk path for a scope. Creates parent directories
-// lazily on the first `append` — this function is pure and never
-// touches the filesystem.
+// 解析范围的on-disk路径。在第一个 `append`
+// 上延迟创建父目录 - 这个函数是纯粹的，
+// 从不触及文件系统。
 //
-//   User    $HOME/.agentty/memory.jsonl    (or %USERPROFILE% on Windows)
-//   Project <workspace_root>/.agentty/memory.jsonl
+//   用户 $HOME/.agentty/memory.jsonl (或 Windows 上的%USERPROFILE%)
+//   项目 <workspace_root>/.agentty/memory.jsonl
 //
-// Returns an empty path if the relevant base directory can't be
-// resolved (no $HOME on POSIX, workspace_root() empty before init).
+// 如果无法解析相关基目录（POSIX上没有$HOME，
+// 初始化之前workspace_root()为空），则返回空路径。
 [[nodiscard]] fs::path path_for(Scope s);
 
-// Append a record to the scope file. Generates an id, stamps the
-// current time. On success returns the assigned id; on failure returns
-// a human-readable error. Enforces:
+// 将记录附加到范围文件。生成一个 id，标记当前时间。
+// 成功时返回指定的 id；失败时返回 human-readable 错误。
+// 强制执行：
 //
-//   • text non-empty after trim
-//   • text size ≤ kMaxTextBytes (truncates with a note rather than failing)
-//   • file size after append ≤ kMaxFileBytes (rolls oldest unpinned records)
-//   • record count after append ≤ kMaxRecordsPerScope (rolls oldest unpinned)
+//   ·修剪后的文本非-empty
+//   ·文本大小≤kMaxTextBytes(用注释截断而不是失败）
+//   ·追加后的文件大小≤kMaxFileBytes(滚动最旧的未固定记录)
+//   ·附加后的记录计数≤kMaxRecordsPerScope(滚动最旧的未固定的)
 //
-// Dedup: if `text` (after whitespace normalisation) closely matches an
-// existing record in the SAME scope, no new record is written. Instead
-// the existing record's `ts` is refreshed, `hits` is incremented, and
-// `tags` / `pinned` are merged with the incoming values. The returned
-// id is the existing record's id (with `note` set to flag the dedup
-// for the caller's UX). This is the primary defence against models
-// repeatedly re-asserting the same fact across sessions.
+// Dedup:如果`text`(空白规范化之后)与SAME范围
+// 内的现有记录紧密匹配，则不写入新记录。相反，现有记录的
+// `ts` 会被刷新，`hits` 会递增，并且 `tags`
+// / `pinned` 会与传入值合并。返回的 id 是现有
+// 记录的 id（将 `note` 设置为 标志，
+// 对调用者的 UX 进行重复数据删除）。这是针对模型在会话中重复
+// re-asserting 同一事实的主要防御措施。
 //
-// Pin: `pinned=true` marks the record as cap-exempt. The cap-rollover
-// path walks oldest-first but skips pinned records, so a critical fact
-// (the build command, a hard project convention) stays put even after
-// hundreds of subsequent appends. A pinned record can still be removed
-// by `forget` or `wipe`.
+// Pin:`pinned=true`将记录标记为cap-exempt。
+// cap-rollover 路径遍历oldest-first，
+// 但会跳过固定记录，因此即使在数百个后续追加之后，一个关键事实（构建命令、
+// 硬项目约定）仍保持不变。固定记录仍可以通过 `forget` 或
+// `wipe` 删除。
 //
-// Supersede: if `supersedes_id` is non-empty, the named record is
-// removed atomically in the same rewrite that adds the new one.
-// `forget`-then-`remember` would have the same effect but loses
-// atomicity (a crash between them leaves the store in a half-state).
-// If the supersede id doesn't exist, the new record is still written
-// and a note flags the miss — we never refuse the append over a stale
-// reference.
+// 取代：如果`supersedes_id`不是-empty，
+// 则在添加新记录的同一重写中自动删除指定记录。
+// `forget`-then-`remember`将具有相同的
+// 副作用但失去原子性（它们之间的崩溃使存储变成一半-state）。
+// 如果取代id不存在，则仍然写入新记录并且
+// 注释标志未命中——我们从不拒绝对过期引用的
+// 追加。
 //
-// Tags: passed in any case; normalised to lower-case ASCII, deduped,
-// sorted. Empty tag strings are dropped. The system-prompt loader uses
-// tags to group records under headings inside <learned-memory> so the
-// model can scan by topic instead of by chronology.
+// 标签：无论如何都通过；标准化为 lower-case ASCII，
+// 删除重复数据，排序。空标记字符串将被删除。 system-prompt
+// 加载程序使用标签对 <learned-memory> 内的标题下的记录进行分组，
+// 以便模型可以按主题而不是按时间顺序进行扫描。
 //
-// Concurrency: the append path takes a per-process mutex. Multi-process
-// concurrent writes aren't synchronised — the only realistic writer is
-// the agent itself; humans editing the JSONL in a text editor race
-// with the agent's next write, the same way they race with any tool.
+// 并发性：追加路径采用per-process 互斥量。
+// Multi-process 并发写入不同步——唯一现实的写入
+// 者是代理本身；人类在文本编辑器 竞态 中编辑 JSONL
+// 与代理的下一个写入，就像他们使用任何工具 竞态 一样。
 struct AppendOptions {
     bool pinned = false;
     std::vector<std::string> tags;
-    std::string supersedes_id;   // empty ⇒ no supersede
-    // When false (default) the dedup path is allowed; setting true
-    // forces a fresh record even if a near-duplicate exists. Reserved
-    // for `forget`+`remember` callers that explicitly want a new id.
+    std::string supersedes_id;   // 空 ⇒ 无取代
+    // 当为假（默认）时，允许去重路径；即使存在near-duplicate，
+    // 设置 true 也会强制创建新记录。为明确需要新 ID
+    // 的 `forget`+`remember` 呼叫者保留。
     bool no_dedup = false;
 };
 
-// MIRROR of mcp::tools::MemoryAppendResult (third_party/mcp-cpp/include/mcp/tools/host.hpp):
-// the two carry identical fields and are bridged field-by-field in
-// AgenttyMemoryStore::append (src/tool/mcp_tools_backends.cpp), which holds a
-// static_assert that trips if their sizes drift. Every field needs an in-class
-// default: the no-rollover path returns without ever touching `rolled`, so an
-// uninitialised `rolled` was read as garbage and printed as e.g.
-// "(140696944861232 old record(s) rolled.)". Add/remove a field here and you
-// update the mirror + the bridge mapping.
+// MIRROR 的 mcp::tools::MemoryAppendResult (third_party/mcp-cpp/include/mcp/tools/host.hpp):
+// 两个承载相同的字段并且桥接AgenttyMemoryStore::append
+// (src/tool/mcp_tools_backends.cpp)中的字段-by-field，
+// 其持有static_assert，如果它们的大小漂移则跳闸。每个字段都需要一个
+// in-class 默认值：no-rollover 路径返回时不会触及 `rolled`，
+// 因此未初始化的 `rolled` 被读取为垃圾并打印为 e.g。
+// "(140696944861232 old record(s) rolled.)"。
+// Add/remove 这里有一个字段，您可以更新镜像+桥接映射。
 struct AppendResult {
-    std::string id;          // 8 hex chars on success (may be an existing id on dedup)
-    std::string error;       // empty on success
-    std::string note;        // non-empty when text was truncated, deduped, supersede missed, etc.
-    std::size_t rolled = 0;  // number of old records dropped to fit caps
-    bool deduped = false;    // true ⇒ hit an existing record; id is the existing one
+    std::string id;          // 成功时为 8 个十六进制字符（可能是 dedup 上的现有 ID）
+    std::string error;       // 清空成功
+    std::string note;        // 当文本被截断、去重、取代、遗漏等时为非-empty。
+    std::size_t rolled = 0;  // 为适应上限而丢弃的旧记录的数量
+    bool deduped = false;    // true ⇒ 达到现有记录； id 是现有的
 };
 [[nodiscard]] AppendResult append(const locks::below_memory_store& cap, Scope s,
                                   std::string_view text,
                                   AppendOptions opts = {});
 
-// Read all records in a scope, oldest first. Skips lines that fail to
-// parse. Returns empty vector on missing file.
+// 读取范围内的所有记录，最早的记录在前。跳过未能到达
+// 解析 的行。返回丢失文件的空向量。
 [[nodiscard]] std::vector<Record> load_all(const locks::below_memory_store& cap, Scope s);
 
-// Read the tail-N most recent records across BOTH scopes, oldest first
-// within each scope. Used by the system-prompt builder. mtime-cached
-// the same way CLAUDE.md is.
+// 读取 两者 范围内的 末尾-N 最新记录，每个范围内最旧的记录在前。
+// 由 system-prompt 构建器使用。 mtime-cached 与
+// CLAUDE.md 相同。
 [[nodiscard]] std::vector<Record> load_recent_user();
 [[nodiscard]] std::vector<Record> load_recent_project();
 
-// Budgeted prompt selection. Takes the records load_recent_*() returned
-// for ONE scope and pares them down to fit kPromptByteBudget, keeping all
-// pinned records and then the highest-signal remainder (by hits, then
-// recency). Returns the chosen records in oldest-first stable order (so
-// the prompt still reads chronologically), plus the number dropped so the
-// caller can emit a "+N more stored" footer. Records whose text exceeds
-// kPromptRecordCap are returned with text clipped + an ellipsis marker;
-// the on-disk record is untouched. This is THE bound that stops a growing
-// memory store from inflating every system prompt.
+// 预算提示词选择。获取为 一个 范围返回的记录 load_recent_
+// *() 并将其削减以适合 kPromptByteBudget，
+// 保留所有固定记录，然后保留最高的 -signal 余数（按点击数，
+// 然后是新近度）。以oldest-first稳定顺序返回所选记录
+// （因此提示词仍然按时间顺序读取），加上丢弃的号码，以便调用者可以
+// 发出"+N more stored"页脚。返回文本超过
+// kPromptRecordCap 的记录，其中文本被剪裁 + 省略号标记；
+// on-disk 记录未受影响。这是 该 绑定，可阻止不断增长
+// 的 内存 商店使每个系统 提示词 膨胀。
 struct PromptSelection {
-    std::vector<Record> records;   // clipped, oldest-first, within budget
-    std::size_t         dropped = 0;   // records elided to fit the budget
+    std::vector<Record> records;   // 已剪裁，最旧-first，在预算范围内
+    std::size_t         dropped = 0;   // 记录被删除以符合预算
 };
 [[nodiscard]] PromptSelection select_for_prompt(
     std::vector<Record> recent,
     std::size_t byte_budget = kPromptByteBudget);
 
-// Forget by exact id. Returns count removed (0 if not found).
+// 忘记准确的ID。返回删除的计数（如果未找到则返回 0）。
 [[nodiscard]] std::size_t forget_by_id(const locks::below_memory_store& cap,
                                        std::string_view id);
 
-// Forget by substring (case-sensitive) across both scopes. Returns
-// count removed. Refuses to run with an empty/whitespace pattern so
-// a stray `forget {}` doesn't nuke everything.
+// 通过跨两个范围的子字符串（case-sensitive)忘记。
+// 返回已删除的计数。拒绝以 empty/whitespace 模式运行，
+// 因此流浪的 `forget {}` 不会摧毁一切。
 [[nodiscard]] std::size_t forget_by_substring(const locks::below_memory_store& cap,
                                               std::string_view needle);
 
-// Preview a substring forget without writing. Returns the records
-// that WOULD be removed. Used by the `forget` tool's `dry_run` path
-// so the model can confirm a non-trivial wipe before committing.
+// 预览子串忘记而无需写入。返回WOULD被删除的记录。
+// 由 `forget` 工具的 `dry_run` 路径使用，
+// 以便模型可以在提交之前确认非 -trivial 擦除。
 [[nodiscard]] std::vector<Record> preview_forget_by_substring(
     const locks::below_memory_store& cap, std::string_view needle);
 
-// Wipe an entire scope. The hard "start afresh on this codebase"
-// switch — removes every record in the scope file (the file itself is
-// truncated, not deleted, so subsequent appends don't race a directory
-// rebuild). Returns the count of records removed, or std::nullopt if
-// the scope path is unresolvable (no $HOME, no workspace, etc.). The
-// `confirm` gate lives in the tool layer; this function always wipes.
+// 擦拭整个瞄准镜。
+// 硬 "start afresh on this codebase"
+// 开关 — 删除范围文件中的每条记录（文件本身被截断，而不是删除，
+// 因此后续追加不会 竞态 重建目录）。返回已删除记录的计数，
+// 如果范围路径无法解析（无 $HOME、无 工作区 等），
+// 则返回 std::nullopt。 `confirm`门位于工具层；此功能始终擦除。
 [[nodiscard]] std::optional<std::size_t> wipe(const locks::below_memory_store& cap, Scope s);
 
-// Render a record for the <learned-memory> block in the system prompt.
-// Format: `[<id>]` + (optional `★ ` for pinned) + text.
+// 渲染为系统提示词中的<learned-memory>块的记录。
+// 格式：`[<id>]`+(固定的可选`★ `)+文本。
 [[nodiscard]] std::string render_for_prompt(const Record& r);
 
-// Lookup by id across both scopes. Returns the record + its resolved
-// scope (which may differ from any caller-assumed scope), or nullopt
-// if no record carries that id. Used by the supersede path to find
-// the predecessor wherever it lives.
+// 通过id在两个范围内查找。返回记录+其解析范围（可能
+// 与任何调用方-assumed范围不同），如果没有记录
+// 携带该id，则返回nullopt。由取代路径用来
+// 查找前任（无论其位于何处）。
 [[nodiscard]] std::optional<std::pair<Record, Scope>>
     find_by_id(const locks::below_memory_store& cap, std::string_view id);
 
-// ── Smart scope inference ─────────────────────────────────────────────────
-// Which scope does a fact BELONG in? The prompt asks the model to default to
-// project and reach for user only when the fact is about the human. But
-// "project vs user" is a linguistic call the model gets wrong under load —
-// it stores "I use fish" as project, or a build command as user — and once
-// mis-scoped a fact bleeds (a personal preference re-asserted in every repo,
-// or a project convention lost when you `cd` away).
+// ── 智能范围推论 ─────────────────────────────────────────────────
+// 事实BELONG属于哪个范围？ 提示词 要求模型仅在事实涉及人类时
+// 默认投射并接触用户。但是 "project vs user" 是
+// 一种语言 调用，模型在 加载 下出错——它将 "I use fish"
+// 存储为项目，或将构建命令存储为用户——一旦错误-scoped，
+// 事实就会消失（每个 仓库 中都会出现个人偏好 re-asserted，
+// 或者当你离开 `cd` 时会丢失项目约定）。
 //
-// suggest_scope() gives the tool a GROUNDED default: a small scored signal
-// model over the fact text, not a keyword grab-bag. It weighs the signals
-// that actually separate the two classes — first-person self-reference ("I
-// prefer", "my …", "call me") pulls toward User; codebase/repo deixis ("this
-// project", "the build", "we use", a path, a command) pulls toward Project —
-// and reports its confidence + the winning cue so the caller can act on a
-// STRONG signal and stay out of the way on a weak one. It never decides:
-// the model's explicit `scope` always wins; this only fills the blank the
-// model left, and only when confident.
+// suggest_scope()为工具提供GROUNDED默认值：事实文本上的小评
+// 分信号模型，而不是关键字grab-bag。它权衡了实际上区分两个类别的信号——
+// 第一人称自我指代，例如 I prefer（我更喜欢），
+// "my …"、"call me"）向用户拉动； codebase/repo deixis
+// （"this project"、"the build"、"we use"、一条路径、
+// 一条命令）向 Project 拉动 — 并报告其信心 + 获胜提示，
+// 以便呼叫者可以根据 STRONG 信号采取行动，并在弱信号时保持距离。它永远不会决定：
+// 模型的显式`scope`总是获胜；这只能填补模型留下的空白，
+// 而且只有在自信的情况下。
 struct ScopeSuggestion {
-    Scope       scope = Scope::Project;  // the leaning (Project is the neutral prior)
-    float       confidence = 0.0f;       // 0 = no signal … 1 = unambiguous
-    std::string reason;                  // the cue that tipped it (for notes/tests)
+    Scope       scope = Scope::Project;  // 倾向（Project是中立先验）
+    float       confidence = 0.0f;       // 0=无信号……1=明确
+    std::string reason;                  // 倾斜的提示（对于 notes/tests）
 
-    // Below this, treat the text as genuinely ambiguous — fall back to the
-    // caller's static default rather than overriding on noise.
+    // 在此之下，将文本视为真正不明确的——回退到
+    // 调用者的静态默认值而不是覆盖噪声。
     static constexpr float kActThreshold = 0.30f;
     [[nodiscard]] bool confident() const noexcept {
         return confidence >= kActThreshold;

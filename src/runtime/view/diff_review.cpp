@@ -9,7 +9,7 @@
 
 #include <maya/widget/markdown/highlight.hpp>
 #include <maya/widget/tab_strip.hpp>
-#include <maya/widget/tool_body_preview.hpp>   // diff bands, terminal_color_level
+#include <maya/widget/tool_body_preview.hpp>   // diff带, terminal_color_level
 #include <maya/style/theme.hpp>
 
 #include "agentty/domain/ui_live.hpp"
@@ -26,20 +26,20 @@ namespace syntax = maya::syntax;
 
 namespace {
 
-// Red/green row bands, like the edit cards. Off below 256 colours, where
-// the band colours can't be shown and plain signs read better.
+// Red/green 排行带, 如编辑卡。 关闭在 256 个
+// 颜色以下, 乐队的颜色不能显示, 普通符号读得更好。
 [[nodiscard]] bool diff_bands_on() noexcept {
     return maya::terminal_color_level() >= 2;
 }
 
-// ── Language from a file path's extension ────────────────────────────────
+// ── 文件路径扩展名的语言 ────────────────────────────────
 [[nodiscard]] syntax::Lang lang_of(std::string_view path) {
     auto dot = path.rfind('.');
     if (dot == std::string_view::npos) return syntax::Lang::Generic;
     return syntax::lang_from_tag(path.substr(dot + 1));
 }
 
-// The path as the user thinks of it: relative to the workspace, else ~/...
+// 用户所想的路径:相对于工作区, 换句话说, ~/...
 [[nodiscard]] std::string shown_path(const std::string& p) {
     const auto roots = agentty::ui_prefs::path_roots();
     auto under = [&](const std::string& base) {
@@ -51,9 +51,9 @@ namespace {
     return p;
 }
 
-// ── Status glyphs ────────────────────────────────────────────────────────────────────────
-// The edits are already on disk, so the choice is keep or undo, not accept
-// or reject; the words say that.
+// ── 状态格言 ────────────────────────────────────────────────────────────────────────
+// 编辑已经放在磁盘上,所以选择是保留或撤消,不接受或拒绝;
+// 这些词是这样说的.
 [[nodiscard]] const char* status_dot(Hunk::Status s) {
     switch (s) {
         case Hunk::Status::Accepted: return "\xe2\x9c\x93";  // ✓
@@ -79,24 +79,24 @@ namespace {
     return muted;
 }
 
-// A parsed diff line: its sign, the code text (sign stripped), and its old-
-// and new-side line numbers (0 = none on that side).
+// 解析的diff行:它的标志,代码文本(签名剥离),
+// 以及它的旧和新-side行号(0=该侧无).
 struct DiffLine { char sign; std::string code; int oldno; int newno; };
 
-// Lines in a file's text, the way an editor counts them.
+// 文件文本中的行,编辑者计算的方式.
 [[nodiscard]] int line_count(const std::string& s) {
     int n = static_cast<int>(std::count(s.begin(), s.end(), '\n'));
     return (!s.empty() && s.back() != '\n') ? n + 1 : n;
 }
 
-// `old_lines`/`new_lines` drop the empty "line" diff::compute emits past a
-// trailing newline; it isn't in the file.
+// `old_lines`/`new_lines` 将空的"line" diff::compute
+// 发射出经过一条后继的新线;它不在文件中.
 [[nodiscard]] std::vector<DiffLine> parse_hunk(std::string_view patch,
                                                int old_lines = 1 << 30,
                                                int new_lines = 1 << 30,
                                                int old_start = 1, int new_start = 1) {
     std::vector<DiffLine> out;
-    // diff::compute's patches carry no @@ header, so start from the hunk
+    // diff::compute '补丁没有带 QQ 头文件 ,所以从 差异块
     int oldno = old_start, newno = new_start;
     std::size_t i = 0;
     while (i < patch.size()) {
@@ -105,7 +105,7 @@ struct DiffLine { char sign; std::string code; int oldno; int newno; };
         i = (nl == std::string_view::npos) ? patch.size() : nl + 1;
         if (line.empty()) continue;
         if (line.starts_with("@@")) {
-            // Seed both counters from "-start" and "+start".
+            // 种子两个计数器都来自 "-start" 财务报告和已审计财务报表 "+start".
             auto seed = [&](char c) {
                 int v = 0;
                 if (auto p = line.find(c, 2); p != std::string_view::npos)
@@ -115,7 +115,7 @@ struct DiffLine { char sign; std::string code; int oldno; int newno; };
             };
             oldno = seed('-');
             newno = seed('+');
-            continue;   // the @@ header itself isn't rendered as a code line
+            continue;   // 头文件 本身不是作为代码线提供的
         }
         char sign = line[0];
         std::string code{line.substr(1)};
@@ -129,23 +129,23 @@ struct DiffLine { char sign; std::string code; int oldno; int newno; };
     return out;
 }
 
-// Syntax-highlight one code line into styled runs, tinted for its diff sign.
-// Added/removed lines keep syntax colours but carry a faint add/remove wash via
-// the gutter + sign; context lines are dimmed so the eye tracks the changes.
+// 语法-highlight 1条代码线成风格的运行,为它的diff符号而有锡.
+// Added/removed 线条保持语法颜色,但带有偏暗 add/remove
+// 通过沟槽+标志进行洗涤;上下文线被暗化,因此眼部跟踪变化.
 [[nodiscard]] Element diff_code_line(const DiffLine& dl, syntax::Lang lang,
                                      int gutter_w) {
     const bool add = dl.sign == '+', del = dl.sign == '-';
     Color sign_c = add ? success : del ? danger : muted;
 
-    // Build the WHOLE line as one string + per-byte-range StyledRuns, so it
-    // renders as a SINGLE text element that clips its tail cleanly at the pane
-    // width — an hstack of per-span text cells would instead squeeze every span
-    // when the line overflows (mangled). This is how maya's DiffView stays
-    // clean, applied with our syntax highlighting.
+    // 构建 整个 以一个字符串形式行 + per -byte-range
+    // StyledRuns ,所以它会 渲染 作为 唯一 剪切其文本元素
+    // 末尾 干净的在 面板 宽度——每秒的重磅 -span 文本 存储单元
+    // 将相反地在线条溢出时挤压每个跨度(缠绕)。 maya's
+    // DiffView 保持干净,应用我们的语法突出。
     std::string content;
     std::vector<StyledRun> runs;
 
-    // Gutter: old and new line numbers, right-aligned, then the sign.
+    // 古特:新旧行号,右-aligned,然后是标志.
     auto num = [gutter_w](int n) {
         std::string s = n > 0 ? std::to_string(n) : "";
         s.insert(s.begin(), static_cast<std::size_t>(std::max(0, gutter_w - (int)s.size())), ' ');
@@ -165,8 +165,8 @@ struct DiffLine { char sign; std::string code; int oldno; int newno; };
                             : Style{}.with_fg(sign_c)});
     content += sign_s;
 
-    // Syntax-highlighted code. On a band, each token colour is lifted until
-    // it reads there; context lines render dimmed so the eye tracks changes.
+    // 语法 -highlighted 代码。在一个带子上,
+    // 每个符号颜色被调高,直到它读到为止;上下文线条 渲染 眼线变了,所以变了
     const std::size_t code_off = content.size();
     content += dl.code;
     auto spans = syntax::highlight(dl.code, lang);
@@ -203,7 +203,7 @@ struct DiffLine { char sign; std::string code; int oldno; int newno; };
                                .runs = std::move(runs)}};
 }
 
-} // namespace
+} // 命名空间结束。
 
 Element diff_review(const Model& m) {
     auto* cursor = m.ui.panel.get<pn::DiffReview>();
@@ -212,7 +212,7 @@ Element diff_review(const Model& m) {
     const int fidx = std::min<int>(cursor->file_index, static_cast<int>(files.size()) - 1);
     const auto& fc = files[static_cast<std::size_t>(fidx)];
 
-    // ── Totals across every file ──
+    // ── 每个文件的总计 ──
     int total = 0, kept = 0, undone = 0, added = 0, removed = 0;
     for (const auto& f : files) {
         added += f.added;
@@ -224,7 +224,7 @@ Element diff_review(const Model& m) {
         }
     }
     const int decided = kept + undone;
-    // the reducer closes the pane on the last decision, so this lasts a frame
+    // 编号 状态更新函数 关闭 面板 上个决定,所以这个持续一个 帧
     const bool all_done = decided == total && total > 0;
 
     auto rule = [](Color c) {
@@ -240,7 +240,7 @@ Element diff_review(const Model& m) {
 
     std::vector<Element> rows;
 
-    // ── What this is, in one line, and the size of it ──
+    // ── 是什么,在一行, 和它的大小 ──
     {
         const std::string size = plural(static_cast<int>(files.size()), "file", "files")
                                + std::format("  +{} \xe2\x88\x92{}", added, removed);
@@ -261,13 +261,13 @@ Element diff_review(const Model& m) {
     }
     rows.push_back(text(""));
 
-    // ── One tab per file ──
-    // The tab's mark is the file's state: ○ something left to review, ✓ all
-    // kept, ✗ something undone. TabStrip slides to keep the current file in
-    // view when the files don't fit.
+    // ── 每个文件一个标签 ──
+    // 标签标记是文件的状态: ^ 尚有需要审查的东西, \\\ 全部保存,
+    // \\\\ 有些未撤销。 TabStrip 幻灯片可以让当前
+    // 文件在文件不匹配时查看。
     {
         TabStrip tabs;
-        // editor-style file tabs: the open file is a filled chip
+        // 编辑-style 文件标签:打开的文件是填充的标签
         tabs.marker(TabMark::Editor);
         tabs.indent = 0;
         tabs.theme.active    = fg;
@@ -294,7 +294,7 @@ Element diff_review(const Model& m) {
     }
     rows.push_back(text(""));
 
-    // ── The current file: full path, then its changes ──
+    // ── 当前文件: 完整路径, 然后更改 ──
     {
         std::string dir, base = shown_path(fc.path);
         if (auto sl = base.rfind('/'); sl != std::string::npos) {
@@ -338,8 +338,8 @@ Element diff_review(const Model& m) {
         const std::string where = first == last ? std::format("line {}", first)
                                                 : std::format("lines {}\xe2\x80\x93{}", first, last);
 
-        // One line per change: where it is, how big, and what you decided.
-        // The focused one is marked and opens below.
+        // 每变一行:位置,大小,以及你决定的.
+        // 重点的标注在下面并打开。
         rows.push_back(h(
             text(sel ? "\xe2\x96\x8e " : "  ", fg_bold(accent)),
             text(status_dot(hk.status), fg_of(status_color(hk.status))),
@@ -356,8 +356,8 @@ Element diff_review(const Model& m) {
         ).build());
         if (!sel) continue;
 
-        // The focused change's lines, capped so a huge one can't push the
-        // keys off screen; ^D/^U page through it.
+        // 重点变化的线条, 封顶了,一个巨大的一个不能推 键关闭屏幕;
+        // ^D/^U 页面通过它。
         constexpr int kMaxRows = 24;
         const int nlines = static_cast<int>(lines.size());
         const int off = std::clamp(cursor->body_scroll, 0, std::max(0, nlines - kMaxRows));
@@ -379,7 +379,7 @@ Element diff_review(const Model& m) {
         rows.push_back(text(""));
     }
 
-    // ── Progress: a bar that takes what the counts leave, and plain counts ──
+    // ── 进步:一个能取出数的酒吧, 和平庸的数 ──
     rows.push_back(component([kept, undone, decided, total](int w, int) -> Element {
         std::string counts = std::format("{} of {} reviewed", decided, total);
         const std::string ks = std::format("\xe2\x9c\x93 {} kept", kept);
@@ -412,7 +412,7 @@ Element diff_review(const Model& m) {
     }));
     rows.push_back(text(""));
 
-    // ── Keys ──
+    // ── 键 ──
     if (cursor->confirm_reject_all) {
         rows.push_back(h(
             text("\xe2\x9a\xa0 ", fg_bold(danger)),
@@ -429,7 +429,7 @@ Element diff_review(const Model& m) {
         if (focused_overflows) hints.push_back({"^D/^U", "scroll", 3});
         hints.push_back({"^A", "keep all", 4, success});
         hints.push_back({"^X", "undo all", 4, danger});
-        // Esc closes; anything not decided stays as it is on disk
+        // Esc 关闭; 任何未决定的都保持磁盘上的位置
         hints.push_back({"Esc", decided == 0 ? "keep all, close" : "close, keep rest", 8});
         rows.push_back(key_hints(std::move(hints)));
     }

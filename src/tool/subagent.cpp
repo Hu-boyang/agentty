@@ -1,7 +1,7 @@
 #include "agentty/tool/subagent.hpp"
 #include "agentty/util/teardown.hpp"
 
-#include "agentty/util/sendable.hpp"   // maya::guarded + the opt-ins Live needs
+#include "agentty/util/sendable.hpp"   // maya::guarded + 选择 -ins 生活需要
 
 #include <algorithm>
 #include <mutex>   // std::once_flag
@@ -12,20 +12,20 @@
 namespace agentty::tools::subagent {
 
 namespace {
-// The installed config. A whole Config is copied out by current() and
-// replaced by install(); the setters change one field at a time as the user
-// switches. Copy-on-write in a published slot, not a lock: set_auth is
-// called from the effect host's auth swap and current() from every subagent
-// start, neither of which should need a capability for a value that is
-// replaced, never mutated in place. Each setter is one compare-and-swap.
-// (Config holds callables, so it can't be a jaal::snapshot -- those need a
-// provably-immutable T; a published<const Config> holds an immutable copy.)
+// 已安装的配置。 整个配置由 current() 改为:
+// install() ; 设置器在用户切换时一次更改一个字段。
+// 复制 -on-write 在一个已公布的插槽中,而不是 锁:
+// set_auth 是从 副作用 主机的 Auth 交换和 current()
+// 从每个子剂启动时, 都不需要一个被替换的值的能力,
+// 也从来不会变异。 每个定点器都是一个比较器。 -and-swap.
+// (Config持有可调用设备,所以它不能是一个 jaal::snapshot - 这些需要证明
+// -immutable T; 已出版 <const Config> 持有 不可变 ) 存档副本.
 maya::published<const Config>& cfg() {
     static maya::published<const Config> c;
     return c;
 }
 
-// Read-modify-write: f(Config&) on a private copy, swapped in only if no one
+// 读 -modify-write: f( 合并) , 仅以无任何文本的形式互换
 // else swapped first; retried otherwise. f must have no side effects.
 template <class F>
 void edit(F f) {
@@ -37,7 +37,7 @@ void edit(F f) {
     }
 }
 
-} // namespace
+} // 命名空间结束。
 
 void install(Config c) {
     c.installed = true;
@@ -55,7 +55,7 @@ void set_auth(Io, auth::AuthHeader auth) {
 
 void set_model(Io, std::string model) {
     if (model.empty()) return;
-    // Only meaningful once a config exists; leave `installed` untouched.
+    // 只有一个配置存在时才有意义; 使 `installed` 不受影响。
     edit([&](Config& c) { c.model = model; });
 }
 
@@ -73,18 +73,18 @@ void set_provider(Io, std::string provider) {
 
 
 
-// ── Running-run registry ─────────────────────────────────────────
-// See the header for why this exists. It is a maya::stop_group:
-// that is the registry this file used to hand-roll (a mutex, a condition
-// variable, a vector of {cancelled, done} pairs and a wait that rescanned
-// every entry on each wakeup), written once in jaal.
+// ── 运行-run 注册表 ─────────────────────────────────────────
+// 见 头文件 为何存在它? maya::stop_group:
+// 碞琌硂 注册表 此文件用于手递 -roll (a 互斥量 ,
+// 条件变量,矢量为 { 已取消 ,完成)对和一个等待,
+// 重新扫描每个条目在每个醒悟,写在一次 jaal.
 //
-// What the jaal type adds beyond deleting code:
-//   * ADMISSION CLOSES with shutdown. A run starting mid-teardown used to
-//     register after shutdown_running took its snapshot, so it was never
-//     asked to stop and never waited for. join() now refuses it.
-//   * the cancel is a real std::stop_token, so the stream's cancel can be a
-//     stop_callback instead of a thread polling a flag every 20 ms.
+// 或 jaal 类型在删除代码后添加 :
+//   * ADMISSION CLOSES 关闭。 运行从中点开始。 -teardown 曾经是
+//     注册后 shutdown_running 已经拿走了 快照 所以它
+//     从未被要求停下来 也从未等待过 join() 现在拒绝它。
+//   * 报告内容 取消 是个真实的 std::stop_token ,所以,请 数据流's 取消 可以是: 一种
+//     stop_callback 而不是一个 线程 投票a 标志 每20毫秒 时间轴:
 
 struct RunRegistration::State {
     std::optional<maya::stop_group::member> member;
@@ -97,9 +97,9 @@ maya::stop_group& runs() {
     return g;
 }
 
-// Register the teardown hook exactly once, from the first run that starts.
-// This is the registry's own rule (util/teardown.hpp): the join belongs with
-// the code that creates the thread, not in a hand-maintained list in main().
+// 从第一次开始就把脱落的钩子登记一次
+// 这是 注册表 自己的规则( util/teardown.hpp : 加入与
+// 创建 线程 ,而不是在手边 -maintained 列表中 main().
 void ensure_teardown_registered() {
     static std::once_flag once;
     maya::once(once, [] {
@@ -109,7 +109,7 @@ void ensure_teardown_registered() {
     });
 }
 
-} // namespace
+} // 命名空间结束。
 
 RunRegistration::RunRegistration()
     : state_{std::make_shared<State>()} {
@@ -117,31 +117,31 @@ RunRegistration::RunRegistration()
     state_->member = runs().join();
 }
 
-// The member leaves on destruction, which wakes a waiting shutdown.
+// 成员离开时会受到破坏,这唤醒等待关闭的状态.
 RunRegistration::~RunRegistration() = default;
 
 bool RunRegistration::cancelled() const noexcept {
-    // A run refused admission (shutdown already running) reads as cancelled,
-    // so it stops at its first check instead of doing work nobody waits for.
+    // 一次拒绝录取(shutdown already running)
+    // 读作已取消,所以它停止了第一次检查,而不是做没有人等待的工作.
     return !state_->member || state_->member->stop_requested();
 }
 
 std::stop_token RunRegistration::token() const noexcept {
     if (state_->member) return state_->member->token();
-    // Refused: hand back an already-stopped token so callers need no branch.
+    // 拒绝: 将一个已经 -stopped 的代号还回去, 所以呼叫者不需要分机。
     std::stop_source dead;
     dead.request_stop();
     return dead.get_token();
 }
 
 std::size_t shutdown_running(const maya::unlocked& cap, std::chrono::milliseconds grace) noexcept {
-    // Bounded, not a barrier: a wedged syscall must not hold the process
-    // open. The runs touch provider objects that main() keeps alive past
-    // this call, so the abandoned case is a slow exit, not a dangling write.
+    // 已设界而非屏障:一个楔形的线程不能打开进程。
+    // 运行的触摸提供者对象会 main() 活过这个 调用 ,
+    // 所以弃案是一个缓慢的退出,而不是一个令人费解的写作.
     try {
         return runs().stop_and_wait(cap, grace);
     } catch (...) {
-        return 0;   // a mutex failure at teardown is not worth a terminate
+        return 0;   // a 拆解时的互斥量失败不值得终止
     }
 }
 

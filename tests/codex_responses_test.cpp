@@ -1,15 +1,15 @@
-// codex_responses_test — verifies the ChatGPT (Codex) Responses-API transport's
-// pure translation layer, no network:
+// codex_responses_test - 核查 ChatGPT (Codex (c) 反应
+// -API 传输层 '纯翻译层, 无网络 :
 //
-//   1. build_body_for_test  — Request → Responses-API JSON (flat function
-//                             tools, input[] items, function_call +
-//                             function_call_output pairing, reasoning/effort).
-//   2. parse_sse_for_test   — scripted Responses SSE `data:` JSON → the agentty
-//                             Msg sequence the reducer consumes (text deltas,
-//                             reasoning, streamed tool-call assembly,
-//                             response.completed → StopReason + usage).
+//   1. build_body_for_test ——要求——答复 -API JSON (平面函数)
+//                             工具、输入[ 项、 function_call +
+//                             function_call_output 双人配对, reasoning/effort).
+//   2. parse_sse_for_test ——按稿答复 SSE `data:` JSON – 已经 agentty
+//                             Msg 顺序 状态更新函数 消耗(文本三角洲、推理、
+//                             流化工具) -call 组装,
+//                             response.completed → StopReason + 使用量).
 //
-// Run: build the `codex_responses_test` target, execute. Exit 0 = pass.
+// 运行: 构建`codex_responses_test`目标, 执行。 退出 0 = 通过。
 
 #include <map>
 #include <string>
@@ -40,11 +40,11 @@ static const Leaf* leaf(const Msg& m) {
     return found;
 }
 
-// ── 1. Request body ─────────────────────────────────────────────────────────
-// ── 1b. Every function_call is paired, even one that never finished ──────────
-// The Responses API 400s "No tool output found for function call" when a
-// function_call has no function_call_output, and the history replays every
-// turn, so one cancelled call used to wedge the thread for good.
+// ── 1. 要求正文 ─────────────────────────────────────────────────────────
+// ── 1b. 每一 function_call 成对的,甚至一个从未完成的 ──────────
+// 答复 API 400s "No tool output found for function call"
+// 当一个 function_call 没有 function_call_output
+// 历史每转一次 都重现 所以 已取消 调用 用来楔形 线程 永远
 TEST_CASE("unfinished call is paired with a synthetic output") {
     provider::Request req;
     req.model = "gpt-5-codex";
@@ -70,7 +70,7 @@ TEST_CASE("unfinished call is paired with a synthetic output") {
     CHECK(calls.size() == 3);
     for (const auto& [id, n] : calls) {
         INFO(id);
-        CHECK(outputs[id] == 1);          // exactly one output per call
+        CHECK(outputs[id] == 1);          // 每件产出 调用
     }
 }
 
@@ -83,7 +83,7 @@ TEST_CASE("build body") {
     Message u; u.role = Role::User; u.text = "list the files";
     req.messages.push_back(u);
 
-    // An assistant turn that called a tool, with a completed result.
+    // 一个叫工具的助手转弯,结果完成.
     Message a; a.role = Role::Assistant; a.text = "";
     ToolUse tc;
     tc.id   = ToolCallId{"call_abc"};
@@ -109,14 +109,14 @@ TEST_CASE("build body") {
     CHECK(body["tool_choice"] == "auto");
     CHECK(body["reasoning"]["effort"] == "high");
 
-    // Tools are FLAT (name/description/parameters at top level).
+    // 工具为 FLAT (name/description/parameters )),在最高层.
     CHECK(body["tools"].is_array() && body["tools"].size() == 1);
     CHECK(body["tools"][0]["type"] == "function");
     CHECK(body["tools"][0]["name"] == "shell");
     CHECK(body["tools"][0].contains("parameters"));
-    CHECK(!body["tools"][0].contains("function"));  // NOT nested
+    CHECK(!body["tools"][0].contains("function"));  // 不 筑巢 筑巢
 
-    // input[]: user message, then function_call, then function_call_output.
+    // 输入[ :用户消息,然后 function_call ,则 function_call_output.
     const auto& in = body["input"];
     CHECK(in.is_array() && in.size() == 3);
     CHECK(in[0]["type"] == "message");
@@ -144,7 +144,7 @@ TEST_CASE("build body with images") {
     with_text.images.push_back(ImageContent{"image/png", std::string{"\x89PNG", 4}});
     req.messages.push_back(std::move(with_text));
 
-    // Image-only messages must not be discarded just because text is empty.
+    // 绝不能仅仅因为文本是空的而丢弃图像-only消息.
     Message image_only;
     image_only.role = Role::User;
     image_only.images.push_back(ImageContent{"image/jpeg", std::string{"\xff\xd8\xff", 3}});
@@ -163,7 +163,7 @@ TEST_CASE("build body with images") {
     CHECK(in[1]["content"][0]["image_url"] == "data:image/jpeg;base64,/9j/");
 }
 
-// ── 2. SSE → Msg mapping ─────────────────────────────────────────────────────
+// ── 2. SSE → Msg 绘图 ─────────────────────────────────────────────────────
 TEST_CASE("sse text and usage") {
     std::vector<std::string> sse = {
         R"({"type":"response.created","response":{}})",
@@ -183,7 +183,7 @@ TEST_CASE("sse text and usage") {
         if (auto* f = leaf<StreamFinished>(m)) { finished = true; stop = f->stop_reason; }
         if (auto* u = leaf<StreamUsage>(m)) {
             saw_usage = true;
-            CHECK(u->input_tokens == 4);      // 12-token prompt, 8 of it cached
+            CHECK(u->input_tokens == 4);      // 12-token 提示词, 其中8个缓存
             CHECK(u->output_tokens == 5);
             CHECK(u->cache_read_input_tokens == 8);
         }
@@ -221,11 +221,11 @@ TEST_CASE("sse tool call") {
     }
     CHECK(start);
     CHECK(name == "read");
-    CHECK(id == "call_9");                 // correlation id, not the fc_ item id
+    CHECK(id == "call_9");                 // 关联 id, 不是 fc_ 项 id
     CHECK(json::parse(args)["path"] == "a.txt");
     CHECK(end);
     CHECK(finished);
-    CHECK(stop == StopReason::ToolUse);    // a function_call ⇒ ToolUse stop
+    CHECK(stop == StopReason::ToolUse);    // a function_call ⇒ ToolUse 停止( E)
 }
 
 TEST_CASE("sse parallel tool calls are id addressed") {
@@ -256,21 +256,21 @@ TEST_CASE("sse parallel tool calls are id addressed") {
 }
 
 TEST_CASE("sse an unaddressed delta with several calls open is not guessed") {
-    // The Responses dialect normally addresses every argument event with
-    // item_id. When it is ABSENT the codec fell back to `latest_tool_item`,
-    // which sounds ordered and is not: it is refreshed from
-    // `*open_tool_items.begin()` on an unordered_set, i.e. whichever item
-    // the hash happens to yield.
+    // 答语方言通常会解决每个论点 事件 与 item_id 当它是 ABSENT
+    // 解码器掉回 `latest_tool_item` ,它听起来是命令的,
+    // 而不是命令的。它是从 `*open_tool_items.begin()`
+    // 打开一个 unordered_set, i.e . .
+    // 不论散列碰巧产生哪一项。
     //
-    // With two calls open that is a coin flip, and the losing side appends
-    // one call's arguments to the other. The result still parses, so the
-    // corruption is silent and reaches a tool invocation — the same failure
-    // the chat decoder's ToolCallTracker refuses to commit by returning
-    // Ambiguous instead of picking.
+    // 带两个 调用 打开那块硬币翻转, 失去的侧面附着一个
+    // 调用 对方的论据。结果仍然是 解析 ,所以腐败是沉默的,
+    // 并达到工具引用—— 同样的失败 聊天解码器
+    // ToolCallTracker 拒绝通过返回Amibridge
+    // 而不是采摘来实施犯罪。
     std::vector<std::string> sse = {
         R"({"type":"response.output_item.added","item":{"type":"function_call","id":"fc_1","call_id":"call_1","name":"edit"}})",
         R"({"type":"response.output_item.added","item":{"type":"function_call","id":"fc_2","call_id":"call_2","name":"shell"}})",
-        // No item_id, two calls open — unattributable.
+        // 没有 item_id ,两个 调用 开放——不可归属。
         R"({"type":"response.function_call_arguments.delta","delta":"{\"path\":\"x\"}"})",
         R"({"type":"response.output_item.done","item":{"type":"function_call","id":"fc_1"}})",
         R"({"type":"response.output_item.done","item":{"type":"function_call","id":"fc_2"}})",
@@ -282,18 +282,18 @@ TEST_CASE("sse an unaddressed delta with several calls open is not guessed") {
         if (auto* d = leaf<StreamToolUseDelta>(m))
             args[d->id.value] += d->partial_json;
 
-    // Neither call may receive the orphaned fragment. Dropping it is the
-    // honest outcome: the turn fails visibly on a missing field rather than
-    // running `edit` with a path that belonged to `shell`.
+    // 也没有 调用 可能接收到孤儿的碎片。丢弃它将是一个
+    // 诚实的结果:在缺失的球场上转弯明显失败,而不是运行
+    // `edit` 带有属于 `shell`.
     CHECK(args["call_1"].empty());
     CHECK(args["call_2"].empty());
 }
 
 TEST_CASE("sse an unaddressed delta with ONE call open still lands") {
-    // The converse, and why this cannot simply be "always require item_id":
-    // with exactly one call in flight there is no ambiguity, and older
-    // servers legitimately omit the field. Refusing here would break them
-    // for no safety gain.
+    // 反省,为什么不能只是 "always require item_id":
+    // 和一个 调用 飞行中不存在任何模糊之处,而老服务器会
+    // 合法地忽略这个领域。拒绝这样做会破坏它们,从而无法安全
+    // 地得到任何好处。
     std::vector<std::string> sse = {
         R"({"type":"response.output_item.added","item":{"type":"function_call","id":"fc_1","call_id":"call_1","name":"edit"}})",
         R"({"type":"response.function_call_arguments.delta","delta":"{\"path\":\"x\"}"})",
@@ -321,8 +321,8 @@ TEST_CASE("sse reasoning") {
     CHECK(think == "thinking…");
 }
 
-// A completed reasoning output item yields StreamReasoning carrying its opaque
-// encrypted_content — the blob the reducer stashes for cross-round replay.
+// 已完成推理输出项目产量 StreamReasoning 含不透明 encrypted_content
+// —— 摇摆的 状态更新函数 用于交叉的藏品 -round 重放,我们来玩
 TEST_CASE("sse reasoning encrypted capture") {
     std::vector<std::string> sse = {
         R"({"type":"response.reasoning_summary_text.delta","delta":"planning"})",
@@ -336,7 +336,7 @@ TEST_CASE("sse reasoning encrypted capture") {
     CHECK(enc == "ENC_BLOB_123");
 }
 
-// build_body must OPT IN to encrypted reasoning so the backend returns it.
+// build_body 必须 OPT IN 以加密推理,然后后端返回。
 TEST_CASE("build body requests encrypted reasoning") {
     provider::Request req;
     req.model = "gpt-5-codex";
@@ -351,8 +351,8 @@ TEST_CASE("build body requests encrypted reasoning") {
     CHECK(has);
 }
 
-// An assistant turn carrying reasoning_encrypted replays a `reasoning` item
-// AHEAD of its function_call — with encrypted_content and NO server id.
+// 助理转身 reasoning_encrypted 重播放一个 `reasoning` 项目 AHEAD 排 定 的 会 议
+// function_call ——与 encrypted_content 财务报告和已审计财务报表 NO 服务器 ID。
 TEST_CASE("build input replays reasoning") {
     provider::Request req;
     req.model = "gpt-5-codex";
@@ -361,8 +361,8 @@ TEST_CASE("build input replays reasoning") {
     req.messages.push_back(u);
 
     Message a; a.role = Role::Assistant; a.text = "";
-    a.reasoning_encrypted = "BLOB_A\nBLOB_B";   // two items in one turn
-    a.reasoning_site      = "chatgpt";          // minted by THIS backend
+    a.reasoning_encrypted = "BLOB_A\nBLOB_B";   // 将两个项目分成一个
+    a.reasoning_site      = "chatgpt";          // 由THIS后端铸造
     ToolUse tc;
     tc.id = ToolCallId{"call_1"}; tc.name = ToolName{"shell"};
     tc.args = json{{"command", "ls"}};
@@ -372,28 +372,28 @@ TEST_CASE("build input replays reasoning") {
 
     json body = cc::build_body_for_test(req);
     const auto& in = body["input"];
-    // user, reasoning(BLOB_A), reasoning(BLOB_B), function_call, output
+    // 用户, 推理( E) BLOB_A ),推理( BLOB_B), function_call ,产出
     CHECK(in.size() == 5);
     CHECK(in[0]["type"] == "message");
     CHECK(in[1]["type"] == "reasoning");
     CHECK(in[1]["encrypted_content"] == "BLOB_A");
-    CHECK(!in[1].contains("id"));                 // no server id under store:false
+    CHECK(!in[1].contains("id"));                 // 存储: 假冒下没有服务器 ID
     CHECK(in[2]["type"] == "reasoning");
     CHECK(in[2]["encrypted_content"] == "BLOB_B");
-    CHECK(in[3]["type"] == "function_call");      // reasoning precedes the call
+    CHECK(in[3]["type"] == "function_call");      // 逻辑在调用之前
     CHECK(in[4]["type"] == "function_call_output");
 }
 
 TEST_CASE("build input never replays another site's reasoning") {
-    // Encrypted reasoning is opaque AND account-scoped: only the backend
-    // that minted it can decrypt it. Sending a Copilot blob to ChatGPT is
-    // not a field the server ignores — it is a 400 that fails the WHOLE
-    // request ("Encrypted content item_id did not match the target item
-    // id", openclaw#72602, github/copilot-sdk#615).
+    // 加密推理不透明 和 账户 -scoped : 只有它能解密的后端。
+    // 发送一个副驾驶blob 到 ChatGPT 服务器忽略的字段不是。 整个 请求
+    // 加密内容的 item_id 与目标条目标识不一致。
+    // 开元72602,开元2号.
+    // github/copilot-sdk#615).
     //
-    // So the replay is gated on the minting site, and this pins the three
-    // ways the gate has to hold. Nothing else in the suite would notice:
-    // a wrongly-replayed blob produces a perfectly well-formed request.
+    // 重播在薄荷的场地上 上面刻着门的三
+    // 种方法 套房里没有其他东西会注意到
+    // 错的 -replayed 油井生产出完美的井 -formed 请求。
     const auto input_of = [](const Message& a) {
         provider::Request req;
         req.model = "gpt-5-codex";
@@ -411,19 +411,19 @@ TEST_CASE("build input never replays another site's reasoning") {
     Message a; a.role = Role::Assistant; a.text = "done";
     a.reasoning_encrypted = "BLOB";
 
-    // 1. Minted by THIS site — replayed, which is the whole feature.
+    // 1. 由THIS网站进行消化——重播,这是整个特色.
     a.reasoning_site = "chatgpt";
     CHECK(has_reasoning(input_of(a)));
 
-    // 2. Minted by ANOTHER site — dropped. This is the user switching
-    //    provider with ^P mid-thread, which is a supported thing to do.
+    // 2. 由ANOTHER网址拆卸,这是用户切换
+    //    提供方为 ^P 中点 -thread ,这是支持的事情。
     a.reasoning_site = "copilot";
     CHECK(!has_reasoning(input_of(a)));
 
-    // 3. UNTAGGED — also dropped. Threads written before the tag existed
-    //    reload with an empty site, and "we don't know who minted this"
-    //    has to fail closed. Losing chain-of-thought continuity on an old
-    //    thread costs nothing visible; a 400 costs the turn.
+    // 3. UNTAGGED 也掉下来了 线程 在标签存在之前写入
+    //    重新装入空址,以及 "we don't know who minted this"
+    //    关闭失败。 -of-thought 旧的连续性 线
+    //    程 成本没有明显值; 转弯成本为400。
     a.reasoning_site.clear();
     CHECK(!has_reasoning(input_of(a)));
 }
@@ -439,10 +439,10 @@ TEST_CASE("sse error") {
     CHECK(saw);
 }
 
-// An in-band error that carries a `type`/`code` must surface it in the message
-// text so the runtime's classify() can route it to auto-retry (native Codex
-// parity with Anthropic/OpenAI). Without the type, "Rate limited" alone would
-// be classified Terminal and the turn would fail instead of backing off.
+// 进一进 -band 带有错误 `type`/`code` 必须在信件文本中显示,
+// 所以 运行时's classify() 可以将其引导到自动 -retry
+// (内部) Codex 与平价 Anthropic/OpenAI。没有类型,
+// "Rate limited" 单是会保密的 终端 转弯会失败 而不是退缩
 TEST_CASE("sse error type is retryable") {
     {
         std::vector<std::string> sse = {
@@ -460,7 +460,7 @@ TEST_CASE("sse error type is retryable") {
         }
     }
     {
-        // Top-level `error` event with a transient server_error type.
+        // Top-level `error` 事件 具有瞬态的server_error型.
         std::vector<std::string> sse = {
             R"({"type":"error","code":"server_error","message":"upstream 503"})",
         };
@@ -488,32 +488,32 @@ TEST_CASE("http error details") {
 }
 
 TEST_CASE("session id is stable per conversation") {
-    // Caching hinges on the same conversation carrying the SAME session_id
-    // every turn (a fresh random id each turn defeats the backend prompt
-    // cache). Derivation must be deterministic per key and differ across keys.
+    // 与我谈话时的同声 相同 session_id 每转
+    // ( 新的随机 ID ) , 每转都会击败后端 提示
+    // 词缓存 衍生必须确定每个密钥,并且各密钥之间有所不同。
     const std::string a1 = cc::session_id_for_test("thread-A");
     const std::string a2 = cc::session_id_for_test("thread-A");
     const std::string b1 = cc::session_id_for_test("thread-B");
     CHECK(!a1.empty());
-    CHECK(a1 == a2);          // stable across turns of one conversation
-    CHECK(a1 != b1);          // distinct conversations don't collide
-    CHECK(a1.size() == 36);   // uuid-v4 shaped (backend accepts it)
-    CHECK(a1[14] == '4');     // version nibble
-    // No durable identity → non-empty random id (correctness over caching).
+    CHECK(a1 == a2);          // 在一个交替的谈话中稳定
+    CHECK(a1 != b1);          // 不同的对话不会碰撞
+    CHECK(a1.size() == 36);   // uuid-v4 形状( 后端接受)
+    CHECK(a1[14] == '4');     // 版本的硝化
+    // 无持久身份 – 非-empty 随机标识( 校正于缓存)。
     CHECK(!cc::session_id_for_test("").empty());
 }
 
 TEST_CASE("stale tool result is budget capped") {
-    // A giant tool output from an OLD call must NOT ship verbatim every turn
-    // (it would replay on the wire and burn tokens). The newest result keeps
-    // the full budget; stale successful ones fade to a tight head+tail via
-    // the shared wire::cap_tool_result_aged path.
+    // 一个巨大的工具输出 旧 调用 不得 逐个转弯(在飞机上重播)
+    // 传输 最新的结果是保留了全部预算; 过期 成功者会消失到
+    // 头部紧凑+ 末尾 通过共享
+    // wire::cap_tool_result_aged 路径。
     provider::Request req;
     req.model = "gpt-5-codex";
 
-    const std::string big(200000, 'x');   // 200 KiB dump
+    const std::string big(200000, 'x');   // 200 KiB 倾销
 
-    // Oldest call: the big result, many turns back.
+    // 最古老的调用:大结果,许多回转.
     Message a1; a1.role = Role::Assistant;
     ToolUse old_tc;
     old_tc.id = ToolCallId{"call_old"};
@@ -523,7 +523,7 @@ TEST_CASE("stale tool result is budget capped") {
     a1.tool_calls.push_back(old_tc);
     req.messages.push_back(a1);
 
-    // A run of newer tool calls so the old one ages past the full-result window.
+    // 运行的更新工具 调用 所以,旧的 年龄过满 -result 窗口中选择一个窗口。
     for (int i = 0; i < 12; ++i) {
         Message a; a.role = Role::Assistant;
         ToolUse tc;
@@ -537,7 +537,7 @@ TEST_CASE("stale tool result is budget capped") {
 
     const json body = cc::build_body_for_test(req);
     const auto& in = body["input"];
-    // Find the oldest function_call_output (call_old) and assert it was capped.
+    // 找最老的,找最老的那个 function_call_output (call_old 并声称它被封顶。
     std::string old_output;
     for (const auto& item : in) {
         if (item["type"] == "function_call_output"
@@ -547,20 +547,20 @@ TEST_CASE("stale tool result is budget capped") {
         }
     }
     CHECK(!old_output.empty());
-    CHECK(old_output.size() < big.size());   // faded, not verbatim
-    CHECK(old_output.size() < 8192);         // tight head+tail budget
+    CHECK(old_output.size() < big.size());   // 淡化,不是逐字记录
+    CHECK(old_output.size() < 8192);         // 紧头+ 末尾 预算
 }
 
 
-// ── The reasoning toggle must work on EVERY dialect ─────────────────────
+// ── 推理 切换 一定要努力解决 每个 方言语 ─────────────────────
 //
-// Reported against Copilot: turning reasoning off in the model panel still
-// showed the summary whenever a gpt-* model was selected, while Claude
-// models respected it. The split is not the vendor — it is the DIALECT.
-// Copilot routes gpt-* over Responses and claude-* over Anthropic, and of
-// the four transports only this codec was emitting reasoning
-// unconditionally. The toggle was not broken; it was unimplemented on one
-// of four paths, which is worse because it looks arbitrary.
+// 报告针对副驾驶:当选择了gpt-* 模型时,
+// 在模型面板上关闭推理仍然显示摘要,而 Claude
+// 模型尊重它,分拆不是卖家,而是卖家 DIALECT.
+// 副驾驶路线 gpt- * 超过 resignation 和
+// claude- * 结束 Anthropic ,
+// 以及其中四个 传输层 解码器是无条件的 解码程序。 切换 4条
+// 道路之一没有执行,这更糟糕,因为它看起来是任意的。
 TEST_CASE("sse reasoning is suppressed when the user hides it") {
     std::vector<std::string> sse = {
         R"({"type":"response.output_item.added","item":{"type":"reasoning","id":"r1"}})",
@@ -570,13 +570,13 @@ TEST_CASE("sse reasoning is suppressed when the user hides it") {
         R"({"type":"response.completed","response":{"usage":{}}})",
     };
 
-    // Visible: the summary text reaches the reducer.
+    // 可见:摘要文本达到状态更新函数.
     std::string shown;
     for (const auto& m : cc::parse_sse_for_test(sse, /*show_reasoning=*/true))
         if (auto* t = leaf<StreamThinkingDelta>(m)) shown += t->text;
     CHECK(shown == "pondering…");
 
-    // Hidden: no reasoning TEXT is stored…
+    // 隐藏: 没有 TEXT 的推理存储...
     std::string hidden;
     int heartbeats = 0, boundaries = 0;
     for (const auto& m : cc::parse_sse_for_test(sse, /*show_reasoning=*/false))
@@ -587,19 +587,19 @@ TEST_CASE("sse reasoning is suppressed when the user hides it") {
         }
     CHECK(hidden.empty());
 
-    // …but the event still fires, because it is the turn's LIVENESS signal:
-    // the reducer resets last_event_at and the retry counter on it. Swallow
-    // it entirely and a long silent reasoning phase looks like a stalled
-    // stream and gets retried.
+    // ..但是,我们... 事件 仍然开火,因为轮到 LIVENESS 信号 :
+    // 编号 状态更新函数 重排( E) last_event_at 编辑
+    // 重试 完全吞下去,一个漫长的沉默推理阶段 看起来像一个停滞的
+    // 数据流 并接受重审。
     CHECK(heartbeats > 0);
-    // No paragraph boundaries though — a boundary with no text around it
-    // would open an empty thinking block in the transcript.
+    // 但是,没有段落界限——没有文字的边界
+    // 将打开记录稿中空洞的思维屏障。
     CHECK(boundaries == 0);
 }
 
 TEST_CASE("sse hidden reasoning does not disturb the answer") {
-    // The regression guard: suppressing reasoning must not touch anything
-    // else on the stream.
+    // 回归护卫:压制推理不得触及数据流上的
+    // 其他任何内容.
     std::vector<std::string> sse = {
         R"({"type":"response.reasoning_summary_text.delta","delta":"think"})",
         R"({"type":"response.output_text.delta","delta":"hello "})",

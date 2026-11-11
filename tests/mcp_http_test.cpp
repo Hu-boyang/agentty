@@ -1,15 +1,15 @@
-// mcp_http_test — end-to-end smoke for the agentty MCP Streamable HTTP
-// transport (HttpServerProvider). Stands up a tiny in-process HTTP/1.1 server
-// that speaks the MCP wire protocol (initialize → tools/list → tools/call,
-// plus one resource + one prompt) over a single endpoint, then drives the
-// bridge's make_http_provider() against http://127.0.0.1:PORT/mcp.
+// mcp_http_test 结束 -to-end 烟雾 agentty MCP 可流性
+// HTTP 传输层 (HttpServerProvider 站着一个小的在 -process HTTP/1.1
+// 说此语的服务器 MCP 传输 协议(初始化) __ tools/list → tools/call ,
+// 加上一个资源+一个 提示词 )在一个单一的终点上,然后驱动桥的 make_http_provider
+// (一) 反对 http://127.0.0.1:PORT/mcp.
 //
-// Proves the whole HTTP chain: URL parse → POST framing → Accept negotiation
-// → both application/json AND text/event-stream response handling → session-id
-// capture/replay → rpc::Peer round-trip → mcp::Connection tools/resources/
-// prompts → cap::Result.
+// 证明整个 HTTP 链条 : URL 解析 → POST 接受谈判 双方 application/json
+// 和 text/event-stream 处理 – 会话 -id capture/replay → rpc::Peer
+// 圆形 -trip → mcp::Connection tools/resources/ 提示词
+// → cap::Result.
 //
-// POSIX-only (raw sockets). SKIPS (exit 0) on Windows.
+// POSIX-only (草套接字) (原始内容存档于2013-09-30). SKIPS (0号出局) Windows.
 
 #include <cstdio>
 #include <cstdlib>
@@ -35,7 +35,7 @@ int main() { std::printf("mcp_http_test: SKIP (POSIX-only)\n"); return 0; }
 using json = nlohmann::json;
 
 static int g_failures = 0;
-static std::vector<std::string> g_seen_versions;   // MCP-Protocol-Version headers received
+static std::vector<std::string> g_seen_versions;   // MCP-Protocol-Version 头文件 已收到
 #define CHECK(cond)                                                            \
     do {                                                                       \
         if (!(cond)) {                                                         \
@@ -44,9 +44,9 @@ static std::vector<std::string> g_seen_versions;   // MCP-Protocol-Version heade
         }                                                                      \
     } while (0)
 
-// ── tiny MCP-over-HTTP/1.1 server ──────────────────────────────────────────
-// Handles one connection at a time, request/response per POST. Returns
-// application/json bodies (the simplest compliant Streamable HTTP server).
+// ── 微小的MCP-over-HTTP/1.1 服务器 ──────────────────────────────────────────
+// 一次处理一次连接, request/response 百分比 POST。
+// 回归 application/json 正文 (最简单的可达性) HTTP 服务器)。
 
 static json handle_rpc(const json& req, bool& notify_only) {
     notify_only = false;
@@ -54,7 +54,7 @@ static json handle_rpc(const json& req, bool& notify_only) {
     json res;
     res["jsonrpc"] = "2.0";
     if (req.contains("id")) res["id"] = req["id"];
-    else { notify_only = true; return {}; }   // a notification — 202, no body
+    else { notify_only = true; return {}; }   // a 通知 - 202,无 正文
 
     if (method == "initialize") {
         res["result"] = {
@@ -102,7 +102,7 @@ static void serve(int listen_fd, std::atomic<bool>& stop) {
         int fd = ::accept(listen_fd, reinterpret_cast<sockaddr*>(&cli), &len);
         if (fd < 0) { if (stop.load()) break; continue; }
 
-        // Read the full request (headers + body). We rely on Content-Length.
+        // 阅读全部请求( E) 头文件 + 正文。我们依赖内容 -Length.
         std::string buf;
         char tmp[4096];
         std::size_t content_len = 0;
@@ -114,7 +114,7 @@ static void serve(int listen_fd, std::atomic<bool>& stop) {
             if (header_end == std::string::npos) {
                 header_end = buf.find("\r\n\r\n");
                 if (header_end != std::string::npos) {
-                    // parse Content-Length (case-insensitive)
+                    // 解析 内容 -Length(案件 -insensitive)
                     std::string head = buf.substr(0, header_end);
                     for (std::size_t i = 0; i < head.size(); ++i) head[i] = (char)std::tolower(head[i]);
                     auto cl = head.find("content-length:");
@@ -129,8 +129,8 @@ static void serve(int listen_fd, std::atomic<bool>& stop) {
         std::string body = (header_end != std::string::npos)
                                ? buf.substr(header_end + 4, content_len) : std::string{};
 
-        // Like the server in issue #95: a pre-2026 server that refuses any
-        // MCP-Protocol-Version it doesn't know with a plain-text 400.
+        // 类似第95期中的服务器:拒绝任何的2026年前服务器 MCP
+        // -Protocol-Version 平原上还不知道 -text 400.
         std::string version_hdr;
         if (header_end != std::string::npos) {
             std::string head = buf.substr(0, header_end);
@@ -166,8 +166,8 @@ static void serve(int listen_fd, std::atomic<bool>& stop) {
                       "Mcp-Session-Id: test-session\r\n"
                       "Content-Length: 0\r\n\r\n";
             } else if (method == "resources/read") {
-                // Exercise the SSE response path: wrap the JSON-RPC response in
-                // a text/event-stream `data:` event.
+                // 行使 SSE 响应路径: 包扎 JSON-RPC 答复中的答复
+                // text/event-stream `data:` 事件.
                 std::string payload = "event: message\r\ndata: " + res.dump() + "\r\n\r\n";
                 out  = "HTTP/1.1 200 OK\r\n";
                 out += "Content-Type: text/event-stream\r\n";
@@ -198,7 +198,7 @@ int main() {
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = ::inet_addr("127.0.0.1");
-    addr.sin_port = 0;   // ephemeral
+    addr.sin_port = 0;   // 临时
     CHECK(::bind(listen_fd, reinterpret_cast<sockaddr*>(&addr), sizeof addr) == 0);
     CHECK(::listen(listen_fd, 4) == 0);
     socklen_t alen = sizeof addr;
@@ -209,7 +209,7 @@ int main() {
     std::atomic<bool> stop{false};
     std::thread server_thread([&] { serve(listen_fd, stop); });
 
-    // Drive the HTTP MCP provider.
+    // 开车 HTTP MCP 供养者。
     agentty::mcp::HttpConfig cfg;
     cfg.url = "http://127.0.0.1:" + std::to_string(port) + "/mcp";
     cfg.handshake_timeout = std::chrono::milliseconds(5000);
@@ -219,8 +219,8 @@ int main() {
     auto provider = agentty::mcp::make_http_provider("httpdemo", cfg, err);
     CHECK(static_cast<bool>(provider));
     if (!provider) std::fprintf(stderr, "  provider failed: %s\n", err.c_str());
-    // The 400 on server/discover must fail that call at once, not after the
-    // handshake timeout, and the fallback must not send 2026-07-28 again.
+    // 4百块 server/discover 一定失败了 调用 一次,
+    // 不是在握手之后 超时 ,并显示 回退 不能再发2026-07-28
     CHECK(std::chrono::steady_clock::now() - t0 < std::chrono::milliseconds(3000));
     std::printf("mcp_http_test: versions seen:");
     for (const auto& v : g_seen_versions) std::printf(" %s", v.c_str());
@@ -246,8 +246,8 @@ int main() {
         std::string rerr;
         CHECK(provider->read_resource("mem://note", contents, rerr));
         CHECK(!contents.empty());
-        // resources/read is delivered over SSE (text/event-stream) by the test
-        // server — verify the SSE parser produced the right body.
+        // resources/read 已交付 SSE (text/event-stream
+        // ) 由测试服务器进行——验证 SSE 解析器 产生了权利 正文.
         if (!contents.empty()) {
             bool ok = std::visit([](const auto& rc) {
                 using T = std::decay_t<decltype(rc)>;
@@ -267,9 +267,9 @@ int main() {
         CHECK(!gp.messages.empty());
     }
 
-    provider.reset();    // tear down before stopping the server
+    provider.reset();    // 在停止服务器前拆卸
     stop.store(true);
-    // Kick the accept() loop with a throwaway connection so it observes stop.
+    // 用丢弃的连接将accept()环路踢出,使其观察停止.
     int kick = ::socket(AF_INET, SOCK_STREAM, 0);
     if (kick >= 0) {
         sockaddr_in a{};

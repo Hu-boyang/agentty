@@ -1,10 +1,10 @@
-// host_escape_test — the cooperating-host integration OSC payloads.
+// host_escape_test - 合作者 -host 融合 OSC 载荷.
 //
-// ui::host splits in two: detect_integration() reads the environment (called
-// once by read_launch_env; the answer lives in Model::env.host_integration),
-// and file_event_osc() is a pure string builder. With no cached probe there
-// is nothing to isolate, so every case runs in one process, on every
-// platform.
+// ui::host 分为两部分:detect_integration()读取环境(
+// 由read_launch_env 所称;答案存在于Model::
+// env.host_integration),file_event_osc()是纯字符
+// 串构建器。没有缓存的探测器,没有可隔离的,所以每个案例都在一个过程中运行,
+// 在每个平台上。
 #include "agentty/runtime/view/host_escape.hpp"
 
 #include <cstdio>
@@ -29,7 +29,7 @@ static int g_fail = 0;
     } while (0)
 
 int main() {
-    // Detection, re-read each call.
+    // 探测,再 -read 每一个 调用.
     unset_env("AGENTTY_HOST");
     unset_env("INSIDE_EMACS");
     CHECK(!host::detect_integration(), "integration off with no host env");
@@ -38,12 +38,12 @@ int main() {
     unset_env("AGENTTY_HOST");
     set_env("INSIDE_EMACS", "30.1,vterm");
     CHECK(host::detect_integration(), "integration on with INSIDE_EMACS vterm");
-    // A comint (non-vterm) Emacs frontend can't run our hooks → off.
+    // 一颗彗星(non-vterm) Emacs前端不能运行我们的钩 ~ 关闭。
     set_env("INSIDE_EMACS", "30.1,comint");
     CHECK(!host::detect_integration(), "integration off with INSIDE_EMACS comint");
     unset_env("INSIDE_EMACS");
 
-    // Payloads: pure, regardless of the environment.
+    // 载荷 :纯净,不论环境.
     auto edit = host::file_event_osc("edit", "/src/foo.cpp");
     CHECK(edit.has_value()
           && *edit == R"(agentty;{"event":"file","kind":"edit","path":"/src/foo.cpp"})",
@@ -54,7 +54,7 @@ int main() {
           && *read == R"(agentty;{"event":"file","kind":"read","path":"/a b.txt","line":42})",
           "read OSC carries line + preserves spaces in path");
 
-    // A path with a quote must be JSON-escaped so it can't break out of the OSC.
+    // 一条带引文的道路必须是 JSON-escaped 所以它不能从 OSC.
     auto quoted = host::file_event_osc("write", "/weird\"name.txt");
     CHECK(quoted.has_value()
           && quoted->find(R"(\"name.txt)") != std::string::npos,

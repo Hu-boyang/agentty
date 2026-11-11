@@ -1,18 +1,18 @@
-// The escape guarantee: no modal can ever trap the user.
+// 逃生保证:弹出面板永远无法困住用户.
 //
-// Every EXCLUSIVE overlay swallows unclaimed keys — that is what makes it
-// modal. So an overlay whose key handler fails to answer Escape leaves the
-// user with no way out and the app appears frozen. The Retrieval pane shipped
-// exactly that: it owned the keyboard for a frame before its form existed, so
-// every key including Esc went nowhere.
+// 每一个 EXCLUSIVE 覆盖面板 吞下无人认领的钥匙——这就是
+// 它的原因 弹出面板 如此的,一个 覆盖面板 谁的钥匙 处理函数 无法
+// 回答 Escape 使用户无路可逃, 应用程序似乎被冻结。
+// Retrieval 面板 准确运出: 它拥有一个键盘 帧 之前,它存在,
+// 所以每一个关键包括 Esc 哪儿也没有去。
 //
-// Per-handler diligence cannot enforce this — it is one missing branch away,
-// in any handler, forever. It is enforced structurally at the dispatch
-// chokepoint in subscribe.cpp: if an overlay's own handler declines an
-// Escape, the overlay's generic close fires instead.
+// 人数 -handler 勤勉不能强制执行这一点——它是一个缺失的分支,
+// 在任何方面都是 处理函数 ,永远。它的结构上是执行在 分派 被堵住的点
+// subscribe.cpp : 如果为 覆盖面板 属于自己的 处理函数
+// 放弃逃跑, 即 覆盖面板 反之,是普通的近距离射击
 //
-// This test walks EVERY overlay Kind and asserts the property end to end, so
-// a new overlay that forgets Esc fails here rather than in someone's terminal.
+// 测试结果为EVERY 覆盖面板 Kind,并声称财产结束,
+// 因此,将Esc遗忘的新覆盖面板在此失效,而不是某人的终端失效.
 
 #include "agtest.hpp"
 
@@ -37,9 +37,9 @@ maya::KeyEvent esc() {
     return ev;
 }
 
-// Every Kind, and a Model with that overlay open. Kept as a table so the
-// -Wswitch exhaustiveness of close_msg and the coverage of this test are
-// visibly the same list.
+// 每一个善良,和一个 Model 与那个 覆盖面板 打开,
+// 就当桌子这样 -Wswitch 内容 close_msg 并且这项试验的
+// 覆盖范围明显是相同的清单。
 struct Case {
     pn::Kind    kind;
     const char* name;
@@ -89,15 +89,15 @@ const std::vector<Case>& cases() {
     return v;
 }
 
-} // namespace
+} // 命名空间结束。
 
 namespace {
 
 store::Settings g_settings;
 
-// The reducer reaches the Store seam on close (persisting settings, loading
-// threads), so the deps must exist. Stubs only — this test is about key
-// routing, not persistence.
+// 电话 状态更新函数 到达 Store 接口边界
+// 关闭( 长期设置、 装入) 线程 ),所以道具必须存在。
+// 持久化.
 void install_stub_deps() {
     app::install_deps(app::Deps{
         .stream         = [](const maya::unlocked&, auto, auto) {},
@@ -113,12 +113,12 @@ void install_stub_deps() {
     });
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("escape guarantee: close_msg names a real close for every overlay") {
-    // The backstop must actually close each overlay — a NoOp here would be a
-    // silent trap. Todo is ambient (it never swallows) and None is not an
-    // overlay, so both legitimately map to NoOp.
+    // 后援必须关闭每个 覆盖面板 — a NoOp
+    // 这儿是一个无声的陷阱。 覆盖面板 ,
+    // 所以两者合法地地图 NoOp.
     for (const auto& c : cases()) {
         const auto msg = pn::close_msg(c.kind);
         CHECK(!std::holds_alternative<msg::MetaMsg>(msg)
@@ -129,9 +129,9 @@ TEST_CASE("escape guarantee: close_msg names a real close for every overlay") {
 
 TEST_CASE("escape guarantee: Esc closes every overlay") {
     install_stub_deps();
-    // End to end: open the overlay, feed the reducer its close message, and
-    // require the overlay to be gone. This is the property a user experiences
-    // — "Esc always gets me out" — rather than a proxy for it.
+    // End 打开 覆盖面板 ,喂饱 状态更新函数 其信息,
+    // 并要求 覆盖面板。这是用户体验到的地产。
+    // "Esc always gets me out" - 而不是代名词
     for (const auto& c : cases()) {
         Model m;
         c.open(m);
@@ -146,14 +146,14 @@ TEST_CASE("escape guarantee: Esc closes every overlay") {
 
 TEST_CASE("escape guarantee: a handler that answers nothing still cannot trap") {
     install_stub_deps();
-    // The exact shape of the freeze: an overlay is open, its handler declines
-    // every key. The dispatcher must still produce a close on Escape.
+    // 冻结的确切形状:a 覆盖面板 打开,它的 处理函数 将每个键都降低。
+    // 分派器 仍然必须产生一个关闭 Escape。
     //
-    // Simulated at the same seam subscribe.cpp uses, because the real
-    // subscription needs a live terminal: an unclaimed Escape resolves to
-    // close_msg(kind), which the case above proves actually closes.
+    // 模拟于同一地点 接口边界 subscribe.cpp 使用,
+    // 因为真实的 事件订阅 需要活着 终端 : 未声明的逃逸决心
+    // close_msg (种类),以上案例证明实际上已结案.
     for (const auto& c : cases()) {
-        const std::optional<Msg> declined = std::nullopt;   // handler says no
+        const std::optional<Msg> declined = std::nullopt;   // 处理函数 说不
         const Msg fallback = declined ? *declined : pn::close_msg(c.kind);
 
         Model m;

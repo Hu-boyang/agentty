@@ -1,18 +1,18 @@
-// agentty::i18n — implementation.
+// agentty::i18n-实施。
 //
-// See i18n.hpp for the design and plural.hpp for the CLDR rules. This file
-// is the storage and the lookup, and it has three jobs worth naming:
+// 设计参见i18n.hpp，CLDR规则参见plural.hpp。
+// 这个文件是存储和查找的，它有三个值得命名的工作：
 //
-//   1. hold catalogs immutably, so t() can hand out string_views into them
-//   2. swap the active one atomically, so a language change is a pointer
-//      store and the next frame is translated (docs/LATE_BINDING.md)
-//   3. parse a catalog without a JSON dependency on the hot path
+//   1. 不变地持有目录，以便t()可以将string_views分发给他们
+//   2.原子地交换活动的，因此语言改变是指针
+//      存储和下帧被翻译(docs/LATE_BINDING.md)
+//   3. 解析 和 目录 不具有 JSON 对 高频路径 的依赖性
 //
-// On (3): the catalogs are our own files, embedded in the binary, shaped by
-// the schema in docs/design/i18n.md. They are parsed ONCE at install time.
-// nlohmann is already a dependency and is used here rather than hand-rolling
-// a parser -- the thing to avoid was a parser on the RENDER path, and there
-// is none: after install_catalog the structure is a flat hash map.
+// 关于(3):目录是我们自己的文件，嵌入在二进制程序中，
+// 由docs/design/i18n.md.中的模式定义塑造，它们在安装时被解析为ONCE。
+// nlohmann已经是依赖性并且在这里使用而不是hand-rolling
+// a 解析器——要避免的是RENDER路径上的解析器，并且没有：在
+// install_catalog之后，该结构是平面哈希图。
 
 #include "agentty/i18n/i18n.hpp"
 #include "agentty/i18n/plural.hpp"
@@ -29,11 +29,11 @@ namespace agentty::i18n {
 
 namespace {
 
-// ── The language table ───────────────────────────────────────────────────
+// ── 语言表 ───────────────────────────────────────────────────
 //
-// One row per language, in the order of the enum, with a static_assert that
-// the two cannot drift. Endonyms are the name in the language's OWN script,
-// because a user scanning the picker for their language is looking for the
+// 每种语言一行，按照枚举的顺序，具有两者不能漂移的
+// static_assert。内名是该语言的 自身 脚本
+// 中的名称，因为用户扫描 选择面板 查找其语言正在寻找
 // word they would use -- a Japanese speaker finds 日本語, not "Japanese".
 struct Row {
     Lang             lang;
@@ -65,9 +65,9 @@ constexpr std::array<Row, kLangCount> kLangs{{
     {Lang::hu,    "hu",    "Magyar",      "Hungarian"},
 }};
 
-// The table is indexed by the enum value, so a row in the wrong place would
-// give every language after it the wrong name. Cheap to prove, impossible to
-// notice by eye.
+// 该表由枚举值索引，因此错误位置的行将给其后的每
+// 种语言提供错误的名称。证明成本低廉，不可能用肉眼
+// 注意到。
 consteval bool table_is_ordered() {
     for (std::size_t i = 0; i < kLangs.size(); ++i)
         if (static_cast<std::size_t>(kLangs[i].lang) != i) return false;
@@ -76,20 +76,20 @@ consteval bool table_is_ordered() {
 static_assert(table_is_ordered(),
               "kLangs must be indexed by Lang -- row N describes Lang(N)");
 
-// ── Storage ──────────────────────────────────────────────────────────────
+// ── 储存 ──────────────────────────────────────────────────────────────
 //
-// A catalog is immutable once built. `Entry` holds either a single string or
-// the plural forms; both are owned std::strings so a string_view into them
-// stays valid for the catalog's life.
+// 目录一旦建成就是不可变。 `Entry` 包含单个字符串或复数形式；
+// 两者都拥有 std::strings，因此 string_view
+// 在 目录 的生命周期内保持有效。
 struct Entry {
-    std::string                                     text;    // non-plural
-    std::array<std::string, 4>                      forms{};  // by Plural
+    std::string                                     text;    // 非-plural
+    std::array<std::string, 4>                      forms{};  // 由复数
     bool                                            plural = false;
 };
 
-// Heterogeneous lookup, so t("some.id") does not allocate a std::string to
-// probe the map. This is the difference between 19 ns and an allocation per
-// call, and t() is called a few hundred times a frame.
+// 异构查找，因此t("some.id")不分配std::
+// string来探测图。这是 19 ns 和每个 调用 的 分配
+// 之间的差异，而 t() 被称为 帧 的几百次。
 struct Hash {
     using is_transparent = void;
     [[nodiscard]] std::size_t operator()(std::string_view s) const noexcept {
@@ -113,29 +113,29 @@ struct Catalog {
 
 using CatalogPtr = std::shared_ptr<const Catalog>;
 
-// Every installed catalog, by language. Written at startup and by the debug
-// hot reload; read by set_active and completeness.
+// 每个安装的目录，按语言。在启动时和调试热重载时写入；
+// 由 set_active 阅读并完整。
 //
-// A plain array of shared_ptr rather than a map: twenty slots, indexed by the
-// enum, no lookup and no allocation.
+// shared_ptr的普通数组而不是映射：二十个槽，由枚举索引，
+// 没有查找，也没有分配。
 std::array<maya::published<const Catalog>, kLangCount>& store() {
     static std::array<maya::published<const Catalog>, kLangCount> s;
     return s;
 }
 
-// The ACTIVE catalog. One published slot -- this is the whole live-switch
-// mechanism. The outgoing catalog stays alive through the shared_ptr until the
-// last reader drops it, which is what makes a string_view handed out during
-// a frame safe even if the language changes mid-frame.
+// 活动 目录。一个已发布的插槽——这就是整个 live-switch 机制。
+// 传出的 目录 在 shared_ptr 期间一直保持活动状态，
+// 直到最后一个读者将其丢弃，这使得在 帧 期间分发的 string_view
+// 是安全的，即使语言在 -frame 中期发生变化。
 maya::published<const Catalog>& active_catalog() {
     static maya::published<const Catalog> c;
     return c;
 }
 
 
-// Lower-case ASCII only. Deliberately NOT std::tolower with a locale: under
-// a Turkish locale that maps 'I' to dotless 'ı', and a tag comparison that
-// changes meaning with the user's locale is the classic i18n self-own.
+// 仅下部-case ASCII。故意将 不 std::tolower 与
+// 语言环境：在土耳其语语言环境下，将 'I' 映射到无点 'ı'，
+// 并且随用户语言环境改变含义的标签比较是经典的 i18n self-own。
 [[nodiscard]] char ascii_lower(char c) noexcept {
     return (c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c;
 }
@@ -144,31 +144,31 @@ maya::published<const Catalog>& active_catalog() {
     std::string out;
     out.reserve(in.size());
     for (const char c : in) {
-        // "de_DE.UTF-8" and "de_DE@euro" both mean de. Stop at the encoding
-        // or modifier; keep the region, which parse_tag may want.
+        // "de_DE.UTF-8"和"de_DE@euro"都是“德”的意思。
+        // 在编码或修饰符处停止；保留 parse_tag 可能想要的区域。
         if (c == '.' || c == '@') break;
         out.push_back(c == '_' ? '-' : ascii_lower(c));
     }
     return out;
 }
 
-// An id the ACTIVE catalog does not carry: try English before giving up.
+// 活动 目录不携带的id：放弃之前尝试英语。
 //
-// THE CASE THIS EXISTS FOR, and a render test caught it rather than a reader:
-// every real translation is partial for a while. A German catalog at 60%
-// used to paint `sandbox.ports` as a row label -- the raw id -- next to
-// perfectly good German. That is worse than English in every way: it is not
-// a word in any language, it is wider than the label it replaced, and it
-// tells the user nothing except that something is broken.
+// 该 CASE 此 EXISTS FOR，并且 渲染 测试捕获了它而不是读取器：
+// 每一个真实的翻译都会有片刻的偏差。 60% 的德国人
+// 目录 曾经将 `sandbox.ports` 绘制为行
+// 标签（原始 ID），紧邻完美的德语。这在各方面都比英语更糟糕：
+// 它不是任何语言中的单词，它比它所取代的标签更宽，
+// 并且它除了告诉用户某些东西坏了之外什么也不告诉用户。
 //
-// English is the one catalog guaranteed installed (i18n::init loads it
-// whatever the choice), and it is the language the ids are written in
-// anyway. So the ladder is: active -> English -> the id. The last rung is
-// reachable only when the English catalog itself is missing an entry, which
-// the lint makes a build failure.
+// 英语是保证安装的目录（i18n::init 加载，
+// 无论选择什么），并且它是书写ID的语言。
+// 所以阶梯是：活动 -> 英语 -> id。
+// 仅当英语 目录 本身缺少条目时才可以到达最后一个梯级，
+// 而 lint 会导致构建失败。
 [[nodiscard]] std::string_view fallback(std::string_view id) noexcept;
 
-}  // namespace
+}  // 命名空间结束。
 
 std::string_view tag_of(Lang l) noexcept {
     return kLangs[static_cast<std::size_t>(l)].tag;
@@ -186,8 +186,8 @@ bool parse_tag(std::string_view tag, Lang& out) noexcept {
     const std::string norm = normalize_tag(tag);
     if (norm.empty()) return false;
 
-    // Exact match on the full tag first ("pt-br" -> pt_BR), so a regional
-    // language we DO carry is never shadowed by its base.
+    // 首先在完整标签上精确匹配("pt-br"->pt_BR)，
+    // 因此我们DO携带的区域语言永远不会被其基数所遮蔽。
     for (const auto& r : kLangs) {
         std::string lower;
         lower.reserve(r.tag.size());
@@ -195,14 +195,14 @@ bool parse_tag(std::string_view tag, Lang& out) noexcept {
         if (lower == norm) { out = r.lang; return true; }
     }
 
-    // Then the base subtag. "de-AT" -> de, "es-MX" -> es.
+    // 然后是基础子标签。 "de-AT" -> 德、"es-MX" -> 西班牙。
     const auto dash = norm.find('-');
     const std::string base = norm.substr(0, dash);
 
-    // zh is the exception that earns its own branch. We carry Simplified
-    // only, and Traditional is not a dialect of it -- serving zh-CN to a
-    // zh-TW user is worse than English, because it LOOKS right and is not.
-    // Same for zh-HK and zh-MO, which use Traditional.
+    // zh是例外，赢得了自己的分支。我们只提供简体字，
+    // 而繁体字不是它的方言——向 zh-TW 用户提供 zh-CN
+    // 比英语更糟糕，因为它 LOOKS 正确，但事实并非如此。
+    // 对于使用繁体的zh-HK和zh-MO来说也是如此。
     if (base == "zh") {
         if (dash == std::string_view::npos) { out = Lang::zh_CN; return true; }
         const std::string region = norm.substr(dash + 1);
@@ -210,15 +210,15 @@ bool parse_tag(std::string_view tag, Lang& out) noexcept {
             out = Lang::zh_CN;
             return true;
         }
-        return false;   // tw, hk, mo, hant -> fall through to English
+        return false;   // tw、hk、mo、hant -> 转为英语
     }
 
-    // pt-PT -> pt-BR. Not identical, but close enough that a Portuguese
-    // speaker is far better served than by English. The asymmetry with zh is
-    // the point: mutual intelligibility is a per-language fact, not a rule.
+    // pt-PT->pt-BR。不完全相同，但足够接近，
+    // 以至于讲葡萄牙语的人比讲英语的人得到的服务要好得多。 zh 的不对称性是
+    // 关键：相互可理解性是一个 per-language 事实，而不是规则。
     if (base == "pt") { out = Lang::pt_BR; return true; }
 
-    // nb/nn both mean Norwegian for our purposes; CLDR splits them, we do not.
+    // nb/nn对于我们的目的来说都意味着挪威语； CLDR 分割它们，我们不分割。
     if (base == "nb" || base == "nn") { out = Lang::no; return true; }
 
     for (const auto& r : kLangs) {
@@ -230,7 +230,7 @@ bool parse_tag(std::string_view tag, Lang& out) noexcept {
     return false;
 }
 
-// The active catalog carries its language, so the two can never disagree.
+// 主动的目录携带其语言，因此两者永远不会不一致。
 Lang active() noexcept {
     const auto cat = active_catalog().current();
     return cat ? cat->lang : Lang::en;
@@ -246,22 +246,22 @@ std::string_view fallback(std::string_view id) noexcept {
         return it->second.forms[static_cast<std::size_t>(Plural::Other)];
     return it->second.text;
 }
-}  // namespace
+}  // 命名空间结束。
 
 bool set_active(Lang l) {
     auto cat = store()[static_cast<std::size_t>(l)].current();
-    if (!cat) return false;     // no catalog compiled in: keep what we have
+    if (!cat) return false;     // 没有 目录 编译进去：保留我们所拥有的
     active_catalog().publish(cat);
     return true;
 }
 
 std::string_view t(std::string_view id) noexcept {
     const auto cat = active_catalog().current();
-    if (!cat) return id;        // before load(): the id, never blank
+    if (!cat) return id;        // load()之前：id，不能为空
     const auto it = cat->table.find(id);
     if (it == cat->table.end()) return fallback(id);
-    // A plural entry read through t() has no count to select on. `other` is
-    // the one category every rule can produce, so it is the honest fallback.
+    // 通过t()读取的多个条目没有可供选择的计数。
+    // `other`是每条规则都能产生的一个类别，所以它是诚实的回退。
     if (it->second.plural)
         return it->second.forms[static_cast<std::size_t>(Plural::Other)];
     return it->second.text;
@@ -276,9 +276,9 @@ std::string_view tn(std::string_view id, long long n) noexcept {
 
     const Plural p = select(cat->lang, n);
     const auto& picked = it->second.forms[static_cast<std::size_t>(p)];
-    // A category the catalog did not supply. The lint makes this
-    // unreachable, but falling back to `other` beats returning empty -- and
-    // `other` is populated for every rule shape by construction.
+    // 目录不提供的类别。 lint 使得这个无法访问，
+    // 但是回退到 `other` 比返回空要好——并且
+    // `other` 是通过构造为每个规则形状填充的。
     if (picked.empty())
         return it->second.forms[static_cast<std::size_t>(Plural::Other)];
     return picked;
@@ -286,26 +286,26 @@ std::string_view tn(std::string_view id, long long n) noexcept {
 
 namespace {
 
-// Substitute {name} placeholders.
+// 替换{name}占位符。
 //
-// Unknown names are left VERBATIM rather than erased: a typo in a catalog
-// shows on screen as "{tatol}", which is a bug report. Erasing it would
-// produce a sentence with a hole in it that nobody can trace back.
+// 未知名称被留下VERBATIM而不是被删除：目录中的
+// 拼写错误在屏幕上显示为"{tatol}"，这是错误报告。
+// 删除它会产生一个有漏洞的句子，没有人可以追溯。
 //
-// "{{" and "}}" are literal braces, so a string can contain one. BOTH halves
-// are needed and the first version only had the opener: "a {{literal}} brace"
-// then produced "a {literal}} brace", because the closer fell through to the
-// verbatim copy below. Caught by the test, which is the only reason it is
-// not shipping -- a stray brace in one string is exactly the kind of thing
-// that survives review.
+// "{{"和"}}"是文字大括号，因此字符串可以包含大括号。
+// 需要 两者 一半，第一个版本只有开场白："a {{literal}} brace"，
+// 然后产生 "a {literal}} brace"，
+// 因为结束语落到了下面的逐字副本。被测试抓住了，
+// 这是它没有发货的唯一原因——一根弦上的杂散大括号正是那种能
+// 通过审查的东西。
 [[nodiscard]] std::string interpolate(std::string_view tmpl,
                                       std::span<const Arg> args) {
     std::string out;
     out.reserve(tmpl.size() + 16);
     for (std::size_t i = 0; i < tmpl.size(); ++i) {
         if (tmpl[i] == '}') {
-            // "}}" -> "}". A lone '}' is copied as-is: it is almost
-            // certainly a typo, and showing it beats swallowing it.
+            // "}}"->"}"。一个单独的 '}' 被复制为
+            // -is：这几乎肯定是一个拼写错误，展示它胜过吞下它。
             if (i + 1 < tmpl.size() && tmpl[i + 1] == '}') ++i;
             out.push_back('}');
             continue;
@@ -326,16 +326,16 @@ namespace {
     return out;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 std::string format(std::string_view id, std::span<const Arg> args) {
     return interpolate(t(id), args);
 }
 
 std::string format_n(std::string_view id, long long n, std::span<const Arg> args) {
-    // `n` is always available as {n} without the caller restating it: every
-    // plural string needs the number, and making each call site pass it is a
-    // step that is only ever forgotten.
+    // `n`始终可用作{n}，而无需调用者重述它：每个
+    // 复数字符串都需要该数字，并且使每个调用站点通过
+    // 它是一个永远被忘记的步骤。
     std::vector<Arg> all;
     all.reserve(args.size() + 1);
     all.push_back(Arg{"n", std::to_string(n)});
@@ -356,15 +356,15 @@ bool install_catalog(Lang l, std::string_view json_text) {
     cat->lang = l;
 
     for (const auto& [key, val] : j.items()) {
-        if (key.starts_with('_')) continue;   // _meta and friends
+        if (key.starts_with('_')) continue;   // _meta和朋友们
 
         Entry e;
         if (val.is_string()) {
             e.text = val.get<std::string>();
         } else if (val.is_object()) {
-            // Plural entry. A string-valued "text" inside an object is the
-            // non-plural form carrying a width_hint, which the lint reads and
-            // the runtime does not.
+            // 复数条目。对象内的 string-valued "text" 是携带
+            // width_hint 的非 -plural 形式，lint 会读取该字符串，
+            // 而 运行时 则不会。
             if (val.contains("text") && val["text"].is_string()) {
                 e.text = val["text"].get<std::string>();
             } else {
@@ -378,27 +378,27 @@ bool install_catalog(Lang l, std::string_view json_text) {
                 take("few", Plural::Few);
                 take("many", Plural::Many);
                 take("other", Plural::Other);
-                // `other` is what every fallback lands on, so a plural entry
-                // without it is unusable. Reject the whole catalog rather
-                // than install one that can return empty.
+                // `other`是每个回退所登陆的，
+                // 因此没有它的复数条目是不可用的。拒绝整个目录，
+                // 而不是安装一个可以返回空的。
                 if (e.forms[static_cast<std::size_t>(Plural::Other)].empty()) {
-                    // Rule shapes without `other` (ru/uk/pl) legitimately
-                    // omit it; seed from `many` so the fallback path has
-                    // something true to return.
+                    // 没有`other` (ru/uk/pl)的规则形状合法地省略它；
+                    // 来自 `many` 的种子，因此 回退 路径有
+                    // 一些 true 可以返回。
                     const auto& many = e.forms[static_cast<std::size_t>(Plural::Many)];
                     if (many.empty()) return false;
                     e.forms[static_cast<std::size_t>(Plural::Other)] = many;
                 }
             }
         } else {
-            continue;   // a number or null in a catalog is a typo, not data
+            continue;   // 目录 中的数字或 null 是拼写错误，不是数据
         }
         cat->table.emplace(key, std::move(e));
     }
 
     store()[static_cast<std::size_t>(l)].publish(cat);
-    // Installing the ACTIVE language republishes it, so a hot reload in a
-    // debug build takes effect without a second call.
+    // 安装ACTIVE语言会重新发布它，因此调试版本中的
+    // 热重载需要副作用，而无需第二个调用。
     if (active() == l) active_catalog().publish(cat);
     return true;
 }
@@ -421,8 +421,8 @@ double completeness(Lang l) {
     const auto cat = store()[static_cast<std::size_t>(l)].current();
     if (!cat) return 0.0;
 
-    // Against en's id set, not against the catalog's own size: a translation
-    // carrying ids en has dropped is not more complete, it is stale.
+    // 针对en的id设置，而不是针对目录自身的大小：带有en
+    // 的ids的翻译已经被丢弃，不是更完整，而是过期。
     std::size_t have = 0;
     for (const auto& [k, _] : en->table)
         if (cat->table.contains(k)) ++have;

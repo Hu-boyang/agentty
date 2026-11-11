@@ -1,24 +1,24 @@
-// stats_visual_hash_test — the render gate must SEE the stats viewer.
+// stats_visual_hash_test - 电话 渲染 门必须 SEE 统计的查看器。
 //
-// maya's run loop skips the whole view()+render() pair when
-// AgenttyApp::visual_hash is unchanged. That gate is what makes idle cheap,
-// and it is also a trapdoor: any state the view reads but the hash does not
-// mix produces a model the loop calls "visually identical", so the frame is
-// skipped and the change only reaches the screen when some UNRELATED hashed
-// axis flips -- the ~265 ms caret-blink parity, or the next keystroke.
+// maya '运行循环跳过整个 view()+render()
+// 组合当 AgenttyApp::visual_hash 门是便宜的,
+// 它也是一个陷阱门: 任何视图读到的状态,但散列不混合 产生一个模型的
+// 循环 调用 "visually identical" ,所以,
+// 请 帧 跳过,更改只到屏幕上,当有 UNRELATED 散列轴翻转 --
+// -- ~ 265 ms 光标-blink 等价键,或下一个键键键。
 //
-// The symptom is not "slow". It is "the panel ignored me, then caught up
-// when I typed": Esc appears not to work (the panel HAS closed; the screen
-// was not told), scrolling registers once per several presses, and tab
-// switches land late. The changelog records exactly this for the pickers;
-// the stats viewer shipped with the same hole.
+// 症状不是 "slow"。
+// 这是 "the panel ignored me, then caught up when I typed":
+// Esc 似乎没有工作(小组) HAS 关闭; 屏幕未被告知),
+// 滚动记录器每几台按下一次, 标签切换器延迟降落。 更改日志中记录的正是此。
+// 选择面板 ; 数据查看器运出时, 同一个孔。
 //
-// It looked intermittent because a tab that FITS its viewport clamps every
-// scroll to the same y and is genuinely unchanged -- so only the tall tabs
-// misbehaved.
+// 看上去断断续续 因为有分页 FITS 编号 可视区域 将每
+// 个卷轴夹在同一个y上,并且真的没有变化——所以只有高的标签
+// 行为不当。
 //
-// These pin the contract: a model the user changed must not hash equal to
-// the one they changed it from.
+// 这些定着合同:用户改变的模型不能与他们
+// 改变的模型相等。
 
 #include "agtest.hpp"
 
@@ -34,8 +34,8 @@ using agentty::app::AgenttyApp;
 
 namespace {
 
-// The viewer open on a thread with enough turns that several tabs are
-// available and taller than a viewport.
+// 观众打开了 线程 转弯足够多,可以使用多个标签,
+// 而且比一个高 可视区域.
 Model open_viewer() {
     Model m;
     Thread t;
@@ -62,33 +62,33 @@ Model open_viewer() {
     m.d.current = std::move(t);
 
     auto [opened, _] = app::update(std::move(m), Msg{OpenStats{}});
-    // A bound to scroll within: the renderer publishes this after a paint,
-    // and the reducer clamps against it.
+    // 绑定滚动内: 渲染器 画完后再发表
+    // 状态更新函数 夹住它。
     opened.ui.panel.get<pn::Stats>()->scroll.max_y = 20;
-    // A structured-binding name is an LVALUE of the member's type — there is
-    // no implicit move on return for it (unlike a named local). Model is
-    // move-only (its frozen ScrollbackLedger is non-copyable), so the move
-    // must be explicit.
+    // 结构-binding名称是该成员类型的LVALUE——在返回时没有隐含
+    // 的移动(不同于一个命名的本地名称). Model是move-only
+    // (其冻结的ScrollbackLedger是非-copyable),
+    // 所以移动必须明确.
     return std::move(opened);
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("stats gate: scrolling advances the render hash") {
     Model m = open_viewer();
     const std::uint64_t before = AgenttyApp::visual_hash(m);
 
     auto [after, _] = app::update(std::move(m), Msg{StatsScroll{+3}});
-    REQUIRE(after.ui.panel.get<pn::Stats>()->scroll.y == 3);  // really moved
+    REQUIRE(after.ui.panel.get<pn::Stats>()->scroll.y == 3);  // 真的很动了
 
     CHECK(AgenttyApp::visual_hash(after) != before);
 }
 
 TEST_CASE("stats gate: switching tabs advances the render hash") {
-    // This one held before the scroll fix too: stats_panel::Open declares
-    // the tab in its visual_parts, so the slot walk already covered it.
-    // Pinned anyway -- it is half of what the user reported, and the parts
-    // list is a thing a future refactor can quietly drop.
+    // 这个也放在卷轴修正之前: stats_panel::Open 在
+    // 其标签中声明 visual_parts ,所以槽走已经覆盖了。
+    // 无论如何,这是用户报告的一半, 并且零件列表是未来
+    // 一个重构者可以悄悄地 掉下来的东西。
     Model m = open_viewer();
     const auto* before_tab = m.ui.panel.get<pn::Stats>();
     REQUIRE(before_tab != nullptr);
@@ -98,16 +98,16 @@ TEST_CASE("stats gate: switching tabs advances the render hash") {
     auto [after, _] = app::update(std::move(m), Msg{StatsTab{+1}});
     const auto* after_tab = after.ui.panel.get<pn::Stats>();
     REQUIRE(after_tab != nullptr);
-    REQUIRE(after_tab->tab != t0);              // the tab really changed
+    REQUIRE(after_tab->tab != t0);              // 标签真的更改了
 
     CHECK(AgenttyApp::visual_hash(after) != before);
 }
 
 TEST_CASE("stats gate: closing the viewer advances the render hash") {
-    // The Esc symptom. Closing already changed the panel variant, so this
-    // held before the fix too -- pinned because it is the property the user
-    // actually reported, and a future change to the slot walk must not
-    // quietly break it.
+    // 电话 Esc 症状。 关闭后已经更改了面板 变体 ,
+    // 所以这个在固定之前也保持了下来—— 被固定是因为这是
+    // 用户实际报告的财产, 并且一个未来的改变 槽走动不能
+    // 悄悄地打破它。
     Model m = open_viewer();
     const std::uint64_t before = AgenttyApp::visual_hash(m);
 
@@ -116,16 +116,16 @@ TEST_CASE("stats gate: closing the viewer advances the render hash") {
 }
 
 TEST_CASE("stats gate: a scroll that changes nothing does not advance it") {
-    // The other half of the contract. The gate exists to make idle cheap,
-    // so a no-op must stay a no-op: scrolling up at the top is clamped to
-    // the same y, and hashing it differently would burn a frame per
-    // keypress for no pixels.
+    // 另一半合同,门是用来便宜的 所以不行 -op
+    // 一定要坚持不 -op :在顶部滚动是被夹在同一个y上,
+    // 用不同的方式将它烧掉。 帧 每个按键压,
+    // 没有像素。
     Model m = open_viewer();
     REQUIRE(m.ui.panel.get<pn::Stats>()->scroll.y == 0);
     const std::uint64_t before = AgenttyApp::visual_hash(m);
 
     auto [after, _] = app::update(std::move(m), Msg{StatsScroll{-5}});
-    REQUIRE(after.ui.panel.get<pn::Stats>()->scroll.y == 0);  // clamped
+    REQUIRE(after.ui.panel.get<pn::Stats>()->scroll.y == 0);  // 夹住
 
     CHECK(AgenttyApp::visual_hash(after) == before);
 }

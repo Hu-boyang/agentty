@@ -1,23 +1,23 @@
 #pragma once
-// agentty::util::env — the closed catalog of environment variables agentty
-// reads. Centralising the names here serves three small but real purposes:
+// agentty::util::env-环境变量agentty
+// 读取的闭合目录。将名称集中在这里有三个小但真正的目的：
 //
-//   1. Typo containment. `env::name<Var::SocksProxy>()` is a compile error
+//   1.错字遏制。 `env::name<Var::SocksProxy>()` 是 编译 错误
 //      if the enum arm doesn't exist; `std::getenv("AGENTTY_SOCKS_PROXY")`
-//      is a runtime "huh, my override didn't take" if you fat-finger it.
+//      如果你胖-finger的话就是运行时 "huh, my override didn't take"了。
 //
-//   2. One place to audit. `agentty status` or a future `agentty env`
-//      subcommand can iterate kCatalog and report which knobs are set —
-//      no risk of forgetting one because it's open-coded in some .cpp.
+//   2、一处审核。 `agentty status` 或未来的 `agentty env`
+//      子命令可以迭代kCatalog并报告设置了哪些旋钮——没有
+//      忘记旋钮的风险，因为它在某些.cpp中是open-coded。
 //
-//   3. Compile-time invariants. The `proofs` block at the bottom proves
-//      every Var arm has exactly one catalog row and every name is
-//      unique. Adding a Var without a row, or duplicating a name, fails
-//      the build.
+//   3. 编译-time 不变量。底部的`proofs`块证明
+//      每个Var臂恰好具有一个目录行并且每个名称都是唯一的。
+//      添加不带行的 Var 或重复名称都会导致构建
+//      失败。
 //
-// This is intentionally NOT a runtime overlay over std::getenv — call
-// sites still call `std::getenv(env::name<X>())`. The win is purely that
-// the string literal lives in one place and is type-checked.
+// 这是故意在 std::getenv-调用 站点上的 不 和 运行时 覆盖
+// 面板 仍然是 调用 `std::getenv(env::name<X>())`。
+// 胜利纯粹在于字符串文字位于一个位置并且类型为-checked。
 
 #include <array>
 #include <cstdint>
@@ -26,33 +26,33 @@
 
 namespace agentty::util::env {
 
-// ── Closed set of every env var agentty reads ────────────────────────────
-// Grouped by subsystem in comments only; the enum itself is flat so a
-// switch on it has to handle every arm.
+// ── 关闭的每座环境的集合 var agentty 读作 ────────────────────────────
+// 仅在注释中按子系统分组； 枚举 本身是扁平的，
+// 因此它的开关必须能够控制每只手臂。
 enum class Var : std::uint8_t {
-    // ── Auth ────────────────────────────────────────────────────────────
+    // ── 认证 ────────────────────────────────────────────────────────────
     AnthropicApiKey,         // ANTHROPIC_API_KEY
     ClaudeOAuthToken,        // CLAUDE_CODE_OAUTH_TOKEN
 
-    // ── Network / dial overrides ────────────────────────────────────────
-    SocksProxy,              // AGENTTY_SOCKS_PROXY  (host:port)
-    ApiHost,                 // AGENTTY_API_HOST     (host[:port] override)
-    OAuthHost,               // AGENTTY_OAUTH_HOST   (host[:port] override)
-    Insecure,                // AGENTTY_INSECURE=1   (skip TLS verification)
-    NoPrewarm,               // AGENTTY_NO_PREWARM=1 (suppress prewarm dials)
+    // ── 网络/ 拨号超常 ────────────────────────────────────────
+    SocksProxy,              // AGENTTY_SOCKS_PROXY (主机:端口)
+    ApiHost,                 // AGENTTY_API_HOST (主机[:端口]覆盖)
+    OAuthHost,               // AGENTTY_OAUTH_HOST (主机[:端口]覆盖)
+    Insecure,                // AGENTTY_INSECURE=1(跳过TLS验证)
+    NoPrewarm,               // AGENTTY_NO_PREWARM=1（抑制预热拨号）
 
-    // ── Airgap (laptop side) ────────────────────────────────────────────
-    AirgapSsh,               // AGENTTY_AIRGAP_SSH   (extra ssh flags)
+    // ── 空格( 平顶侧) ────────────────────────────────────────────
+    AirgapSsh,               // AGENTTY_AIRGAP_SSH (额外的 ssh 标志)
 
-    // ── Debug ─────────────────────────────────────────────────────────────────────
+    // ── 调试 ─────────────────────────────────────────────────────────────────────
 
-    // ── Smart Mode session pin ────────────────────────────────
-    SmartMode,               // AGENTTY_SMART_MODE=0|1    (session master-switch pin)
+    // ── 智能模式会话标语 ────────────────────────────────
+    SmartMode,               // AGENTTY_SMART_MODE = 0|1 (会话主机-switch引脚）
 };
 
 struct VarSpec {
     Var              tag;
-    std::string_view name;     // canonical env var name (what getenv sees)
+    std::string_view name;     // 规范环境变量名称（getenv 看到的内容）
 };
 
 inline constexpr std::array kCatalog = {
@@ -67,29 +67,29 @@ inline constexpr std::array kCatalog = {
     VarSpec{Var::SmartMode,        "AGENTTY_SMART_MODE"},
 };
 
-// Compile-time name lookup. `env::name<Var::SocksProxy>()` returns the
-// literal `"AGENTTY_SOCKS_PROXY"`. Misspelling the enum arm is a compile
-// error; using the result with std::getenv stays a one-liner.
+// 编译-time名称查找。 `env::name<Var::SocksProxy>()`
+// 返回文字 `"AGENTTY_SOCKS_PROXY"`。 枚举 臂拼写错误是 编译 错误；
+// 将结果与 std::getenv 一起使用仍为 one-liner。
 template <Var V>
 [[nodiscard]] consteval std::string_view name() noexcept {
     for (const auto& s : kCatalog)
         if (s.tag == V) return s.name;
-    // Unreachable in well-formed builds — proofs::every_var_has_row pins it.
+    // 在well-formed构建中无法到达——proofs::every_var_has_row将其固定。
     return {};
 }
 
-// Convenience: read the var, returning nullptr if absent or empty. Keeps
-// call sites that "treat empty as unset" from re-implementing the check.
+// 方便：读取var，如果不存在或为空则返回nullptr。保留 调用 站点，
+// 使 "treat empty as unset" 免受 re-implementing 的检查。
 template <Var V>
 [[nodiscard]] inline const char* get_or_null() noexcept {
     const char* v = std::getenv(name<V>().data());
     return (v && *v) ? v : nullptr;
 }
 
-// ── Compile-time proofs ─────────────────────────────────────────────────
+// ── 编译-time 证明 ─────────────────────────────────────────────────
 namespace proofs {
 
-// Every Var enumerator has exactly one row in kCatalog.
+// 每个 Var 枚举器在 kCatalog 中恰好只有一行。
 consteval bool every_var_has_row() {
     constexpr Var kAll[] = {
         Var::AnthropicApiKey, Var::ClaudeOAuthToken,
@@ -110,7 +110,7 @@ static_assert(every_var_has_row(),
               "agentty::util::env::Var and kCatalog must be in bijection — "
               "every Var arm needs exactly one row in kCatalog");
 
-// No duplicate env var names.
+// 没有重复的环境变量名称。
 consteval bool all_names_unique() {
     for (std::size_t i = 0; i < kCatalog.size(); ++i)
         for (std::size_t j = i + 1; j < kCatalog.size(); ++j)
@@ -120,8 +120,8 @@ consteval bool all_names_unique() {
 static_assert(all_names_unique(),
               "duplicate env var name in agentty::util::env::kCatalog");
 
-// Every name follows the `AGENTTY_*` / `ANTHROPIC_*` / `CLAUDE_*`
-// convention. Catches typos like a lowercase or stray-space name.
+// 每个名称都遵循`AGENTTY_*`/`ANTHROPIC_*`/
+// `CLAUDE_*`约定。捕获诸如小写或杂散-space名称之类的拼写错误。
 consteval bool names_well_formed() {
     constexpr std::string_view kPrefixes[] = {
         "AGENTTY_", "ANTHROPIC_", "CLAUDE_",
@@ -141,7 +141,7 @@ static_assert(names_well_formed(),
               "env var names must be upper-snake-case with an "
               "AGENTTY_/ANTHROPIC_/CLAUDE_ prefix");
 
-// Spot-checks of the consteval lookup.
+// 保守查找的Spot-checks。
 static_assert(name<Var::SocksProxy>()       == "AGENTTY_SOCKS_PROXY");
 static_assert(name<Var::AnthropicApiKey>()  == "ANTHROPIC_API_KEY");
 static_assert(name<Var::ClaudeOAuthToken>() == "CLAUDE_CODE_OAUTH_TOKEN");

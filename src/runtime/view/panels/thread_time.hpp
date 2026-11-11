@@ -1,5 +1,5 @@
 #pragma once
-// thread_time.hpp — the ^J list's day groups and short ages.
+// thread_time.hpp - 电话 ^J 列表中的日组和短龄。
 
 #include <chrono>
 #include <ctime>
@@ -7,8 +7,8 @@
 
 namespace agentty::ui {
 
-// Which band a thread falls in, by the local calendar day it was last
-// active, relative to `now`. Ordered newest first.
+// 哪个乐队 a 线程 落下,以当地日历日为活动日,
+// 相对于 `now` 订了最新订的
 enum class DayGroup { Today, Yesterday, ThisWeek, ThisMonth, Older };
 
 [[nodiscard]] inline const char* day_group_label(DayGroup g) noexcept {
@@ -23,7 +23,7 @@ enum class DayGroup { Today, Yesterday, ThisWeek, ThisMonth, Older };
 }
 
 namespace thread_time_detail {
-// Days since the epoch for `tp`'s local calendar date.
+// ⁇ 纪元以来的天,为`tp`的地方历日.
 [[nodiscard]] inline long local_day(std::chrono::system_clock::time_point tp) {
     const std::time_t tt = std::chrono::system_clock::to_time_t(tp);
     std::tm tm{};
@@ -32,7 +32,7 @@ namespace thread_time_detail {
 #else
     localtime_r(&tt, &tm);
 #endif
-    tm.tm_hour = 12; tm.tm_min = 0; tm.tm_sec = 0;   // noon dodges DST edges
+    tm.tm_hour = 12; tm.tm_min = 0; tm.tm_sec = 0;   // 中午躲避 DST 边
     return static_cast<long>(std::mktime(&tm) / 86400);
 }
 }  // namespace thread_time_detail
@@ -47,7 +47,7 @@ namespace thread_time_detail {
     return DayGroup::Older;
 }
 
-// "now", "5m", "3h", "2d", "6w", "4mo", "2y": one unit, fits a narrow column.
+// "now", "5m", "3h", "2d", "6w", "4mo", "2y" :一个单元,合合一个窄列.
 [[nodiscard]] inline std::string short_age(std::chrono::system_clock::time_point when,
                                            std::chrono::system_clock::time_point now) {
     auto s = std::chrono::duration_cast<std::chrono::seconds>(now - when).count();

@@ -1,12 +1,12 @@
-// Web Search pane: the Settings → Web Search form drives the persisted
-// web_search policy, and a committed edit reaches the tool layer as an
-// effect rather than a reducer call into process-global state.
+// 网络搜索 面板 : 设置 ~ 网络搜索表驱动持续 web_search 策略,
+// 而承诺编辑器作为工具层到达 副作用 而不是一个 状态更新函数
+// 调用 进入进程 -global 州立大学.
 //
-// The failure this pins is the pane being alive but disconnected: rows that
-// draw, a door that opens a shell, edits that persist to the Model but leave
-// the tool layer reading the seed forever. Smart Mode's pane answers that
-// with apply_smart, which both persists AND publishes; this pane's commit()
-// must do the same two things, and the tests below count on both.
+// 失败的这个针是 面板 被活的但断开: 画的行,
+// 打开一个 shell 的门, 坚持到 Model 但让工具层永远
+// 读取种子。 Smart Mode 的 面板 回答这个用
+// apply_smart ,两者都坚持 和 出版; 此项 面板's
+// commit() 做同样的事情,下面的测试 都取决于两者。
 
 #include "agtest.hpp"
 #include "agtest_fx.hpp"
@@ -59,7 +59,7 @@ Model send(Model m, Msg msg) {
     return std::move(mm);
 }
 
-// Drive the pane to `row_id` (down-arrow until focused), then apply `key`.
+// 开车 面板 改为 `row_id` (下调) -arrow ),然后适用 `key`.
 void focus_row(Model& m, std::string_view row_id) {
     auto* o = m.ui.panel.get<pn::WebSearch>();
     for (int guard = 0; guard < 32; ++guard) {
@@ -70,18 +70,18 @@ void focus_row(Model& m, std::string_view row_id) {
         o = m.ui.panel.get<pn::WebSearch>();
         REQUIRE(o != nullptr);
     }
-    CHECK(false);   // row_id is not a search row
+    CHECK(false);   // row_id 不是搜索行
 }
 
-// Open the pane with the switch already in `mode` ("auto" | "on" | "off"):
-// the count rows are only editable in on, so their tests start there.
+// 打开 面板 开关已经安装 `mode` ("auto" | "on" | "off"):
+// 数行只能编辑,所以测试从那里开始。
 Model opened_in(const char* mode) {
     Model m;
     m.d.persisted.web_search.mode_text = mode;
     return opened(std::move(m));
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("web search pane: the General list has a door that opens the pane") {
     Model m;
@@ -94,19 +94,19 @@ TEST_CASE("web search pane: the General list has a door that opens the pane") {
     CHECK(se::opens_pane(door->action), "a door row wears the \xe2\x86\x92 affordance");
     CHECK(!door->secondary.empty(),
           "the row says what the policy does, so it reads as a state, not a bare name");
-    // ...and who answers first, by the name the pane's menu uses.
+    // ...谁先回答,名字叫"... 面板 '菜单使用。
     CHECK(door->secondary.find("Brave Free") != std::string::npos);
 
-    // Open by action: the settings list descends into the pane.
+    // 以动作打开:设置列表降入面板.
     auto [m2, c2] = app::update(Model{}, Msg{OpenWebSearch{}});
-    // Two headers, from the registry groups ("Search", "Services"); every
-    // web_search.* registry row; the dials of the free defaults under their
-    // slots; and NO key row, because none of the three needs a key. The
-    // pane OPENS on the switch, not on a header.
+    // 两位 头文件 ,从 注册表 组别( "Search",
+    // "Services" (三) 每一 web_search.* 注册表 列;
+    // 空位下自由默认的拨号; NO 键行,因为三个字都不需要键。
+    // 面板 OPENS 开关上,不是开关上 头文件.
     //
-    // Rows are named rather than counted: an exact count is a test that fails
-    // for being right the first time a row is added (see the note in
-    // smart_tuning_settings_test).
+    // 行被命名而不是计算:精确的计数是第一次添加一行时因正确而
+    // 失败的测试(见smart_tuning_settings_test
+    // 中的注).
     const auto& form = pane_of(m2).form;
     int headers = 0;
     for (const auto& f : form.fields) if (f.is_header()) ++headers;
@@ -132,10 +132,10 @@ TEST_CASE("web search pane: the General list has a door that opens the pane") {
 TEST_CASE("web search pane: turning search off persists and publishes") {
     Model m = opened();
 
-    // Defaults: auto, 10 results, ceiling 20.
+    // 默认:自动,10个结果,上限20.
     CHECK(web_search_cfg::mode(m.d.persisted.web_search) == web_search_cfg::Mode::Auto);
 
-    // Open the mode dropdown on the switch, step to Off, confirm.
+    // 打开开关上模式下拉, 步骤到关闭, 确认。
     focus_row(m, "web_search.mode");
     m = send(std::move(m), key(form::keys::Intent::Activate));
     m = send(std::move(m), key(form::keys::Intent::MenuNext));
@@ -144,28 +144,28 @@ TEST_CASE("web search pane: turning search off persists and publishes") {
     CHECK(web_search_cfg::mode(m2.d.persisted.web_search) == web_search_cfg::Mode::Off,
           "the Model holds the new value");
 
-    // Persist effect: a save was RETURNED, for a settings.json with the row.
+    // 坚持主义 副作用: a 保存 曾经是 RETURNED ,用于 settings.json 与行相续.
     const auto* saved = fx::find<agentty::SaveSettings>(cmd);
     REQUIRE(saved != nullptr);
     CHECK(saved->settings.web_search.mode_text == "off");
 
-    // Publish: the reducer itself returns only the save; telling the tool
-    // layer is publish_derived's job (update.cpp), which runs after every
-    // fold in the app. Apply it here the way the app does and assert the
-    // effect names the NEW policy.
+    // 出版: 状态更新函数 仅返回 保存 ; 告诉工具层
+    // publish_derived 工作( 时间: update.cpp ),
+    // 它会随每条消息运行 归并 应用到这里,就像应用一样
+    // 副作用 名称 新 政策。
     const int saves  = fx::count<agentty::SaveSettings>(cmd);
     CHECK(saves == 1, "persist");
-    m2.published_web_search = agentty::web_search_cfg::Config{};   // as if published before
+    m2.published_web_search = agentty::web_search_cfg::Config{};   // 仿佛在前作中公布
     const Cmd seam = app::publish_derived(m2, Cmd::none());
     const auto* pub = fx::find<agentty::PublishWebSearchPolicy>(seam);
     REQUIRE(pub != nullptr);
     CHECK(web_search_cfg::mode(pub->policy) == web_search_cfg::Mode::Off,
           "the tool layer is told search is off");
-    // And not again on a fold that changes nothing.
+    // 别再在一次 归并 改变不了什么。
     CHECK(fx::find<agentty::PublishWebSearchPolicy>(
               app::publish_derived(m2, Cmd::none())) == nullptr);
 
-    // The pane now reflects the disabled state, cursor kept on the row.
+    // 面板现在反映了禁用状态,光标保留在行上.
     const auto* row = pane_of(m2).form.find("web_search.mode");
     REQUIRE(row != nullptr);
     CHECK(pane_of(m2).form.focused() == row, "cursor stays on the switch");
@@ -175,8 +175,8 @@ TEST_CASE("web search pane: typed rows commit on leaving the field, not per keys
     Model m = opened_in("on");
     focus_row(m, "web_search.count");
 
-    // Enter EDIT mode, type a digit, stay in the field: committed edits here
-    // would save `1` on the way to `15` and rebuild the form under the caret.
+    // Enter EDIT 模式,键入一个数字,留在字段: 此处的
+    // 已承诺编辑将 保存 `1` 前往 `15` 并重建表格 光标.
     auto [m1, c1] = app::update(std::move(m), key(form::keys::Intent::Activate));
     const auto* ed = m1.ui.panel.get<pn::WebSearch>();
     CHECK(ed && ed->form.editing(), "in the field");
@@ -187,7 +187,7 @@ TEST_CASE("web search pane: typed rows commit on leaving the field, not per keys
           "mid-edit: nothing saved yet");
     CHECK(m2.d.persisted.web_search.count == 10, "mid-edit: model untouched");
 
-    // Leave the field (Esc/arrow out — one Msg) — THAT is the commit.
+    // 离开外地( E) Esc/arrow 出——一个 Msg) — 该 承诺是坚定的。
     auto [m3, c3] = app::update(std::move(m2), key(form::keys::Intent::MoveNext));
     CHECK(m3.d.persisted.web_search.count == 1, "left the field: committed");
     CHECK(fx::find<agentty::SaveSettings>(c3) != nullptr);
@@ -197,7 +197,7 @@ TEST_CASE("web search pane: the exclusion text normalises at the tool, not the f
     Model m = opened();
     focus_row(m, "web_search.exclude_sites");
 
-    // Type a messy list with a URL into the row, then leave.
+    // 输入一个带有URL的杂乱列表,然后离开.
     auto [m1, _1] = app::update(std::move(m), key(form::keys::Intent::Activate));
     std::string typed = "https://www.Pinterest.com/  foo";
     for (char ch : typed) {
@@ -208,24 +208,24 @@ TEST_CASE("web search pane: the exclusion text normalises at the tool, not the f
     }
     auto [m2, c2] = app::update(std::move(m1), key(form::keys::Intent::MoveNext));
 
-    // The pane shows exactly what was typed; normalising is the tool's job
-    // (web_search_cfg), or the pane and the wire would disagree about the value.
+    // 电话 面板 显示什么是 带类型的 ; 正常化是工具的工作( )
+    // web_search_cfg ),或 面板 编辑 传输 将会对价值产生分歧。
     CHECK(m2.d.persisted.web_search.exclude_sites == typed);
     CHECK(fx::find<agentty::SaveSettings>(c2) != nullptr);
     const auto sites =
         web_search_cfg::exclude_list(m2.d.persisted.web_search.exclude_sites);
     CHECK(sites == std::vector<std::string>{"pinterest.com"});
 
-    // Leaving the field committed it: a save was returned. Look up the
-    // payload type (SaveSettings), not the effect descriptor alias
-    // (save_settings), which never appears inside a Cmd.
+    // 离开现场承诺:a 保存 被送回了,请看 载荷 类型( SaveSettings ),
+    // 而不是从 副作用 描述器别名( ) save_settings )),
+    // 它从未出现在a Cmd.
     CHECK(fx::find<agentty::SaveSettings>(c2) != nullptr);
 }
 
 TEST_CASE("web search pane: Esc closes back out, and close_msg names it") {
     Model m = opened();
-    // close_msg for this overlay must be its own Close: a NoOp or a passthrough
-    // is the trap the guarantee exists to catch.
+    // close_msg 用于此 覆盖面板 必须是自己的接近:
+    // a NoOp 或者通过是保证的陷阱
     const Msg cm = pn::close_msg(pn::Kind::WebSearch);
     CHECK(std::holds_alternative<msg::WebSearchMsg>(cm),
           "close_msg must name this pane's own close, not pass through it");
@@ -236,14 +236,14 @@ TEST_CASE("web search pane: Esc closes back out, and close_msg names it") {
 }
 
 TEST_CASE("web search pane: auto locks the two count rows, and on unlocks them") {
-    Model m = opened();   // defaults are auto
+    Model m = opened();   // 默认为自动
     for (const char* id : {"web_search.count", "web_search.max_count"}) {
         const auto* row = pane_of(m).form.find(id);
         REQUIRE(row != nullptr);
         CHECK(row->locked, "auto: the model sets the count");
     }
 
-    // Switch to On through the dropdown: the count rows unlock.
+    // 切换到On通过滴滴:数行解锁.
     focus_row(m, "web_search.mode");
     m = send(std::move(m), key(form::keys::Intent::Activate));
     m = send(std::move(m), key(form::keys::Intent::MenuNext));
@@ -256,14 +256,14 @@ TEST_CASE("web search pane: auto locks the two count rows, and on unlocks them")
         REQUIRE(row != nullptr);
         CHECK(!row->locked, "on: the counts are the user's to set");
     }
-    // Never return is live in both auto and on.
+    // 永远不要返回 无论是汽车还是汽车。
     const auto* ex = pane_of(m).form.find("web_search.exclude_sites");
     REQUIRE(ex != nullptr);
     CHECK(!ex->locked);
 }
 
 TEST_CASE("web search pane: auto leaves Never return editable") {
-    Model m = opened();   // auto
+    Model m = opened();   // 自动
     const auto* ex = pane_of(m).form.find("web_search.exclude_sites");
     REQUIRE(ex != nullptr);
     CHECK(!ex->locked, "exclusions apply in auto, so the row is live");
@@ -282,7 +282,7 @@ TEST_CASE("web search pane: off locks every row but the switch") {
 }
 
 TEST_CASE("web search pane: a locked count row ignores keys and saves nothing") {
-    Model m = opened();   // auto: count rows locked
+    Model m = opened();   // 自动: 已锁定的数行
     focus_row(m, "web_search.count");
     auto [m1, c1] = app::update(std::move(m), key(form::keys::Intent::AdjustUp));
     CHECK(m1.d.persisted.web_search.count == 10);
@@ -293,29 +293,29 @@ TEST_CASE("web search pane: a locked count row ignores keys and saves nothing") 
 }
 
 TEST_CASE("web search pane: switching mode keeps the stored counts") {
-    // A count set in on must survive a trip through auto: apply_form skips
-    // locked rows, so auto must not overwrite them with what it displays.
+    // 所设置的计数必须从一次汽车旅行中幸存下来:apply_form
+    // 跳过锁定的行,因此,汽车不能用它显示的东西来覆盖它们.
     Model m;
     m.d.persisted.web_search.mode_text = "on";
     m.d.persisted.web_search.count = 7;
     m = opened(std::move(m));
     focus_row(m, "web_search.mode");
     m = send(std::move(m), key(form::keys::Intent::Activate));
-    m = send(std::move(m), key(form::keys::Intent::MenuPrev));    // on → auto
+    m = send(std::move(m), key(form::keys::Intent::MenuPrev));    // 自动
     m = send(std::move(m), key(form::keys::Intent::MenuCommit));
     REQUIRE(web_search_cfg::mode(m.d.persisted.web_search) == web_search_cfg::Mode::Auto);
     CHECK(m.d.persisted.web_search.count == 7);
 }
 
-// ── Regressions: editing must survive more than one keystroke ───────────
+// ── 倒退:编辑必须经受住不止一个键盘的冲击 ───────────
 //
-// Reported: "Most results allowed" accepted a single digit, and Backspace /
-// Delete did nothing in "Never return". One cause: the key arm rebuilt the
-// form from the saved config on EVERY `changed`, including mid-edit ones,
-// which reset the row and dropped Editing focus after each keystroke. The
-// earlier test above only typed once and only checked that nothing was
-// saved, so it could not see it. These type several keys and check the
-// FORM, not just the Model.
+// 报告: "Most results allowed" 接受一个数字,
+// Backspace / Delete 什么都没做 "Never return"。
+// 一个原因:关键臂从 已保存 配置于 每个 `changed` ,
+// 包括中 -edit 键,它重置行,并在每次按键后删除编辑焦点。
+// 上方的测试仅此一次 带类型的 一次,只检查过,什么都没有 已保存 键键,
+// 所以它看不到。这些键键键键可以键入数键,然后检查 FORM 不只是,
+// 我们 Model.
 
 namespace {
 
@@ -339,16 +339,16 @@ std::string text_of(const Model& m, std::string_view id) {
     return t->value;
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("web search pane: a number row takes more than one digit") {
     Model m = opened_in("on");
     focus_row(m, "web_search.max_count");
-    m = send(std::move(m), key(form::keys::Intent::Activate));   // edit
+    m = send(std::move(m), key(form::keys::Intent::Activate));   // 编辑
     REQUIRE(pane_of(m).form.editing());
 
-    // Type 3 then 5 on a fresh edit session: the first digit replaces the
-    // saved 20 (form layer's "fresh" rule), the second appends.
+    // 3 键然后在新编辑会话上为 5: 第一个数字替换 已保存
+    // 20(窗体层) "fresh" 规则),第二附录.
     m = send(std::move(m), ins(U'3'));
     CHECK(pane_of(m).form.editing(), "still editing after the first digit");
     CHECK(number_of(m, "web_search.max_count") == 3);
@@ -357,7 +357,7 @@ TEST_CASE("web search pane: a number row takes more than one digit") {
     CHECK(number_of(m, "web_search.max_count") == 35);
     CHECK(m.d.persisted.web_search.max_count == 20, "nothing saved mid-edit");
 
-    // Backspace on a number drops the last digit and stays in edit.
+    // 数字上的Backspace 将最后的位数放下,并保留在编辑中.
     m = send(std::move(m), key(form::keys::Intent::Backspace));
     CHECK(number_of(m, "web_search.max_count") == 3);
     m = send(std::move(m), ins(U'8'));
@@ -396,11 +396,11 @@ TEST_CASE("web search pane: the exclusion row says what separates domains") {
     CHECK(help.find("comma") != std::string::npos);
 }
 
-// ── Services: keys and slots, through the real reducer ───────────────────
+// ── 服务:通过真正的状态更新函数提供钥匙和插槽 ───────────────────
 //
-// The registry rows above are plain settings. These are the parts that are
-// not: a typed API key goes to the key store and NOT to the Model, and a
-// slot change rebuilds the rows under it.
+// 电话 注册表 以上行为平面设置。 这些是非: a 带
+// 类型的 API 键转到密钥存储器, 不 编号 Model ,
+// 而一个槽更改重建其下各行。
 
 namespace {
 
@@ -418,8 +418,8 @@ struct KeyHome {
         ::setenv("AGENTTY_HOME", (dir / "home").c_str(), 1);
         ::setenv("AGENTTY_USE_KEYSTORE", "0", 1);
         ::unsetenv("AGENTTY_WEB_SEARCH_KEY_EXA_API");
-        // keystore::available() is cached per process; if it was armed before
-        // this ran, a store() would reach the developer's real keyring.
+        // keystore::available ()每个进程都缓存;
+        // 如果在运行之前就已装有武器,则a store() 就能到达开发商真正的键盘
         real_keyring = agentty::auth::keystore::available();
     }
     bool real_keyring = false;
@@ -433,15 +433,15 @@ struct KeyHome {
     }
 };
 
-// update(), then run the tasks it returned (on this thread, as the kernel
-// would on a worker) and feed their answers back -- until nothing is left.
-// The key store is IO, so the pane hands it to tasks; this is how a test
-// sees the whole round trip without a kernel.
+// update() ,然后运行它返回的任务(关于此项) 线程 ,
+// 就像内核会在一个 工作线程 并反馈他们的答案--直到一无所有。
+// 钥匙店是 IO ,所以,请 面板 将其交给任务;
+// 这是测试如何看待整个无内核的往返。
 Model settle(Model m, Msg msg) {
     std::vector<Msg> queue;
     queue.push_back(std::move(msg));
     for (int round = 0; !queue.empty(); ++round) {
-        REQUIRE(round < 32);   // a task that always starts another
+        REQUIRE(round < 32);   // 总是会开始另一个任务
         std::vector<Msg> next;
         for (auto& q : queue) {
             auto [mm, cmd] = app::update(std::move(m), std::move(q));
@@ -463,7 +463,7 @@ void type_text(Model& m, std::string_view text) {
     for (char c : text) m = send(std::move(m), ins(static_cast<char32_t>(c)));
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("web search pane: a typed API key is stored, not kept in the Model") {
     KeyHome home;
@@ -477,13 +477,13 @@ TEST_CASE("web search pane: a typed API key is stored, not kept in the Model") {
     CHECK(!pane_of(m).form.find("web_search.key.exa-api")->locked);
 
     focus_row(m, "web_search.key.exa-api");
-    m = send(std::move(m), key(form::keys::Intent::Activate));      // start editing
+    m = send(std::move(m), key(form::keys::Intent::Activate));      // 开始编辑
     REQUIRE(pane_of(m).form.editing());
     type_text(m, "exa-SECRET-0123456789");
-    // Mid-edit the row holds the text, and the Model holds nothing.
+    // 中间 -edit 字行中,将文本和 Model 什么都没有
     CHECK(wtf::key_row_service(pane_of(m).form.focused()->id) == "exa-api");
-    // Leaving the field: the reducer empties the row and returns a task that
-    // stores the key. It does no IO itself.
+    // 离开球场: 状态更新函数 空出行并返回存储密钥的任务。
+    // 它没有 IO 自己来
     {
         auto [m2, cmd] = app::update(std::move(m), key(form::keys::Intent::LeaveField));
         CHECK(!agentty::tools::web_search_secret::has("exa-api"),
@@ -496,14 +496,14 @@ TEST_CASE("web search pane: a typed API key is stored, not kept in the Model") {
     }
 
     CHECK(agentty::tools::web_search_secret::load("exa-api") == "exa-SECRET-0123456789");
-    // The row was emptied and now says where the key lives, never what it is.
+    // 排空了,现在说关键在哪里生活, 从来没有是什么。
     const auto* row = pane_of(m).form.find("web_search.key.exa-api");
     REQUIRE(row != nullptr);
     CHECK(std::get<form::field::Secret>(row->value).value.empty());
     CHECK(std::get<form::field::Secret>(row->value).placeholder == "\xe2\x9c\x93 key saved");
     CHECK(row->origin.empty());
     CHECK(row->locked, "a stored key locks its row until it is removed");
-    // The Model (and so settings.json) never saw it.
+    // 电话 Model (这样) settings.json 从来没有见过。
     CHECK(m.d.persisted.web_search.primary == "exa-api");
     CHECK(pane_of(m).form.find("web_search.keyclear.exa-api") != nullptr);
 }
@@ -520,8 +520,8 @@ TEST_CASE("web search pane: a paste on a focused, empty key row lands without a 
               pane_of(m).form.find("web_search.key.exa-api")->value).value
           == "exa-PASTED-0123456789");
 
-    // ...and Enter alone stores it: the reported flow, end to end. The row
-    // then says so, is locked, and offers Remove key.
+    // ... 而 Enter 单独存储它: 所报流量, 结束到结束。
+    // 列然后说, 被锁定, 并提供删除密钥。
     m = settle(std::move(m), key(form::keys::Intent::LeaveField));
     CHECK(agentty::tools::web_search_secret::load("exa-api") == "exa-PASTED-0123456789");
     const auto* row = pane_of(m).form.find("web_search.key.exa-api");
@@ -533,9 +533,9 @@ TEST_CASE("web search pane: a paste on a focused, empty key row lands without a 
 }
 
 TEST_CASE("web search pane: a paste on a row that takes no text is dropped") {
-    // The pane now receives every paste while it is open, not only mid-edit,
-    // so the reducer is what keeps one off a Choice row (and out of the
-    // composer behind the pane).
+    // 面板现在每开时就收到一个贴面,而不仅是-edit中,
+    // 所以状态更新函数使得一个贴面不出现在选择行(并且
+    // 退出面板后面的作曲).
     Model m = opened();
     focus_row(m, "web_search.primary");
     const auto before = m.d.persisted.web_search;
@@ -564,12 +564,12 @@ TEST_CASE("web search pane: opening reads key origins on a worker, not in the re
     Model m;
     m.d.persisted.web_search.primary = "exa-api";
     auto [m1, cmd] = app::update(std::move(m), Msg{OpenWebSearch{}});
-    // Before the read answers the pane does not claim either way.
+    // 在读数答复前,面板不主张两者均不主张。
     const auto* row = pane_of(m1).form.find("web_search.key.exa-api");
     REQUIRE(row != nullptr);
     CHECK(!row->locked);
     CHECK(std::get<form::field::Secret>(row->value).placeholder == "checking\xe2\x80\xa6");
-    // The read is a task; its answer fills the origin in.
+    // 读取是任务;其答案填充了来源.
     auto replies = fx::run_tasks(std::move(cmd));
     REQUIRE(replies.size() == 1);
     Model m2 = std::move(m1);
@@ -588,11 +588,11 @@ TEST_CASE("web search pane: a stale key read does not undo a newer change") {
     m.d.persisted.web_search.primary = "exa-api";
     auto [opened_m, open_cmd] = app::update(std::move(m), Msg{OpenWebSearch{}});
     Model m1 = std::move(opened_m);
-    // The opening read finishes, but its answer has not been folded yet...
+    // 打开的读数结束,但答案还没有折叠...
     auto stale = fx::run_tasks(std::move(open_cmd));
-    // ...when the pane starts a store, which bumps its generation.
+    // 当 面板 开始一个商店,它会撞倒它的一代。
     m1.ui.panel.get<pn::WebSearch>()->keys_gen += 1;
-    // So the old answer is dropped rather than shown over the newer state.
+    // 所以旧的答案被放弃了,而不是显示在较新的状态上.
     for (auto& r : stale) {
         auto [mm, cmd] = app::update(std::move(m1), std::move(r));
         m1 = std::move(mm);
@@ -609,14 +609,14 @@ TEST_CASE("web search pane: key origins that arrive mid-edit are shown when the 
     m.d.persisted.web_search.primary = "exa-api";
     auto [m1, open_cmd] = app::update(std::move(m), Msg{OpenWebSearch{}});
     Model mm = std::move(m1);
-    // Start editing a text row before the read answers...
+    // 在读取答案前开始编辑文本行...
     focus_row(mm, "web_search.exclude_sites");
     mm = send(std::move(mm), key(form::keys::Intent::Activate));
     REQUIRE(pane_of(mm).form.editing());
     for (auto& r : fx::run_tasks(std::move(open_cmd))) mm = settle(std::move(mm), std::move(r));
-    // ...the edit is not disturbed...
+    // ...编辑没有被干扰...
     CHECK(pane_of(mm).form.editing());
-    // ...and leaving it unchanged (Esc: no commit) still shows the origins.
+    // ...没有改变(Esc:没有犯罪),仍然显示起源。
     mm = send(std::move(mm), key(form::keys::Intent::LeaveField));
     CHECK(!pane_of(mm).form.editing());
     CHECK(pane_of(mm).form.find("web_search.key.exa-api")->locked);
@@ -650,7 +650,7 @@ TEST_CASE("web search pane: Remove key forgets a stored key") {
           "removing the key unlocks the row for a new one");
     CHECK(std::get<form::field::Secret>(
               pane_of(m).form.find("web_search.key.exa-api")->value).placeholder.empty());
-    // The Remove row is gone, so the cursor lands on the key row it served.
+    // 删除行已消失, 光标会降落在它所服务的密钥行上。
     REQUIRE(pane_of(m).form.focused() != nullptr);
     CHECK(pane_of(m).form.focused()->id == "web_search.key.exa-api");
 }
@@ -660,7 +660,7 @@ TEST_CASE("web search pane: picking a keyed service for a slot brings its key ro
     if (home.real_keyring) { MESSAGE("skipped: OS keystore armed for this process"); return; }
     Model m = opened();
     CHECK(pane_of(m).form.find("web_search.key.exa-api") == nullptr);
-    // Primary dropdown: open, step to a keyed service, commit.
+    // 主降级:打开,步向按键服务,承诺.
     focus_row(m, "web_search.primary");
     m = send(std::move(m), key(form::keys::Intent::Activate));
     for (int i = 0; i < 7; ++i) m = send(std::move(m), key(form::keys::Intent::MenuNext));
@@ -668,10 +668,10 @@ TEST_CASE("web search pane: picking a keyed service for a slot brings its key ro
     CHECK(m.d.persisted.web_search.primary == "exa-api");
     CHECK(pane_of(m).form.find("web_search.key.exa-api") != nullptr);
     CHECK(pane_of(m).form.find("web_search.dial.exa-api.type") != nullptr);
-    // The old service's rows are gone from the pane (its dials stay on record).
+    // 旧服务栏目从面板(其拨号保持记录)走光.
     CHECK(pane_of(m).form.find("web_search.dial.brave-free.freshness") == nullptr);
-    // The rebuild added and removed rows under Primary; the cursor stays ON
-    // Primary rather than on whatever row slid into its old position.
+    // 重建在Prime下添加并移除了行;光标保持ON
+    // Prime,而不是在任何行滑入其旧位置上.
     REQUIRE(pane_of(m).form.focused() != nullptr);
     CHECK(pane_of(m).form.focused()->id == "web_search.primary");
 }
@@ -682,8 +682,8 @@ TEST_CASE("web search pane: choosing a dial value persists it") {
     Model m = opened();
     focus_row(m, "web_search.dial.brave-free.freshness");
     m = send(std::move(m), key(form::keys::Intent::Activate));
-    m = send(std::move(m), key(form::keys::Intent::MenuNext));      // Any time -> Past day
-    m = send(std::move(m), key(form::keys::Intent::MenuNext));      // -> Past week
+    m = send(std::move(m), key(form::keys::Intent::MenuNext));      // 任何时候 - > 过去一天
+    m = send(std::move(m), key(form::keys::Intent::MenuNext));      // - > 上个星期
     auto [m2, cmd] = app::update(std::move(m), key(form::keys::Intent::MenuCommit));
     CHECK(m2.d.persisted.web_search.dials.at("brave-free.freshness") == "pw");
     const auto* saved = fx::find<agentty::SaveSettings>(cmd);

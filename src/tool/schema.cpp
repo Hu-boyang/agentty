@@ -1,4 +1,4 @@
-// agentty::tools::schema — see schema.hpp.
+// agentty::tools::schema - 看见了 schema.hpp.
 
 #include "agentty/tool/schema.hpp"
 
@@ -29,10 +29,10 @@ bool type_name_ok(const json& t) {
     return t.is_string() && kTypes.contains(t.get<std::string>());
 }
 
-// The 2020-12 meta-schema checks keyword VALUE TYPES; measured, those are
-// what the live API rejects (a semantic mistake like a dangling $ref or an
-// unknown format passes). Walk every subschema and check the keywords whose
-// value shape the meta-schema constrains.
+// 2020-12年元a -schema 检查关键字 值
+// TYPES 已测量的,那是活的, API 拒绝(语义错误,
+// 如轻轻的) $ref。走每个子schema并检查元的值形状
+// 的关键字 -schema 约束。
 std::string walk(const json& s, const std::string& at, int depth) {
     if (depth > 64) return "schema nests too deep";
     if (s.is_boolean()) return {};
@@ -64,8 +64,8 @@ std::string walk(const json& s, const std::string& at, int depth) {
         return where("multipleOf") + " must be positive";
     if (auto it = s.find("enum"); it != s.end() && !it->is_array()) return where("enum") + " must be a list";
     if (auto it = s.find("required"); it != s.end()) {
-        // The live API accepts a non-list `required` (draft-4 style), so only
-        // a list of non-strings is a real problem.
+        // 现场直播 API 接受非 -list `required` (草稿4样式),
+        // 因此只列出非 -strings 是个真正的问题。
         if (it->is_array())
             for (const auto& r : *it)
                 if (!r.is_string()) return where("required") + " must list names";
@@ -73,7 +73,7 @@ std::string walk(const json& s, const std::string& at, int depth) {
     for (const char* k : {"uniqueItems", "readOnly", "writeOnly", "deprecated"})
         if (auto it = s.find(k); it != s.end() && !it->is_boolean()) return where(k) + " must be true or false";
 
-    // Maps of subschemas.
+    // 子计划地图.
     for (const char* k : {"properties", "patternProperties", "$defs", "definitions", "dependentSchemas"}) {
         auto it = s.find(k);
         if (it == s.end()) continue;
@@ -81,13 +81,13 @@ std::string walk(const json& s, const std::string& at, int depth) {
         for (const auto& [name, sub] : it->items())
             if (auto e = walk(sub, where(k) + "." + name, depth + 1); !e.empty()) return e;
     }
-    // Single subschemas.
+    // 单子子计.
     for (const char* k : {"items", "additionalProperties", "not", "if", "then", "else", "contains",
                           "propertyNames", "unevaluatedItems", "unevaluatedProperties",
                           "additionalItems"}) {
         auto it = s.find(k);
         if (it == s.end()) continue;
-        // `items` as a list is draft-4 tuple form; 2020-12 calls it prefixItems.
+        // `items` 清单为草案4图案形式;2020-12 调用 来,来,来 prefixItems.
         if (it->is_array() && std::string_view{k} == "items") {
             for (const auto& sub : *it)
                 if (auto e = walk(sub, where(k), depth + 1); !e.empty()) return e;
@@ -96,7 +96,7 @@ std::string walk(const json& s, const std::string& at, int depth) {
         if (!it->is_object() && !it->is_boolean()) return where(k) + " must be a schema";
         if (auto e = walk(*it, where(k), depth + 1); !e.empty()) return e;
     }
-    // Lists of subschemas.
+    // 子计划列表.
     for (const char* k : {"anyOf", "oneOf", "allOf", "prefixItems"}) {
         auto it = s.find(k);
         if (it == s.end()) continue;
@@ -107,11 +107,11 @@ std::string walk(const json& s, const std::string& at, int depth) {
     return {};
 }
 
-// ── normalize helpers ──────────────────────────────────────────────────
+// ── 常态化助手 ──────────────────────────────────────────────────
 
-// Inline local `#/$defs/X` and `#/definitions/X` refs. A ref that loops back
-// on itself is cut to `{}` (any value) at the second visit; a dangling one
-// becomes `{}` too, since there is nothing to inline.
+// 内置本地 `#/$defs/X` 财务报告和已审计财务报表 `#/definitions/X`
+// 反射回回旋的反射被切换为 `{}` 第二次访问时(任何价值),
+// 一个细小的值变成 `{}` 也因为没什么可考虑的
 json inline_refs(const json& node, const json& root, std::vector<std::string>& stack) {
     if (node.is_array()) {
         json out = json::array();
@@ -137,22 +137,22 @@ json inline_refs(const json& node, const json& root, std::vector<std::string>& s
         stack.push_back(ref);
         json expanded = inline_refs(*target, root, stack);
         stack.pop_back();
-        // Sibling keywords next to $ref (2020-12 allows them) are kept.
+        // $ref(2020-12允许)旁边的兄弟关键字保存.
         for (const auto& [k, v2] : node.items())
             if (k != "$ref" && expanded.is_object()) expanded[k] = inline_refs(v2, root, stack);
         return expanded;
     }
     json out = json::object();
     for (const auto& [k, v] : node.items()) {
-        if (k == "$defs" || k == "definitions") continue;   // inlined above
+        if (k == "$defs" || k == "definitions") continue;   // 上方内含
         out[k] = inline_refs(v, root, stack);
     }
     return out;
 }
 
-// `type: ["string","null"]` → `type: "string"` + `nullable: true`, the form
-// Gemini and strict OpenAI-compatible servers accept. Other multi-type
-// arrays keep only the first non-null type (an argument rarely needs more).
+// `type: ["string","null"]` → `type: "string"` +
+// `nullable: true` ,表格 Gemini 和严格 OpenAI-compatible
+// 服务器接受。 -type 数组只保留第一个非 -null 类型(一个参数很少需要更多)。
 void collapse_type_arrays(json& node) {
     if (node.is_array()) { for (auto& e : node) collapse_type_arrays(e); return; }
     if (!node.is_object()) return;
@@ -172,11 +172,11 @@ void collapse_type_arrays(json& node) {
         if (k != "enum" && k != "const" && k != "default" && k != "examples") collapse_type_arrays(v);
 }
 
-// Old-draft spellings that strict validators (Gemini, OpenAI strict mode)
-// reject, rewritten to 2020-12 the way OpenCode does:
-//   required not a list, or naming undeclared properties
-//   boolean exclusiveMinimum/Maximum (draft-04)
-//   items as a list (draft-07 tuples) -> prefixItems
+// 旧 -draft 严格验证符的拼写( Q) Gemini, OpenAI 拒绝,
+// 重写到2020-12 方式 OpenCode 是否为:
+//   不需要列表,也不需要命名未宣布的属性布尔
+//   exclusiveMinimum/Maximum (草案-04)
+//   项目作为清单(草案-07 tuples) - > prefixItems
 void modernize(json& node) {
     if (node.is_array()) { for (auto& e : node) modernize(e); return; }
     if (!node.is_object()) return;
@@ -214,13 +214,13 @@ void modernize(json& node) {
         if (k != "enum" && k != "const" && k != "default" && k != "examples") modernize(v);
 }
 
-// Drop descriptions below the top-level parameters. A parameter's own
-// description (properties.X.description) is what the model needs most and
-// stays; anything nested under it goes first.
+// 将描述丢到顶部以下 -level 参数。参数本身的描述(
+// properties.X.description )是模型最需要的,
+// 并且会停留;任何嵌在模型下面的东西都会先进入.
 void strip_nested_descriptions(json& node, int depth) {
     if (node.is_array()) { for (auto& e : node) strip_nested_descriptions(e, depth); return; }
     if (!node.is_object()) return;
-    // depth: 0 = root, 1 = a top-level parameter, 2+ = inside one.
+    // 深度:0=根,1=上-level参数,2+=内1.
     if (depth >= 2) { node.erase("description"); node.erase("title"); node.erase("examples"); }
     for (auto& [k, v] : node.items()) {
         if (k == "enum" || k == "const" || k == "default") continue;
@@ -232,7 +232,7 @@ void strip_nested_descriptions(json& node, int depth) {
     }
 }
 
-// Last resort: top-level parameter descriptions shortened to one sentence.
+// 最后办法:上-level参数描述缩短为一句话.
 void shorten_descriptions(json& node) {
     if (auto p = node.find("properties"); p != node.end() && p->is_object())
         for (auto& [_, sub] : p->items())
@@ -270,12 +270,12 @@ std::string sanitize(std::string_view s) {
     return out;
 }
 
-} // namespace
+} // 命名空间结束。
 
 std::string check(const json& s) {
     if (!s.is_object()) return "the input schema is not an object";
-    // Top-level property NAMES are a separate check on the live API; nested
-    // ones pass (measured), so only the top level is enforced.
+    // 顶级 -level 属性 NAMES 是对直播的单独检查
+    // API ;巢穴者过(测量),所以只有顶层才强制.
     if (auto p = s.find("properties"); p != s.end() && p->is_object())
         for (const auto& [name, _] : p->items())
             if (!key_ok(name))
@@ -287,16 +287,16 @@ Normalized normalize(json s, std::size_t compact_bytes) {
     Normalized out;
     if (!s.is_object()) s = json::object();
 
-    // $ref → inline (Gemini rejects $ref outside a few safe shapes; strict
-    // OpenAI-compatible servers often reject it entirely).
+    // $ref − 内在( Gemini 拒绝 $ref 几处外形安全;
+    // OpenAI-compatible 服务器往往完全拒绝它)。
     if (s.contains("$defs") || s.contains("definitions") || s.dump().find("\"$ref\"") != std::string::npos) {
         std::vector<std::string> stack;
         s = inline_refs(s, s, stack);
     }
 
-    // Root union → one object. The Claude API rejects anyOf/oneOf/allOf at
-    // the root; merge every branch's properties and describe which groups
-    // go together, the way Claude Code does.
+    // 根结合 = 只有一个对象。 Claude API 拒绝
+    // anyOf/oneOf/allOf 根; 合并每个分支的属性, 并描述哪些组
+    // 会一起走, 方式 Claude 代码是的。
     for (const char* k : {"allOf", "anyOf", "oneOf"}) {
         auto it = s.find(k);
         if (it == s.end() || !it->is_array()) continue;
@@ -341,10 +341,10 @@ Normalized normalize(json s, std::size_t compact_bytes) {
     modernize(s);
     if (!s.contains("type")) s["type"] = "object";
     if (!s.contains("properties")) s["properties"] = json::object();
-    s.erase("$schema");   // a declared draft-07 dialect confuses some servers
+    s.erase("$schema");   // 已宣布的 07 草案方言混淆了一些服务器
 
-    // Compact a schema past the budget: nested descriptions first, then
-    // deeply nested object shapes (the server still validates the args).
+    // 压缩一个 模式定义 过预算:先是嵌入式描述,
+    // 然后是深嵌入式对象形状(服务器仍然验证了参数).
     if (compact_bytes > 0 && s.dump().size() > compact_bytes) {
         strip_nested_descriptions(s, 0);
         if (s.dump().size() > compact_bytes) shorten_descriptions(s);
@@ -362,8 +362,8 @@ std::string wire_name(std::string_view server, std::string_view tool,
         taken.insert(name);
         return name;
     }
-    // Too long, or two raw names sanitised to the same thing: shorten and
-    // add a hash of the RAW name, so it's unique and stable across runs.
+    // 时间太长,或者两个生名字被同一件事消毒: 缩短并添加
+    // 一个散列 RAW 名字,所以它是独特的和稳定的横贯。
     for (unsigned attempt = 0;; ++attempt) {
         char hex[12];
         const std::string key = attempt == 0 ? raw : raw + '\0' + std::to_string(attempt);

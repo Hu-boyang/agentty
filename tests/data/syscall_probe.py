@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-# Which dangerous syscalls does agentty's real posture actually deny?
+# 危险线条的系统 agentty 真正的姿态是否定的吗?
 #
-# Each of these is an escape primitive, or close to one:
-#   io_uring_*        submits file IO through a ring the seccomp filter never
-#                     sees -- the classic "filter bypass" family
-#   userfaultfd       page-fault handling in userspace: a TOCTOU lever
-#   process_vm_readv  read another process's memory without ptrace
-#   pidfd_open/getfd  steal a descriptor from another process
-#   open_by_handle_at needs CAP_DAC_READ_SEARCH, but reaches any inode by
-#                     handle -- the mount tree does not contain it
-#   memfd_create      harmless alone; the W^X path's usual first step
+# 每个都是逃生原始的,或者接近一个:
+#   io_uring_ * 提交文件 IO 穿过一个戒指 seccomp 过滤器从不看到
+#                     ——经典 "filter bypass" 家庭
+#   用户错误页面 -fault 在用户空间中处理: a TOCTOU 杠杆
+#   process_vm_readv 读取另一个进程 内存 不显示路径
+#   pidfd_open/getfd 从另一个进程中偷取描述符
+#   open_by_handle_at 需求 CAP_DAC_READ_SEARCH ,
+#                     但通过手柄到达任何一个inode -- -- 挂载 源
+#   码树 内不包含 memfd_create 单独无害;W ^X 路径通常的第一步
 import ctypes, errno
 
 l = ctypes.CDLL(None, use_errno=True)

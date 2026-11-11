@@ -1,5 +1,5 @@
-// The syscall supervisor's decision policy. Scalars only — see the header for
-// why that constraint is structural rather than a simplification.
+// 监督员的决定政策。 头文件 为何这种
+// 限制是结构性的,而不是简化的。
 
 #include "agentty/tool/util/sandbox_broker.hpp"
 
@@ -14,11 +14,11 @@
 #include <sys/ptrace.h>
 #include <sys/syscall.h>
 #include <signal.h>
-#include <fcntl.h>          // open  (reading /proc/<pid>/...)
-#include <unistd.h>         // read, close
-#include <dirent.h>         // opendir/readdir  (/proc/<pid>/task)
-#include <cstdio>           // snprintf
-#include <cstdlib>          // strtol
+#include <fcntl.h>          // 打开( 正在读 /) proc/<pid>/...)
+#include <unistd.h>         // 读取, 关闭
+#include <dirent.h>         // opendir/readdir  (/proc/<pid> /任务)
+#include <cstdio>           // 短短的指纹f
+#include <cstdlib>          // 斯特罗尔
 #include <cstring>
 #include <vector>
 #endif
@@ -29,13 +29,13 @@ namespace {
 
 #if defined(__linux__)
 
-// ptrace(2) requests we are willing to reason about. The rest are denied, not
-// because each is dangerous but because a supervisor that allows requests it
-// has not thought about is not a policy.
+// 追踪(2) 请求我们愿意解释。 其余请求被拒绝,
+// 不是因为每个请求都很危险,而是因为允许其未考虑
+// 请求的主管并不是一项政策。
 //
-// PTRACE_TRACEME is the interesting case: it is how a child ASKS to be traced
-// by its own parent, which is exactly what `strace prog` and a debugger-under-
-// test do. It grants the tracer no new authority -- the child is volunteering.
+// PTRACE_TRACEME 有趣的是,孩子就是这样的 ASKS 由自己
+// 的父母追踪, 这正是什么 `strace prog` 调试器 -under-
+// 测试是的,它 授权 追踪器没有新的权威 -- -- 儿童正在志愿工作。
 [[nodiscard]] const char* ptrace_request_name(std::uint64_t req) {
     switch (req) {
         case PTRACE_TRACEME:     return "TRACEME";
@@ -53,7 +53,7 @@ namespace {
 
 [[nodiscard]] std::string signal_name(std::uint64_t sig) {
     switch (sig) {
-        case 0:        return "0";        // existence probe, sends nothing
+        case 0:        return "0";        // 存在探测器,没有发送任何信息
         case SIGTERM:  return "SIGTERM";
         case SIGKILL:  return "SIGKILL";
         case SIGINT:   return "SIGINT";
@@ -67,51 +67,51 @@ namespace {
     }
 }
 
-// Is `target` a process the REQUESTER may signal -- i.e. itself or one of its
-// descendants -- where `target` is a pid as the REQUESTER sees it?
+// 已经 `target` 进程 REQUESTER 可能发出信号... i.e .本身或其后代 -- -
+// - 在何处 `target` 是一个pid as the REQUESTER 看见了吗?
 //
-// THE GAP THIS CLOSES, and it is two gaps stacked.
+// 该 GAP 此 CLOSES ,这是两个空隙堆叠。
 //
-// (1) Both target rules below used to be equality tests against guest_pid /
-//     guest_pgid, which answers "is the target the group LEADER". A child is
-//     neither: it has its own pid and inherits the leader's pgid. So every
-//     kill(child, sig) was denied -- while the comment two lines away already
-//     called that case routine ("`make` on failure, `timeout`, a test runner
-//     reaping workers").
+// (1) 以下两项目标规则都曾是对guest_pid/guest_pgid的平等测试,
+//     答案是"is the target the group LEADER".
+//     儿童既不是:有自己的皮条,继承了领导人的皮条,因此,每次杀人(孩子,
+//     sig)都被否认 -- -- 而两行之外的评论已经称之为例行公事(
+//     例如 make 失败后的清理、timeout，以及测试运行器回收工作进程。
 //
-// (2) The numbers were not even in the same space. claybin gives the guest its
-//     own PID NAMESPACE, so the guest is pid 1 in there and the pid it passes
-//     to kill() is namespace-local. `guest_pid` is the HOST-side pid from
-//     spawn(). Comparing them is a category error that happened to be
-//     invisible because it always said "no": measured, the guest saw itself as
-//     pid 3, pgid 1, and its child as pid 4, while the supervisor was
-//     comparing against a host pid in the hundreds of thousands.
 //
-// Observed: `timeout 1 sleep 5` ran the full 5 seconds and exited 0. The timer
-// fires, the kill is refused with EPERM, and coreutils gives up silently -- so
-// a hung command in the sandbox was never killed and anything using `timeout`
-// as a watchdog had none.
+// (2) 这些数字甚至不是在同一空间。 claybin 给客人自己的 PID
+//     NAMESPACE 客人被罚进监狱 被罚进医院 kill() 名称空间
+//     -local. `guest_pid` 是那个 HOST-side
+//     pid from (原始内容存档于2018-09-21).
+//     spawn() 比较它们是一个不为人知的分类错误,因为它总是说 "no"
+//     :测量,嘉宾将自己视为pid 3, pgid 1,
+//     而其孩子则视为pid4,而主管则在对比数十万中的主持人pid.
 //
-// The fix is to stop guessing and ask the kernel in the REQUESTER's own terms.
-// /proc/<requester>/task/<tid>/children is a host-pid list of that thread's
-// direct children; walking it transitively gives the descendant set. To turn
-// the guest's namespace-local target into a host pid we read NSpid out of
-// /proc/<host_pid>/status, whose LAST field is the pid in the innermost
-// namespace -- exactly the number the guest used.
+// 观察: `timeout 1 sleep 5` 5秒后就跑完 时间
+// 点火 死亡被拒绝 EPERM ,而creutils 默默放弃 -
+// 所以一个挂在命令在 沙箱 从未被杀 任何使用 `timeout`
+// 作为 看门狗 没有任何。
 //
-// Fails CLOSED at every step: an unreadable proc file, a missing NSpid line,
-// or a walk that exceeds its bound all mean "not a descendant".
+// 修补是停止猜想,以REQUESTER自身条件问内核.
+// /proc/<requester>/task/<tid> 孩子们是宿主
+// -pid 清单 线程 直系子女; 转过路来给后代设定。 将客人的命名空间转动。
+// -local 目标输入主机的 pid 我们读 NSPID 出/
+// proc/<host_pid> 身份,其国籍 最后 字段是最内侧
+// 命名空间中的pid——正好是宾客使用的号码。
 //
-// Bounded deliberately. The walk is a DoS surface otherwise: a guest that
-// forks a deep tree would make the SUPERVISOR do unbounded work inside the
-// poll loop that the guest is blocked on.
+// 失败 CLOSED 在每个步骤: 无法读取的 Proc 文件、 缺失的 NSpid 线条,
+// 或 超过其约束的行走 "not a descendant".
+//
+// 故意受了伤,走是... DoS 表面,否则:一个客人,
+// 叉开深处 源码树 就能让 SUPERVISOR 做无限制的
+// 工作 在民意调查循环 被封杀的客人。
 [[nodiscard]] bool is_descendant_of(std::uint32_t requester_host_pid,
                                     std::int32_t  target_ns_pid) noexcept {
     if (target_ns_pid <= 0 || requester_host_pid == 0) return false;
 
-    constexpr int kMaxVisit = 4096;    // generous for a build, bounded for a bomb
+    constexpr int kMaxVisit = 4096;    // 慷慨的建造, 以炸弹为界
 
-    // Read a whole small proc file. Returns empty on any failure.
+    // 读取一个完整的小 proc 文件。 任何失败时返回空。
     const auto slurp = [](const char* path) -> std::string {
         const int fd = ::open(path, O_RDONLY | O_CLOEXEC);
         if (fd < 0) return {};
@@ -121,14 +121,14 @@ namespace {
             const auto n = ::read(fd, buf, sizeof buf);
             if (n <= 0) break;
             out.append(buf, static_cast<std::size_t>(n));
-            if (out.size() > 64 * 1024) break;     // a children list this big is a bomb
+            if (out.size() > 64 * 1024) break;     // 孩子们列出这个大块头就是炸弹
         }
         ::close(fd);
         return out;
     };
 
-    // The pid `host_pid` has in its INNERMOST namespace, from NSpid. A kernel
-    // without NSpid (pre-4.1) reports nothing, and we fail closed.
+    // 蜘蛛头 `host_pid` 在其《公约》中 INNERMOST 名称空间,
+    // 来自NSpid。没有NSpid(前4.1)的内核报告什么也没有,我们没有关闭。
     const auto ns_pid_of = [&](std::uint32_t host_pid) -> std::int32_t {
         char path[64];
         std::snprintf(path, sizeof path, "/proc/%u/status", host_pid);
@@ -137,16 +137,16 @@ namespace {
         if (at == std::string::npos) return -1;
         const auto eol = st.find('\n', at + 1);
         const std::string line = st.substr(at + 1, eol - at - 1);
-        // "NSpid:\t<outer>\t<...>\t<innermost>" -- take the LAST field.
+        // "NSpid:\t<outer>\t<...>\t<innermost>" - 拿着 最后 字段中选择
         const auto sp = line.find_last_of(" \t");
         if (sp == std::string::npos) return -1;
         return static_cast<std::int32_t>(std::strtol(line.c_str() + sp + 1,
                                                      nullptr, 10));
     };
 
-    // Walk the requester's descendants, breadth-first, and ask each one what
-    // pid it thinks it has. Comparing in the GUEST's number space is what
-    // makes this correct regardless of how many namespaces are nested.
+    // 宽度走着请求者的后代 -first ,
+    // 并询问每个人它认为它有什么。 GUEST 数字
+    // 空间是这个正确之处 不管有多少个命名空间是嵌入的
     std::vector<std::uint32_t> frontier{requester_host_pid};
     int visited = 0;
     while (!frontier.empty() && visited < kMaxVisit) {
@@ -157,7 +157,7 @@ namespace {
         if (pid != requester_host_pid && ns_pid_of(pid) == target_ns_pid)
             return true;
 
-        // Children are per-THREAD, so every task of this process contributes.
+        // 儿童人数 -THREAD ,因此,这一进程的每一项任务都作出了贡献。
         char tdir[64];
         std::snprintf(tdir, sizeof tdir, "/proc/%u/task", pid);
         DIR* d = ::opendir(tdir);
@@ -184,10 +184,10 @@ namespace {
     return false;
 }
 
-// The requester's own pid and pgid as IT sees them (innermost namespace),
-// from NSpid/NSpgid. A target the guest names is in that number space, so
-// "is this me / my group" must be asked there, not against host pids.
-// {-1, -1} when /proc can't say; callers then fall back to host values.
+// 请求者自己 的皮迪和皮迪 IT 看见它们(最内在的命名空间),
+// 从 NSpid/NSpgid. 目标 客人的名字在这个数字空间,
+// 所以 "is this me / my group" 一定要问那里,而不是反对宿主的皮条客。
+// {1, -1} 当/proc不能说;呼叫者然后返回到主机值.
 struct NsIds { std::int32_t pid = -1, pgid = -1; };
 [[nodiscard]] NsIds ns_ids_of(std::uint32_t host_pid) noexcept {
     NsIds out;
@@ -204,7 +204,7 @@ struct NsIds { std::int32_t pid = -1, pgid = -1; };
         if (st.size() > 64 * 1024) break;
     }
     ::close(fd);
-    // "Key:\t<outer>\t...\t<innermost>": take the LAST field.
+    // "Key:\t<outer>\t...\t<innermost>" : 带 最后 字段中选择
     const auto last_field = [&](std::string_view key) -> std::int32_t {
         const auto at = st.find(key);
         if (at == std::string::npos) return -1;
@@ -221,57 +221,57 @@ struct NsIds { std::int32_t pid = -1, pgid = -1; };
 
 #endif  // __linux__
 
-}  // namespace
+}  // 命名空间结束。
 
 namespace {
 
-// The blocked-activity feed's storage.
+// 被封锁的-activity饲料储存.
 //
-// `maya::snapshot<T>` rather than a raw std::mutex or a guarded<T>: the feed is
-// a small value replaced whole on every denial and copied out by the reader, so
-// a lock-free immutable value fits exactly -- no rank, no capability, and
-// `record()` (called from the broker's supervisor thread) never has to prove
-// what it holds. "Forgot the lock" stays unrepresentable: the only writes are
-// `update()`, which builds a NEW vector from the old one.
+// `maya::snapshot<T>` 而不是生的 而不是生下来的 std::mutex
+// 或被看守的 <T> : 种子是一个小值, 在所有拒绝上被替换 整个被读者复制,
+// 所以 锁-free 不可变 值完全适合 -- -- 没有级别,没有能力,
+// `record()` (从经纪人的主管那里得到的) 线程 永远也不必证明
+// 它持有什么。 "Forgot the lock" 无法代表: 唯一的写作
+// 是 `update()` ,它构建了 新 向量从旧的。
 //
-// Function-local static so initialisation order cannot bite: the first denial
-// can arrive from a worker thread during startup, and a file-scope global would
-// be a race with its own constructor.
+// 函数 -local 静态的初始化顺序不能咬: 第一个拒绝可以从
+// 一个 工作线程 线程 启动时, 和一个文件 -scope 全球将是
+// 一个 竞态 和它自己的建筑师。
 maya::snapshot<std::vector<Event>>& feed() {
     static maya::snapshot<std::vector<Event>> f;
     return f;
 }
 
-// How many distinct events to keep.
+// 有多少个不同的事件要保留.
 //
-// Bounded because a guest hammering a denied syscall in a loop would otherwise
-// grow this without limit -- a denial of service the supervisor inflicts on its
-// own host. 64 is chosen for the READER, not for memory: a pane showing more
-// than a screenful of denials has stopped communicating, and the coalescing
-// below means 64 distinct events covers far more than 64 syscalls.
+// 被围起来是因为客人在环绕中敲打一个被拒绝的音响,
+// 否则会毫无限制地扩大这种音响 -- -- 主管拒绝为自己
+// 的主机提供服务。 READER ,不用于 内存: a
+// 面板 显示超过屏蔽的否认 已经停止沟通, 和下面的集合
+// 意味着64个不同 事件 覆盖了64个以上的音响。
 constexpr std::size_t kMaxEvents = 64;
 
-}  // namespace
+}  // 命名空间结束。
 
 void record(const Event& ev) {
-    // Allows are not blocked activity. The broker logs both -- the log is a
-    // trace -- but a feed that lists every permitted syscall is an strace, and
-    // the one denial that matters would drown in it.
+    // 允许不是被屏蔽的活动。经纪人日志(这个日志是一种
+    // 追踪)都存在,但是列出每个允许的线程的种子是一条线索,
+    // 而其中最重要的一个否认会淹没在其中。
     if (ev.allowed) return;
 
     (void)feed().update([](const std::vector<Event>& old, const Event& in) {
         std::vector<Event> events = old;
-        // Coalesce an identical repeat. Checked against the LAST event only,
-        // not the whole feed: a build that alternates two denied calls should
-        // show both interleaved rather than two counters, because the order is
-        // the information -- it tells you what the toolchain was doing.
+        // 复制一次,检查到 最后 事件 而不是
+        // 整个饲料:一个二位代表否认的建筑 调
+        // 用 显示两个互换的计数器, 因为顺序是信息,
+        // 它告诉你工具链在做什么。
         if (!events.empty()) {
             auto& last = events.back();
             if (last.syscall == in.syscall &&
                 last.detail == in.detail) {
-                // Saturate rather than wrap. A count that rolls over to 0 would
-                // read as "this never happened", which is the worst possible
-                // lie for an audit surface to tell.
+                // 饱和而不是包。一个倒数为 0 的计数会读作
+                // "this never happened",
+                // 这是审计表面最糟糕的谎言。
                 if (last.count < UINT32_MAX) ++last.count;
                 return events;
             }
@@ -281,18 +281,18 @@ void record(const Event& ev) {
         incoming.count = 1;
         events.push_back(std::move(incoming));
 
-        // Drop the OLDEST when full, keeping the newest. A guest trying to
-        // flush evidence of an early denial has to push 64 DISTINCT denials
-        // through, every one of which is itself recorded -- so the attempt is
-        // louder than the thing it would hide.
+        // 放下枪 OLDEST 想要冲洗早期否认
+        // 证据的客人必须推64 DISTINCT 否认,
+        // 每一个都记录下来了——所以尝试比它会
+        // 隐藏的东西要响亮。
         if (events.size() > kMaxEvents) events.erase(events.begin());
         return events;
     }, ev);
 }
 
 std::vector<Event> blocked_feed() {
-    // A copy, deliberately: the caller is on another thread. The snapshot
-    // value is immutable, so copying it out needs no lock at all.
+    // 一份,故意的,打来电话的人在另一张 线程。
+    // 该词 快照 值为 不可变 所以抄袭不需要 锁 一点都没有
     return feed().get();
 }
 
@@ -302,20 +302,20 @@ void clear_blocked_feed() {
 
 std::vector<std::uint32_t> brokered_syscalls() {
 #if defined(__linux__) && defined(SYS_ptrace) && defined(SYS_kill)
-    // Exactly two, and the shortness of this list is the design.
+    // 正好是两个, 这份清单的短处就是设计。
     //
-    // A syscall belongs here only if ALL of:
-    //   - a scalar argument carries the decision (no pointer, no TOCTOU)
-    //   - a flat deny is genuinely wrong sometimes (so brokering buys
-    //     compatibility, not just a log line)
-    //   - a flat allow is genuinely wrong sometimes (so there is a decision
-    //     to make at all)
+    // 仅当ALL:
+    //   - 标语的论据带有裁决(无指针,无TOCTOU)
+    //   - 有时,完全否认是完全错误的(因此,中间商交易买断了)
+    //     兼容性,而不仅仅是一个日志行)
+    //   - 平面许可有时确实是错误的(因此有决定);
+    //     (完全可以)
     //
-    // ptrace and kill meet all three. Nothing involving a path does, because
-    // the path is a pointer; those belong in landlock. Nothing involving
-    // sockets does yet either -- socket() is scalar-decidable and claybin even
-    // ships a helper, but the network namespace already gives a stronger,
-    // race-free answer, and two mechanisms for one boundary is how they drift.
+    // 追踪和杀死三个目标。任何涉及路径的东西都不会发生,因为路径是指针;
+    // 这些属于地锁。任何涉及套接字的东西都不可能 --
+    // socket() 正在显示 -decidable 财务报告和已审计
+    // 财务报表 claybin 连一个帮手都上船了 但网络命名空间
+    // 已经更强大了 竞态-free 答案,一个边界的两个机制是它们如何漂移。
     return {static_cast<std::uint32_t>(SYS_ptrace),
             static_cast<std::uint32_t>(SYS_kill)};
 #else
@@ -343,38 +343,38 @@ Verdict decide(std::uint32_t nr, const std::uint64_t args[6],
         std::string detail = std::string{rname} +
                              " pid=" + std::to_string(target);
 
-        // An unknown request is denied REGARDLESS of target.
+        // 拒绝未知请求 REGARDLESS 目标。
         //
-        // Checked before the target rules, and that order is the fix for a bug
-        // this file shipped: the target check came first, so an unrecognised
-        // request aimed at our own group was allowed. There are ~40 ptrace
-        // requests, several of them (PTRACE_SETREGS, PTRACE_POKEUSER) are how
-        // you rewrite a traced process's execution, and "it is one of ours" is
-        // not a reason to permit an operation nobody reasoned about. A
-        // supervisor that allows requests it does not understand is not a
-        // policy.
+        // 在目标规则之前检查过, 而命令是这个文件被发送的错误的
+        // 修复 : 目标检查是先来的, 因此允许针对我们自己的组的
+        // 未识别请求。 有~40 ptrace请求, 其中几个(
+        // PTRACE_SETREGS, PTRACE_POKEUSER)
+        // 是您如何重写一个跟踪进程执行的,
+        // 而"it is one of ours" 不是一个允许操作的理由,
+        // 没有任何理由说明。 允许请求的主管不理解它不是
+        // 政策。
         if (std::string_view{rname} == "?")
             return record("ptrace", std::move(detail), false);
 
-        // TRACEME: the caller volunteers to be traced by its own parent. No
-        // new authority over anything else, and it is how `strace prog` works
-        // from the inside. Allowed.
+        // TRACEME : 打电话者自愿者由自己的父母追踪。
+        // 没有新的权威来管理其他事务,而是如何 `strace prog`
+        // 内在工作,允许
         if (request == PTRACE_TRACEME)
             return record("ptrace", std::move(detail), true);
 
-        // Everything else names a TARGET, and the target is a scalar, so this
-        // is exactly the shape brokering is sound for.
+        // 其他的都叫TARGET,目标就是Scalar,
+        // 所以这正是这个形状的中介是声音。
         //
-        // Allowed only inside our own process group. A debugger attaching to
-        // its own child is ordinary; reaching outside the group is the shape of
-        // an escape -- and pid 1 inside a pid namespace is the sandbox's own
-        // init, which is a container-escape primitive rather than a debugging
-        // step.
+        // 仅在我们自己的进程组内允许。 连接在自己孩子上的调试
+        // 器是普通的; 到达组外是逃跑的形状 — 而pid 1 在
+        // 一个 pid namespace 中的是 沙箱 自己
+        // 的内装箱,这是容器 -escape 原始的而不是调试
+        // 步骤.
         //
-        // Deliberately NOT "same pid namespace": we cannot ask the kernel that
-        // from a register value, and guessing would be the kind of almost-right
-        // check this file exists to avoid. The process group is something we
-        // know for certain because we set it.
+        // 故意的 不 "same pid namespace" :
+        // 我们不能从寄存器值中询问内核,猜想会是那种几乎 -right
+        // 检查此文件的存在以避开。 进程组是我们确定知道的东西,
+        // 因为我们已经设置它。
         if (target == 0 || target == guest_pid)
             return record("ptrace", std::move(detail), true);
         if (guest_pgid != 0 && target == guest_pgid)
@@ -382,29 +382,29 @@ Verdict decide(std::uint32_t nr, const std::uint64_t args[6],
         if (const auto me = ns_ids_of(guest_pid);
             me.pid > 0 && static_cast<std::int32_t>(target) == me.pid)
             return record("ptrace", std::move(detail), true);
-        // ...and a DESCENDANT, which is the ordinary debugger case the
-        // paragraph above describes ("a debugger attaching to its own child").
-        // Equality alone could never express it: a child's pid is neither the
-        // leader's pid nor the pgid.
+        // ..还有一个 DESCENDANT ,这是上面段落描述的普通调试器案例(
+        // 调试器附加到自己启动的子进程。
+        // 光是平等是永远无法表达的:孩子的病症既不是领袖的病症,
+        // 也不是小病症。
         if (is_descendant_of(guest_pid, static_cast<std::int32_t>(target)))
             return record("ptrace", std::move(detail), true);
         return record("ptrace", std::move(detail), false);
     }
 
     if (nr == static_cast<std::uint32_t>(SYS_kill)) {
-        // kill(pid, sig). Both scalars.
+        // 双双双双的
         const auto target = static_cast<std::int32_t>(
             static_cast<std::int64_t>(args[0]));
         const std::uint64_t sig = args[1];
         std::string detail = signal_name(sig) + " pid=" + std::to_string(target);
 
-        // Self, and the own-group forms (0 = my group, negative = that group).
-        // A build killing its own children is routine: `make` on failure,
-        // `timeout`, a test runner reaping workers.
+        // 自我,和自己的-group形式(0=我的团体,负=那个团体).
+        // 杀死自己的孩子是例行公事: `make` 失败时,
+        // `timeout` 测试跑者收获 工作线程.
         //
-        // The target is in the guest's pid namespace, so "is it me / my
-        // group" is asked in its numbers (NSpid/NSpgid). The host-pid tests
-        // stay for a guest with no pid namespace, where the two agree.
+        // 目标在客人的名片间 所以 "is it me / my group"
+        // 以编号要求( NSpid/NSpgid。
+        // 东道主 -pid 测试一个没有零点名位的客人, 两人同意。
         const auto me = ns_ids_of(guest_pid);
         if (target == 0 || target == static_cast<std::int32_t>(guest_pid)
             || (me.pid > 0 && target == me.pid))
@@ -414,46 +414,46 @@ Verdict decide(std::uint32_t nr, const std::uint64_t args[6],
             if (grp == guest_pgid || grp == guest_pid
                 || (me.pgid > 0 && static_cast<std::int32_t>(grp) == me.pgid))
                 return record("kill", std::move(detail), true);
-            // ...or a group LED BY one of our descendants. `timeout` does
-            // exactly this: it putpgid()s the command into its own group and
-            // then signals kill(-pgid), so the pgid it passes is the child's
-            // namespace-local pid. The equality tests above are both
-            // host-side, so this form was always denied -- which is why
-            // `timeout 1 sleep 5` still ran the full five seconds even after
-            // the per-pid case started working.
+            // ...或一个团体 LED BY 我们的后代之一。
+            // `timeout` 完全是这样: putpgid() 将命令输入
+            // 自己的组,然后发出信号杀死( -pgid ),所以它经过的
+            // pgid是孩子的命名空间 -local pid.
+            // 上面的等同测试都是主机 -side ,所以这个表格总是被拒绝
+            // -- 这就是为什么 `timeout 1 sleep 5` 5秒后,
+            // 我还跑完 -pid 案件开始工作。
             //
-            // Safe for the same reason the per-pid case is: a group led by
-            // our descendant contains only processes that descendant could
-            // signal itself, and it cannot move a foreign process into a
-            // group it leads.
+            // 安全的原因与原因相同 每个人 -pid
+            // 案例是:我们后裔领导的团体只包含后裔可以自己
+            // 表示的流程,不能将一个外国流程移动到它所
+            // 领导的团体中.
             if (is_descendant_of(guest_pid, static_cast<std::int32_t>(grp)))
                 return record("kill", std::move(detail), true);
             return record("kill", std::move(detail), false);
         }
         if (guest_pgid != 0 && static_cast<std::uint32_t>(target) == guest_pgid)
             return record("kill", std::move(detail), true);
-        if (me.pgid > 0 && target == me.pgid)   // the group leader, by number
+        if (me.pgid > 0 && target == me.pgid)   // 团体领导人,按人数分列
             return record("kill", std::move(detail), true);
-        // A process in our own group -- i.e. one of our descendants. This is
-        // the case the comment above promises and the equality tests could
-        // not deliver: `timeout` killing the command it supervises, `make`
-        // killing a failed recipe, a runner reaping its workers.
+        // 我们集团中的一个进程 -- i.e 我们的后代之一,
+        // 上面的评论和平等测试不能做到: `timeout`
+        // 杀死它所监管的指挥, `make` 杀死一个失败的食谱,
+        // 一个跑者收获它 工作线程.
         if (is_descendant_of(guest_pid, target))
             return record("kill", std::move(detail), true);
 
-        // kill(-1, sig) is "every process I may signal". Inside a pid
-        // namespace that is bounded, but we do not get to assume we have one
-        // (see §3a: namespaces may be denied while seccomp still works), so it
-        // is denied.
+        // 杀死( 1, sig) 是 "every process I may signal"。 在一个 pid 中
+        // 命名空间中的范围有限，但不能假设始终存在这一边界，
+        // (见第3a节:在seccomp仍在工作时可能拒绝使用命名空间),
+        // 因此被拒绝。
         return record("kill", std::move(detail), false);
     }
 #else
     (void)nr; (void)args; (void)guest_pid; (void)guest_pgid;
 #endif
 
-    // A syscall we asked to broker and then did not handle. Denying is the only
-    // safe default -- allowing would mean the brokered list and this function
-    // can drift apart silently, in the permissive direction.
+    // 我们要求进行一个系统调用,然后却不处理。
+    // 拒绝是唯一安全的默认 — — 允许意味着被调用的清单,
+    // 而这个功能可以悄悄地向允许的方向飘移。
     return record("?", "unhandled brokered syscall", false);
 }
 

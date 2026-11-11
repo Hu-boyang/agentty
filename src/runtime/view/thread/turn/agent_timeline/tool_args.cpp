@@ -1,10 +1,10 @@
-// Shared pure helpers for reading tool args and tool output. See
-// tool_args.hpp for intent. No maya / widget dependencies — pure data
-// shaping — so both thread.cpp (timeline compact-body) and tool_card.cpp
-// (widget render) can link against it without dragging widget headers.
+// 共享纯辅助读取工具参数和工具输出的纯辅助工具。参见 tool_args.hpp
+// 无意的。 maya / 部件依赖性——纯数据塑造—— 所以两者都一样
+// thread.cpp (时间线紧凑) -body 和。 和 简 况
+// tool_card.cpp (小块) 渲染 ) 能够 链接 反之而不拖动部件 头文件.
 
 #include "agentty/runtime/view/thread/turn/agent_timeline/tool_args.hpp"
-#include <maya/core/anim_clock.hpp>   // anim_now: the frame clock
+#include <maya/core/anim_clock.hpp>   // anim_now : 数据 帧 时钟
 
 #include <chrono>
 #include <cstdint>
@@ -35,9 +35,9 @@ std::string pick_arg(const nlohmann::json& args,
 
 std::string pick_streaming_string(std::string_view raw, std::string_view key) {
     if (raw.empty() || key.empty()) return {};
-    // Locate `"key"` as a KEY token: the quote-wrapped key followed (after
-    // optional whitespace) by a ':'. Retry on false hits (the same text
-    // appearing as a VALUE elsewhere).
+    // 地点 `"key"` 作为 KEY 符号: 引号 -wrapped
+    // 键后(在可选的空白之后), a ':'. 重试 错误点击(与第
+    // 1段相同) 值 ) ,"别处".
     std::string needle;
     needle.reserve(key.size() + 2);
     needle.push_back('"');
@@ -51,46 +51,46 @@ std::string pick_streaming_string(std::string_view raw, std::string_view key) {
         while (i < raw.size() && (raw[i] == ' ' || raw[i] == '\t'
                                   || raw[i] == '\n' || raw[i] == '\r')) ++i;
         if (i >= raw.size() || raw[i] != ':') { search = k + 1; continue; }
-        ++i;  // past ':'
+        ++i;  // 过去 ':'
         while (i < raw.size() && (raw[i] == ' ' || raw[i] == '\t'
                                   || raw[i] == '\n' || raw[i] == '\r')) ++i;
-        if (i >= raw.size() || raw[i] != '"') return {};  // value not (yet) a string
-        ++i;  // past opening quote
-        // Collect until the unescaped closing quote (or buffer end for a
-        // truncated stream). Decode the escapes we can see mid-stream.
+        if (i >= raw.size() || raw[i] != '"') return {};  // 值( yet) 不是字符串
+        ++i;  // 过去的开口引用
+        // 收集到未脱逃的关闭引号(或) 缓冲区 切换的结束
+        // 数据流 解码我们可以看到的中途 -stream.
         std::string out;
         while (i < raw.size()) {
             char c = raw[i];
             if (c == '\\') {
-                if (i + 1 >= raw.size()) break;   // dangling escape at EOF
+                if (i + 1 >= raw.size()) break;   // 正在逃跑中 正在逃逸中 正在逃跑 EOF
                 char e = raw[i + 1];
                 switch (e) {
                     case 'n': out.push_back('\n'); break;
                     case 't': out.push_back('\t'); break;
-                    case 'r': break;              // drop CR
+                    case 'r': break;              // 投放CR 数据
                     case '"': out.push_back('"'); break;
                     case '\\': out.push_back('\\'); break;
                     case '/': out.push_back('/'); break;
-                    default:  out.push_back(e); break;  // \uXXXX etc: keep raw
+                    default:  out.push_back(e); break;  // \u ⁇  等: 保持原始
                 }
                 i += 2;
                 continue;
             }
-            if (c == '"') return out;             // closing quote → done
+            if (c == '"') return out;             // 结束引用 + 已完成
             out.push_back(c);
             ++i;
         }
-        return out;  // truncated mid-value: return what streamed so far
+        return out;  // 中调 -value: 返回流到现在的
     }
 }
 
 std::string tool_path_arg(const ToolUse& tc) {
-    // Parsed args first — authoritative once the throttled reparse catches up.
+    // 解析的参数首先——一旦节奏的复刻得到追赶,就具有权威性.
     if (auto p = pick_arg(tc.args,
             {"path", "file_path", "filepath", "filename"}); !p.empty())
         return p;
-    // Streaming fallback: scrape the raw partial JSON so the filename shows
-    // the instant its bytes arrive, not one throttle tick later.
+    // 流式传输 回退:刮掉原版的JSON,所以文件名显示
+    // 它的字节到达的瞬间,而不是后来的一节油门。
     const std::string_view raw{tc.args_streaming};
     for (std::string_view key : {"path", "file_path", "filepath", "filename"})
         if (auto p = pick_streaming_string(raw, key); !p.empty())
@@ -145,11 +145,11 @@ std::string strip_bash_output_fence(std::string_view s) {
 
     auto fence = sv.find("```");
     if (fence == std::string_view::npos) return std::string{sv};
-    // Allow a leading "Command …\n\n" header before the fence — the failure
-    // and timeout branches put one there.
+    // 允许领导 "Command …\n\n" 头文件 围栏之前
+    // ——失败和 超时 树枝放在那里
     auto body_start = fence + 3;
-    // Skip a language tag (we don't emit one, but be forgiving) and the
-    // newline after the opening fence.
+    // 跳过语言标记(我们不放出一个,
+    // 但原谅)和开栏后的新线.
     while (body_start < sv.size() && sv[body_start] != '\n') ++body_start;
     if (body_start < sv.size() && sv[body_start] == '\n') ++body_start;
 
@@ -200,13 +200,13 @@ std::string_view card_output(const ToolUse& tc) {
     if (!desc.empty() && out.starts_with(desc)
         && (out.size() == desc.size() || out[desc.size()] == '\n'))
         out.remove_prefix(std::min(out.size(), desc.size() + 1));
-    // A runner's own `PASS exit=0` / `FAIL exit=1` status echo: the card's
-    // status icon already says this.
+    // 跑者自己来的 `PASS exit=0` / `FAIL exit=1`
+    // 状态回声:卡片状态图标已经说了这个.
     for (std::string_view tag : {"PASS exit=", "FAIL exit="})
         if (out.starts_with(tag))
             if (auto nl = out.find('\n'); nl != std::string_view::npos)
                 out.remove_prefix(nl + 1);
-    // Blank lines at either edge never carry anything.
+    // 任何边线都别带任何东西
     while (!out.empty() && (out.front() == '\n' || out.front() == '\r')) out.remove_prefix(1);
     while (!out.empty() && (out.back() == '\n' || out.back() == ' ' || out.back() == '\r'))
         out.remove_suffix(1);
@@ -222,8 +222,8 @@ std::string clean_output(std::string_view s) {
         if (nl == std::string_view::npos) nl = s.size();
         std::string_view ln = s.substr(pos, nl - pos);
         pos = nl + 1;
-        // Notes the tool adds for the model about what it cut or how to
-        // page. The card shows its own `⋯ N more`, so they're noise here.
+        // 注意工具为模型添加了它剪切的或如何翻页的功能,
+        // 卡片显示的是自己的`⋯ N more`,所以它们在这里是噪声.
         auto t = ln;
         while (!t.empty() && t.front() == ' ') t.remove_prefix(1);
         const bool note = t.starts_with("[output capped") || t.starts_with("[showing lines")
@@ -231,7 +231,7 @@ std::string clean_output(std::string_view s) {
             || (t.starts_with("[... ") && t.find(" elided") != std::string_view::npos)
             || t.starts_with("[cached —") || t.starts_with("[cached -");
         if (note) { if (nl == s.size()) break; continue; }
-        // ANSI escapes and carriage-return redraws from progress bars.
+        // ANSI 越狱和押解 -return 重画进度栏。
         if (auto cr = ln.rfind('\r'); cr != std::string_view::npos && cr + 1 < ln.size())
             ln = ln.substr(cr + 1);
         for (std::size_t i = 0; i < ln.size(); ++i) {
@@ -247,7 +247,7 @@ std::string clean_output(std::string_view s) {
         if (nl == s.size()) break;
         out += '\n';
     }
-    // Collapse runs of blank lines to one, and drop blank edges.
+    // 将空白行折叠为一,并空出边缘.
     std::string tidy;
     tidy.reserve(out.size());
     int blank = 0;

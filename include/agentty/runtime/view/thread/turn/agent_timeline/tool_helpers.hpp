@@ -1,9 +1,9 @@
 #pragma once
-// Per-tool view-side helpers. NOT an adapter for any single widget —
-// these are pure mappings used by the AgentTimeline adapter (display
-// name, category color/label, event status, one-line detail).
+// Per-tool view-side 帮助程序。 不 适用于任何单个小部件的适
+// 配器 - 这些是 AgentTimeline 适配器使用的纯映射（显示名称、
+// 类别 color/label、事件 状态、one-line 详细信息）。
 //
-// Pure data — no Element work, no Config construction.
+// 纯数据——没有Element工作，没有Config构造。
 
 #include <string>
 #include <string_view>

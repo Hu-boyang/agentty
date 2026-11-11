@@ -1,4 +1,4 @@
-// util/toml_lite.cpp — see toml_lite.hpp.
+// util/toml_lite.cpp - 看见了 toml_lite.hpp.
 
 #include "agentty/util/toml_lite.hpp"
 
@@ -35,7 +35,7 @@ struct Parser {
         if (peek() == '#')
             while (!eof() && peek() != '\n') ++i;
     }
-    // Whitespace, newlines and comments: used inside arrays.
+    // 白空,新线和注释: 内置数组中使用.
     void skip_all() {
         for (;;) {
             skip_ws();
@@ -45,7 +45,7 @@ struct Parser {
             return;
         }
     }
-    // After a key/value or header: only a comment and the line end may follow.
+    // 之后的a key/value 或 或 时 间 头文件 :只有注释和行尾可能随之而来.
     bool end_of_line() {
         skip_ws();
         skip_comment();
@@ -73,7 +73,7 @@ struct Parser {
     }
 
     bool escape(std::string& out) {
-        // at the char after '\'
+        // 之后的Char 时 '\'
         const char c = peek();
         ++i;
         switch (c) {
@@ -111,21 +111,21 @@ struct Parser {
         const bool multi = peek(1) == q && peek(2) == q;
         if (multi) {
             i += 3;
-            // A newline right after the opening quotes is dropped.
+            // 打开引号后, 立即出现新线。
             if (peek() == '\r' && peek(1) == '\n') { i += 2; ++line; }
             else if (peek() == '\n') { ++i; ++line; }
             for (;;) {
                 if (eof()) return fail("unterminated string");
                 if (peek() == q && peek(1) == q && peek(2) == q) {
                     i += 3;
-                    // Up to two extra quotes may close the string.
+                    // 最多有两个额外的引号可能关闭字符串.
                     for (int k = 0; k < 2 && peek() == q; ++k) { out += q; ++i; }
                     return true;
                 }
                 const char c = peek();
                 if (q == '"' && c == '\\') {
                     ++i;
-                    // Line-ending backslash: trim the newline and following space.
+                    // -ending线反斜:修剪新线及以下空间.
                     std::size_t j = i;
                     while (j < s.size() && (s[j] == ' ' || s[j] == '\t')) ++j;
                     if (j < s.size() && (s[j] == '\n' || s[j] == '\r')) {
@@ -190,7 +190,7 @@ struct Parser {
         }
     }
 
-    // Bare scalar token: numbers, booleans, dates.
+    // 赤色的缩写符号:数字,布尔,日期.
     bool scalar(json& out) {
         const std::size_t start = i;
         while (!eof()) {
@@ -198,7 +198,7 @@ struct Parser {
             if (c == ',' || c == ']' || c == '}' || c == '#' || c == '\n' || c == '\r'
                 || c == '\t')
                 break;
-            // A space can sit inside a date-time ("1979-05-27 07:32:00").
+            // 约会里面可以坐一个空间 -time ("1979-05-27 07:32:00").
             if (c == ' ') {
                 const bool date_gap = i > start && s[i - 1] >= '0' && s[i - 1] <= '9'
                                    && peek(1) >= '0' && peek(1) <= '9'
@@ -292,8 +292,8 @@ struct Parser {
         return scalar(out);
     }
 
-    // Walk `parts` from `at`, creating tables. An array of tables resolves
-    // to its last element.
+    // 走开 `parts` 发件人 `at` ,创建表格。
+    // 一系列表格解决了最后一个元素。
     json* walk(json* at, const std::vector<std::string>& parts, std::size_t n) {
         for (std::size_t k = 0; k < n; ++k) {
             json& next = (*at)[parts[k]];
@@ -364,11 +364,11 @@ struct Parser {
     }
 };
 
-}  // namespace
+}  // 命名空间结束。
 
 bool parse(std::string_view text, json& out, std::string& error) {
     Parser p{text};
-    // A UTF-8 BOM is not content.
+    // A UTF-8 BOM 并不满足。
     if (text.substr(0, 3) == "\xEF\xBB\xBF") p.i = 3;
     if (p.document(out)) return true;
     error = p.err.empty() ? std::string{"parse error"} : p.err;

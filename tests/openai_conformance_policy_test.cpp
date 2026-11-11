@@ -1,16 +1,16 @@
-// tests/openai_conformance_policy_test.cpp — what we send, and to whom.
+// tests/openai_conformance_policy_test.cpp -我们寄给谁的
 //
-// "Make it 100% conform to the OpenAI spec" is the obvious goal and it is the
-// wrong one. OpenAI DEPRECATED `max_tokens` on Chat Completions in favour of
-// `max_completion_tokens`; vLLM, llama.cpp, Together and most of the compat
-// family accept ONLY `max_tokens`. Conforming to the document breaks the
-// majority of the ecosystem named after it.
+// "Make it 100% conform to the OpenAI spec" 目标很明显,而目标是错误的。
+// OpenAI DEPRECATED `max_tokens` 聊天完成时的表示 `max_completion_tokens` ;
+// vLLM, ), 维基月球在线解说- 维基百科中的相关条目: 维基语录链接:名人名言 - 文学作品 - 谚语 - 谚文 -
+// 谚語 - 谚言 - 谚名 - 谚中文 - 谚音 - 谚 llama.cpp ,一起和大多数的共和家族接受 仅
+// `max_tokens` 与文件保持一致打破了文件名称的生态系统的大部分。
 //
-// So the target is not "match the spec", it is "be correct for the endpoint
-// we are actually talking to" — a per-endpoint decision. conformance.hpp
-// records those decisions with their evidence; this pins the properties that
-// make the table trustworthy, and asserts the two places where agentty
-// deliberately diverges from OpenAI's document.
+// 因此,目标不是"match the spec",
+// 而是"be correct for the endpoint we are actually talking to"
+// ——即-endpoint决定。 conformance.hpp将这些决定用证据记录下来;
+// 这为表的可信度定下了标准,并声称,agentty故意
+// 与OpenAI文件有出入的两个地方。
 
 #include <doctest/doctest.h>
 
@@ -21,13 +21,13 @@
 namespace cf = agentty::provider::openai::conformance;
 
 TEST_CASE("conformance: every field rule carries its evidence") {
-    // A tier assignment without a reason is a guess that will be cargo-culted
-    // by the next person. The rationale IS the artifact — it is where "we
-    // tried that and it 422'd on Mistral" survives.
+    // 无端的分级任务就是货物 -culted 由下一个人来解释理由。
+    // IS 文物,就是这里 "we tried that and it 422'd on Mistral"
+    // 活下来了
     for (const auto& r : cf::kRequestFields) {
         CHECK(!r.field.empty());
         CHECK(!r.rationale.empty());
-        // Long enough to actually say something, not "needed".
+        // 足够长的时间说一些东西,不是"needed".
         CHECK(r.rationale.size() > 20);
     }
     for (const auto& r : cf::kOmittedFields) {
@@ -38,18 +38,18 @@ TEST_CASE("conformance: every field rule carries its evidence") {
 }
 
 TEST_CASE("conformance: a field is sent or omitted, never both") {
-    // The two tables are a partition. A field in both means the policy
-    // contradicts itself and the body builder is the tiebreaker — which is
-    // exactly the implicit-decision problem this header exists to remove.
+    // 两种表格是分割的,两个字段都意味着政策本身和
+    // 正文 建筑师就是断线者——这恰恰是隐含的
+    // -decision 麻烦你 头文件 已存在以删除。
     for (const auto& sent : cf::kRequestFields)
         for (const auto& omitted : cf::kOmittedFields)
             CHECK(sent.field != omitted.field);
 }
 
 TEST_CASE("conformance: max_tokens is the DELIBERATE divergence") {
-    // THE LOAD-BEARING DECISION. If someone "fixes" this to conform to
-    // OpenAI's current document, every vLLM/llama.cpp/Together endpoint
-    // starts 400ing. This test is the tripwire.
+    // 该 LOAD-BEARING DECISION。如果有人 "fixes"
+    // 符合 OpenAI '当前文档, 每张 vLLM/llama.cpp/Together
+    // 终点开始400,这个测试是绊线
     bool sends_max_tokens = false, omits_max_completion_tokens = false;
 
     for (const auto& r : cf::kRequestFields)
@@ -65,28 +65,28 @@ TEST_CASE("conformance: max_tokens is the DELIBERATE divergence") {
 }
 
 TEST_CASE("conformance: endpoint-specific fields are not Universal") {
-    // Sending a field an endpoint rejects is a HARD 400/422 that kills the
-    // turn; omitting one costs an optimisation. The asymmetry sets the
-    // default, so anything known to be rejected somewhere must NOT be
-    // Universal.
+    // 发送一个字段的终点拒绝是 HARD 400/422。
+    // 省略一个会让一个变数变优化。不对称设置默认值,
+    // 所以已知被拒绝的任何东西必须到某个地方去。
+    // 不 普世化为.
     for (const auto& r : cf::kRequestFields) {
         if (r.field == "prompt_cache_key") {
-            // OpenAI-only routing hint, gated per registry row. NOT Hosted:
-            // strict hosted compat layers (Groq, Gemini) 400 it (#93).
+            // OpenAI-only 路由提示, 门每 注册表 划线 不 托管 :
+            // 严格主机的相配层(Groq, Gemini) 400 it (# 93).
             CHECK(r.tier == cf::Tier::Probed);
         }
         if (r.field == "reasoning_effort") {
-            // Mistral MAGISTRAL reasons natively and returns 422 for this.
-            // Evidence gates it, not a capability table.
+            // Mistral MAGISTRAL 以本土为理由,为此返回422.
+            // 证据会打开它,不是能力表。
             CHECK(r.tier == cf::Tier::Probed);
         }
     }
 }
 
 TEST_CASE("conformance: the legacy tool shape stays dead") {
-    // `functions` was superseded by `tools` years ago. Sending it would opt
-    // into the legacy path on endpoints that still honour it, splitting tool
-    // handling in two.
+    // `functions` 由“E”取代。 `tools`
+    // 发送它会选择在仍然尊重它的终点上留下的路径,
+    // 将工具处理分成两个。
     bool omits_functions = false;
     for (const auto& r : cf::kOmittedFields)
         if (r.field == "functions") omits_functions = true;

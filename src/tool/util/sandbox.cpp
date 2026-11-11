@@ -1,13 +1,13 @@
 #include "agentty/tool/util/sandbox.hpp"
 
 #include "agentty/tool/util/fs_helpers.hpp"
-#include "agentty/util/logx.hpp"   // AGT_LOG — the sealed-policy refusal
+#include "agentty/util/logx.hpp"   // AGT_LOG - 封存的门 -policy 拒绝
 
 #include <atomic>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
-#include <memory>   // shared_ptr — the config snapshot
+#include <memory>   // shared_ptr - 配置图 快照
 #include <optional>
 #include <string_view>
 
@@ -16,41 +16,41 @@
 #include <string>
 #include <vector>
 
-// The policy type is a PRODUCT concept, not a claybin one: a build without
-// claybin still has a sandbox posture, it just cannot enforce most of it. So
-// this include is unconditional and the enforcement is what is guarded --
-// otherwise "what is my policy" would be a question only some builds could
-// answer, and the settings pane has to work in both.
+// 政策类型是 PRODUCT 概念,而不是 claybin
+// 其一: 建楼没有 claybin 仍然有一个 沙箱 姿态,
+// 它只是无法执行大部分。所以这包括无条件的,执行是被保护的,
+// 否则 "what is my policy" 将是一个问题 只有
+// 一些建筑可以回答, 和设置 面板 两者都要合作
 #include "agentty/domain/sandbox_config.hpp"
 
-// claybin is a required submodule, so the only question left is PLATFORM: it
-// compiles a plan anywhere, and can APPLY one on Linux (namespaces, landlock,
-// seccomp, cgroup2) and on macOS (seatbelt, rlimits). Windows compiles the
-// policy and refuses to apply it, so the include stays out there.
+// claybin 需要一个 子模块 所以,唯一剩下的问题就是 PLATFORM : 已经
+// 编译 计划,任何地方, 并且可以 APPLY 一个在 Linux (名称空间, 地锁,
+// seccomp, cgroup2 ) 和 继续 macOS (系安全带,
+// rlimits). Windows 编译 保险单上写着拒绝执行 所以内应留在外面
 #if defined(__linux__) || defined(__APPLE__) || defined(_WIN32)
 #include "agentty/tool/util/sandbox_claybin.hpp"
-#include "agentty/tool/util/handoff_gate.hpp"   // snapshot_trusted: ONE path table
+#include "agentty/tool/util/handoff_gate.hpp"   // snapshot_trusted: 一个 路径表
 #endif
 
 namespace agentty::tools::util::sandbox {
 
 namespace fs = std::filesystem;
 
-// Escape a path for safe interpolation into the macOS sandbox-exec (SBPL)
-// profile string. The workspace root is user/attacker-influenceable (via
-// --workspace / cwd) and macOS/APFS permits ", \, and control chars in
-// directory names — interpolating such a path raw would terminate the
-// (subpath "…") string early and let the remainder be reparsed as SBPL
-// (profile rejection at best, an injected (allow …) clause at worst). Escaping
-// \ and " makes the literal inert; a control char can't be represented in an
-// SBPL string at all, so such a path yields empty → the caller omits the
-// clause and fails closed. Exported (not anon-namespace) so it's unit-tested.
+// 逃出一条安全插入的路径 macOS 沙箱-exec (SBPL ) 配置字符串。 工作区 根为
+// user/attacker-influenceable (通过) --workspace / cwd)
+// 和 双双双双 macOS/APFS 许可
+// 目录名中的双引号、反斜杠和控制字符必须转义；直接插入路径会提前结束 subpath 字符串。
+// …
+// 余下内容会被重新解析为 SBPL，轻则配置被拒绝，重则注入 allow 规则，因此必须转义反斜杠和引号。
+// 使字面惰性; 控制字符不能在 SBPL 字符串, 这样路径会
+// 生成空 ^ 调用者忽略了条款, 并且失败了。 导出( 不是
+// 动因) -namespace )所以这是单位 -tested.
 std::string sbpl_escape(std::string_view path) {
     std::string out;
     out.reserve(path.size() + 8);
     for (char c : path) {
         if (c == '\0' || c == '\n' || c == '\r' || c == '\t')
-            return {};                       // uncleanable → fail closed
+            return {};                       // 不可清洁 + 关闭失败
         if (c == '\\' || c == '"') out.push_back('\\');
         out.push_back(c);
     }
@@ -59,65 +59,65 @@ std::string sbpl_escape(std::string_view path) {
 
 namespace {
 
-// Single-process state. Set by init() at startup, read by every bash
-// call afterwards. Atomics aren't strictly needed (set once, never
-// flipped after main has handed off to maya), but they cost nothing
-// and document the read-many lifecycle.
+// 单身 -process 状态。设置于 init() 开始时,
+// 每一次的点击读取 调用 原子在之后是不需要的(一次设定,
+// 主机交接后再也没有翻转过) maya ),但费用不高,
+// 并记录了读数。 -many 生命周期。
 std::atomic<Mode>    g_mode{Mode::Auto};
 std::atomic<Backend> g_backend{Backend::None};
 
-// Which Linux backend to prefer when both could work.
+// 哪个 Linux 后端更喜欢两边都行
 //
-// claybin is the default. The fallback below means this is a PREFERENCE and
-// not a requirement -- a host that cannot build claybin's walls still gets
-// bwrap, never None.
+// claybin 默认值。 回退 下方表示这是 PREFERENCE
+// 而不是要求 -- -- 无法构建的宿主 claybin 墙壁仍然被打碎,
+// 永远没有。
 //
-// It used to be bwrap, on the reasoning that a decade of upstream hardening
-// beat days and that an upgrade should not silently move anyone's boundary.
-// The measurement retired that argument: agentty's bwrap path emits no
-// --seccomp, no cgroup limits and no landlock, so against claybin it is
-// strictly weaker on syscall.filter (none vs strong), all three resource caps
-// (none vs strong), filesystem.exec (binds vs landlock) and brokering (none vs
+// 曾经是空洞的, 理由是十年的...
+// 上游 硬化的节拍日,升级不应该默默地移动任何人的边界。
+// 衡量方法证实了这一论点: agentty 正在将路径分隔为
+// --seccomp ,没有群限和无落地锁,所以反对 claybin
+// 绝对是弱到不行 syscall.filter (无对强),所有三个资源上限(
+// 无对强,), filesystem.exec (宾馆对地锁)和经纪(无宾馆对)
 
-// The user's saved sandbox policy. Written ONCE, at startup, then frozen.
+// 用户的 已保存 沙箱 策略。已写入 一次 启动时,然后冻结。
 //
-// Sealed rather than republishable, and that seal is the pane's security
-// model -- see set_config() for the full reasoning. The short version: a
-// boundary that can move mid-session only ever moves usefully in the
-// weakening direction, the weakening is invisible and cannot be undone, and
-// it makes the sandbox unauditable because two commands in one session get
-// two different walls.
+// 密封而不是可重塑, 而那个封印是 面板
+// 安全模式 - 看 set_config
+// ()用于充分推理。 -session
+// 弱者是看不见的,无法被解除,它使弱者 沙箱
+// 无法听懂,因为一个会话中有两个命令得到两
+// 个不同的壁.
 //
-// This is the ONLY setting in agentty that behaves this way. Everything else
-// in the settings store is live by design; a theme is judged by looking at
-// it. The sandbox is judged by reading what it promises, so it trades
-// immediacy for a property nothing else here needs.
+// 这是 仅 设置在 agentty 设置商店中的其他所有
+// 设备都是通过设计来运行的; 主题通过查看来判断。
+// Name 沙箱 判断它时,它读它的承诺,
+// 所以它交易 即时的财产,这里没有其他需要。
 //
-// Still a published shared_ptr-to-const rather than a plain global: written
-// once but READ from tool worker threads and the UI thread at the same time,
-// and this is how a reader gets a coherent view without a lock.
+// 还是个出版商 shared_ptr-to-const 而不是
+// 一个简单的全球:写过一次,但是 READ 从工具 工作线程
+// 线程 编辑 UI 线程 读者在阅读时, 锁.
 //
-// Defaults reproduce today's behaviour, so a user who never opens the pane
-// gets exactly the sandbox they already had.
+// 默认复制了今天的行为,所以一个从未打开过 面板
+// 得到准确的 沙箱 他们已经做了。
 maya::published<const sandbox_cfg::Config> g_cfg;
 
-// Has the policy been sealed? Set by the first set_config() call.
+// 保险单被封存了吗? set_config() 调用.
 //
-// A plain atomic bool rather than "g_cfg != nullptr", because the two are
-// not the same question: sealing must latch even if someone seals with a
-// default-constructed config, and conflating them would let a second call
-// through whenever the first happened to publish something falsy.
+// 平庸的原子波澜 而不是 "g_cfg != nullptr" ,
+// 因为两者不是同一个问题: 封印即使有人有默认封印,也必须锁紧.
+// -constructed 装配,然后把它们装配起来,
+// 让第二 调用 每当第一次发表什么恶作剧的时候 都会被揭穿
 std::atomic<bool> g_cfg_sealed{false};
 
-// Only the macOS sandbox-exec backend needs the "can we run this binary?"
-// probe: Linux asks bwrap for a real namespace instead (see below), and the
-// Windows/unsupported branch just hard-codes Backend::None.
+// 只有 macOS 沙箱-exec 后端需要。 "can we run this binary?"
+// 探测器 : Linux 请求brap 以获取一个真实的命名空间(见下文),
+// Windows/unsupported 枝头硬的 -codes Backend::None.
 #if defined(__APPLE__)
 
-// One-shot probe: try to spawn `<exe> --version` and observe the
-// outcome. Replaces a fragile PATH walk with the actual semantic
-// check we care about ("can we run this binary?"). The result is
-// thrown away — exit code 0 just means the binary exists and starts.
+// 一个 -shot 探测器:尝试产卵 `<exe> --version`
+// 并观察结果。 PATH 随行 实际语义检查 我们关心(
+// 是否能运行这个二进制程序？
+// 结果被丢弃了——退出代码0只是表示 二进制程序 存在并开始。
 [[nodiscard]] bool can_invoke(const char* exe) {
     SubprocessOptions opts;
     opts.command = SubprocessOptions::Argv{{exe, "--version"}};
@@ -131,208 +131,208 @@ std::atomic<bool> g_cfg_sealed{false};
 
 #if defined(__linux__)
 
-// A GENUINE minimal-sandbox probe. `bwrap --version` (the old check via
-// can_invoke) only proved the BINARY EXISTS — it never creates a namespace, so
-// it passed on hosts where bwrap is installed but unprivileged user namespaces
-// are BLOCKED: Ubuntu 24.04's AppArmor `userns` restriction, RHEL/hardened
-// `kernel.unprivileged_userns_clone=0` or `user.max_user_namespaces=0`, and
-// many container/CI hosts. There every REAL command then died with
-//     bwrap: setting up uid map: Permission denied
-// while agentty happily reported "sandbox: active (bwrap)" — GitHub issue #21.
+// A GENUINE 最小值( E) -sandbox 探测器。 `bwrap --version`
+// (旧支票通过 can_invoke )仅证明: BINARY EXISTS ——它从未创建命名空间,
+// 因此它传递到brap安装但非特权用户命名空间所在的主机上. BLOCKED: Ubuntu 24.04's
+// AppArmor `userns` 限制, RHEL/hardened
+// `kernel.unprivileged_userns_clone=0` 或 或 时 间
+// `user.max_user_namespaces=0` ,并且很多 container/CI 主持人。
+//     每一个 真实 命令随 brap 一起死亡: 设置 uid 映射 : 权限
+// 拒绝时 agentty 很高兴接到报告 "sandbox: active (bwrap)" — GitHub 21号问题。
 //
-// So we run the SAME namespace unshares a real command uses against a trivial
-// /bin/true and require it to actually start AND exit 0. This makes the probe
-// a faithful predictor of run_wrapped(): if it can't build the namespace here,
-// it can't build it for the shell either, and we report no backend so Auto
-// degrades to unsandboxed and On surfaces a clear, actionable error instead of
-// letting every command fail.
+// 所以我们运行 相同 命名空间 解析一个针对小于 /
+// bin/true 并需要它实际开始 和 出口 0。
+// 这使得探测器成为了对 run_wrapped (:如果它不能在
+// 这里建立命名空间,它也不能为 shell 建立它,我们报告没有后端,
+// 所以Auto 降解为无色框,在表面会有一个清晰,可操作的错误,
+// 而不是让每个命令失败.
 
 [[nodiscard]] Backend probe() {
-    // One Linux engine. available() is a faithful predictor of spawn() --
-    // probe_host() forks and attempts the uid_map write rather than reading
-    // sysctls -- so "usable" means it will work, not that the kernel
-    // advertises the feature.
+    // 一个 Linux 引擎,请输入 available() 是一个忠实的预测者,
+    // spawn() -- probe_host (三) 叉子和图谋
+    // uid_map 写而不是读音节-所以 "usable" 表示会成功,
+    // 而不是内核广告发布该功能.
     //
-    // Its floor is landlock OR seccomp, neither of which needs a user
-    // namespace. That is what makes one engine enough: the Ubuntu 24.04 case
-    // that motivated a second backend (an AppArmor profile denying the
-    // uid_map write, which killed bwrap outright) still gets the filesystem
-    // boundary and the syscall filter here. The wall report says per
-    // capability what a given host did not reach, so a reduced posture is
-    // visible rather than silent.
+    // 地上是地锁 OR seccomp ,但其中不需要用户命名空间。
+    // 这就是一个引擎足够了的原因: Ubuntu 24.04 起
+    // 促使第二个后端(a) AppArmor 拒绝配置文件
+    // uid_map 写入, 直接杀死 bwrap ) 仍然在此
+    // 获得文件系统边界和syscall 过滤器。
+    // 墙壁报告显示每个能力都有一个特定主机没有达到的, 因此一个降低的
+    // 姿态是可见的而不是沉默的。
 #if defined(__linux__)
     if (claybin_backend::available()) return Backend::Claybin;
 #endif
     return Backend::None;
 }
 
-// Build the bwrap argv prefix. Workspace gets read-write bound to
-// itself; system dirs are bound read-only so the shell can find
-// /bin/sh, libc, /etc/resolv.conf, etc.; /tmp is a fresh tmpfs (no
-// leakage into / from the host /tmp); /proc and /dev are minimal;
-// network namespace is shared (so `git push` / `npm install` / `curl`
-// keep working — sandboxing those would break legitimate agent flows
-// users expect to work).
+// 构建 bwrap argv 前缀。 工作区 读取 -write 约束本身;
+// 系统 dirs 绑定为 -only 这样贝壳就可以找到 / bin/sh ,
+// 自由语, / etc/resolv.conf 等; /tmp是新鲜的
+// tmpfs(没有从主机/tmp中渗入/); /proc和/dev是最小的;
+// 网络命名空间是共享的(所以) `git push` /
+// `npm install` / `curl` 继续工作... 沙箱隔离 合法
+// 代理流动用户希望能够工作。
 //
-// The intent is "bash can do anything WITHIN your workspace, plus
-// network, plus read system libs — but it cannot mutate /etc,
-// /home/<other-projects>, ~/.ssh, /opt, etc." That's the threat model
-// we're actually defending against: a compromised or sloppy model
-// running `rm -rf ~` or `cat ~/.ssh/id_rsa` after one user approval.
+// 意图是
+// bash 可在工作区内操作、联网和读取系统库，但不能修改 /etc、其他项目主目录、~/.ssh 或 /opt 等位置。
+// 这就是我们实际要抵御的威胁模式: 一个被破坏或草率的
+// 模型运行 `rm -rf ~` 或 或 时 间
+// `cat ~/.ssh/id_rsa` 在一个用户批准后。
 //
-// `--die-with-parent` ensures the sandbox dies if agentty dies — no
-// detached zombies. `--unshare-pid` gives the child a clean PID
-// namespace so kills work cleanly. `--new-session` so the child can't
-// steal the controlling tty.
+// `--die-with-parent` 确保 沙箱 死亡,如果 agentty 死亡
+// ——没有脱落的僵尸. `--unshare-pid` 给孩子一个干净的 PID
+// 命名空间，使终止操作可靠生效。--new-session 防止子进程
+// 偷控制Tty。
 // ---------------------------------------------------------------------------
-// THE READ SET.
+// 该 READ SET.
 //
-// Named lists rather than an inline wall of --ro-bind-try, because this is the
-// security boundary and it should be readable as one. Each entry is here for a
-// stated reason; anything not listed is NOT readable from inside the sandbox.
+// 命名列表而不是内嵌墙壁 --ro-bind-try ,
+// 因为这是安全边界,因此应该作为一个可以读取。每个条目都是为了一个
+// 明确的理由而在这里的;没有列出的任何东西都不是 可从内部读取 沙箱.
 //
-// Kept as data rather than open-coded because a second backend once restated
-// this set by hand and got it wrong -- granting read on "/", which handed
-// ~/.ssh, ~/.aws and ~/.config to any approved `bash` call that also had the
-// network. Read + exfiltrate, exactly what the sandbox exists to close, and
-// invisible because it still reported "sandbox: active". One list, so a future
-// backend extends it instead of paraphrasing it.
+// 保留为数据而不是打开 -coded 因为第二个后端曾经用手重现了这个集,
+// 却弄错了 -- -- 授权读到 "/" , 已经交接 ~/.ssh,
+// ~/.aws 财务报告和已审计财务报表 ~/.config 任何经核准的
+// `bash` 调用 读 + 过滤器, 准确的说 沙箱 存在以关闭,
+// 并且隐形, 因为它仍然被报告 "sandbox: active"。一个列表,
+// 所以未来的后端会扩展它而不是用参数来解释它。
 //
-// Visible to BOTH platform arms, because the claybin backend consumes them on
-// Linux and on macOS alike. That is the point of the list: one boundary
-// definition, extended rather than paraphrased, however many backends read it.
-#endif  // __linux__ (reopened below)
+// 可见 两者 平台武器,因为 claybin 后端会消耗
+// 它们 Linux 继续 macOS 这也是清单的
+// 要点:一个边界定义,扩大而不是解释,无论许多后端读到它。
+#endif  // __linux__(在下文重新开放)
 
 #if defined(__linux__) || defined(__APPLE__)
 
-// System roots: the toolchain and shared libraries. Read-only, and no /etc —
-// see kEtcReadable.
+// 系统根:工具链和共享 库 读取 -only ,没有/etc ——参见
+// kEtcReadable.
 constexpr const char* kSystemReadRoots[] = {
     "/usr", "/bin", "/lib", "/lib64", "/sbin", "/opt",
 #if defined(__APPLE__)
-    // darwin's toolchain is NOT under /usr: /usr/bin/git, cc, python3, make
-    // are xcrun shims that dlopen libxcrun from the active developer dir
-    // and re-exec the real tool there. Without these every one of them died
-    // with "xcrun: error: unable to load libxcrun" -- under the default
-    // posture, since the sandbox was first turned on for macOS. The
-    // developer dir is resolved at posture time (xcode-select can point it
-    // anywhere); these are the two fixed places it lives.
+    // Darwin的工具链是NOT under /usr:/usr/bin/git,cc,
+    // python3,make是 xcrun shims,从活动开发者 dir 中
+    // dlopen libxcrun, Re-exec 才是那里真正的工具。没有这些工具,
+    // 每个工具就与 "xcrun: error: unable to load libxcrun"
+    // 一起死去 -- -- 默认姿态,因为 沙箱 首次打开是 macOS。
+    // 开发者 dire 是在姿态时间解决的( xcode-select
+    // 可以在任何地方指向它); 这是它生活的两个固定地点。
     "/System", "/Library/Developer/CommandLineTools",
-    // the whole bundle, not just Contents/Developer: xcrun loads
-    // SharedFrameworks and SystemFrameworks next to it.
+    // 整个捆绑,不只是 Contents/Developer : xcrun (中文(简体) ).
+    // 加载 SharedFrameworks 财务报告和已审计财务报表 SystemFrameworks 旁边
     "/Applications/Xcode.app/Contents",
     "/private/var/select",
-    // localtime(3): every `date`, git log and python datetime.
+    // 当地时间(3):每 `date` , 木和蟒蛇日期时间。
     "/private/var/db/timezone",
 #endif
 };
 
-// /etc: the specific files a shell + toolchain + name resolution need, NOT the
-// tree. Binding all of /etc exposed host secrets (/etc/shadow where readable,
-// krb5 keytabs, corporate config) to a command that also has the network.
+// /etc: 特定文件 a shell + 工具链 + 名称分辨率需要,
+// 不 源码树. 绑定 /etC全部向拥有网络的指令公开主机机密(/etc/shadow可读,
+// krb5 keytabs, company config).
 constexpr const char* kEtcReadable[] = {
     "/etc/resolv.conf",   // DNS
     "/etc/hosts",
-    "/etc/nsswitch.conf", // NSS resolution order
+    "/etc/nsswitch.conf", // NSS 解析顺序
     "/etc/host.conf",
-    "/etc/passwd",        // uid->name (git, shells)
+    "/etc/passwd",        // uid - > 名称( git, shells)
     "/etc/group",
-    "/etc/localtime",     // timestamps
-    "/etc/ssl",           // TLS trust store (curl/git over https)
-    "/etc/pki",           // RHEL/Fedora trust store
+    "/etc/localtime",     // 时间戳
+    "/etc/ssl",           // TLS 信托存储( E) curl/git 超过 https 时
+    "/etc/pki",           // RHEL/Fedora信托商店
     "/etc/ca-certificates",
     "/etc/ca-certificates.conf",
-    "/etc/gitconfig",     // system git config
+    "/etc/gitconfig",     // 系统 git 配置
     "/etc/profile",
-    "/etc/alternatives",  // Debian toolchain symlinks
+    "/etc/alternatives",  // Debian 工具链链接
 };
 
-// User-local toolchains (GitHub issue #21). Many toolchains install OUTSIDE
-// /usr — webinstall.dev drops go/gofmt/node under ~/.local/opt and links them
-// into ~/.local/bin; rustup/cargo, go, nvm, pyenv, rbenv, asdf, bun, deno and
-// sdkman all live under $HOME. Without these an "approved" bash call could not
-// find the very tools the user asked the agent to run.
+// 用户 -local 工具链( 工具链) GitHub 21 期。许多工具链安装 OUTSIDE /
+// usr - 电话 webinstall.dev 滴数 go/gofmt/node 下级 ~/.local/opt
+// 财务报告和已审计财务报表 链接 进入 ~/.local/bin; rustup/cargo 去吧,
+// Nvm,pyenv,rbenv, 灰尘,包子,deno和sdkman都住在下面 $HOME。
+// 没有这些 "approved" 狂欢吧 调用 找不到用户要求代理运行的工具。
 //
-// Deliberately EXCLUDES broad dirs that mix in secrets/app-data: ~/.local/share
-// (app data), ~/.npm (may cache an _auth token), ~/.config (creds),
-// ~/.local/state (logs/history) — and of course ~/.ssh and ~/.aws.
+// 故意的 EXCLUDES 混合到 secrets/app-data: ~/.local/share (应用数据),
+// ~/.npm (可以,可以,但可以,可以) 缓存 自动符号, ~/.config (红桃),
+// ~/.local/state (logs/history ——当然 ~/.ssh 财务报告和已审计财务报表 ~/.aws.
 constexpr const char* kHomeToolSubdirs[] = {
-    "/.local/bin", "/.local/opt", "/.local/lib", // webinstall.dev etc.
-    // webinstall puts some packages under ~/.local/xbin rather than bin --
-    // same tool, different directory, and a tool the agent cannot find is
-    // indistinguishable from a broken sandbox from the user's side.
+    "/.local/bin", "/.local/opt", "/.local/lib", // webinstall.dev 等 语 文
+    // 韦宾斯图尔把一些包放在下面 ~/.local/xbin
+    // 而不是 bin - 同一工具,不同的目录, 和代理找不到
+    // 的工具与损坏的工具是无法区分的 沙箱 从用户的侧面。
     "/.local/xbin",
-    "/.cargo/bin", "/.rustup",   // Rust (bin only from .cargo)
-    "/go/bin", "/.go",           // Go (GOPATH bin + webinstall)
-    "/.nvm",                     // Node version manager
-    "/.pyenv", "/.rbenv", "/.asdf", // version managers
-    "/.bun/bin", "/.deno/bin",   // Bun / Deno
+    "/.cargo/bin", "/.rustup",   // rust( 仅从. cargo 中选择)
+    "/go/bin", "/.go",           // 前进( G) GOPATH 宾式 + Webinstall)
+    "/.nvm",                     // 节点版本管理器
+    "/.pyenv", "/.rbenv", "/.asdf", // 版本管理器
+    "/.bun/bin", "/.deno/bin",   // 包/ 德诺
     "/.dotnet", "/.sdkman/candidates", // .NET / JVM
-    // git's user config: identity, aliases, default branch. git treats an
-    // UNREADABLE ~/.gitconfig as fatal ("unable to access"), not as absent,
-    // so without it every git command inside the sandbox died -- status and
-    // log included. Read-only, and the credential store (.git-credentials,
-    // gh's hosts.yml) stays masked: a helper NAMED here still has nothing to
-    // read.
+    // git 的用户配置: 身份,别名,默认分支. git 处理 an UNREADABLE
+    // ~/.gitconfig 致命( 4) "unable to access" ),
+    // 而不是缺席,所以没有它 每一个git命令在内部 沙箱 已死亡 -- -- 状态和日志包含。
+    // 已读 -only ,并显示 凭据 存储(.git) -credentials ,
+    // h's(英语: hosts.yml 保持面具:一名助手 NAMED 这儿还有没有东西
+    // 要读。
     "/.gitconfig", "/.config/git",
 };
 #endif  // __linux__ || __APPLE__
 
-// Windows' names for the same three lists, resolved at posture build time:
-// the toolchain and shell live under the system root and Program Files, and
-// the user profile is where the credential hygiene still bites (a Windows
-// .ssh is at %USERPROFILE%\\.ssh, .aws at %USERPROFILE%\\.aws, just like
-// posix). claybin's windows compiler takes NATIVE paths; these are native.
+// Windows 三个名单的名字,在建立时按态势解决:
+// 工具链和 shell 生活在系统根和程序文件下,用户配置文件是其中的 凭据 卫生仍然
+// 受到侵扰(a) Windows .sh 位于% USERPROFILE ⁇   ⁇  ,
+// ⁇  以% %为单位 USERPROFILE ⁇ ,就像POSix一样。
+// claybin '窗口 ' 编译器 带 NATIVE 路径; 这些是本地的。
 #if defined(_WIN32)
-// {env var, fallback}. Windows isn't always on C:, so read the real roots.
+// ⁇ ,  ⁇ , 回退}. Windows 并不是总在C上: 所以读一下真正的根
 constexpr std::pair<const char*, const char*> kSystemReadRootsWin[] = {
-    {"SystemRoot", "C:\\Windows"},                  // loader, DLLs, System32
-    {"ProgramFiles", "C:\\Program Files"},           // installed tools
+    {"SystemRoot", "C:\\Windows"},                  // 系统32装载机,DLLs
+    {"ProgramFiles", "C:\\Program Files"},           // 已安装的工具
     {"ProgramFiles(x86)", "C:\\Program Files (x86)"},
 };
-// "readable machine config", the %ProgramData% half of what /etc is on posix.
+// "readable machine config" 百分比 ProgramData 一半的 /etc 上是 posix。
 constexpr std::pair<const char*, const char*> kEtcReadableWin[] = {
-    {"ProgramData", "C:\\ProgramData"},  // package manager metadata, host ssh config
+    {"ProgramData", "C:\\ProgramData"},  // 软件包管理器元数据, 主机 ssh 配置
 };
 [[nodiscard]] std::string win_dir(const std::pair<const char*, const char*>& d) {
     const char* v = std::getenv(d.first);
     return v && *v ? std::string{v} : std::string{d.second};
 }
 constexpr const char* kHomeToolSubdirsWin[] = {
-    "\\.cargo\\bin", "\\.rustup",   // Rust
+    "\\.cargo\\bin", "\\.rustup",   // 锈
     "\\go\\bin",                     // Go
-    "\\.nvm",                        // Node version manager
-    "\\.pyenv", "\\.rbenv",          // version managers
-    "\\.bun\\bin", "\\.deno\\bin",   // Bun / Deno
+    "\\.nvm",                        // 节点版本管理器
+    "\\.pyenv", "\\.rbenv",          // 版本管理器
+    "\\.bun\\bin", "\\.deno\\bin",   // 包/ 德诺
     "\\.dotnet",                     // .NET
 };
-#endif  // _WIN32
+#endif  // _ WIN32 语句
 
-// Back into the per-platform arm the shared read set interrupted.
+// 回到每个 -platform 手持共享的读取集中断。
 #if defined(__linux__)
 
 
-// The read set, handed to claybin as DATA rather than restated in its backend.
+// 读数集,交给 claybin 以 DATA 而不是在它的后端重复。
 //
-// This function is what keeps the two backends honest. Both consume
-// kSystemReadRoots / kEtcReadable / kHomeToolSubdirs, so a change to the
-// boundary applies to both or neither. A previous backend restated the set by
-// hand and ended up granting read on `/` -- handing ~/.ssh and ~/.aws to any
-// approved bash call while still reporting "sandbox: active".
+// 此功能使两个后端保持诚实。 两者都使用 kSystemReadRoots
+// / kEtcReadable / kHomeTooLSubdirs,
+// 所以边界的更改既适用于两个, 也适用于两个。 先前的后端手动重现了设定, 并最后被允许读取。
+// `/` -- 递递 ~/.ssh 财务报告和已审计财务报表 ~/.aws 任何经
+// 批准的狂欢 调用 仍在报告 "sandbox: active".
 //
-// POSIX-wide rather than Linux-only: the macOS claybin backend consumes the
-// very same Posture. That is the payoff for describing the boundary as data
-// instead of as argv -- the read set, the masks and the pane's extra grants
-// cross the platform line unchanged, and only the mechanisms that enforce
-// them differ.
+// POSIX-wide 而不是说 Linux-only : 数据
+// macOS claybin 后端会消耗相同的 Posture。
+// 这就是将边界描述为数据而不是 argv 的回报 — 读取的集合、
+// 口罩和 面板 额外 授权 跨越平台线不变,只有执行这些线的
+// 机制不同。
 //
-// Hence the #endif immediately below, closing the Linux arm that opened far
-// above: this one function has to be visible to BOTH the Linux and the macOS
-// run_wrapped(), and the per-platform arm reopens right after it.
-#endif  // __linux__ (reopened below)
+// 紧接着下面的#endif,关闭了 Linux 臂上打开的: 必须对此函数
+// 可见 两者 编号 Linux 编辑 macOS run_wrapped ()
+// 和(c) 百分比 -platform 手臂在它之后就重新打开了。
+#endif  // __linux__(在下文重新开放)
 
-// Below Strict, a JIT command gets W^X lifted or it cannot start at all.
-// Strict (Hardened, Airgapped) keeps the wall and the build fails instead.
+// 严格下方, a JIT 命令获取 W ^X 解除或根本无法启动。
+// 严格(Hardened, Airgapped)保留墙壁,建筑则失败.
 void relax_wx_for_jit(claybin_backend::Posture& p, std::string_view cmd) {
     if (p.wx_protect && p.syscall_mode != 2 && command_needs_jit(cmd))
         p.wx_protect = false;
@@ -344,9 +344,9 @@ void relax_wx_for_jit(claybin_backend::Posture& p, std::string_view cmd) {
 }
 
 #if defined(__linux__) || defined(__APPLE__) || defined(_WIN32)
-// The directory a trusted file under one of these is protected through, or
-// nullopt. These hold many files (and running binaries), so one read-only
-// bind of the directory replaces a bind per file.
+// 其中之一下可信任的文件的目录通过或无选择保护。
+// 这些文件包含许多文件(并运行) 二进制程序 ),
+// 所以一个读 -only 目录绑定替换每个文件绑定。
 [[nodiscard]] std::optional<std::string> trusted_dir_of(const std::string& path,
                                                         const std::string& workspace) {
     static constexpr std::string_view kDirs[] = {
@@ -368,28 +368,28 @@ void relax_wx_for_jit(claybin_backend::Posture& p, std::string_view cmd) {
         const handoff::TrustedSnapshot* trusted = nullptr) {
     claybin_backend::Posture p;
 
-    // The user's saved policy, or the shipped default when they have never
-    // opened the pane. `configured` is what keeps an upgrade from changing
-    // anyone's boundary.
+    // 用户的 已保存 策略,或未打开 面板.
+    // `configured` 是什么阻止了升级 改变
+    // 任何人的边界。
     //
-    // ONE snapshot, held for the whole function. This runs on a tool worker
-    // thread while the reducer thread may be publishing a new policy, so
-    // re-reading the global per field could mix two policies into one
-    // sandbox -- read paths from the old one, syscall profile from the new.
-    // Holding the snapshot also means a save cannot change the boundary of a
-    // command that is already being built.
+    // 一个 快照 ,用于整个函数。此操作在一个工具上 工作线程
+    // 线程 时 状态更新函数 线程 可能正在发布一项新政策,
+    // 所以 -reading 将两种政策合并为一种
+    // 政策 沙箱 - 读旧的路径,新来的syscall简介。
+    // 持有 快照 也意味着a 保存 无法更改
+    // 正在构建的命令的边界。
     const auto snap = config_snapshot();
     const auto& cfg = *snap;
 
-    // ── the read set, by scope ────────────────────────────────────────
+    // ── 内容,按范围分列 ────────────────────────────────────────
     //
-    // Minimal deliberately omits the home toolchain dirs: for a
-    // self-contained repo, anything under the home directory is suspicious.
-    // HostReadable is the convenient answer other agents take, named
-    // honestly -- it is still confined by the appcontainer token's DACLs and
-    // by the mask list, but your other projects are readable by an approved
-    // command. On Windows the lists are native paths (kSystemReadRootsWin etc.);
-    // the home env var is USERPROFILE there and HOME nowhere else.
+    // Minimal 故意省略家用工具链 dirs: 对于
+    // 自己 -contained 仓库 家庭目录里的任何东西都是可疑的
+    // HostReadable 是一个方便的答案, 其它代理,
+    // 诚实地命名 -- 它仍然被安装器的 DACLs 和 面具列表所限制,
+    // 但是您的其他项目可以被一个批准的命令读取。 Windows 列表为原生
+    // 路径(kSystemReadRootsWin等); 家居 var为
+    // USERPROFILE 那边,还有 HOME 其他地方都无处可去。
 #if defined(_WIN32)
     for (const auto& r : kSystemReadRootsWin) p.system_read_roots.push_back(win_dir(r));
     for (const auto& f : kEtcReadableWin) p.etc_readable.push_back(win_dir(f));
@@ -413,14 +413,14 @@ void relax_wx_for_jit(claybin_backend::Posture& p, std::string_view cmd) {
                 p.home_tool_dirs.emplace_back(std::string{home} + sub);
         }
     } else if (cfg.fs_scope == sandbox_cfg::FsScope::HostReadable) {
-        // `/` alone: binding /usr etc. under a read-only `/` fails creating
-        // their mount points, which killed every spawn.
+        // `/` 单独: 绑定 /usr 等,在读数下 -only `/`
+        // 未能创建它们的挂点, 杀死每一个产卵。
         p.system_read_roots = {"/"};
         p.etc_readable.clear();
     }
 #endif
-    // Whatever the user added on top, made absolute (claybin ignores `~` and
-    // relative paths).
+    // 无论用户在上面添加什么,都绝对( claybin 忽略 `~`
+    // 和相对路径。
     p.workspace = workspace_root().string();
     {
 #if defined(_WIN32)
@@ -438,12 +438,12 @@ void relax_wx_for_jit(claybin_backend::Posture& p, std::string_view cmd) {
     }
 
 #if defined(__APPLE__)
-    // darwin's per-user temp and cache dirs (/var/folders/xx/yyy/{T,C}).
-    // This is where $TMPDIR points, NOT /tmp: mktemp, python's tempfile,
-    // xcrun's tool cache, clang's module cache, swift and every Cocoa tool
-    // write there, and without it /usr/bin/git and cc failed with "couldn't
-    // create cache file". The tmp-equivalent of the Linux tmpfs: private to
-    // this uid, and holding nothing a command could not have written itself.
+    // 达文人/ -user 临时和 缓存 日数(/ var/folders/xx/yyy/{T,C}).
+    // 这里 $TMPDIR 点, 不 /tmp: mktemp, python 的临时文件,
+    // xcrun 的工具 缓存 , crangg 模块 缓存 快速和每个可可工具 写在那里,
+    // 没有它 usr/bin/git 失败, cc 失败 "couldn't create cache file"。
+    // 该tmp -equivalent 会 议 日 程 和 议 程 Linux
+    // tmpfs: 私下给这个uid, 并且持有任何命令都不可能自己写出来.
     for (int which : {_CS_DARWIN_USER_TEMP_DIR, _CS_DARWIN_USER_CACHE_DIR}) {
         char buf[1024];
         const std::size_t n = ::confstr(which, buf, sizeof buf);
@@ -458,16 +458,16 @@ void relax_wx_for_jit(claybin_backend::Posture& p, std::string_view cmd) {
     p.workspace = workspace_root().string();
     p.cwd = p.workspace;
 
-    // ── secrets, always, plus the user's own masks ───────────────
+    // ── 秘密,总是,加上用户自己的面具 ───────────────
     //
-    // kAlwaysMasked is not configurable, and that is the point: a control the
-    // user can switch off to make their build work is a control that is off.
-    // The pane can ADD masks, never remove these.
+    // kAlwaysMasked 无法配置,这就是要点:
+    // 用户可以关闭的控件来完成他们的构建工作,就是关闭的控制.
+    // 电话 面板 能够 ADD 面具,永远不要去掉这些。
     //
-    // The LIST is shared with the bwrap path (sandbox_cfg::mask_paths), so
-    // the backends cannot disagree about what is covered. On Windows the home
-    // prefix differs (%USERPROFILE% instead of $HOME); the list is POSIX
-    // vocabulary, so each platform prefixes its own home onto the same names.
+    // 电话 LIST 与 brap 路径共享( Q) sandbox_cfg::mask_paths ),
+    // 所以后端不能对所覆盖的内容有异议。 Windows 家前缀不同(%)
+    // USERPROFILE 而不是% (%) $HOME );
+    // 列表为 POSIX 词汇,所以每个平台都会在同一个名称上预先填上自己的家.
     {
 #if defined(_WIN32)
         const char* home = std::getenv("USERPROFILE");
@@ -482,62 +482,62 @@ void relax_wx_for_jit(claybin_backend::Posture& p, std::string_view cmd) {
     }
 
 #if !defined(_WIN32)
-    // ── /dev/tty: the controlling terminal is agentty's own screen ────
+    // ── /dev/tty : 控制 终端 谓 agentty 自己的屏幕 ────
     //
-    // Not a credential, so it is not in kAlwaysMasked (that list is $HOME
-    // secrets) -- but it is masked for the same reason, on every backend that
-    // has a device tree. Windows has no /dev/tty node: the console is a
-    // handle the child either inherits (it does not here) or opens through
-    // CONIN$/CONOUT$, both blocked by the appcontainer's default-deny on
-    // the console object. So there is nothing to mask and nothing omitted.
+    // 不是一个 凭据 ,所以它不是在 kAlwaysMasked
+    // (该列表是 $HOME 秘密)——但出于同样的原因,
+    // 它被蒙上了每个有设备的后端. 源码树. Windows
+    // 没有/ dev/tty 节点:控制台是孩子继承(不在此)或
+    // 打开的控件 CONIN$/CONOUT 被安装员的默认
+    // 封锁了 -deny 因此,没有什么可以掩盖的,也没有省略的。
     //
-    // claybin's devtmpfs binds the HOST /dev/tty into the sandbox, following
-    // bubblewrap's node list exactly. That node resolves to the calling
-    // process's controlling terminal, so a child that opens it writes
-    // straight to the screen -- bypassing the pipe whose bytes clean_capture()
-    // scrubs. `printf '\033[2J\033[3J' > /dev/tty` wipes the transcript.
+    // claybin 的dertmpfs 绑定 HOST /dev/tty
+    // 输入 沙箱 ,在bigbrap的节点列表之后。该节点将解析调用
+    // 过程的控制 终端 ,所以一个打开它的孩子 直接写到屏幕上 - 绕
+    // 过管道 字节 clean_capture () 擦洗剂。
+    // `printf '\033[2J\033[3J' > /dev/tty` 擦掉记录
     //
-    // Masking is the right mechanism rather than dropping the node: an
-    // absent /dev/tty changes behaviour for programs that probe for a
-    // terminal, while a masked one still opens and still accepts writes --
-    // they just go nowhere. Captured stdout/stderr are untouched.
+    // 遮罩是正确的机制,而不是放弃节点:缺 /
+    // dev/tty 更改用于探测某程序的行为 终端 ,
+    // 而一个蒙面的仍然打开并接受写作——它们只是无处可去。
+    // stdout/stderr 无人知晓。
     p.masked.emplace_back("/dev/tty");
 #endif
 
-    // ── trust-handoff prevention: bind host-trusted paths read-only ─────
+    // ── 信任( E) -handoff 预防:约束宿主 -trusted 路径已读取 -only ─────
     //
-    // The PREVENTION half of the gate. Detection (handoff::review_trusted)
-    // reports a write after the bytes land and works on every host; this stops
-    // the write, and needs a mount namespace.
+    // 电话 PREVENTION 探测( handoff::review_trusted
+    // 报告之后的文字 字节 着陆和工作在每个主机上;这停止了写作,
+    // 需要一个挂载命名空间.
     //
-    // Reuses handoff::snapshot_trusted so the two halves cannot disagree about
-    // WHICH paths are host-trusted -- the same reasoning the mask list above
-    // records for bwrap vs claybin, where two copies drifted and one of them
-    // did not exist. One table, two mechanisms.
+    // 重用( E) handoff::snapshot_trusted
+    // 所以两个半人不能不同意 对应的 路径为主机 -trusted -
+    // 上面的掩码列表对brap vs 的记录的同样推理 claybin ,
+    // 其中两张漂移,其中一张不存在。
     //
-    // Only EXISTING paths: a bind of a path that is not there fails, and
-    // bind_try tolerating that is not the same as wanting it. A trusted path
-    // CREATED during the session is what detection is for.
+    // 仅 EXISTING 路径:没有失败的路径的束缚,
+    // 以及 bind_try 容忍这与想要的不一样。一个值得信赖
+    // 的道路 CREATED 测试是用来检测的。
     //
-    // Skipped when the policy is Allow -- a user who turned the gate off has
-    // said these files are theirs to edit, and silently making them read-only
-    // would be the config lying to them.
+    // 当允许此策略时跳过——一个关闭了门的用户说
+    // 这些文件是他们的编辑,默默地让它们读
+    // -only将是欺骗他们的配置.
     if (cfg.handoff != sandbox_cfg::HandoffPolicy::Allow && !p.workspace.empty()) {
-        // The dispatcher already walked the workspace for this call (to watch
-        // it); reuse that instead of walking again, when it walked this root.
+        // 电话 分派器 已经走过 工作区 用于此 调用
+        // 重复使用它,而不是再次走动, 当它走这根。
         if (trusted && (trusted->roots.empty() || trusted->roots.front() != p.workspace))
             trusted = nullptr;
         handoff::TrustedSnapshot walked;
         if (!trusted) walked = handoff::snapshot_trusted(p.workspace);
         const auto& snap = trusted ? *trusted : walked;
         p.handoff_ro.reserve(snap.entries.size());
-        // Files under a .git/hooks or .git/info dir get one ro bind of that
-        // dir instead of one each. A checkout of many repos has thousands.
+        // a 下的文件 .git/hooks 或 或 时 间
+        // .git/info 内脏的绑定是一罗,而不是一个。 仓库 拥有上千个
         std::set<std::string> dirs;
-        // A masked path must stay masked. The handoff walk matches .agentty
-        // as a hook-config dir, so with the workspace at $HOME it found
-        // ~/.agentty/memory.jsonl and bound the real file read-only on top
-        // of its mask. Skip anything that is masked or sits under a mask.
+        // 蒙面的路径必须蒙面,交接的行走匹配 agentty 钩子
+        // -config 迪尔,所以 工作区 时间 $HOME
+        // 发现 ~/.agentty/memory.jsonl 并绑
+        // 定真实文件 -only 将任何蒙面或戴面具的物体都省略。
         auto under_mask = [&](const std::string& path) {
             for (const auto& m : p.masked) {
                 if (path == m) return true;
@@ -550,8 +550,8 @@ void relax_wx_for_jit(claybin_backend::Posture& p, std::string_view cmd) {
         for (const auto& e : snap.entries) {
             if (!e.existed) continue;
             if (under_mask(e.path)) continue;
-            // A bind follows the link, so it can't protect it, and a link that
-            // points out of the tree makes claybin's confined open fail (EXDEV).
+            // 束缚沿循链接,使其无法保护,而指出源码树的链接
+            // 使得claybin的封闭开放失败(EXDEV).
             std::error_code lec;
             if (fs::is_symlink(fs::symlink_status(e.path, lec))) continue;
             const fs::path parent = fs::path{e.path}.parent_path();
@@ -563,10 +563,10 @@ void relax_wx_for_jit(claybin_backend::Posture& p, std::string_view cmd) {
                     p.handoff_ro.push_back(parent.string());
                 continue;
             }
-            // Same for the login and PATH dirs: one ro bind of the dir, not
-            // one per file. Binding a file needs claybin to open it for
-            // writing, which fails with ETXTBSY on a binary in ~/.local/bin
-            // that is running right now, and that failed every spawn.
+            // 登录和 PATH 迪尔:一个罗绑,一个文件一个。
+            // 绑定 文件需要 claybin 打开它以写入,
+            // 但它失败了 ETXTBSY 时间: 二进制程序 输入
+            // ~/.local/bin 正在运行中, 并且它使每一个产卵都失败。
             if (const auto d = trusted_dir_of(e.path, p.workspace)) {
                 if (dirs.insert(*d).second && !under_mask(*d)
                     && !fs::is_symlink(fs::symlink_status(*d, lec)))
@@ -577,12 +577,12 @@ void relax_wx_for_jit(claybin_backend::Posture& p, std::string_view cmd) {
         }
     }
 
-    // ── network ──────────────────────────────────────────────────────────
+    // ── 网络 ──────────────────────────────────────────────────────────
     p.net_mode = static_cast<int>(cfg.net_mode);
     p.allow_ports = cfg.allow_ports;
     p.allow_hosts = cfg.allow_hosts;
 
-    // ── syscalls and caps ────────────────────────────────────────────────
+    // ── 响尾蛇和盖子 ────────────────────────────────────────────────
     p.syscall_mode = static_cast<int>(cfg.syscall_mode);
     p.wx_protect = cfg.wx_protect;
     p.scope_ipc = cfg.scope_ipc;
@@ -595,22 +595,22 @@ void relax_wx_for_jit(claybin_backend::Posture& p, std::string_view cmd) {
     p.wall_clock_secs = cfg.wall_clock_secs;
     p.cpu_secs = cfg.cpu_secs;
     p.fake_hostname = cfg.fake_hostname;
-    // Brokering is on whenever the filter is, because the runner can always
-    // poll the listener -- it already owns a poll loop for the output pipe.
-    // Gated on the filter rather than being a separate row: brokering IS the
-    // syscall filter deciding at runtime instead of up front, so a user who
-    // turned the filter off has already said they do not want either.
+    // 每当过滤器在时, 都会进行经纪, 因为跑者总是可以向
+    // 听众投票, —— 它已经拥有了输出管道的民意测验循环。
+    // 放在过滤器上,而不是单独排行:中介 IS
+    // 音响过滤器决定在 运行时 而不是放在前面,
+    // 所以一个关闭过滤器的用户已经说过他们也不要。
     p.broker = cfg.syscall_mode != sandbox_cfg::SyscallMode::Off;
     return p;
 }
-#endif  // __linux__ || __APPLE__ || _WIN32
+#endif  // __linux__ || __APPLE__ || _ WIN32 语句
 
-// Back into the per-platform arm the posture builder interrupted.
+// 回到每个 -platform 手持姿态建造器中断。
 //
-// Linux takes the first branch (its run_wrapped), macOS the second, Windows
-// the third. The guard must stay linux-ONLY: a `|| _WIN32` here would take
-// the linux branch on Windows and the probe() definition below would never
-// compile -- the one thing init() needs.
+// Linux 取第一个分支( 其) run_wrapped), macOS 第二次,
+// 我问他 Windows 第三,警卫必须留在林纳 -ONLY: a `|| _WIN32`
+// 这里会带林克斯的分支打开 Windows 编辑 probe() 定义从不会
+// 编译 - 唯一一个 init() 需要帮助。
 #if defined(__linux__)
 
 [[nodiscard]] SubprocessResult run_wrapped(std::string_view cmd,
@@ -622,18 +622,18 @@ void relax_wx_for_jit(claybin_backend::Posture& p, std::string_view cmd) {
 
 #if defined(__linux__) || defined(__APPLE__)
     if (detected_backend() == Backend::Claybin) {
-        // claybin is a library, so there is no argv prefix to build. It forks,
-        // applies the plan, and execs itself -- but only the SPAWN; the
-        // supervise loop (poll, progress, idle deadline, SIGTERM/SIGKILL, reap)
-        // stays in Subprocess::run, shared with every other path.
+        // claybin 是一个 库 ,所以没有argv前缀可以构建。它叉,
+        // 应用计划,执行自己——但只有 SPAWN ; 监督循环( 弹出、
+        // 进展、 闲置的截止时间, SIGTERM/SIGKILL ,
+        // 收获)留在 Subprocess::run ,与其它路径共享.
         //
-        // Identical on both platforms, which is the whole return on keeping
-        // the supervise loop out of the backend: Linux hands back a pidfd and
-        // a seccomp-notify fd, macOS hands back neither, and the runner needs
-        // no branch to tell them apart -- the sentinel values already say so.
+        // 两个平台上都一样, 也就是保持后端的监管循环的
+        // 完整回报: Linux 手拿回来一个短发和一个
+        // seccomp-notify 联邦, macOS
+        // 手也不要,跑者不需要分枝来分辨——哨兵值已经说了.
         //
-        // `command` still carries the shell string so the runner's logging and
-        // error messages read the same for both backends.
+        // `command`仍然携带着 shell 字符串,
+        // 所以跑者记录和错误消息读取两个后端都是一样的.
         opts.command = SubprocessOptions::Shell{std::string{cmd}};
         std::string shell_cmd{cmd};
         opts.spawner = [shell_cmd](const SubprocessOptions&,
@@ -641,7 +641,7 @@ void relax_wx_for_jit(claybin_backend::Posture& p, std::string_view cmd) {
             SubprocessOptions::SpawnedChild out;
             auto posture = build_claybin_posture();
             relax_wx_for_jit(posture, shell_cmd);
-            // Both streams onto the one pipe the runner already made.
+            // 两者 数据流 跑者已经做的管子上
             auto r = claybin_backend::spawn_shell(posture, shell_cmd, pipe_write_fd,
                                                   pipe_write_fd);
             if (!r.started) {
@@ -649,19 +649,19 @@ void relax_wx_for_jit(claybin_backend::Posture& p, std::string_view cmd) {
                 return out;
             }
             out.pid   = r.pid;
-            out.pidfd = r.pidfd;   // jaal reaps by it: no pid-reuse race
-            // Hand the syscall supervisor to the runner, which polls it beside
-            // the output pipe. It must be polled for the child's whole life: a
-            // brokered syscall blocks in the kernel until someone answers.
+            out.pidfd = r.pidfd;   // jaal 收获的:没有零食 -reuse 竞态
+            // 将线程上的监督交给跑者,后者在输出管道旁进行投票。
+            // 它必须被调查到孩子的整个生命:内核中
+            // 一个中间的线程上监督块,直到有人回答。
             out.supervisor_fd = r.supervisor_fd;
             out.service = std::move(r.service_broker);
-            // The filtered network proxy owns the listening socket inside the
-            // guest's netns. Nothing below needs to know that; it just has to
-            // outlive the child, or the guest's connections start failing.
+            // 过滤过的网络代理拥有在嘉宾网内播放的套接字。
+            // 下方不需要知道这一点; 它只需要超过孩子,
+            // 否则嘉宾的连接会开始失败。
             out.keepalive = std::move(r.net_proxy);
-            // Empty unless the posture actually got a cgroup with
-            // cgroup.kill. The runner falls back to the process group then,
-            // which is weaker (setsid escapes it) but is all there is.
+            // 除非姿态实际得到一个带有cgroup.kill
+            // 的cgroup,否则空空。 运行者返回到进程组,
+            // 进程组更弱( setsid 逃脱) , 但只有它。
             out.kill_tree = std::move(r.kill_tree);
             return out;
         };
@@ -669,11 +669,11 @@ void relax_wx_for_jit(claybin_backend::Posture& p, std::string_view cmd) {
     }
 #endif
 
-    // No backend: run_wrapped is only reached when the sandbox is active,
-    // and on Linux "active" means claybin. Reaching here would mean the
-    // probe said yes and the spawn path disagreed, so refuse rather than
-    // run the command unconfined -- a command that was approved on the
-    // understanding it would be boxed must not quietly escape the box.
+    // 无后端 : run_wrapped 仅在 沙箱 活动,
+    // 并运行 Linux "active" 表示 claybin
+    // 到达这里意味着探测器说是,产卵路径不同意,
+    // 所以拒绝而不是运行未关闭的命令——这个命令是建立在它
+    // 将被装箱的理解基础上获得批准的,决不能悄悄地逃脱盒子。
     SubprocessResult unconfined;
     unconfined.started     = false;
     unconfined.start_error = "sandbox is active but no backend could wrap "
@@ -681,8 +681,8 @@ void relax_wx_for_jit(claybin_backend::Posture& p, std::string_view cmd) {
     return unconfined;
 }
 
-// argv-form: same wrap as the shell form, with the user's argv reaching the
-// child exactly as given -- no `sh -c` indirection to re-parse quotes or
+// 参数v -form : 与 shell 形式相同的包件, 用户的 argv 完全按照给定
+// 的给定到达孩子—— 不 `sh -c` 间接到 re -parse 引用或
 // `$vars`.
 [[nodiscard]] SubprocessResult run_wrapped_argv(const std::vector<std::string>& user_argv,
                                                 std::size_t max_bytes,
@@ -731,79 +731,79 @@ void relax_wx_for_jit(claybin_backend::Posture& p, std::string_view cmd) {
 #elif defined(__APPLE__)
 
 [[nodiscard]] Backend probe() {
-    // claybin first, when asked for AND usable.
+    // claybin 首先,当被问及时 和 可用。
     //
-    // Both engines here are seatbelt -- claybin calls sandbox_init() directly
-    // from a compiled policy, sandbox-exec is Apple's CLI wrapper around the
-    // same kernel mechanism -- so this is not a choice about strength. It is a
-    // choice about what survives the trip.
+    // 这里的两台引擎都是安全带... claybin 调用 sandbox_init
+    // (d) 直接从汇编的政策中得出, 沙箱-exec 苹果的,
+    // 你来 CLI 围绕同一个内核机制的包裹-- 所以这不是一个力量的选择。
+    // 而是对于旅途中生存下来的事物的选择。
     //
-    // build_profile() below concatenates a fixed profile string, so it can
-    // express exactly what it was written to express: the workspace, /tmp, the
-    // caches. The claybin path compiles the same Posture the Linux backend
-    // consumes, so the pane's read_paths, write_paths, masks and resource caps
-    // mean something on a mac instead of being Linux-only settings that
-    // silently do nothing here. It also produces the guarantee report, which
-    // is the part worth having: "filesystem.read strong via seatbelt" is
-    // checkable in a way that "sandbox: active" is not.
+    // build_profile ()下面缩写固定的剖面字符串,
+    // 以便它能够确切地表达它写来表达的内容: 工作区 ,/tmp, 缩写为: 缓存。
+    // 该词 claybin 路径 编译 同样的姿态 Linux 后端会消耗,
+    // 所以 面板's read_paths, write_paths 面具和资源
+    // 帽 意味着在mac上的东西 而不是是 Linux-only 设置,
+    // 但在此不作任何静默。它也生成保证报告,这是值得的:
+    // "filesystem.read strong via seatbelt" 以
+    // 某种方式可检查 "sandbox: active" 才没有呢
     //
-    // The preference is shared with Linux rather than given a second knob. A
-    // user's answer to "which engine applies my policy" does not change when
-    // they move between a mac and a Linux box.
+    // 优先选择与 Linux 而不是给第二个把手。用户的回答是:
+    // "which engine applies my policy" 当它们移动到mac和
+    // a之间时,不会改变 Linux 框中选择一个选项。
     //
-    // claybin first where it can build, sandbox-exec otherwise. Both are
-    // real boundaries here; the order just prefers the one whose policy
-    // vocabulary the pane actually speaks.
+    // claybin 首先,在它可以建造的地方,
+    // 沙箱-exec 两者都是真正的界限;顺序只是倾向于
+    // 政策词汇的词组: 面板 说得没错
     if (claybin_backend::available()) return Backend::Claybin;
     if (can_invoke("sandbox-exec")) return Backend::SandboxExec;
-    // And the other direction, for symmetry with the Ubuntu 24.04 case: if
-    // sandbox-exec is somehow missing (SIP damage, a stripped image), claybin
-    // still talks to the kernel directly and does not need the binary.
+    // 另一方向,与对称的 Ubuntu 24.04个案例: 沙箱
+    // -exec 不知何故缺失( Q) SIP 损害, 剥去的影像,
+    // claybin 仍然直接和内核对话,不需要 二进制程序.
     if (claybin_backend::available()) return Backend::Claybin;
     return Backend::None;
 }
 
-// Generate a minimal sandbox-exec profile. Allows reads broadly,
-// limits writes to workspace + tmp + system caches, allows network
-// (same rationale as bwrap: agent-typical commands need it).
+// 生成最小值 沙箱-exec 配置文件。允许阅读范围很广,
+// 限制写到 工作区 + tmp + 系统 缓存 ,允许网络(与
+// bwrap 相同的理由:代理) -typical 命令需要它)。
 //
-// Apple deprecated `sandbox-exec` in public docs but the binary keeps
-// working. The profile language is Scheme-ish; we keep it small so a
-// future Apple removal is easy to spot.
+// 苹果在公开文件中贬值了`sandbox-exec`,
+// 但二进制程序仍然有效。 配置语言是Scheme-ish; 我们保持小幅,
+// 因此未来的苹果删除很容易被发现。
 [[nodiscard]] std::string build_profile(std::string_view workspace) {
     std::string p;
     p += "(version 1)\n";
     p += "(deny default)\n";
-    // Process / signals
+    // 过程/信号
     p += "(allow process-exec)\n";
     p += "(allow process-fork)\n";
     p += "(allow signal (target same-sandbox))\n";
-    // Reads: broad. Credential paths are denied at the end of the profile.
+    // 读取:宽. 凭据路径在剖析图结尾处被拒绝.
     p += "(allow file-read*)\n";
-    // Writes: workspace + tmp/cache regions only. The workspace path is
-    // SBPL-escaped (see sbpl_escape). If it can't be represented safely (a
-    // control char), the workspace write clause is OMITTED entirely rather
-    // than risk a broken/injected profile — sandboxed bash then gets no
-    // workspace write access, which is safe (fail closed), not a bypass.
+    // 写作 : 工作区 + tmp/cache 仅限区域。 工作区 路径是
+    // SBPL-escaped (见A/C.5/61/L.48,第16段)
+    // sbpl_escape 如果无法安全地代表(控制字符),则 工作区 写入条款为
+    // OMITTED 完全而不是冒险a broken/injected 配置文件 -
+    // 沙盒式的击打后得不到 工作区 写入访问, 安全( 未关闭) , 而不是绕行。
     if (std::string ws = sbpl_escape(workspace); !ws.empty())
         p += "(allow file-write* (subpath \"" + ws + "\"))\n";
     p += "(allow file-write* (subpath \"/tmp\"))\n";
     p += "(allow file-write* (subpath \"/private/tmp\"))\n";
-    p += "(allow file-write* (subpath \"/private/var/folders\"))\n";   // user caches
+    p += "(allow file-write* (subpath \"/private/var/folders\"))\n";   // 用户 缓存
     p += "(allow file-write* (subpath \"/dev/null\"))\n";
-    // /dev/tty is deliberately NOT allowed — see the long note on the bwrap
-    // backend's --dev-bind /dev/null /dev/tty. It is the controlling
-    // terminal, i.e. agentty's own screen, and it bypasses the pipe that
-    // clean_capture() scrubs. A child writing \033[2J\033[3J there wipes the
-    // transcript. Captured stdout/stderr are unaffected; this only removes a
-    // child's ability to paint the UI directly.
-    // Network: open. Restricting would break git push / curl / npm.
+    // /dev/tty 故意的 故意的,故意的,是故意的,这是故意的 不 允许
+    // ——参见bwrap后端上的长条注解 --dev-bind /
+    // dev/null /dev/tty. 控制着我们 终端, i.e.
+    // agentty 绕过管子 clean_capture ()擦擦。一个孩子写作
+    // \ 033[2J\033][3J] 擦拭记录。 stdout/stderr
+    // 不受影响;这只会消除儿童涂抹 UI 直接来
+    // 网络: 打开。 限制会打破 git 推/ 卷/ npm。
     p += "(allow network*)\n";
     p += "(allow system-socket)\n";
-    // Mach services BY NAME. A bare (allow mach-lookup) lets a guest read the
-    // pasteboard and enumerate keychains through launchd daemons that run
-    // outside the sandbox. Same allowlist claybin's macOS backend emits:
-    // directory lookups, logging, prefs, plus DNS/TLS since network is open.
+    // 制表服务 BY NAME 裸露( 低沉的泥浆) -lookup 让
+    // 一位嘉宾阅读贴板,并通过运行在外侧的启动守护进程列出键链 沙箱
+    // 相同 允许清单 claybin's macOS 后端发件 :
+    // 目录查看,日志,预览,加上自网络开放以来的DNS/TLS.
     p += "(allow mach-lookup\n"
          "  (global-name \"com.apple.system.opendirectoryd.libinfo\")\n"
          "  (global-name \"com.apple.system.logger\")\n"
@@ -825,8 +825,8 @@ void relax_wx_for_jit(claybin_backend::Posture& p, std::string_view cmd) {
     p += "(allow ipc-posix-sem)\n";
     p += "(allow iokit-open)\n";
     p += "(allow sysctl-read)\n";
-    // Credential paths, the same list claybin masks. Last, because a later
-    // rule wins in SBPL and the workspace write allow above would reopen them.
+    // 凭据 路径, 相同的列表 claybin 口罩。最后,
+    // 因为后一条规则获胜 SBPL 编辑 工作区 上面写允许的话, 将会重新打开它们。
     {
         const char* home = std::getenv("HOME");
         const auto snap = config_snapshot();
@@ -845,14 +845,14 @@ void relax_wx_for_jit(claybin_backend::Posture& p, std::string_view cmd) {
     opts.timeout = timeout;
 
     if (detected_backend() == Backend::Claybin) {
-        // NOT claybin's spawn + adopt, as on Linux: darwin has no pidfd, so
-        // jaal's posix_process::adopt refuses every foreign child ("the exit
-        // is not watchable"). That refusal came AFTER the spawn, so the guest
-        // ran unsupervised while the caller got exit 128 and no output --
-        // every sandboxed hook and ACP terminal command silently failed.
-        // Instead put claybin's compiled profile into the argv via
-        // sandbox-exec, exactly as the bash tool does (JaalExec::confine):
-        // same posture, and the child is our own fork, so it is watchable.
+        // 不 claybin 产卵+收养,如: Linux 达文没有皮德,
+        // 所以 jaal's posix_process::adopt 拒绝每
+        // 个外国儿童( "the exit is not watchable"
+        // 拒绝的来了 之后 产卵,所以客人跑 无人监督,而呼叫者得到了128
+        // 出口 没有输出 - 每个沙箱钩和 ACP 终端 命令无声失败。
+        // 改为: claybin '通过 argv 编译为 profile 的文件
+        // 沙箱-exec ,恰好是击打工具所做的( JaalExec::confine):
+        // 同样的姿势,孩子是我们的叉子,所以它可以观察。
         auto wrapped = wrap_argv_for_exec({"/bin/sh", "-c", std::string{cmd}}, {}, {});
         if (!wrapped) {
             SubprocessResult r;
@@ -892,11 +892,11 @@ void relax_wx_for_jit(claybin_backend::Posture& p, std::string_view cmd) {
 
 #elif defined(_WIN32)
 
-// A REAL capability probe, not a table lookup: claybin's probe_host() creates
-// and deletes an appcontainer profile, proves a restricted token by RUNNING a
-// child under it, and initializes the mitigation attribute list. The floor is
-// one working wall -- appcontainer or job objects -- so Auto degrades only
-// when there is genuinely nothing to build a boundary from.
+// A 真实 能力探测器,不是表格搜索: claybin's
+// probe_host () 创建和删除一个安装器配置文件,
+// 证明一个受限制的符号,由 RUNNING ,并初始化减轻属性列表。
+// 地板是一面工作墙 — — 安装器或工作对象,因此,
+// 只有当真正没有从中建出边界时,Auto才会降解。
 [[nodiscard]] Backend probe() {
     if (claybin_backend::available()) return Backend::Claybin;
     return Backend::None;
@@ -917,15 +917,15 @@ void relax_wx_for_jit(claybin_backend::Posture& p, std::string_view cmd) {
             SubprocessOptions::SpawnedChild out;
             auto posture = build_claybin_posture();
             relax_wx_for_jit(posture, shell_cmd);
-            // Both streams onto the one pipe the runner already made. The
-            // window HANDLE arrives as an int (the runner's pipe was a
-            // HANDLE); the adapter maps it onto the child's stdout/stderr.
+            // 两者 数据流 跳跃者已经做的管道上。
+            // HANDLE 跑者用烟斗 HANDLE );
+            // 适配器将其映射到孩子的 stdout/stderr.
             auto r = claybin_backend::spawn_shell(posture, shell_cmd, pipe_write_fd,
                                                   pipe_write_fd);
             if (!r.started) { out.error = r.start_error; return out; }
             out.pid = r.pid;
-            // HANDLES, not descriptors: the process handle is the waitable
-            // exit, the job the kill switch. The runner's adopt consumes both.
+            // HANDLES, 不是描述符: 过程处理符是等待退出,
+            // 任务是 kill switch。 跑者收养既消耗了两个功能。
             out.pidfd = r.pidfd;
             out.kill_tree = std::move(r.kill_tree);
             return out;
@@ -934,9 +934,9 @@ void relax_wx_for_jit(claybin_backend::Posture& p, std::string_view cmd) {
     return Subprocess::run(std::move(opts));
 }
 
-// argv-form: the user's argv reaches claybin's spawner exactly as given -- no
-// cmd.exe /S /C re-parsing of quotes or %vars% on the way in. Same contract as
-// the linux and macOS arms.
+// 参数v -form : 用户的 argv 到达 claybin 产卵器完全如给定的——没有 cmd.exe
+// /S/C 有关 -parsing 中引用或% vars% 的输入。与 linux 和% varc 的
+// 合同相同。 macOS 手举起来
 [[nodiscard]] SubprocessResult run_wrapped_argv(const std::vector<std::string>& user_argv,
                                                 std::size_t max_bytes,
                                                 std::chrono::seconds timeout) {
@@ -970,15 +970,15 @@ void relax_wx_for_jit(claybin_backend::Posture& p, std::string_view cmd) {
     return Subprocess::run(std::move(opts));
 }
 
-#else // Windows / unsupported
+#else // Windows / 不支持
 
 [[nodiscard]] Backend probe() { return Backend::None; }
 
 [[nodiscard]] SubprocessResult run_wrapped(std::string_view cmd,
                                            std::size_t max_bytes,
                                            std::chrono::seconds timeout) {
-    // Should never be called — is_active() returns false on this
-    // platform — but defensively fall through to the unsandboxed path.
+    // 永远不要叫——is_active()在这个
+    // 平台上返回虚假——但防御性地掉进未遮挡的路径.
     return run_command_s(std::string{cmd}, max_bytes, timeout);
 }
 
@@ -990,15 +990,15 @@ void relax_wx_for_jit(claybin_backend::Posture& p, std::string_view cmd) {
 
 #endif
 
-} // namespace
+} // 命名空间结束。
 
 bool init(Mode requested) {
     g_mode.store(requested, std::memory_order_release);
     auto found = (requested == Mode::Off) ? Backend::None : probe();
     g_backend.store(found, std::memory_order_release);
     if (requested == Mode::On && found == Backend::None) {
-        // Strict mode + no backend = init failure. Caller decides
-        // whether to abort startup or downgrade silently.
+        // 严格模式 + 无后端 = init 失败。
+        // 呼叫者默默决定是中止启动还是降级。
         return false;
     }
     return true;
@@ -1009,40 +1009,40 @@ Backend detected_backend() noexcept { return g_backend.load(std::memory_order_ac
 
 
 void set_config(const sandbox_cfg::Config& cfg) {
-    // SEALED AFTER THE FIRST CALL. A later call is ignored, and says so.
+    // SEALED 之后 该 首次 CALL 稍后时间 调用 被忽略了,说到做到。
     //
-    // This is the whole security model of the pane, so it is worth stating
-    // plainly. Every other setting in agentty is live: change the theme and
-    // the next frame is painted with it. A sandbox cannot work that way,
-    // because the thing it configures is a BOUNDARY, and a boundary that can
-    // move while the process runs has three problems no amount of care fixes:
+    // 这是整个安全模式的 面板 所以,这值得 明确声明。
+    // agentty 正在运行: 更改主题和下一个 帧 被涂上了,
+    // A 被涂上,被涂上了 被涂入了A 被漆成A 沙箱
+    // 因为它的配置是 BOUNDARY ,
+    // 而一个可以移动的边界 过程运行 有三个问题 没有多少护理修复:
     //
-    //   1. It only ever gets WEAKER usefully. Tightening mid-session is
-    //      fine but pointless (whatever already ran, ran); loosening is what
-    //      an attacker wants, and a prompt-injected agent that can reach the
-    //      settings reducer is exactly who would want it.
+    //   1. 只能从得到 WEAKER 很有用,加紧中线 -session 谓
+    //      放松是攻击者想要的,
+    //      而 提示词-injected 能够到达设置的
+    //      代理 状态更新函数 到底是谁想要的。
     //
-    //   2. The weakening is INVISIBLE and IRREVERSIBLE. Switching claybin ->
-    //      bwrap silently drops the seccomp filter, the cgroup caps AND the
-    //      non-configurable secret masks -- measured: the same workspace
-    //      .env reads back as zero bytes under claybin and `SECRET=leaked`
-    //      under bwrap. Re-tightening afterwards does not un-read a key that
-    //      already left.
+    //   2. 弱化是: 不可见 财务报告和已审计财务报表 IRREVERSIBLE 切换 claybin ->
+    //      静静地放下 seccomp 过滤器, croup 盖 和 非 国 家
+    //      -configurable 秘密口罩 -- -- 测量:相同 工作区 .
+    //      env 读回为零 字节 下级 claybin 财务报告和已审计财务报表
+    //      `SECRET=leaked` 重新分类 -tightening 之后不会 -read
+    //      已经留下的密钥。
     //
-    //   3. Two commands in one session get two different boundaries, with
-    //      nothing in the transcript saying which got which. That makes the
-    //      sandbox unauditable, which is worse than a weaker sandbox that is
-    //      at least one known thing.
+    //   3. 一个会话的两个命令得到两个不同的边界,即:
+    //      记录里没有写出什么 也就是说 沙箱
+    //      无法听懂,比弱者还糟糕 沙箱 这至少是
+    //      已知的一件事。
     //
-    // So the policy is fixed at startup, from the saved settings plus the
-    // CLI, and the pane WRITES TO DISK for the next launch rather than
-    // mutating the live one. Restart is the apply step. That is a real cost
-    // -- you cannot try a tighter profile without relaunching -- and it buys
-    // the only property that matters here: whatever confined the first
-    // command in this session confines the last one too.
+    // 因此,政策在启动时固定下来,从已保存设置加上CLI,
+    // 以及用于下一次发射的面板XXWRITESTODISK。
+    // 重新启动是应用步骤。这是一个真正的成本 —
+    // — 无法尝试更严格的配置,它购买了这里唯一
+    // 重要的财产:无论在本次会议上限制的第
+    // 一个命令是否限制最后一个命令。
     //
-    // Enforced in code, not by comment. It was a comment before ("call
-    // before init()") and the pane broke it within a day of existing.
+    // 以守则而不是评论方式执行。 "call before init()"
+    // 和 和 数据 面板 在一个存在日内破解它。
     if (g_cfg_sealed.exchange(true, std::memory_order_acq_rel)) {
         AGT_LOG(Tool, Warn, "sandbox.seal",
                 "refused a live sandbox policy change: the boundary is sealed "
@@ -1050,20 +1050,20 @@ void set_config(const sandbox_cfg::Config& cfg) {
         return;
     }
 
-    // First call: publish the one snapshot this process will ever use.
+    // 第一届 调用 : 发布其中的 快照 这一过程将永远使用。
     //
-    // Still an immutable published snapshot rather than a plain global. The seal means it is written once, but it is READ from
-    // tool worker threads while the UI thread reads it too, and
-    // shared_ptr-to-const is how a reader gets a coherent view without a
-    // lock. (It also kept a real use-after-free out of the tree back when
-    // this was republishable: Config holds three vectors, and assigning one
-    // under a concurrent reader is a freed-buffer walk.)
+    // 还不是可变 已出版 快照 而不是一个简单的全球。 READ 从工具 工作线程 线程 时 UI 线程
+    // 也读它, shared_ptr-to-const
+    // 读者如何获得一个连贯的视图,没有 锁 . (它也保持
+    // 了真实用途) -after-free 出处 源码树
+    // 重现时的功能: 配置 有三个向量, 并排的读数下分配一个
+    // 是解脱的 -buffer 步行( 步行)。
     auto next = std::make_shared<const sandbox_cfg::Config>(cfg);
     g_cfg.publish(std::move(next));
 
-    // The policy carries the ENGINE, so sealing it seals the backend too.
+    // 政策上带有ENGINE,所以封印它也封印了后端.
     //
-    // Only when the user has actually chosen: an unconfigured config holds
+    // 仅在用户实际选择时:未配置的配置符
 }
 
 bool config_sealed() noexcept {
@@ -1071,19 +1071,19 @@ bool config_sealed() noexcept {
 }
 
 void reset_config_for_test() noexcept {
-    // Order matters even here: drop the config first, then the seal, so a
-    // concurrent reader never sees "unsealed but still holding the old
-    // policy" -- which is the one state that would let a second set_config
-    // land while a reader is mid-snapshot.
+    // 命令很重要,先放下配置,然后把封印放下,这样一个同时阅读的读者就永远
+    // 看不到 "unsealed but still holding the old policy"
+    // - 这个国家会让第二 set_config 读取器在中
+    // 点时着陆 -snapshot.
     (void)g_cfg.take();
     g_cfg_sealed.store(false, std::memory_order_release);
 }
 
 std::shared_ptr<const sandbox_cfg::Config> config_snapshot() noexcept {
     auto snap = g_cfg.current();
-    // Never hand back null, so callers can dereference without checking. A
-    // default config is the correct answer before anyone has set one: it is
-    // exactly the posture the bwrap argv has always built.
+    // 永远不要将空手还手, 因此呼叫者可以不检查就调试。
+    // 在任何人设置一个配置之前, 默认配置是正确的答案: 它
+    // 正是 bwrap argv 所构建的状态。
     if (!snap) {
         static const auto kDefault =
             std::make_shared<const sandbox_cfg::Config>();
@@ -1093,31 +1093,31 @@ std::shared_ptr<const sandbox_cfg::Config> config_snapshot() noexcept {
 }
 
 sandbox_cfg::Config config() {
-    // BY VALUE, deliberately, and this is the one place the cost is worth
-    // arguing about.
+    // BY 值 成本值得争论的
+    // 地方
     //
-    // It used to return `const Config&` into a plain global. That reference
-    // cannot be made safe now that the value is republished under readers:
-    // handing out a reference into a snapshot means the snapshot's last
-    // owner can drop while the caller still holds the reference, and the
-    // caller has no way to know. A reference into shared, swappable state is
-    // a dangling pointer with a delay on it.
+    // 曾经是回来的 `const Config&` 将这个
+    // 值重新在读者栏下公布,所以不能保证这个参考值的安全:
+    // 将参考文献传送到 快照 意思是说 快照 最后
+    // 一个所有者可以在调用者仍然持有引用时放下,
+    // 调用者无法知道。 调用到共享、 可互换状态的引用是
+    // 拖曳的指针, 上面有延缓。
     //
-    // So the UI-facing accessor copies. Callers are form builders and status
-    // lines -- a handful per keystroke, three small vectors each. Readers on
-    // the hot path (the spawn path, once per command) use config_snapshot()
-    // and pay nothing but a refcount.
+    // 所以,我们... UI-facing 用户名。调用者是窗体
+    // 构建者和状态行——每个键键为少数,每个键键有三个小向量。
+    // 高频路径 (每条指令一次产卵路径) config_snapshot
+    // 且只付再计一分钱。
     return *config_snapshot();
 }
 
 bool config_enforceable() noexcept {
     const auto cfg = config_snapshot();
-    // Nothing configured ⇒ nothing to ignore. A default config is exactly the
-    // posture the bwrap argv already builds, so both backends "enforce" it.
+    // 没有配置 QQ 任何可忽略的。 默认配置正是 bwrap
+    // argv 已经构建的姿态, 所以两个后端都 "enforce"。
     if (!cfg->configured) return true;
 #if defined(__linux__) || defined(__APPLE__) || defined(_WIN32)
-    // Off is not a failure to enforce, it is a choice not to sandbox, which
-    // the banner already reports on its own.
+    // 关闭不是不执行 而是选择不执行 沙箱
+    // 旗子已经自己报道了
     if (requested_mode() == Mode::Off) return true;
     return detected_backend() == Backend::Claybin;
 #else
@@ -1148,8 +1148,8 @@ std::string describe_state() {
         case Backend::None:        tag = nullptr;        break;
     }
     if (tag) {
-        // --workspace / rw-binds the whole filesystem: still wrapped,
-        // but no filesystem containment. Be honest about it.
+        // --workspace / rw 时间 -binds 整个
+        // 文件系统: 仍然被包, 但没有文件系统封存。 老实说。
         std::error_code wec;
         auto ws = fs::weakly_canonical(workspace_root(), wec);
         if (wec) ws = workspace_root();
@@ -1172,7 +1172,7 @@ std::string describe_state() {
 #else
                "(unsupported on this platform)";
 #endif
-    // Mode::Auto + no backend → falling through unsandboxed
+    // Mode::Auto + 无后端 → 掉进未装箱的
     return "sandbox: unavailable, running unsandboxed "
 #if defined(__linux__)
            "(the kernel offers neither landlock nor seccomp)";
@@ -1185,31 +1185,31 @@ std::string describe_state() {
 #endif
 }
 
-// Does this output look like the SANDBOX refused something?
+// 是否像SANDBOX拒绝的东西?
 //
-// ── Why annotate at all ───────────────────────────────────────────
+// ── 为什么是名副其实 ───────────────────────────────────────────
 //
-// A bare "Permission denied" is indistinguishable from a real bug, and a model
-// reading it concludes the wrong thing with total confidence: it blames a
-// corporate proxy, tells the user to check CrowdStrike, or retries the same
-// denied call. Every one of those wastes a turn and none can work, because the
-// boundary is a kernel decision.
+// 赤裸裸的 "Permission denied" 无法与真正的
+// 错误区分开来, 模型读取它以完全自信来得出错误的结论: 它
+// 责备一个公司代理, 告诉用户检查 CrowdStrike ,
+// 或 ,或 重试 拒绝的同样 调用 每一个废物都转弯,没有人能起作用,
+// 因为边界是内核决定。
 //
-// The system prompt says a sandbox exists (see provider/prompt.cpp), and that
-// helps -- but it is thousands of tokens away from the error by the time the
-// error arrives. Attaching the explanation to the OUTPUT puts it where the
-// model is actually looking, at the moment it has to decide what to do next.
-// That is the pattern mature sandbox runtimes converge on, and it is the half
-// that stops retry loops.
+// 系统 提示词 说 沙箱 已存在( 见
+// provider/prompt.cpp 以至有帮助的,
+// 但当错误降临的时候,它确是千兆的。 OUTPUT 把它放在
+// 模型实际所看到的地方, 在它必须决定下一步要做什么的时刻。
+// 这就是成熟的规律 沙箱 运行时间逐渐接近,
+// 一半时间停止 重试 循环。
 //
-// ── Why pattern-matching is sound here ──────────────────────────────
+// ── 这里为什么图案-matching是声音 ──────────────────────────────
 //
-// It cannot be exact: the kernel denies, libc stringifies, and the program
-// prints whatever it likes. A false POSITIVE costs one extra sentence on an
-// error the model was already handling; a false NEGATIVE just leaves today's
-// behaviour. Neither can corrupt anything, so matching broadly is the right
-// trade -- which is also why this never claims the sandbox DID deny, only that
-// it is the likely cause.
+// 不能精确:内核否认、 libc 字符串,
+// 程序会打印它喜欢的。 假 POSITIVE 模型
+// 已经处理的错误额外花费一句; 错误 NEGATIVE
+// 也不可能破坏任何东西,所以,广义的匹配是正确的交易,
+// 这也是为什么它从来不声称 沙箱 DID 否认,
+// 但有可能是这种原因。
 [[nodiscard]] bool looks_like_denial(std::string_view out) {
     static constexpr std::string_view kSigns[] = {
         "Permission denied",
@@ -1219,11 +1219,11 @@ std::string describe_state() {
         "Could not resolve host",
         "Temporary failure in name resolution",
         "Connection refused",
-        "Bad system call",            // a seccomp kill, as the shell reports it
-        // The sandbox proxy refusing a host or address. Every client says it
-        // differently, and none of them says "sandbox": curl, git and pip
-        // report a failed CONNECT tunnel, python a tunnel error, and both
-        // show the 403 the proxy sent.
+        "Bad system call",            // a seccomp 杀死,就像贝壳报告的那样
+        // 电话 沙箱 代理拒绝主机或地址。每个客户都不同,
+        // 没有人说 "sandbox" : 卷曲、 基特和 pip
+        // 报告失败 CONNECT 隧道,python 是一个隧道错误,
+        // 两者都显示代理发送的403.
         "CONNECT tunnel failed",
         "Tunnel connection failed",
         "refused by the sandbox proxy",
@@ -1234,11 +1234,11 @@ std::string describe_state() {
     return false;
 }
 
-// The note appended to a denied command's output.
+// 附加在已拒绝的命令输出上的注释。
 //
-// Phrased for the MODEL and kept short: it names the cause, forbids the two
-// wrong moves (retry, blame the network), and says what to do instead. A note
-// that only explained would still leave the model free to retry.
+// 给 MODEL 并保持简短:它命名了原因,
+// 禁止两个错误的动作( 重试 ,责备网络,并说要做什么。
+// 只解释一个说明仍然让模型自由使用。 重试.
 [[nodiscard]] std::string denial_note() {
     const auto cfg = config_snapshot();
     std::string n =
@@ -1251,8 +1251,8 @@ std::string describe_state() {
     else if (cfg->net_mode == sandbox_cfg::NetMode::Ports)
         n += " Only specific ports are reachable in this session.";
     else if (!cfg->allow_hosts.empty()) {
-        // Name the list: "a host was refused" sends the model hunting for a
-        // mirror; the list tells it which hosts it CAN use, or what to ask for.
+        // 列表名称 : "a host was refused"
+        // 发送模型猎取镜像; 列表告诉它主机 CAN 使用,或问什么。
         n += " Only these hosts are reachable: ";
         for (std::size_t i = 0; i < cfg->allow_hosts.size() && i < 12; ++i)
             n += (i ? ", " : "") + cfg->allow_hosts[i];
@@ -1273,9 +1273,9 @@ SubprocessResult run_shell_command(std::string_view cmd,
     if (!is_active())
         return run_command_s(std::string{cmd}, max_bytes, timeout);
     auto r = run_wrapped(cmd, max_bytes, timeout);
-    // Only on FAILURE, and only when the output looks like a wall. A note on
-    // every command would be noise the model learns to skip, which is how an
-    // explanation stops working.
+    // 只有在FAILURE上, 并且只有在输出看起来像墙时。
+    // 每个命令的注释都会是噪声, 模型会学会跳过,
+    // 这就是解释停止工作的方式。
     if (r.exit_code != 0 && looks_like_denial(r.output))
         r.output += denial_note();
     return r;
@@ -1287,9 +1287,9 @@ SubprocessResult run_argv(const std::vector<std::string>& argv,
     if (!is_active())
         return run_argv_s(argv, max_bytes, timeout);
     auto r = run_wrapped_argv(argv, max_bytes, timeout);
-    // Same annotation as the shell path: this is what hooks and ACP terminals
-    // go through, and a hook that dies on a wall is just as easy to
-    // misdiagnose as a bash call.
+    // 与壳道相同的注释: 这就是钩子和 ACP 终端 穿过,
+    // 一个挂在墙上的钩子 很容易被误诊
+    // 就像一击 调用.
     if (r.exit_code != 0 && looks_like_denial(r.output))
         r.output += denial_note();
     return r;
@@ -1305,8 +1305,8 @@ claybin_backend::SpawnResult spawn_in_sandbox(
         auto posture = build_claybin_posture(trusted);
         relax_wx_for_jit(posture, join_argv(argv));
         if (!cwd.empty()) posture.cwd = std::string{cwd};
-        // A call scoped to more folders (an editor session's extra roots)
-        // may write there too, like the workspace.
+        // A 调用 被扩展到更多文件夹( 编辑会话的额外根)
+        // 可能也会写到那里, 如 工作区.
         for (const auto& r : extra_roots)
             if (!r.empty()) posture.write_paths.push_back(r);
         return claybin_backend::spawn_argv(posture, argv, out_fd, out_fd, env);
@@ -1339,16 +1339,16 @@ wrap_argv_for_exec(const std::vector<std::string>& argv, std::string_view cwd,
         proxy_env = claybin_backend::proxy_env(posture);
     } else {
         profile = build_profile(workspace_root().string());
-        // The fixed profile has no notion of extra roots; append them the
-        // same way it writes the workspace (escaped, omitted if unsafe).
+        // 固定的配置文件没有额外根的概念; 附加它们的方式与
+        // 它写工作区的方式相同(逃脱,如果不安全则省略).
         for (const auto& r : extra_roots)
             if (std::string e = sbpl_escape(r); !e.empty())
                 profile += "(allow file-write* (subpath \"" + e + "\"))\n";
     }
     std::vector<std::string> out{"/usr/bin/sandbox-exec", "-p", std::move(profile)};
-    // The guest's only route out is the proxy port, so it has to be TOLD the
-    // address: env(1) inside the sandbox, so it applies to exactly this
-    // command and every tool it runs, and nothing in agentty's own env.
+    // 客人唯一的出路是代理端口 所以必须 TOLD 地址: 内
+    // 置 沙箱 ,所以它适用于准确的这个命令 和它运行的每
+    // 一个工具,没有在 agentty 自己的洞穴 内脏
     if (!proxy_env.empty()) {
         out.emplace_back("/usr/bin/env");
         for (auto& kv : proxy_env) out.push_back(std::move(kv));
@@ -1374,7 +1374,7 @@ bool command_needs_jit(std::string_view cmd) noexcept {
         "gradlew", "mvn", "mvnw", "kotlin", "kotlinc", "sbt", "scala",
         "clojure", "lein", "dotnet", "luajit", "pypy", "pypy3", "julia",
     };
-    // run wrappers: the command word comes after them and their options.
+    // 运行包装符:命令词会追到他们和他们的选项.
     static constexpr std::string_view kWrap[] = {
         "env", "exec", "command", "builtin", "time", "nice", "nohup", "timeout",
         "stdbuf", "ionice", "setsid", "taskset", "xargs", "then", "do", "else",
@@ -1388,7 +1388,7 @@ bool command_needs_jit(std::string_view cmd) noexcept {
     };
     auto is_jit = [&](std::string_view w) {
         w = base(w);
-        // versioned names: node22, java17, pypy3.10
+        // 版本名称:节点22、java17、pypy3.10
         while (!w.empty() && ((w.back() >= '0' && w.back() <= '9') || w.back() == '.' || w.back() == '-'))
             w.remove_suffix(1);
         for (auto k : kJit)
@@ -1396,14 +1396,14 @@ bool command_needs_jit(std::string_view cmd) noexcept {
         return false;
     };
 
-    // Split into words (quotes removed) and operators. Quoted text is data,
-    // so `echo "node"` never reaches command position.
+    // 拆分为词(引文已删除)和运算符. 引文为数据,
+    // 因此`echo "node"`从未达到命令位置.
     struct Tok { std::string text; bool op; };
     std::vector<Tok> toks;
     std::string cur;
     bool have = false;
     auto flush = [&] { if (have) toks.push_back({cur, false}); cur.clear(); have = false; };
-    // sh escapes with backslash; cmd.exe (Windows) treats it as a path char.
+    // sh 以反斜拉片逃生;cmd.exe(Windows)将其当作路径字符.
 #if defined(_WIN32)
     constexpr bool kBackslashEscapes = false;
 #else
@@ -1440,11 +1440,11 @@ bool command_needs_jit(std::string_view cmd) noexcept {
         if (t.op) { at_cmd = true; after_wrap = false; continue; }
         if (!at_cmd) continue;
         const std::string_view w = t.text;
-        // FOO=1 cmd
+        // FOO =1厘米(厘米)
         if (auto eq = w.find('='); eq != std::string_view::npos && eq > 0
                 && w.substr(0, eq).find('/') == std::string_view::npos)
             continue;
-        // wrapper options and arguments: -n 10, 30s
+        // 包装选项和参数:-n 10,30s
         if (after_wrap && !w.empty() && (w[0] == '-' || (w[0] >= '0' && w[0] <= '9')))
             continue;
         const auto b = base(w);
@@ -1452,7 +1452,7 @@ bool command_needs_jit(std::string_view cmd) noexcept {
             after_wrap = true;
             continue;
         }
-        // sh -c '...': the script is its own command line
+        // 嘘 -c '...' : 脚本是自己的命令行
         if (b == "sh" || b == "bash" || b == "dash" || b == "zsh" || b == "ash") {
             for (std::size_t m = k + 1; m < toks.size() && !toks[m].op; ++m)
                 if (toks[m].text == "-c" || (toks[m].text.size() > 1 && toks[m].text[0] == '-'

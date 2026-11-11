@@ -1,16 +1,16 @@
-// agtest — thin doctest compatibility layer for agentty's test suite.
+// 试验-瘦 doctest 兼容层 agentty 测试套房
 //
-// The suite historically hand-rolled a `CHECK` macro per file in two shapes:
-//   CHECK(cond)            — bare predicate
-//   CHECK(cond, msg)       — predicate + human message on failure
-// doctest's own CHECK takes only the predicate. This header maps BOTH legacy
-// shapes onto doctest so migrating a test is near-zero-diff in the body: drop
-// the file's `int main()` and its local `#define CHECK`, include this header,
-// and wrap each `void test_x()` in TEST_CASE("x"). The assertions inside are
-// left exactly as written.
+// 套房的历史手 -rolled a `CHECK` 每个文件的宏以两个形状显示 :
+//   CHECK (孔)——赤色上游 CHECK
+//   (召集,msg)——关于失败的上游+人类信息. doctest
+// 属于自己的 CHECK 仅取上游。 头文件 地图 两者 遗留形状到 doctest
+// 迁移的测试就快到了 -zero-diff 输入 正文 : 丢弃文件
+// `int main()` 及其当地 `#define CHECK` ,包括此项 头文件 ,
+// 然后将每个 `void test_x()` 输入 TEST_CASE("x" )
+// 里面的断言完全如文所述。
 //
-// Include this INSTEAD of <doctest/doctest.h> in migrated tests. The single
-// binary's main() still comes from tests/test_main.cpp.
+// 包含此内容 INSTEAD 备注 <doctest/doctest.h> 单人 二进制程序'
+// s main() 仍然来自 tests/test_main.cpp.
 #ifndef AGENTTY_TESTS_AGTEST_HPP
 #define AGENTTY_TESTS_AGTEST_HPP
 
@@ -20,31 +20,31 @@
 
 #include <maya/runtime.hpp>
 
-// ── Lock-order capabilities in tests ────────────────────────────────────────
+// ── 锁-order 测试能力 ────────────────────────────────────────
 //
-// A test body is a thread root, the same as main(): it holds no lock when it
-// starts. agtest::cap() is that root, the ONE place the suite mints a
-// capability (tests/ is outside the lint's scan; this header is the reviewed
-// root for all of it). Use it only from test-body code, never from a helper
-// that a lock body could call:
+// 测试 正文 是一个 线程 根,与 main() : 它持有否 锁 开始
+// 的时候 agtest::cap ()是根,是(或)根,是根,
+// (或) 一个 将套房薄荷作为能力( tests/ 位于林特扫描之外;
+// 此 头文件 是全部被检讨的根。只使用从测试中 -body 代码,
+// 从不从帮助者那 锁 正文 能够 调用:
 //
-//     persistence::save_thread(io, agtest::cap(), t);
-//     DynamicDispatch::execute(agtest::cap(), "read", args);
+//     persistence::save_thread(I/O, agtest::cap(), t);
+//     DynamicDispatch::execute(agtest::cap(), "read" (a) 或
 //
-// The returned reference is to a capability that lives for the program: a
-// capability is a zero-size proof with no state, and a test thread holds
-// nothing between statements. (jaal::cap_access is the sanctioned maker;
-// tests are exempt from the minting ban the lint enforces on src/.)
-// (Defined in agtest_cap.hpp so standalone, non-doctest tests can share it.)
+// 返回的参考文献是程序生存能力:能力是0 -size 没有状态的证明,
+// 和测试 线程 发言之间不设任何限制。
+// ( jaal::cap_access 被制裁的制造者;
+// 测试豁免薄荷禁令。 src/. (定义在 agtest_cap.hpp
+// 如此独立,非 -doctest 测试可以分享。 )
 #include "agtest_cap.hpp"
 
-// Legacy two-arg CHECK(cond, msg) → doctest CHECK_MESSAGE; one-arg CHECK(cond)
-// → doctest CHECK. Both wrap the predicate in an extra paren pair so doctest
-// does NOT try to decompose it — the legacy suite freely uses `CHECK(a && b)`
-// and `CHECK(x || y)`, which doctest's expression decomposer rejects with
-// "Expression Too Complex". Wrapping evaluates the whole thing as one bool
-// (we lose per-operand value printing, which the hand-rolled harness never had
-// anyway).
+// 二号遗物 -arg CHECK (召集,msg) ∗____________________ doctest
+// CHECK_MESSAGE ; 1 个 -arg CHECK (电话) ______________________
+// doctest CHECK。将上游线围成额外的双排线,这样 doctest 已经 不 尝试分解它——
+// 遗留的套房自由使用 `CHECK(a && b)` 财务报告和已审计财务报表 `CHECK(x || y)` ,
+// 哪个 doctest 表达式解析器拒绝使用 "Expression Too Complex"。
+// 包盘将整个过程评价为一个 bul(我们损失每 -operand 数值打印,手 -rolled 绳子
+// 从没有过。
 #ifdef CHECK
 #  undef CHECK
 #endif
@@ -54,7 +54,7 @@
 #define CHECK(...) \
     AGTEST_CHECK_PICK(__VA_ARGS__, AGTEST_CHECK_2, AGTEST_CHECK_1)(__VA_ARGS__)
 
-// Same for the REQUIRE spelling some tests use for fatal checks.
+// 同样的 REQUIRE 拼写一些用于致命检查的测试。
 #ifdef REQUIRE
 #  undef REQUIRE
 #endif
@@ -64,19 +64,19 @@
 #define REQUIRE(...) \
     AGTEST_REQUIRE_PICK(__VA_ARGS__, AGTEST_REQUIRE_2, AGTEST_REQUIRE_1)(__VA_ARGS__)
 
-// Many legacy tests assert through a hand-rolled `void check(bool, const char*)`
-// helper + a g_fails counter instead of a macro. Provide that function here so
-// those tests migrate by DELETING their local check()/g_fails and wrapping the
-// old main() body in a TEST_CASE — the check(...) calls in the body then route
-// into doctest unchanged. Overloaded for the (bool) and (bool, msg) forms and
-// the occasional (bool, std::string).
+// 众多遗留的测试通过手来证明 -rolled `void check(bool, const char*)`
+// 帮助者+a g_fails 对话框,而不是宏。在此提供此函数,
+// 以便这些测试通过 DELETING 当地 check()/g_fails
+// 并包扎旧的 main() 正文 在一个 TEST_CASE -
+// 支票(...) 调用 输入 正文 然后进入 doctest 原封不动。
+// std::string).
 namespace agtest {
 inline void check(bool ok) { DOCTEST_CHECK(ok); }
-// std::string, not the raw const char*. doctest streams a bare char pointer
-// as an ADDRESS, so every failure in every legacy test printed
-// "logged: 0x55ea50991fb0" instead of the message explaining what broke --
-// the one thing the second argument exists for. Costs an allocation on the
-// FAILURE path only (doctest builds the message lazily).
+// std::string 而不是生的锥形花朵* doctest 数据流 赤色的
+// 字符指针 ADDRESS ,所以每个遗留测试中的每一个失败都
+// 打印 "logged: 0x55ea50991fb0" 而不是解释什么是破碎
+// 的讯息 -- -- 第二个论点存在的唯一原因。 分配 自动调试 FAILURE
+// 仅路径( E) doctest 将消息建立为懒惰的。
 inline void check(bool ok, const char* what) {
     DOCTEST_CHECK_MESSAGE(ok, std::string{what ? what : ""});
 }
@@ -86,23 +86,23 @@ inline void check(bool ok, const std::string& what) {
 } // namespace agtest
 using agtest::check;
 
-// Scoped process-global sandbox: saves HOME, the current working directory,
-// and the WORKSPACE ROOT on construction and restores them on destruction.
-// Tests that point the process at a temp HOME/cwd/workspace (setenv/chdir/
-// set_workspace_root) MUST wrap that in one of these at the top of their
-// TEST_CASE, so the mutation doesn't leak into sibling cases once every test
-// shares one binary. RAII — restores even if a CHECK throws.
+// 范围化进程 -global 沙箱: 保存 HOME ,当前工作目录,
+// 以及 WORKSPACE ROOT 建造,并使他们在毁灭时复原。
+// 测试将过程点到临时 HOME/cwd/workspace (setenv/chdir/
+// set_workspace_root) 必须 把这些包在其中的一块 在
+// 他们的顶端 TEST_CASE ,所以突变不会泄露到兄弟病例 一旦每次测试共享
+// 一个 二进制程序. RAII ——即使恢复 CHECK 掷出.
 //
-// The workspace root is here because leaving it dangling is a genuinely
-// nasty failure: it does not break the test that leaks it, it breaks a LATER
-// test. `set_workspace_root(tmp)` followed by `remove_all(tmp)` leaves
-// project_root() naming a deleted directory, and the next test that builds a
-// bwrap sandbox from it dies with
-//     bwrap: Can't find source path /tmp/...: No such file or directory
-// — which surfaces as an unrelated hook/tool test failing, only in-suite,
-// never in isolation. Three separate fixtures had already grown this leak
-// (agentty_gitrank, agentty_prewarm_cancel, agentty_skills_cap_test), so the
-// fix belongs in the shared guard rather than in each test.
+// 电话 工作区 根是在这里的,因为留下它 是一个真正的令人厌恶的失败:
+// 它不打破测试 泄露它,它打破一个 LATER 测试。
+// `set_workspace_root(tmp)` 之后是
+// `remove_all(tmp)` 叶 project_root () 命名一个
+// 已删除的目录, 以及下一个构建
+//     brap 的测试 沙箱 无法找到源路径 / tmp/...
+// : 没有此类文件或目录—— 显示为无关 hook/tool 测试失败,
+// 仅在 -suite 三个独立的装置已经使这种漏水现象增多( agentty_gitrank,
+// agentty_prewarm_cancel, agentty_skills_cap_test ),
+// 所以固定属于共同的守备而不是每个测试.
 #include <cstdlib>
 #include <filesystem>
 #include "agentty/tool/util/fs_helpers.hpp"
@@ -133,25 +133,25 @@ private:
 } // namespace agtest
 using agtest::ScopedEnvSandbox;
 
-// A temp directory that deletes itself.
+// 临时目录, 将自己删除。
 //
-// Tests mint temp dirs constantly and almost none of them clean up: 47
-// distinct `agentty_*_` prefixes at last count, 3537 stale directories on this
-// box, enough to fill a 16 GB tmpfs and fail an unrelated build with "No space
-// left on device". The harness now sweeps the namespace on startup, but that
-// is a safety net with a 24-hour lag -- it keeps the box healthy, it does not
-// keep a single run clean.
+// 薄荷薄荷薄饼的试验不断进行,几乎没有一种能清理:47种有区别
+// `agentty_*_` 前缀在最后数, 3537 过期 此框上的目录,
+// 足以填充 16 GB tmpfs 失败, 与此无关的构造
+// "No space left on device"。现在,
+// 这把绳子正在扫描命名空间,但那是安全网,有24个 -hour 慢了下来 保持
+// 了盒子的健康 保持了干净
 //
-// This is the fix at the source. `agtest::TempDir d{"mytest"}` gives a unique
-// directory under the shared prefix and removes it at scope exit, on every
-// path including an exception from a failing CHECK.
+// 此是定源处. `agtest::TempDir d{"mytest"}`
+// 在共享前缀下给出一个唯一目录,并在范围退出时将其删除,
+// 在每个路径上都包含一个例外,以排除失败 CHECK.
 //
-// Use it instead of hand-rolling temp_directory_path() / (prefix + stamp):
-//   - unique by construction (clock + a counter, so same-nanosecond calls in
-//     one binary cannot collide the way a bare timestamp can)
-//   - inside the `agentty_` namespace, so the sweep catches it even if the
-//     process is SIGKILLed before the destructor runs
-//   - impossible to forget, which the 47 prefixes prove is the actual problem
+// 用手来代替手 -rolling temp_directory_path () /(前缀+邮票):
+//   - 建筑独有(小时+计数器,所以相同) -nanosecond 调用 输入
+//     单曲 二进制程序 无法碰撞 光时标可以)
+//   - 在`agentty_`命名空间内,所以扫荡捕捉它,即使
+//     进程是销毁器运行前的 SIGKILLLL。
+//   - 无法忘记,47前缀证明是实际问题
 #include <atomic>
 #include <chrono>
 #include <string>
@@ -171,7 +171,7 @@ public:
     }
     ~TempDir() {
         std::error_code ec;
-        std::filesystem::remove_all(path_, ec);   // best effort
+        std::filesystem::remove_all(path_, ec);   // 尽最大的努力
     }
     TempDir(const TempDir&) = delete;
     TempDir& operator=(const TempDir&) = delete;

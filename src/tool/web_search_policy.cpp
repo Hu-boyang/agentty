@@ -1,4 +1,4 @@
-// web_search_policy.cpp — the process-wide web_search policy slot.
+// web_search_policy.cpp ——过程 -wide web_search 政策档次。
 
 #include "agentty/tool/web_search_policy.hpp"
 
@@ -17,21 +17,21 @@ util::AtomicSnapshot<web_search_cfg::Config>& slot() {
     return s;
 }
 
-} // namespace
+} // 命名空间结束。
 
 void seed(Io io) {
-    // From settings.json, once, by an entry point that may read disk. Never
-    // overwrites a value the pane already installed.
+    // 从 settings.json ,一次,通过一个可能读取磁盘的入口点。
+    // 从不覆盖一个值 面板 已经安装。
     if (slot().load()) return;
     web_search_cfg::Config c;
     try {
-        c = persistence::load_settings(io).web_search;   // applies env overrides
+        c = persistence::load_settings(io).web_search;   // 应用内存覆盖
     } catch (const std::exception& e) {
         util::dbglog("web_search_policy.seed", e.what());
     } catch (...) {
         util::dbglog("web_search_policy.seed", "non-std exception");
     }
-    // Atomic: a pane install that lands while the disk read runs wins.
+    // 原子: a 面板 在读盘运行时安装该区域。
     (void)slot().store_if_empty(std::move(c));
 }
 

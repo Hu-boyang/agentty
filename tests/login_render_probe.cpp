@@ -1,11 +1,11 @@
-// login_render_probe — render each Panel-converted login state so a human
-// (and CI) can look at it:
-//   ./agentty_standalone_tests login_render_probe            account list
-//   ./agentty_standalone_tests login_render_probe --confirm  delete armed
-//   ./agentty_standalone_tests login_render_probe --key      API key input
-//   ./agentty_standalone_tests login_render_probe --key-full key partly typed
-//   ./agentty_standalone_tests login_render_probe --host     custom host input
-//   ./agentty_standalone_tests login_render_probe --oauth    OAuth code entry
+// login_render_probe — 渲染 每个小组 -converted 登录状态
+// 如此人(和 CI )可以看它:
+//   ./agentty_standalone_tests login_render_probe 账户列表
+//   ./agentty_standalone_tests login_render_probe --confirm 删除武装
+//   ./agentty_standalone_tests login_render_probe --key      API
+//   关键输入 ./agentty_standalone_tests login_render_probe --key-full 键部分
+//   带类型的 ./agentty_standalone_tests login_render_probe --host 自定义主机输入
+//   ./agentty_standalone_tests login_render_probe --oauth OAuth 代码条目
 #include <cstdio>
 #include <cstring>
 #include <string>

@@ -1,19 +1,19 @@
-// thread_log_test — the append-only message log and its offset index.
+// thread_log_test - 附录 -only 信件日志及其折叠索引。
 //
-// The master property is ROUND-TRIP IDENTITY: a thread written to a log
-// and read back must equal the thread that went in. Everything else here
-// exists to make the failure modes explicit rather than discovered:
+// 主人的财产是 ROUND-TRIP IDENTITY:
+// a 线程 写入日志并读回必须等于 线程 其它
+// 所有的东西都是为了让失败模式清晰而非发现:
 //
-//   * the index is a CACHE — deleting, truncating or corrupting it must
-//     change nothing except how long the open takes,
-//   * a torn append costs the partial line and nothing else,
-//   * append is O(1) in thread size, which is the property that silently
-//     regresses if someone later "simplifies" the writer,
-//   * a windowed read returns exactly the same messages as a full read.
+//   * 指数是CACHE——必须删除、截断或腐蚀
+//     改变一切,只有开放的时间,
+//   * 撕裂的附着物会花掉部分的线,而别的东西,
+//   *附件为O(1),以线程大小表示,这是默默无声的财产。
+//     如果晚点有人会退步 "simplifies" 作家,
+//   * 窗口读取的回执与读取的完整完全相同。
 //
-// These are written against the real codec (persistence::message_to_json /
-// message_from_json), so they also pin that the log and the whole-document
-// format cannot drift apart.
+// 这些都与真实的编码c(persistence::message_to_json
+// / message_from_json)相对立,因此它们也钉住日志和整个
+// -document格式不能飘移.
 
 #include "agtest.hpp"
 
@@ -37,7 +37,7 @@ fs::path scratch_dir() {
     return p;
 }
 
-// A fresh log path per test, so cases can't contaminate each other.
+// 每次测试都有一个新鲜的日志路径,所以病例不能互相污染.
 fs::path fresh_log(std::string_view name) {
     auto p = scratch_dir() / (std::string{name} + ".jsonl");
     std::error_code ec;
@@ -47,10 +47,10 @@ fs::path fresh_log(std::string_view name) {
     return p;
 }
 
-// Bytes that are hostile to a text pipeline, since tool output really does
-// carry them: a UTF-8 sequence, characters that must be JSON-escaped, and
-// — critically — an embedded NEWLINE, which is the one thing a
-// line-delimited format could plausibly get wrong.
+// 字节 文本管道,因为工具输出确实携带:a UTF -8个序列,
+// 字符必须是 JSON-escaped ,并且——关键是——
+// 嵌入式 NEWLINE ,这是一件事 一行
+// -delimited 格式可能会令人怀疑地错误。
 Message make_message(int i, bool nasty = false) {
     Message m;
     m.role = (i % 2 == 0) ? Role::User : Role::Assistant;
@@ -71,7 +71,7 @@ std::vector<Message> make_messages(std::size_t n, bool nasty = false) {
     return v;
 }
 
-// Compare on the fields the log is responsible for carrying.
+// 比较日志负责携带的字段.
 bool same(const Message& a, const Message& b) {
     return a.id.value == b.id.value
         && a.role      == b.role
@@ -94,11 +94,11 @@ std::string read_file(const fs::path& p) {
                        std::istreambuf_iterator<char>()};
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("thread log: round-trips messages verbatim") {
     const auto path = fresh_log("roundtrip");
-    const auto sent = make_messages(50, /*nasty=*/true);
+    const auto sent = make_messages(50, /*恶心的*/true);
 
     {
         auto log = ThreadLog::open_path(path);
@@ -117,8 +117,8 @@ TEST_CASE("thread log: round-trips messages verbatim") {
 }
 
 TEST_CASE("thread log: an embedded newline does not split a message") {
-    // The obvious way to break a line-delimited format. message_to_json
-    // escapes it, but that guarantee deserves a test rather than trust.
+    // 分界线的明显方法 -delimited 格式化,
+    // 请输入 message_to_json 逃脱了它,但这种保证值得考验而不是信任。
     const auto path = fresh_log("newlines");
     Message m;
     m.role = Role::Assistant;
@@ -135,7 +135,7 @@ TEST_CASE("thread log: an embedded newline does not split a message") {
     REQUIRE(back.size() == 1u);
     CHECK(back[0].text == m.text);
 
-    // And the file really does hold one line.
+    // 并且文件确实有一条线。
     const std::string raw = read_file(path);
     CHECK(std::count(raw.begin(), raw.end(), '\n') == 1);
 }
@@ -154,28 +154,28 @@ TEST_CASE("thread log: windowed reads match the full read") {
     const auto all = log->all();
     REQUIRE(all.size() == sent.size());
 
-    // The thread-switch shape: the last screenful.
+    // 电话 线程-switch 形状:最后一个屏幕。
     const auto tail = log->range(log->size() - 60, log->size());
     REQUIRE(tail.size() == 60u);
     for (std::size_t i = 0; i < tail.size(); ++i)
         CHECK(same(tail[i], all[all.size() - 60 + i]));
 
-    // A window from the middle, and the degenerate cases.
+    // 中间的窗户和堕落的箱子
     const auto mid = log->range(40, 60);
     REQUIRE(mid.size() == 20u);
     CHECK(same(mid.front(), all[40]));
     CHECK(same(mid.back(),  all[59]));
 
-    CHECK(log->range(10, 10).empty());          // empty window
-    CHECK(log->range(50, 10).empty());          // reversed
-    CHECK(log->range(9999, 10000).empty());     // past the end
-    CHECK(log->range(190, 9999).size() == 10u); // clamped to the log
+    CHECK(log->range(10, 10).empty());          // 空窗口
+    CHECK(log->range(50, 10).empty());          // 倒转
+    CHECK(log->range(9999, 10000).empty());     // 过尾端
+    CHECK(log->range(190, 9999).size() == 10u); // 夹在日志上
 }
 
 TEST_CASE("thread log: the index is a cache, not truth") {
     const auto path = fresh_log("cache");
     auto idx = path; idx.replace_extension(".ofs");
-    const auto sent = make_messages(120, /*nasty=*/true);
+    const auto sent = make_messages(120, /*恶心的*/true);
     {
         auto log = ThreadLog::open_path(path);
         REQUIRE(log.has_value());
@@ -183,7 +183,7 @@ TEST_CASE("thread log: the index is a cache, not truth") {
     }
     CHECK(fs::exists(idx));
 
-    // 8 bytes per message, and nothing else.
+    // 8 字节 每一个消息, 和没有其他的。
     CHECK(fs::file_size(idx) == sent.size() * 8u);
 
     auto expect_intact = [&](const char* what) {
@@ -193,27 +193,27 @@ TEST_CASE("thread log: the index is a cache, not truth") {
         CHECK_MESSAGE(same_all(log->all(), sent), what);
     };
 
-    // 1. Deleted outright.
+    // 1. 完全删除。
     std::error_code ec;
     fs::remove(idx, ec);
     expect_intact("a deleted index must be rebuilt, losing nothing");
     CHECK_MESSAGE(fs::exists(idx), "and rewritten for next time");
 
-    // 2. Truncated (the crash-between-appends case).
+    // 2. 断断(第-between-appends号坠机案)。
     {
         std::ofstream out(idx, std::ios::binary | std::ios::trunc);
-        out << std::string(40, '\0');    // 5 offsets, all zero
+        out << std::string(40, '\0');    // 5个股,全部零
     }
     expect_intact("a truncated index must be rebuilt");
 
-    // 3. Filled with garbage that is not even offset-shaped.
+    // 3. 填充的垃圾甚至没有抵消-shaped.
     {
         std::ofstream out(idx, std::ios::binary | std::ios::trunc);
         out << "this is not an index at all";
     }
     expect_intact("a corrupt index must be rebuilt");
 
-    // 4. Offsets that are well-formed but point outside the log.
+    // 4. 良好偏差 -formed 但要在日志外指点
     {
         std::string buf(sent.size() * 8u, '\0');
         for (std::size_t i = 0; i < sent.size(); ++i) {
@@ -237,12 +237,12 @@ TEST_CASE("thread log: a torn append costs only the partial line") {
         CHECK(log->rewrite(sent));
     }
 
-    // Simulate a crash mid-append: chop the file inside its last line,
-    // and drop the index so the reader has to cope on its own.
+    // 模拟崩溃中点 -append :将文件切入其
+    // 最后一行,并放下索引,以便读者自己应付.
     std::string raw = read_file(path);
     const std::size_t last_nl = raw.find_last_of('\n', raw.size() - 2);
     REQUIRE(last_nl != std::string::npos);
-    raw.resize(last_nl + 1 + 20);           // 20 bytes into the final line
+    raw.resize(last_nl + 1 + 20);           // 20 字节 输入最后一行
     {
         std::ofstream out(path, std::ios::binary | std::ios::trunc);
         out.write(raw.data(), static_cast<std::streamsize>(raw.size()));
@@ -258,7 +258,7 @@ TEST_CASE("thread log: a torn append costs only the partial line") {
                   "every complete message survives; only the torn one is lost");
     for (std::size_t i = 0; i < back.size(); ++i) CHECK(same(back[i], sent[i]));
 
-    // And the log is still usable: appending after the tear works.
+    // 并且该日志仍然可用: 泪后附着.
     CHECK(log->append(make_message(9999)));
     auto after = ThreadLog::open_path(path);
     REQUIRE(after.has_value());
@@ -266,9 +266,9 @@ TEST_CASE("thread log: a torn append costs only the partial line") {
 }
 
 TEST_CASE("thread log: append is O(1) in thread size") {
-    // The property that silently regresses if the writer is ever
-    // "simplified" back into rewriting the file. Measured in BYTES
-    // written, not time, so it is deterministic on any machine.
+    // 如果作家永远沉沦 则会悄悄退缩
+    // "simplified" 重写文件。
+    // BYTES 写,不是时间,所以它决定了任何机器。
     const auto path = fresh_log("append_cost");
     auto idx = path; idx.replace_extension(".ofs");
     const auto sent = make_messages(500);
@@ -291,9 +291,9 @@ TEST_CASE("thread log: append is O(1) in thread size") {
     CHECK_MESSAGE(grew < 1024u,
                   "appending one message must add roughly one line, "
                   "not rewrite the log");
-    // The INDEX has to be O(1) too. Rewriting it whole is only 8 bytes per
-    // message — invisible at 500, but 400 KB per turn at 50k messages, and
-    // unbounded after that. Exactly 8 bytes is the whole point.
+    // 电话 INDEX 一定是O(1),全部重写只有8个
+    // 字节 每条信息——500,但400 KB 每转50
+    // 千条信息,然后不再限制。 字节 整个问题。
     CHECK_MESSAGE(fs::file_size(idx) - idx_before == 8u,
                   "appending one message must add exactly one 8-byte offset");
     CHECK(log->size() == sent.size() + 1);
@@ -305,12 +305,12 @@ TEST_CASE("thread log: append is O(1) in thread size") {
 }
 
 TEST_CASE("thread log: many appends stay O(1) each") {
-    // The shape a long conversation actually takes: one append per turn,
-    // hundreds of times. Each must add exactly one line and exactly one
-    // 8-byte offset, no matter how long the thread already is — if either
-    // file is rewritten per turn the total work is quadratic in thread
-    // length, which is invisible in a short test and fatal in a long one.
-    // (The companion test below observes the rewrite directly.)
+    // 长对话的形状实际上是一个:每转弯一个附件,数百次。
+    // 每个附件必须精确地加一条线,准确的加一八 -byte
+    // 时间长短, 线程 已经是——如果两个文件中任何
+    // 一个都重写到每个转弯,则整个工作都在四进制中 线
+    // 程 长度,在短测试中是隐形的,在长测试中是致命的。
+    // (下面的伴考直接观察重写).
     const auto path = fresh_log("append_scaling");
     auto idx = path; idx.replace_extension(".ofs");
     auto log = ThreadLog::open_path(path);
@@ -336,10 +336,10 @@ TEST_CASE("thread log: many appends stay O(1) each") {
 }
 
 TEST_CASE("thread log: appending does not rewrite the index") {
-    // The O(1) guarantee, observed directly. write_json_atomic publishes
-    // by RENAME, so a whole-index write replaces the file; an append
-    // modifies it in place. fs::equivalent against a hard link taken
-    // beforehand tells the two apart with no timing and no counters.
+    // 直接观察的O(1)保证。 write_json_atomic
+    // 出版人: RENAME ,所以一个整体 -index 写入
+    // 替换文件;附件修改了文件的位置。 fs::equivalent
+    // 对抗一个硬 链接 事先没有时间也没有计数器 告诉了他们
     const auto path = fresh_log("append_inplace");
     auto idx = path; idx.replace_extension(".ofs");
     auto log = ThreadLog::open_path(path);
@@ -347,8 +347,8 @@ TEST_CASE("thread log: appending does not rewrite the index") {
     CHECK(log->rewrite(make_messages(300)));
     REQUIRE(fs::exists(idx));
 
-    // A hard link pins the CURRENT file object. If append rewrites the
-    // index, `idx` becomes a different object and equivalence breaks.
+    // 硬链接 将 当前 文件对象标注在 XX00120 文件中。
+    // 如果附件重写索引, `idx` 将成为一个不同的对象和等效断裂。
     const auto pin = idx;
     auto pinned = scratch_dir() / "append_inplace.pin";
     std::error_code ec;
@@ -374,7 +374,7 @@ TEST_CASE("thread log: rewrite replaces history atomically") {
         CHECK(log->rewrite(make_messages(100)));
         CHECK(log->size() == 100u);
     }
-    // Compaction / edit / fork shape: fewer messages than before.
+    // 压缩 / 编辑 / 叉形状: 消息比以前少。
     auto log = ThreadLog::open_path(path);
     REQUIRE(log.has_value());
     const auto shorter = make_messages(10);
@@ -397,7 +397,7 @@ TEST_CASE("thread log: an empty or absent log is a valid empty thread") {
     CHECK(log->all().empty());
     CHECK(log->range(0, 100).empty());
 
-    // A zero-byte file left by an interrupted create is the same thing.
+    // 中断的创建留下的零-byte文件是同一回事.
     { std::ofstream out(path, std::ios::binary | std::ios::trunc); }
     auto again = ThreadLog::open_path(path);
     REQUIRE(again.has_value());
@@ -407,22 +407,22 @@ TEST_CASE("thread log: an empty or absent log is a valid empty thread") {
 }
 
 TEST_CASE("thread log: an in-flight tool call reloads as interrupted, not as itself") {
-    // A save fires on EVERY turn, including while a tool is still running.
-    // The reader deliberately coerces a pending/running call to Failed
-    // {"interrupted"}: a process that died mid-tool must not reload with a
-    // call that waits forever.
+    // A 保存 着火了 每个 转动,包括当一个工具仍在运行时。
+    // 读者故意胁迫 pending/running 调用 失败{
+    // "interrupted" ?):一个在中途死亡的过程; -tool
+    // 不可重装 调用 永远等待。
     //
-    // That makes round-trip identity FALSE for an unsettled call, on
-    // purpose. save_thread_sync's verification gate compares what it wrote
-    // against what reads back, and it used to compare tool output
-    // unconditionally — so every save with a tool in flight reported "log
-    // verification FAILED" and refused to retire the legacy document.
-    // Observed on a live 2400-message thread, in bursts that healed the
-    // moment the tool completed.
+    // 圆的 -trip 身份 FALSE 以未定之物发誓, 调用 故意的 故意的 我...
+    // 故意的 {\cHFFFFFF}{\3cH111111}{\4cH111111}And
+    // on sidely. save_thread_sync 校验门比较了它
+    // 写的东西 和读回的内容,它用来比较 无条件的工具输出,所以每一个 保存 报告飞行中
+    // 工具 "log verification FAILED" 并拒绝将遗留文件退役。
+    // 现场观看了2400 -message 线程 ,在一阵阵子里,
+    // 工具完成的那一刻, 已经痊愈了。
     //
-    // This pins the transform so the gate's exemption stays justified: if
-    // the reader ever starts preserving pending state, this test fails and
-    // the exemption can be removed.
+    // 这个定点转换,所以闸门的免责保留了合理
+    // 性:如果读者开始保留待处理状态,这个测试失败,
+    // 免责可以被移除.
     const auto path = fresh_log("inflight");
 
     Message m;
@@ -443,20 +443,20 @@ TEST_CASE("thread log: an in-flight tool call reloads as interrupted, not as its
     REQUIRE(back.size() == 1u);
     REQUIRE(back[0].tool_calls.size() == 1u);
 
-    // In memory an unsettled call has no output; on disk it has one.
+    // 内 内存 无人解决 调用 没有输出;在磁盘上它有一个。
     CHECK(m.tool_calls[0].output().empty());
     CHECK_FALSE(back[0].tool_calls[0].output().empty());
-    // And it comes back terminal, so a reload never waits on it.
+    // 并且它会回到终端, 所以重装永远不会等待它。
     CHECK(back[0].tool_calls[0].is_terminal());
 
-    // Everything the format DOES promise still round-trips exactly.
+    // 一切的形态 执行 答应你还是圆的 -trips 完全正确,我们没有
     CHECK(back[0].id.value == m.id.value);
     CHECK(back[0].text == m.text);
     CHECK(back[0].tool_calls[0].id.value == tc.id.value);
     CHECK(back[0].tool_calls[0].name.value == tc.name.value);
 
-    // A SETTLED call keeps its output verbatim — the exemption is scoped
-    // to the unsettled case and must not hide real loss.
+    // SETTLED 调用保持其产出的逐字记录——豁免的范围
+    // 是针对未解决的案件,决不能掩盖实际损失。
     Message done;
     done.id   = MessageId{"m-done"};
     done.role = Role::Assistant;
@@ -475,11 +475,11 @@ TEST_CASE("thread log: an in-flight tool call reloads as interrupted, not as its
 }
 
 TEST_CASE("thread log: metadata round-trips beside the messages") {
-    // A Thread is more than its messages. The header is mutable and the
-    // log is append-only, so it lives in a sidecar — and every field of
-    // it has to survive, or a reloaded thread quietly loses its title,
-    // its fork provenance, or the compaction record that keeps the wire
-    // payload small.
+    // A 线程 不仅仅是它的信息。 头文件 谓 可变
+    // 日志为附件 -only 因为它住在一辆侧车里 每一片
+    // 地都要生存下来 或者重新装满 线程 悄悄地失去它的头衔,
+    // 叉子来源,或者保持其特征的收缩记录 传输 载荷
+    // 细小的。
     const auto path = fresh_log("meta");
     auto meta = path; meta.replace_extension(".meta.json");
     std::error_code ec; fs::remove(meta, ec);
@@ -515,19 +515,19 @@ TEST_CASE("thread log: metadata round-trips beside the messages") {
     CHECK(back.compactions[0].summary     == rec.summary);
     CHECK(same_all(back.messages, t.messages));
 
-    // meta() alone must NOT drag the transcript in — that is the whole
-    // point of splitting the files.
+    // meta() 一个人不得 拖动记录稿——这就是
+    // 拆分文件的全部要点.
     CHECK_MESSAGE(log->meta().messages.empty(),
                   "metadata must not carry messages");
     CHECK(log->meta().title == t.title);
 }
 
 TEST_CASE("thread log: a compaction past the end of history is dropped") {
-    // Only reachable via a save interrupted mid-compaction. The record
-    // would make the wire summarise a prefix that no longer exists, so
-    // the loader has to bound it — and in the log format the metadata is
-    // read BEFORE the message count is known, which is exactly why the
-    // clamp is a separate step rather than part of parsing.
+    // 只能通过一个 保存 中途中断 -compaction
+    // 记录将使得 传输 概括一个已不存在的前缀,
+    // 因此装入器必须绑定它—— 在日志格式中读取元
+    // 数据 之前 信息计数是已知的,正因为如此,
+    // 夹子是单独的一步,而不是一部分 解析.
     const auto path = fresh_log("stale_compaction");
     Thread t;
     t.id       = ThreadId{"stale"};
@@ -548,8 +548,8 @@ TEST_CASE("thread log: a compaction past the end of history is dropped") {
 }
 
 TEST_CASE("thread log: remove() clears every file of the thread") {
-    // The log format is three files. Deleting a thread must take all of
-    // them, or the thread reappears on the next directory walk.
+    // 日志格式为三个文件。 删除 a 线程 全部都得拿走,
+    // 或者说 线程 重新出现在下一个目录行走中。
     const auto path = fresh_log("removal");
     auto idx  = path; idx.replace_extension(".ofs");
     auto meta = path; meta.replace_extension(".meta.json");

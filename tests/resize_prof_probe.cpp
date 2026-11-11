@@ -1,18 +1,18 @@
-// resize_prof_probe — what does a terminal RESIZE actually cost?
+// resize_prof_probe - 什么样的 终端 RESIZE 实际成本?
 //
-// A width change is the expensive kind: maya invalidates the previous
-// cell grid (every row's wrap points move) and HardResets, so the next
-// frame repaints the whole frozen canvas — up to frozen_row_budget()
-// rows, which is 3 viewports.
+// 宽度变化是昂贵的种类: maya 无效的上一个 存储单元 网
+// 格(每行的包头移动)和 HardResets ,所以下一个 帧
+// 重绘 整个冰冻帆布——最多 frozen_row_budget
+// ()行,即三观门.
 //
-// A thread switch renders ~2 screens ONCE. A resize repaints ~3
-// viewports, and a drag emits a resize per column. This measures the
-// per-resize cost at realistic terminal sizes, split so the answer says
-// WHICH part to fix rather than just "it's slow".
+// A 线程 切换 渲染 ~2 个屏幕 一次 调整大小 重
+// 绘 ~3 视图,拖动会发出每个列的调整大小。此度量每列
+// -resize 实际成本 终端 大小,分拆,答案是 对应的 部分来修正,
+// 而不是仅仅 "it's slow".
 //
 //   ./build/agentty_standalone_tests resize_prof_probe <thread> [rows]
 //
-// Accepts .json or .jsonl. No argument = no-op pass.
+// 接受 . 接受 接受 的 接受 , 接受 同意 的 同意 , 同意 接受。 JSON 或.jsonl. 无论据 = 不 -op 过.
 
 #include <agentty/domain/session.hpp>
 #include <agentty/io/persistence.hpp>
@@ -49,7 +49,7 @@ double median(std::vector<double> v) {
     return v.empty() ? 0.0 : v[v.size() / 2];
 }
 
-} // namespace
+} // 命名空间结束。
 
 int main(int argc, char** argv) {
     if (argc < 2) {
@@ -80,17 +80,17 @@ int main(int argc, char** argv) {
     std::printf("  seeded canvas: %zu entries, %zu rows\n",
                 m.ui.frozen.size(), m.ui.frozen.row_total());
 
-    // Model the post-paint trim, because a resize never sees the seeded
-    // canvas. rehydrate seeds rehydrate_row_budget() rows; the first real
-    // frame paints them (that is the switch cost the user feels, and the
-    // rows scroll into native scrollback), and then the Tick arm in
-    // meta.cpp trims to frozen_row_budget() as soon as every block has a
-    // recorded height. From frame two onward the canvas is the SMALL one,
-    // and that is what every subsequent resize re-lays-out.
+    // Model 员额 -paint 修剪,因为调整大小时从未
+    // 看到过种子布。 rehydrate_row_budget ()行;
+    // 第一真经. 帧 画它们(即开关使用户感觉成本高,
+    // 行滚动成原生) 回滚缓冲区 ),然后是滴答臂进入
+    // meta.cpp 修剪为 frozen_row_budget
+    // ()一旦每个街区都有记录的高度。 帧 继续画布是 SMALL 其中一个,
+    // 这就是后来的每个调整大小 -lays-out.
     //
-    // Headless there is no paint, so record the heights the way the
-    // renderer would (the ledger's provability gate refuses to drop a
-    // block whose height was never recorded -- see scrollback_ledger.hpp).
+    // 头没漆,所以记录高处 渲染器 将(分类账的可证明
+    // 性门拒绝投放一个从未记录过高度的区块 -- --
+    // 见 scrollback_ledger.hpp).
     for (std::size_t k = 0; k < m.ui.frozen.size(); ++k)
         m.ui.frozen.record_paint(k, static_cast<int>(m.ui.frozen.block_rows(k)));
     (void)app::detail::trim_frozen_if_oversized(m);
@@ -99,15 +99,15 @@ int main(int argc, char** argv) {
                 "  <- steady state, post-trim\n",
                 m.ui.frozen.size(), m.ui.frozen.row_total(), rows);
 
-    // A resize is a WIDTH change: every cached Element must re-layout at
-    // the new width, and maya's component cache keys on width, so nothing
-    // is reused. Alternating widths models a drag, where no width repeats.
+    // 缩放是 WIDTH 更改: 每个缓存元素必须重新 -layout
+    // 以新的宽度表示,以及 maya 组件 缓存 宽度键,
+    // 所以没有东西被重用。 换位宽度会显示拖动模式, 其中宽度不会重复。
     std::printf("\n  per-frame cost at a NEW width (what a resize pays):\n");
     for (int w : {120, 100, 80, 160}) {
         std::vector<double> build_v, render_v;
         for (int i = 0; i < 5; ++i) {
-            // A fresh width each iteration so no cache can hit — the
-            // pessimistic case a drag actually produces.
+            // 每个迭代都有一个新的宽度,这样缓存就打不
+            // 中——拖动实际产生的悲观的例.
             const int width = w + i;
             auto t = clk::now();
             auto cfg = ui::conversation_config(m);
@@ -124,8 +124,8 @@ int main(int argc, char** argv) {
                     median(build_v) + median(render_v));
     }
 
-    // The SAME width twice: this is what the component cache is for, and
-    // the gap between the two numbers is what a resize throws away.
+    // 电话 相同 宽度 两次: 这就是组件 缓
+    // 存 两者的间隔就是 大小调整后会丢掉的
     std::printf("\n  same width twice (cache warm) \u2014 the steady state:\n");
     {
         std::vector<double> warm;

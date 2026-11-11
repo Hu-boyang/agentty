@@ -1,5 +1,5 @@
-// agentty::util::user_root — impl. See the header for the single-root
-// rationale (why ~/.agentty and not $XDG_CONFIG_HOME/agentty).
+// agentty::util::user_root 普普尔,见 头文件 单人 -root 理由(为什么)
+// ~/.agentty 而不是 说 $XDG_CONFIG_HOME/agentty).
 #include "agentty/util/user_root.hpp"
 #include "agentty/util/home_dir.hpp"
 
@@ -12,8 +12,8 @@
 
 #ifndef _WIN32
 #  include <sys/stat.h>   // chmod
-#  include <pwd.h>        // getpwuid — env-proof home for the test tripwire
-#  include <unistd.h>     // getuid
+#  include <pwd.h>        // eupwuid——env-proof 家用于测试绊线
+#  include <unistd.h>     // 获取( G)
 #endif
 
 namespace agentty::util {
@@ -22,16 +22,16 @@ namespace fs = std::filesystem;
 
 namespace {
 
-// The developer's TRUE home, from the password database — not $HOME,
-// which tests routinely repoint at a temp dir. Used only by the test
-// tripwire below to answer "is this the real store?" in a way no env
-// mutation (and no static-init ordering) can confuse. Empty on
-// platforms/paths where it can't be determined, which disarms the
-// guard rather than risking a false abort.
+// 开发商的 TRUE ,来自密码数据库,而不是 $HOME ,
+// 测试通常在临时目录中重新指向。仅用下面的测试绊线来回答
+// "is this the real store?" 某种程度上
+// 没有内存突变( 也没有任何静态) -init 命令)可以混淆。
+// 空开 platforms/paths 无法确定,
+// 哪些解除了警卫的枪械 而不是冒着假流产的风险。
 fs::path passwd_home() {
 #ifndef _WIN32
     if (const char* p = std::getenv("AGENTTY_TEST_FAKE_PASSWD_HOME"))
-        return fs::path{p};                 // escape hatch for the guard's own test
+        return fs::path{p};                 // 逃出舱门,供警卫自己测试
     if (const struct passwd* pw = ::getpwuid(::getuid());
         pw && pw->pw_dir && *pw->pw_dir)
         return fs::path{pw->pw_dir};
@@ -39,8 +39,8 @@ fs::path passwd_home() {
     return {};
 }
 
-// Resolve the root WITHOUT side effects (shared by user_root and the
-// migration probe).
+// 解析根 无需 副作用 (由 user_root
+// 和迁移探针。
 fs::path resolve_root() {
     if (const char* h = std::getenv("AGENTTY_HOME"); h && *h) return fs::path{h};
     fs::path home = home_dir();
@@ -48,10 +48,10 @@ fs::path resolve_root() {
     return home / ".agentty";
 }
 
-// The legacy split-root location: $XDG_CONFIG_HOME/agentty or
-// ~/.config/agentty. Pre-consolidation this held credentials, accounts,
-// provider OAuth files + locks, the models.dev cache and the update
-// stamp. Resolved WITHOUT creating anything.
+// 遗产的分割 -root 位置 : $XDG_CONFIG_HOME/agentty
+// 或 或 时 间 ~/.config/agentty. 预览 -consolidation
+// 这份文件 凭据 ,账户,提供商 OAuth 文件 + 锁 ,则 models.dev
+// 缓存 和更新的印章。 无需 创建任何东西。
 fs::path legacy_config_dir() {
     fs::path base;
     if (const char* xdg = std::getenv("XDG_CONFIG_HOME"); xdg && *xdg) base = xdg;
@@ -63,39 +63,39 @@ fs::path legacy_config_dir() {
     return base / "agentty";
 }
 
-// Copy+verify one file into `to_dir`, then best-effort remove the source.
-// Never overwrites an existing destination (a newer file under the new
-// layout always wins over a stale legacy copy). Never throws.
+// 复制+验证一个文件进入 `to_dir` 最佳状态 -effort 移除源头。
+// 绝不覆盖一个已有的目的地( 新布局下的新文件
+// 总是胜过 过期 遗存副本)。 绝不丢弃。
 void migrate_file(const fs::path& from, const fs::path& to_dir) {
     std::error_code ec;
     if (!fs::is_regular_file(from, ec)) return;
     const fs::path to = to_dir / from.filename();
-    if (fs::exists(to, ec)) {                 // already migrated / re-created
-        fs::remove(from, ec);                 // drop the stale legacy copy
+    if (fs::exists(to, ec)) {                 // 已迁移 / re-created
+        fs::remove(from, ec);                 // 丢弃 过期 遗稿
         return;
     }
     fs::copy_file(from, to, fs::copy_options::none, ec);
-    if (ec) return;                           // leave the source; retry next run
-    // Verify the copy landed with the same size before deleting the
-    // original — ~/.config → ~/.agentty can cross filesystems, so a
-    // plain rename() is not available and a truncated copy must not
-    // destroy the only good bytes.
+    if (ec) return;                           // 离开源; 下一轮运行 重试
+    // 在删除原件前,对落地的复制件进行同样大小的校验——
+    // ~/.config → ~/.agentty可以跨文件系统,
+    // 因此没有平面的rename(),截断的复制件不得
+    // 破坏唯一的优秀的字节.
     std::error_code e1, e2;
     if (fs::file_size(to, e1) != fs::file_size(from, e2) || e1 || e2) {
         fs::remove(to, ec);
         return;
     }
 #ifndef _WIN32
-    // Credentials keep owner-only bits; harmless for the cache files.
+    // 凭据 保持拥有者 -only 位; 对 缓存 文档。
     ::chmod(to.c_str(), S_IRUSR | S_IWUSR);
 #endif
     fs::remove(from, ec);
 }
 
-// One-time (per install; idempotent per process) migration from the
-// legacy ~/.config/agentty split root. Secrets land in credentials/,
-// caches in cache/. Anything unrecognized is left where it is — this
-// migrates the files agentty itself wrote, nothing else.
+// 一个 -time (每架; 幂等 遗产迁移
+// ~/.config/agentty 密钥在 credentials/,
+// 缓存 输入 cache/. 任何未识别的都留在原处——这
+// 可以迁移文件 agentty 自己写,没有别的。
 fs::path subdir_under(const fs::path& root, const char* env, const char* leaf,
                       bool owner_only);
 
@@ -104,15 +104,15 @@ void migrate_legacy_config(const fs::path& root) {
     const fs::path legacy = legacy_config_dir();
     if (legacy.empty() || !fs::is_directory(legacy, ec)) return;
 
-    // The same dirs the accessors resolve, overrides included. Takes the
-    // root as given: calling user_root() here would re-enter its call_once.
+    // 访问者所解决的、 包含的覆盖的相同 dirs。 按给定的根 : 调用
+    // user_root () 这里将重新 -enter 编号 call_once.
     const fs::path creds = subdir_under(root, "AGENTTY_CREDENTIALS_DIR", "credentials", true);
     const fs::path cache = subdir_under(root, "AGENTTY_CACHE_DIR", "cache", false);
     if (creds.empty() || cache.empty()) return;
 
-    // Secrets + per-provider state → credentials/. The .lock companions
-    // are advisory-lock inodes; migrating them keeps lock paths beside
-    // the files they guard.
+    // 机密+每笔 -provider 国家 □ credentials/. 那个...
+    // 锁 伴侣是忠告的, -lock inodes; 迁移它们保持 锁 路径
+    // 在他们守卫的文件旁边。
     for (const char* name : {"credentials.json", "credentials.json.lock",
                              "accounts.json",
                              "codex_credentials.json", "codex_credentials.json.lock",
@@ -121,38 +121,38 @@ void migrate_legacy_config(const fs::path& root) {
                              "kimi_device_id"})
         migrate_file(legacy / name, creds);
 
-    // Refetchable → cache/.
+    // 可拖曳性 − cache/.
     for (const char* name : {"modelsdev.json", "update_check.json"})
         migrate_file(legacy / name, cache);
 
-    // Diagnostics → logs/ (append-only; a merge would interleave sessions,
-    // so move-if-absent is the right semantics here too). agentty.log is
-    // the pre-consolidation root-level sink; stderr.log lived in the
-    // legacy config dir.
+    // 诊断 + logs/ (附录) -only ;合并将交互会话,
+    // 所以移动 -if-absent 也是正确的语义。 agentty.log 预览
+    // -consolidation 根号 -level 沉积; stderr.log
+    // 住在遗产的配置目录中。
     const fs::path logs = subdir_under(root, "AGENTTY_LOGS_DIR", "logs", false);
     if (logs.empty()) return;
     migrate_file(legacy / "stderr.log", logs);
     migrate_file(root / "agentty.log", logs);
 
-    // Retire the legacy dir if the migration emptied it. Leave it alone
-    // if the user (or another tool) put anything else there.
+    // 如果迁移空了, 则删除遗留目录。 如果用户( 或其它
+    // 工具) 将其它任何内容放在那里, 请放它一旁。
     if (fs::is_directory(legacy, ec) && fs::is_empty(legacy, ec))
         fs::remove(legacy, ec);
 }
 
-// Resolve one overridable subdirectory.
+// 解决一个不可忽视的子目录。
 //
-// `$env` wins when set and non-empty; otherwise `leaf` under the root.
-// A RELATIVE override is resolved against the user root, never against
-// the process CWD: `AGENTTY_LOGS_DIR=logs2` has to mean one directory,
-// not a different one for every directory agentty is launched from.
+// `$env` 设定时胜负, 非胜负 -empty ; 否则 `leaf` 根下结.
+// A RELATIVE 覆盖是针对用户根解决的, 绝不针对进程
+// CWD: `AGENTTY_LOGS_DIR=logs2`
+// 必须是一个目录,而不是每个目录的不同 agentty 发射开始
 //
-// Failure to create the override is NOT silently papered over with the
-// default. A user who points logs at an unmounted drive and gets them in
-// ~/.agentty anyway has been given the wrong answer twice: the setting
-// did not take, and nothing said so. Warn once, then fall back — losing
-// diagnostics entirely is worse than writing them to the default place,
-// but only if the user is told which happened.
+// 无法创建覆盖不是 默认情况下无声打印。 用户在未挂
+// 载的驱动器上对日志进行指点并把它们输入 ~/.agentty 反正,
+// 两次得到错误的回答: 设置没有被接受,
+// 也没有任何反应。 警告一次, 然后退后 ——
+// 完全失去诊断结果比写到默认位置更糟糕,
+// 但只有在用户被告知发生什么时才会这样。
 fs::path resolve_subdir(const char* env, const char* leaf, bool owner_only) {
     return subdir_under(user_root(), env, leaf, owner_only);
 }
@@ -174,11 +174,11 @@ fs::path subdir_under(const fs::path& root, const char* env, const char* leaf,
     std::error_code ec;
     fs::create_directories(p, ec);
     if (overridden && !fs::is_directory(p, ec)) {
-        // maya::snapshot rather than a lock: this resolver is reached from
-        // anywhere (including under ranked locks) with no capability to
-        // thread, and the set only ever grows. Lock-free read-then-insert;
-        // two threads hitting the same broken override in the same instant
-        // may both warn, which is harmless.
+        // maya::snapshot 而不是一个 锁 : 此解析器
+        // 从任何地方( 包括排名以下) 得到。 锁 ) 没有能力
+        // 线程 ,而片场只生长。 锁-free 读 -then-insert ;
+        // 二 个 线程 在同一瞬间击中同样的破损的覆盘,
+        // 可能同时发出警告,这无害。
         static maya::snapshot<std::set<std::string>> warned;
         const std::string key{env};
         if (warned.load()->contains(key)) return root / leaf;
@@ -187,11 +187,11 @@ fs::path subdir_under(const fs::path& root, const char* env, const char* leaf,
             next.insert(k);
             return next;
         }, key);
-        // create_directories() leaves `ec` CLEAR when the path already
-        // exists as a non-directory -- it did not fail, it had nothing to
-        // do -- so reporting ec here printed "Undefined error: 0" for the
-        // single most likely mistake (pointing the override at a file).
-        // Name that case directly and keep the errno text for the rest.
+        // create_directories () 叶子 `ec`
+        // CLEAR 当路径已存在为非 -directory - 它没有失败,
+        // 它没有做 - 所以这里的报章 ec 打印 "Undefined error: 0"
+        // 用于最可能发生的单一错误(将超度指向文件)。
+        // 直接标注这个案件,其余的则保留错误文本。
         std::error_code exists_ec;
         const bool in_the_way = fs::exists(p, exists_ec);
         std::fprintf(stderr,
@@ -209,33 +209,33 @@ fs::path subdir_under(const fs::path& root, const char* env, const char* leaf,
     return p;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 fs::path user_root() {
     static std::once_flag once;
     fs::path root = resolve_root();
     if (root.empty()) return root;
 
-    // ── Test-isolation tripwire ──────────────────────────────────
-    // A test binary that touches the DEVELOPER'S REAL ~/.agentty writes
-    // into their live credential store, account registry and threads.
-    // That is exactly what happened when the single-root consolidation
-    // repointed config_dir() at AGENTTY_HOME while five credential tests
-    // still isolated via XDG_CONFIG_HOME — their sandbox silently became
-    // a no-op and the suite mutated real accounts.
+    // ── Test-isolation 绊线 ──────────────────────────────────
+    // 一项涉及DEVELOPER'S 真实 ~/.agentty的测试二进制程序在他们的凭据商店,
+    // 帐户注册表和线程的直播中写着.
+    // 这正是当单一的-root合并重新将config_dir()号
+    // 号号划为AGENTTY_HOME时发生的情况,而5次凭据试验仍然
+    // 通过XDG_CONFIG_HOME号隔离——他们的沙箱号静默地
+    // 变成了一个-op号和套套件的变异真实账户。
     //
-    // Under AGENTTY_UNDER_TEST (set by both test mains), abort if the
-    // resolved root is the REAL one. "Real" is judged against the
-    // process's actual home as recorded at first use — a test that
-    // repoints $HOME at a temp dir (the common pattern for skills /
-    // hooks / settings coverage) is properly isolated and must pass,
-    // even though it sets no $AGENTTY_HOME.
-    // Opt-IN (AGENTTY_STRICT_TEST_ROOT=1): abort if a test lands on the
-    // developer's real store. The primary protection is that both test
-    // mains sandbox $AGENTTY_HOME for the whole binary; this guard is a
-    // belt-and-braces check for CI / manual audits, kept off by default
-    // so a test that legitimately repoints $HOME can't be mistaken for
-    // an unisolated one.
+    // 下级 AGENTTY_UNDER_TEST (由两个
+    // 测试主机设置),如果解析的根是 真实 一个 "Real"
+    // 以最初使用时记录的流程实际家庭情况来判断,
+    // 这种测试将重新指向 $HOME 临时目录(
+    // 技能/钩/设置覆盖的常见模式)是适当的隔离模式,必须经过,
+    // 尽管它设置了不 $AGENTTY_HOME.
+    // 选择 -IN (AGENTTY_STRICT_TEST_ROOT =
+    // 1 : 如果测试在开发商的真货店上着陆, 则中止。 主要保护是两个
+    // 测试主机都关闭。 沙箱 $AGENTTY_HOME 整个 二进制程序 !
+    // ! 这个警卫是皮带 -and-braces 检查 CI / 人工审计,
+    // 默认情况下不进行, 这样测试可以合法地重新指定 $HOME 不可
+    // 误以为是无异性者.
     if (const char* strict = std::getenv("AGENTTY_STRICT_TEST_ROOT");
         strict && *strict && *strict != '0') {
         static const fs::path real_root = [] {
@@ -252,23 +252,23 @@ fs::path user_root() {
         }
     }
 
-    // Create once per resolved root, not per call. user_root() sits on the
-    // per-turn path (skills catalog, approvals, memory), and on Windows
-    // create_directories is several metadata queries even when the tree
-    // exists. The root can change mid-process (tests repoint AGENTTY_HOME),
-    // so remember WHICH path was ensured, not just that one was. A root
-    // deleted underneath a live process is recreated by the writer that
-    // next needs it (every writer creates its own parent dirs). A published
-    // immutable value: read lock-free every call, replaced on a change; two
-    // threads racing a change both create (idempotent) and both publish.
+    // 每解析根创建一次, 而不是每 调用. user_root (a)
+    // 坐在每名 -turn 路径(技能) 目录 批准, 内存 ),
+    // 并持续 Windows create_directories
+    // 甚至是数个元数据查询 源码树 中位数。 -process (测试
+    // 重点) AGENTTY_HOME ),所以记住 对应的 路径被保证,
+    // 而不仅仅是路径。 活进程下面删除的根由下一个需要它( 每个
+    // 作者创建自己的父 dirs) 的编剧重现。 已发布 不可变
+    // 数值: 已读 锁-free 每隔一段时间 调用 ,在更改时替换;
+    // 2 线程 竞速改变两个创建( R) 幂等 )和两者都发表.
     static maya::published<const fs::path> ensured;
     if (const auto e = ensured.current(); !e || *e != root) {
         std::error_code ec;
         fs::create_directories(root, ec);
 #ifndef _WIN32
-        // Owner-only: the root holds conversation history, learned memory and
-        // (post-consolidation) credentials. One chmod is the whole security
-        // story of the single-root design.
+        // 拥有者 -only :根有对话的历史,有知识 内存 和(员
+        // 额) -consolidation) 凭据 单曲的全程
+        // 安全故事 -root 设计。
         ::chmod(root.c_str(), S_IRWXU);
 #endif
         if (!ec) ensured.publish(std::make_shared<const fs::path>(root));
@@ -294,11 +294,11 @@ fs::path user_logs_dir() {
 }
 
 fs::path user_threads_dir() {
-    // Owner-only: conversation history is as sensitive as the credentials
-    // beside it. The default inherits 0700 from the root, but an override
-    // can point anywhere — including a path the user created 0755 — so
-    // this is the one place the bit has to be set explicitly rather than
-    // assumed.
+    // 拥有者 -only : 对话历史与 凭据 默认
+    // 继承了 7700 从根部继承,但一个覆盖可以指向
+    // 任何地方 — 包括用户创建的 0755 路径
+    // — — 因此,这是需要明确设定的位数而不是假设的
+    // 所在。
     return resolve_subdir("AGENTTY_THREADS_DIR", "threads", /*owner_only=*/true);
 }
 

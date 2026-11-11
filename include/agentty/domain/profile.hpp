@@ -1,7 +1,7 @@
 #pragma once
-// agentty::Profile — the permission tier a user is running under.
-// Read by both the tool domain (`needs_permission(Profile)`) and the
-// provider domain (when surfacing permission-requiring tools).
+// agentty::Profile —用户正在运行的权限层。
+// 由工具域（`needs_permission(Profile)`)
+// 和提供商域（当呈现权限-requiring工具时）读取。
 
 #include <cstdint>
 #include <string_view>
@@ -10,14 +10,14 @@ namespace agentty {
 
 enum class Profile : std::uint8_t { Write, Ask, Minimal };
 
-// Write MUST stay the enum's zero value. Two shipped paths depend on it: a
-// default-constructed store::Settings uses Profile::Write, and
-// persistence::load_settings() resolves a missing "profile" key via
-// value("profile", 0) — so a fresh install AND a legacy config both default
-// to Write (autonomous, contained by the sandbox + workspace boundary). This
-// is an intentional product decision documented at /docs/profiles; reordering
-// this enum would silently flip the default and desync the docs. Pinned by
-// tests/settings_default_test.cpp at runtime too.
+// Write、MUST保持枚举的零值。两个交付路径依赖于它：default
+// -constructed store::Settings 使用
+// Profile::Write，persistence::load_settings
+// () 通过值（"profile", 0）解决缺少的 "profile" 键 —
+// 因此全新安装 和 和旧配置都默认为 Write（自治，由 沙箱 + 工作区 边界包含）。
+// 这是记录在 /docs/profiles 的有意产品决策；重新排序此 枚举 会
+// 默默地翻转默认值并取消同步文档。也被 tests/settings_default_test.cpp
+// 固定在 运行时 上。
 static_assert(static_cast<std::uint8_t>(Profile::Write) == 0,
               "Profile::Write must remain the enum's zero value.");
 

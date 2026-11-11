@@ -1,21 +1,21 @@
-// salvage_dedup_test — re-leaked salvaged-tool-call dedup.
+// salvage_dedup_test ——关于 -leaked 已打捞 -tool-call 脱衣舞
 //
-// Weak local models on the OpenAI-compat path (qwen2.5-coder:7b etc.) leak
-// tool calls as bare JSON in `content`; the transport salvages them with a
-// synthetic `call_salvaged_N` id. These models then RE-LEAK the identical call
-// on the post-tool sub-turn, so without a guard it runs twice (the duplicate
-// stuck card bug). dedup_releaked_salvage_calls resolves a pending salvaged
-// call as Failed-without-side-effects when an identical call already ran
-// terminal earlier in the same agent turn.
+// 当地模式薄弱, OpenAI-compat 路径( qwen2.5) -coder :
+// 7b等) 漏泄工具 调用 赤裸裸的 JSON 输入 `content` ;
+// 缩写 传输层 用合成的救活他们 `call_salvaged_N` id. 这些模型 RE
+// -LEAK 相同的数据 调用 员额 -tool 子目录 -turn ,因此没有警卫,
+// 它运行两次(重复卡片错误). dedup_releaked_salvage_calls
+// 决定 a 待处理 已打捞 调用 失败 -without-side-effects 当一个
+// 相同的 调用 已经运行 终端 之前在同一个特工转弯时
 //
-// Asserts:
-//   1. A re-leaked salvaged call (same name+args, prior Done) is deduped →
-//      Failed, never executed.
-//   2. A STRUCTURED duplicate (real `call_...`/`toolu_...` id) is NOT deduped
-//      — calling read twice with same args is legitimate intent.
-//   3. A salvaged call with DIFFERENT args is NOT deduped.
-//   4. The FIRST salvaged call (no prior terminal twin) is left Pending.
-//   5. Dedup scope is the current turn — a User boundary resets it.
+// 请求 :
+//   1. 关于 -leaked 已打捞 调用 (同名+args,前作)解析 →
+//      失败,从未执行。
+//   2. A STRUCTURED 复制( 实数) `call_...`/`toolu_...` id)为: 不 已除去
+//      ——用相同的语句两次调用读音是正当的意向.
+//   3. 抢救 调用 与 不同 参数为 不 脱落。
+//   4. 现 告 首次 已打捞 调用 (无先前 终端 双)是左 待处理.
+//   5. 编程范围是目前的转弯——用户边界重排。
 
 #include <string>
 #include <string_view>
@@ -65,13 +65,13 @@ Message user() {
     return m;
 }
 
-} // namespace (helpers)
+} // 名称空间 (帮助)
 
-// ── 1. Re-leaked salvaged call (same name+args) is deduped ─────────────────
+// ── 1. 有关 -leaked 已打捞 调用 (同名+args) 已解析 ─────────────────
 TEST_CASE("releak same turn deduped") {
     Model m;
-    // One assistant message: a prior Done salvaged read + a re-leaked
-    // Pending salvaged read with identical args.
+    // 一份助理信息:先前的Done respatched读作+re-leaked
+    // 待处理 respacked读作相同方格.
     json a = {{"path", "/tmp/x"}};
     m.d.current.messages.push_back(user());
     m.d.current.messages.push_back(asst({
@@ -86,7 +86,7 @@ TEST_CASE("releak same turn deduped") {
     check(tcs[1].is_failed(), "re-leaked call resolved Failed (not run)");
 }
 
-// ── 2. Structured duplicate is NOT deduped (deliberate intent) ──────────────
+// ── 2. 结构复制品为NOT(故意) ──────────────
 TEST_CASE("structured duplicate not deduped") {
     Model m;
     json a = {{"path", "/tmp/x"}};
@@ -102,7 +102,7 @@ TEST_CASE("structured duplicate not deduped") {
           "structured duplicate stays Pending");
 }
 
-// ── 3. Salvaged call with DIFFERENT args is NOT deduped ─────────────────────
+// ── 3. 抢救 调用 与 不同 参数为 不 已除去 ─────────────────────
 TEST_CASE("salvaged different args not deduped") {
     Model m;
     m.d.current.messages.push_back(user());
@@ -119,7 +119,7 @@ TEST_CASE("salvaged different args not deduped") {
           "different-args call stays Pending");
 }
 
-// ── 4. First salvaged call (no prior twin) is left Pending ──────────────────
+// ── 4. 首次抢救 调用 (没有前双)是左侧的 待处理 ──────────────────
 TEST_CASE("first salvaged call runs") {
     Model m;
     m.d.current.messages.push_back(user());
@@ -134,17 +134,17 @@ TEST_CASE("first salvaged call runs") {
           "first salvaged call stays Pending");
 }
 
-// ── 5. Dedup is scoped to the current turn (User boundary resets) ───────────
+// ── 5. 分解范围为当前转弯(用户边界重置) ───────────
 TEST_CASE("prior turn not counted") {
     Model m;
     json a = {{"path", "/x"}};
-    // Turn 1: salvaged read ran Done.
+    // 转一圈,打完完完结
     m.d.current.messages.push_back(user());
     m.d.current.messages.push_back(asst({
         make_call("call_salvaged_0", "read", a, /*terminal=*/true),
     }));
-    // Turn 2: a NEW user message, then the same call again pending. This is a
-    // fresh deliberate request — must NOT be deduped against turn 1.
+    // 转二: a 新 用户消息,然后相同 调用 再来一次 待处理
+    // 这是一项新的、有意识的要求——不得 被拆卸到第1转弯处
     m.d.current.messages.push_back(user());
     m.d.current.messages.push_back(asst({
         make_call("call_salvaged_1", "read", a, /*terminal=*/false),
@@ -156,10 +156,10 @@ TEST_CASE("prior turn not counted") {
           "new-turn call stays Pending");
 }
 
-// ── 6. Cross-sub-turn re-leak (the actual bug shape) is deduped ─────────────
-// The real loop: assistant sub-turn A runs the salvaged call Done; a post-tool
-// sub-turn B (no intervening User) re-leaks it Pending. Both are Assistant
-// messages in the same turn.
+// ── 6. 十字勋章 -sub-turn 内容 -leak (实际错误形状)已解析 ─────────────
+// 真正的循环: 助手子 -turn 被抢救的一具尸体 调用 完成; 邮件 -tool
+// 子目录 -turn B( 无介入用户) re -leaks 来,来,
+// 来 待处理。两者都是助理信息。
 TEST_CASE("cross subturn releak deduped") {
     Model m;
     json a = {{"path", "/tmp/x"}};
@@ -167,7 +167,7 @@ TEST_CASE("cross subturn releak deduped") {
     m.d.current.messages.push_back(asst({
         make_call("call_salvaged_0", "read", a, /*terminal=*/true),
     }));
-    // Sub-turn B (continuation placeholder that streamed the re-leak).
+    // 子类 -turn B( 继续流传的占位符) -leak).
     m.d.current.messages.push_back(asst({
         make_call("call_salvaged_1", "read", a, /*terminal=*/false),
     }));
@@ -178,16 +178,16 @@ TEST_CASE("cross subturn releak deduped") {
           "cross-sub-turn re-leak resolved Failed");
 }
 
-// ── 7. Runaway leak loop with DRIFTING args is bounded by the budget ────────
-// Weak models re-leak the same tool with slightly different args each
-// sub-turn (e.g. remember with scope flipping project/user), defeating the
-// exact-match dedup. After the per-turn salvage budget is spent, any further
-// pending salvaged call is failed without running so the loop terminates.
+// ── 7. 与以下系统进行径行泄漏循环: DRIFTING 参数受预算约束 ────────
+// 弱型号再 -leak 相同工具,每个子的参数略有不同 -turn
+// (e.g。用翻转瞄准镜记住 project/user ),
+// 击败准确的 -match 脱下,在每张之后 -turn 抢救预算用完了,
+// 再用下去 待处理 已打捞 调用 失败而不运行, 循环终止。
 TEST_CASE("salvage budget bounds drifting loop") {
     Model m;
     m.d.current.messages.push_back(user());
-    // 8 prior salvaged calls already ran terminal this turn (the budget), each
-    // with DIFFERENT args so none would be caught by exact-match dedup.
+    // 8个先前抢救 调用 已经运行 终端 轮到这个方向,
+    // 每个方向 不同 说不定不会有人被抓到 -match 脱衣舞
     std::vector<ToolUse> calls;
     for (int i = 0; i < 8; ++i)
         calls.push_back(make_call("call_salvaged_" + std::to_string(i),
@@ -195,7 +195,7 @@ TEST_CASE("salvage budget bounds drifting loop") {
                                   json{{"path", "/f" + std::to_string(i)}},
                                   /*terminal=*/true));
     m.d.current.messages.push_back(asst(std::move(calls)));
-    // The 9th re-leak: a brand-new args value, not an exact duplicate.
+    // 第九回 说到这里 -leak : 一个品牌 -new 参数值,不是确切的重复。
     m.d.current.messages.push_back(asst({
         make_call("call_salvaged_8", "read",
                   json{{"path", "/f8-drifted"}}, /*terminal=*/false),
@@ -207,9 +207,9 @@ TEST_CASE("salvage budget bounds drifting loop") {
           "over-budget call resolved Failed without running");
 }
 
-// ── 8. A STRUCTURED call is never capped by the salvage budget ──────────────
-// The budget only governs synthetic salvaged leaks. A real structured tool
-// call after many salvaged ones is deliberate intent and must still run.
+// ── 8. A STRUCTURED 调用 永远不能被抢救预算限制 ──────────────
+// 预算只管理人工挽救的漏泄。 在许多被拯救的漏泄之后,
+// 真正的结构化工具调用是有意的,必须运行。
 TEST_CASE("structured call not budget capped") {
     Model m;
     m.d.current.messages.push_back(user());
@@ -231,11 +231,11 @@ TEST_CASE("structured call not budget capped") {
           "structured call stays Pending despite spent salvage budget");
 }
 
-// ── 9. A SALVAGED memory tool is blocked outright (first call, no prior) ────
-// Weak models leak remember/forget/wipe_memory on greetings. A salvaged call
-// to a memory tool is never the user's intent — it must be failed WITHOUT
-// running, even as the FIRST salvaged call of the turn (no dedup twin, budget
-// not spent).
+// ── 9. A SALVAGED 内存 工具被完全屏蔽( 第一个) 调用 ,没有先前) ────
+// 模式薄弱漏水 remember/forget/wipe_memory 问候你,
+// 打捞的 调用 改为: 内存 工具绝不是用户的意图——必须失败 无
+// 需 运行,即使作为 首次 已打捞 调用 转弯(没有脱钩双胞胎,
+// 预算没有用完)。
 TEST_CASE("salvaged memory tool blocked") {
     for (const char* name : {"remember", "forget", "wipe_memory"}) {
         Model m;
@@ -251,7 +251,7 @@ TEST_CASE("salvaged memory tool blocked") {
     }
 }
 
-// ── 10. A STRUCTURED memory tool is NOT blocked (deliberate / slash path) ──
+// ── 10. A STRUCTURED 内存 工具为 不 被屏蔽( 故意/ 斜线路径) ──
 TEST_CASE("structured memory tool allowed") {
     Model m;
     m.d.current.messages.push_back(user());

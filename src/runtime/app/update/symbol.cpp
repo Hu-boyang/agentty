@@ -1,13 +1,13 @@
-// symbol_update — reducer for `msg::SymbolMsg`. Parallel to
-// mention.cpp (the @file picker); the only differences are the
-// candidate type (SymbolEntry vs string) and the chip kind appended on
-// select (Attachment::Symbol vs FileRef).
+// symbol_update-状态更新函数为`msg::SymbolMsg`.
+// 与mention.cpp并行(即@file 选择面板);唯一的区别是候选
+// 类型(SymbolEntry vs string)和所选类型的标签(
+// Attachment::Symbol vs FileRef).
 //
-// Every arm is now a single call into the shared FilteredPicker: the memo,
-// the cold-open refill and the cursor clamp are the primitive's job, not
-// something each arm re-derives (and, in the refill's case, something only
-// ONE arm used to do — which is why a cold-opened picker that was arrowed
-// rather than typed into stayed on "indexing…" forever).
+// 现在每只手臂都是单臂 调用 输入共享 FilteredPicker :
+// 数据 记忆缓存 寒冷的风 -open 重新填充和光标夹是原始人的工作,
+// 不是每个手臂都重做 -derives (在补注的情况下,只有 一个
+// 手臂曾经是用来做,这就是为什么感冒 -opened 选择面板 箭头不是
+// 箭头 带类型的 继续 "indexing…" 永远。
 
 #include "agentty/runtime/app/update/internal.hpp"
 #include "agentty/runtime/app/update.hpp"
@@ -27,10 +27,10 @@ using maya::overload;
 
 Cmd symbol_update(Model& m, msg::SymbolMsg sm) {
     return std::visit(overload{
-        // (No OpenSymbol arm: the panel opens from the COMPOSER's `#`
-        // handler, which builds pn::Symbol directly — see composer.cpp.)
+        // (无) OpenSymbol 臂: 面板从 COMPOSER's `#` 处理函数 ,
+        // 该结构将构建 pn::Symbol 直接——见 composer.cpp.)
         [&](CloseSymbol) -> Cmd {
-            ascend(m);   // usually → thread (opened by typing #), or a parent
+            ascend(m);   // 通常 ~ 线程(通过打字打开#),或父
             return Cmd::none();
         },
         [&](SymbolInput& e) -> Cmd {
@@ -40,9 +40,9 @@ Cmd symbol_update(Model& m, msg::SymbolMsg sm) {
         [&](SymbolBackspace) -> Cmd {
             auto* o = m.ui.panel.get<pn::Symbol>();
             if (!o) return Cmd::none();
-            // Backspace on an empty query closes the picker. The picker
-            // reports "there was nothing to erase" so the test and the
-            // mutation cannot drift apart.
+            // Backspace 空查询关闭 选择面板。该词 选择面板
+            // 报告 "there was nothing to erase"
+            // 所以测试和突变不能分开
             if (!o->picker.backspace()) m.ui.panel.close<pn::Symbol>();
             return Cmd::none();
         },
@@ -53,8 +53,8 @@ Cmd symbol_update(Model& m, msg::SymbolMsg sm) {
         [&](SymbolSelect) -> Cmd {
             auto* o = m.ui.panel.get<pn::Symbol>();
             if (!o) return Cmd::none();
-            // `selected()` folds the empty-list and out-of-range checks into
-            // the type: a null result is the only failure mode.
+            // `selected()` 归并 空的-list和 exout
+            // -of-range 检查进入类型:无效结果是唯一的失败模式.
             const auto* sym = o->picker.selected();
             if (!sym) {
                 m.ui.panel.close<pn::Symbol>();

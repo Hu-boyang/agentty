@@ -1,11 +1,11 @@
-// stream_recovery_test — errors a turn recovers from on its own.
+// stream_recovery_test——错误的转弯自自身恢复.
 //
-//   1. invalid_encrypted_content: the encrypted reasoning we replay is no
-//      longer readable to the backend. Drop it and resend, don't fail.
-//   2. a context overflow that states the model's real window: take that as
-//      the window and resend; the soft-trim makes the request fit.
+//   1. invalid_encrypted_content: 我们重播的加密推理是没有的
+//      打开后端可读性。放下它,再发送,不要失败。
+//   2. 上下文溢出,说明模型的真正窗口:
+//      窗口和重传; 软-trim使请求适合。
 //
-// Both go through app::update, the same path a live StreamError takes.
+// 都通过 app::update 一条活路 StreamError 带子
 
 #include "agtest.hpp"
 
@@ -27,7 +27,7 @@ Model streaming_model() {
     prev.reasoning_encrypted = "gAAAA-old-blob";
     prev.reasoning_site = "chatgpt";
     Message u2; u2.role = Role::User; u2.text = "and now?";
-    Message live; live.role = Role::Assistant;   // nothing streamed yet
+    Message live; live.role = Role::Assistant;   // 还没有流出
     m.d.current.messages = {u, prev, u2, live};
     m.s.phase = phase::Streaming{phase::Active{}};
     return m;
@@ -45,7 +45,7 @@ bool retrying(const Model& m) {
     return s != nullptr;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("recovery: unreadable replayed reasoning is dropped and the turn resent") {
     Model m = fail_with(streaming_model(),

@@ -1,18 +1,18 @@
-// thread_log_seam_probe — does the STORE actually prefer the log?
+// thread_log_seam_probe - 做吗? STORE 更喜欢木头吗?
 //
-// thread_log_test proves the log round-trips. This proves the seam: that
-// persistence::load_thread_by_id returns the log when one exists, the
-// legacy document when it doesn't, and the SAME thread either way.
+// thread_log_test 证明日志圆 -trips 证明 接口边界 : 即:
+// persistence::load_thread_by_id 返回日志,
+// 当一个日志存在时,返回遗留文档,如果它不存在,返回日志 相同 线程 不管是哪种方式。
 //
-// Run against a real thread, in an isolated AGENTTY_HOME:
+// 与真人对战 线程 ,在一个孤立的 AGENTTY_HOME:
 //
 //   AGENTTY_HOME=/tmp/x ./build/agentty_standalone_tests \
-//       thread_log_seam_probe <id>
+//       thread_log_seam_probe <id> 国 务 院
 //
-// It converts the legacy <id>.json into the log format, reads back
-// through the store seam, and compares field by field — including
-// materialised image bytes, which is where a broken blob reference would
-// hide. No arguments = no-op pass, so ctest costs nothing.
+// 它可以转换遗产 <id>.JSON 输入日志格式,
+// 通过存储读取 接口边界 ,并按字段比较,
+// 包括实际图像 字节 ,则一个破损的blob 引用会隐藏。
+// -op 过关了,所以测试没有代价。
 
 #include <agentty/domain/conversation.hpp>
 #include "agtest_cap.hpp"
@@ -68,7 +68,7 @@ bool same_thread(const Thread& a, const Thread& b, std::string& why) {
     return true;
 }
 
-} // namespace
+} // 命名空间结束。
 
 int main(int argc, char** argv) {
     if (argc < 2) {
@@ -77,11 +77,11 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    // The standalone harness points AGENTTY_HOME at a fresh sandbox so a
-    // test can never touch real history — which is right, and means the
-    // probe must COPY the thread it was given into that sandbox rather
-    // than read it in place. Everything below then runs entirely inside
-    // the sandbox, including the delete at the end.
+    // 独立的绳索点 AGENTTY_HOME 刚开始的
+    // 沙箱 测试永远不能触及真实的历史,这是正确的,
+    // 意味着探测器必须 COPY 编号 线程 被
+    // 送进那个 沙箱 而不是在原地读取,下面的一切就
+    // 全部在 沙箱 ,包括结尾处的删除。
     const fs::path src = argv[1];
     std::error_code ec;
     if (!fs::is_regular_file(src, ec)) {
@@ -100,7 +100,7 @@ int main(int argc, char** argv) {
                 static_cast<double>(fs::file_size(dst, ec)) / 1e6,
                 persistence::threads_dir().string().c_str());
 
-    // 1. Read via the seam BEFORE any log exists — must take the legacy path.
+    // 1. 读取 接口边界 之前 任何日志都存在——必须走遗留的道路。
     auto t0 = std::chrono::steady_clock::now();
     auto legacy = persistence::load_thread_by_id(::agentty::IoAccess::grant(), id);
     const auto legacy_ms = ms_since(t0);
@@ -114,7 +114,7 @@ int main(int argc, char** argv) {
     const auto log_path = persistence::threads_dir() / (id.value + ".jsonl");
     check(!fs::exists(log_path), "no log should exist yet");
 
-    // 2. Convert to the log format.
+    // 2. 转换为日志格式。
     {
         auto log = ThreadLog::open(id);
         if (!log) { std::printf("FAIL: could not open log\n"); return 1; }
@@ -122,8 +122,8 @@ int main(int argc, char** argv) {
     }
     check(fs::exists(log_path), "the log must now exist");
 
-    // 3. Read via the seam AGAIN — must now take the log path, and must
-    //    produce the same thread. This is the whole commit in one check.
+    // 3. 通过《公约》阅读 接口边界 AGAIN ——现在必须走日志路径,必须
+    //    生成相同的 线程。这是一次检查中的全部承诺。
     t0 = std::chrono::steady_clock::now();
     auto viaLog = persistence::load_thread_by_id(::agentty::IoAccess::grant(), id);
     const auto log_ms = ms_since(t0);
@@ -135,8 +135,8 @@ int main(int argc, char** argv) {
     check(same_thread(*legacy, *viaLog, why),
           why.empty() ? "threads differ" : why.c_str());
 
-    // 4. The picker walk must show exactly one row for this thread, not
-    //    two (legacy + log) and not zero.
+    // 4. 现 告 选择面板 步行必须显示准确的行 线程 ,没有
+    //    2(legacy + log),而非0.
     const auto all = persistence::load_all_threads(::agentty::IoAccess::grant(), agtest::cap());
     std::size_t seen = 0;
     for (const auto& t : all) if (t.id.value == id.value) ++seen;
@@ -144,7 +144,7 @@ int main(int argc, char** argv) {
     if (seen != 1)
         std::printf("  (saw it %zu times among %zu threads)\n", seen, all.size());
 
-    // 5. Deleting must take the log with it.
+    // 5. 删除必须携带记录。
     persistence::delete_thread(::agentty::IoAccess::grant(), agtest::cap(), id);
     check(!fs::exists(log_path), "delete_thread must remove the log");
     check(!persistence::load_thread_by_id(::agentty::IoAccess::grant(), id).has_value(),

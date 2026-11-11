@@ -1,27 +1,27 @@
-// fork_update — reducer for the fork picker.
+// fork_update-状态更新函数用于叉子选择面板。
 //
-// Forking ESCAPES a full context window. It branches the current thread
-// into a brand-new one (new id, forked_from = parent) that starts FRESH
-// with near-zero context — NOT a copy or a summary of the parent. The
-// parent's full transcript is exported to a Markdown file under
-// ~/.agentty/threads, and the fork is seeded with a single synthetic
-// `fork_note` message (Role::User) that:
-//   • tells the MODEL where that transcript lives, to be read ON DEMAND
-//     with the `read` tool only when earlier context is actually needed;
-//   • renders as a visible "\u2443 Forked" event card so the fresh thread is
-//     not a blank screen.
-// This is the entire fork mechanism: no summarization, no verbatim copy,
-// no up-front token cost — just a pointer the agent can follow lazily.
+// 将 ESCAPES 分叉为完整上下文窗口。它将当前的 线程 分支为品牌
+// -new 品牌（新 id，forked_from = 父级），该品牌以 FRESH 开头，
+// 并带有近 -zero 上下文 — 不是父级的副本或摘要。父级的完整转录本
+// 将导出到 ~/.agentty/threads 下的 Markdown
+// 文件中，并且分支会使用单个合成 `fork_note` 消息 (
+// Role::User) 进行播种，该消息：
+//   ·告诉MODEL该抄本所在的位置，以读取ON DEMAND
+//     仅当实际需要较早的上下文时才使用`read`工具；
+//   ·渲染作为可见的"\u2443 Forked" 事件卡，因此新鲜的线程是
+//     不是空白屏幕。
+// 这是整个分叉机制：没有摘要、没有逐字复制、
+// 没有 up-front 令牌成本——只是代理可以懒惰地遵循的指针。
 //
-// The picker's only choice is how proactive RAG behaves in the fork,
-// stored as the fork's per-thread rag_mode_override:
+// 选择面板的唯一选择是RAG在叉中如何主动表现，存储为叉的per
+// -thread rag_mode_override：
 //
-//   RAG per turn   → override = On
-//   First-turn RAG → override = FirstTurnOnly
-//   RAG off        → override = Off
+//   每转 RAG → 超驰 = 打开 首先
+//   -turn RAG → 超驰 = FirstTurnOnly
+//   RAG 关闭 → 超驰 = 关闭
 //
-// The original thread is saved and left completely untouched — a fork is
-// non-destructive by construction.
+// 原始的 线程 是 已保存 并且完全保持不变——叉子在结构上不是
+// -destructive。
 
 #include "agentty/runtime/app/update/internal.hpp"
 #include "agentty/runtime/app/update.hpp"
@@ -51,7 +51,7 @@ using maya::overload;
 
 namespace {
 
-// Map a picker Choice to the fork's per-thread RAG override.
+// 将 选择面板 选择映射到分叉的 per-thread RAG 覆盖。
 store::RagMode rag_mode_of(fp::Choice c) {
     switch (c) {
         case fp::Choice::RagPerTurn:   return store::RagMode::On;
@@ -70,7 +70,7 @@ const char* label_of(fp::Choice c) {
     return "";
 }
 
-} // namespace
+} // 命名空间结束。
 
 Cmd fork_update(Model& m, msg::ForkMsg fm) {
     return std::visit(overload{
@@ -79,17 +79,17 @@ Cmd fork_update(Model& m, msg::ForkMsg fm) {
                 return set_status_toast(m, "nothing to fork yet");
             if (!m.s.is_idle() || m.s.compacting || m.s.thread_loading)
                 return set_status_toast(m, "cannot fork while the agent is working");
-            // descend() already replaced whatever was open (the palette, if
-            // ^F came from there) and stashed it as this panel's parent, so
-            // Esc unwinds back to it. A close<Palette>() here used to follow,
-            // left over from when opening was an assignment: it is a no-op
-            // now (the slot holds Fork), and if it ever stopped being one it
-            // would be deleting the parent we just saved.
+            // descend() 已经替换了打开的任何内容（调色板，
+            // 如果 ^F 来自那里）并将其隐藏为该面板的父面板，
+            // 因此 Esc 展开回到它。这里曾经有一个 close
+            // <Palette>()，是打开时留下的一个赋值：现在
+            // 它是一个 no-op （插槽容纳 Fork），如果它不再是一个，
+            // 它将删除我们只是 已保存 的父项。
             m.ui.panel.descend(pn::Fork{{fp::Choice::RagPerTurn}});
             return Cmd::none();
         },
         [&](CloseFork) -> Cmd {
-            ascend(m);   // Esc: back to the palette that opened this, or close
+            ascend(m);   // Esc：返回打开此的调色板，或关闭
             return Cmd::none();
         },
         [&](ForkMove& e) -> Cmd {
@@ -99,8 +99,8 @@ Cmd fork_update(Model& m, msg::ForkMsg fm) {
         },
         [&](ForkThread&) -> Cmd {
             const auto* picked = m.ui.panel.get<pn::Fork>();
-            // No int->enum cast: the cursor already IS the choice, so a
-            // reordered or resized row list cannot silently remap it.
+            // 无 int->枚举 转换：游标已经 IS 选择，
+            // 因此重新排序或调整大小的行列表无法静默地重新映射它。
             const fp::Choice choice = picked ? picked->choice
                                              : fp::Choice::RagOff;
             m.ui.panel.close<pn::Fork>();
@@ -109,19 +109,19 @@ Cmd fork_update(Model& m, msg::ForkMsg fm) {
             if (!m.s.is_idle() || m.s.compacting || m.s.thread_loading)
                 return set_status_toast(m, "cannot fork while the agent is working");
 
-            // 1. Persist the parent untouched, and 2. write its transcript
-            //    to a clean, readable file the fork can READ ON DEMAND. That
-            //    is the whole point of forking: the new thread starts EMPTY
-            //    and the model pulls earlier context from disk only if it
-            //    needs it. The write runs on a worker; the fork is built when
-            //    ForkTranscriptWritten comes back.
+            // 1.保持父级不变，并且2.写入其转录本
+            //    为了干净、可读的文件，可以叉出READ ON DEMAND。
+            //    这就是分叉的全部要点：新的 线程 启动 空，
+            //    并且模型仅在需要时才从磁盘中提取较早的上下文。
+            //    写入在 工作线程 上运行；当ForkTranscriptWritten回来时，
+            //    叉子就建好了。
             return Cmd::batch(save_current_whole(m),
                               cmd::write_fork_transcript(m.d.current, choice));
         },
         [&](ForkTranscriptWritten& e) -> Cmd {
-            // The user may have moved on while the transcript was written
-            // (switched thread, started a turn, forked twice). Only fork the
-            // thread that asked, and only while it is still safe to.
+            // 用户可能在写入抄本时已经继续前进（切换线程、
+            // 开始转弯、分叉两次）。仅在仍然安全
+            // 的情况下分叉所请求的 线程。
             if (m.d.current.id.value != e.parent_id) return Cmd::none();
             if (m.d.current.messages.empty()) return Cmd::none();
             if (!m.s.is_idle() || m.s.compacting || m.s.thread_loading)
@@ -130,8 +130,8 @@ Cmd fork_update(Model& m, msg::ForkMsg fm) {
             const std::string& parent_id = e.parent_id;
             const std::string& transcript = e.path;
 
-            // 3. Build the fork: a FRESH, EMPTY thread with provenance +
-            //    per-thread RAG override. No messages carried over.
+            // 3.构建分叉：FRESH、空、线程，其出处+
+            //    每-thread RAG覆盖。没有任何消息被继承。
             Thread fork;
             fork.id = persistence::new_id();
             fork.forked_from = parent_id;
@@ -144,23 +144,23 @@ Cmd fork_update(Model& m, msg::ForkMsg fm) {
                              : ("Fork: " + (m.d.current.title.empty()
                                                 ? std::string{"conversation"}
                                                 : m.d.current.title));
-            // A fork is named after its parent; auto-titling would swap that
-            // for a name made from the fork note. Left off.
+            // 分叉以其父代命名； auto-titling 会将
+            // 其替换为由前叉音符组成的名称。离开了。
             fork.auto_title_ok = false;
 
-            // 4. Seed the fork note: a synthetic Role::User message that
-            //    (a) tells the MODEL the prior context exists and how to
-            //    reach it, and (b) renders as a visible "\u2443 Forked" card so
-            //    the fresh thread isn't a blank screen. It is a USER (not
-            //    System) message on purpose: the ChatGPT/Responses transport
-            //    DROPS mid-thread System messages (folds them into the
-            //    top-level `instructions`), so a System note could silently
-            //    vanish and the model would never learn the transcript
-            //    exists. A User message survives every provider path. The
-            //    `fork_note`/`fork_transcript` flags give it a quiet card
-            //    identity and keep every "newest real user turn" scan
-            //    (routing / RAG / history / loop-break) from mistaking it
-            //    for the user's prompt — see conversation.hpp.
+            // 4.播种分叉注释：一条合成的 Role::User 消息，
+            //    (a)告诉MODEL先前的上下文存在以及如何到达它，
+            //    以及(b)渲染作为可见的"\u2443 Forked"卡，
+            //    因此新的线程不是空白屏幕。这是故意的 USER（不是系统）
+            //    消息：ChatGPT/Responses 传输层 DROPS
+            //    mid-thread 系统消息（归并 它们进入 top
+            //    -level `instructions`），因此系统注释可能会
+            //    默默消失，并且模型永远不会知道转录本的存在。用户消息在每个
+            //    提供者路径中都存在。 `fork_note`/
+            //    `fork_transcript` 标志 赋予其安静的卡身份，
+            //    并防止每次 "newest real user turn" 扫描
+            //    （路由/RAG/历史记录/loop-break）将其误认为是用户的
+            //    提示词 — 请参阅 conversation.hpp。
             {
                 Message note;
                 note.role = Role::User;
@@ -176,9 +176,9 @@ Cmd fork_update(Model& m, msg::ForkMsg fm) {
                         "reclaim the context window; pull just the slice you "
                         "need.";
                 } else {
-                    // Transcript write failed (rare: disk/permissions). Still
-                    // seed the card so the thread isn't blank and the model
-                    // knows it's a fork, just without a readable pointer.
+                    // 成绩单写入失败（罕见：disk/permissions）。
+                    // 仍然给卡片播种，这样 线程 就不是空白，
+                    // 并且模型知道它是叉子，只是没有可读的指针。
                     note.text =
                         "This conversation is a fork of an earlier one, "
                         "started fresh to reclaim the context window. The "
@@ -189,10 +189,10 @@ Cmd fork_update(Model& m, msg::ForkMsg fm) {
                 fork.messages.push_back(std::move(note));
             }
 
-            // 5. Switch to the fork — a fresh empty thread, so the render is
-            //    trivially cheap (nothing to re-emit). rehydrate_frozen on
-            //    an ~empty thread is a no-op; reset_inline paints the clean
-            //    composer.
+            // 5.切换到叉子——一个新鲜的空线程，所以渲染是
+            //    相当便宜（没什么可re-emit）。 rehydrate_frozen 在
+            //    一个空的 线程 上是一个 no-op； reset_inline 描绘了
+            //    干净的作曲家。
             m.ui.view_cache.clear();
             m.d.current = std::move(fork);
             m.d.saved_fps.clear();
@@ -207,9 +207,9 @@ Cmd fork_update(Model& m, msg::ForkMsg fm) {
                        label_of(choice) +
                        " · prior transcript readable on demand",
                 std::chrono::seconds{5});
-            // The fork's first turn hits the network fresh, and the idle TTL
-            // has usually evicted the launch-time socket — so warm it, as an
-            // effect alongside the save.
+            // 分叉的第一轮新鲜地冲击网络，并且空闲的TTL通常
+            // 已经驱逐了launch-time套接字——如此温暖，
+            // 作为副作用与保存并排。
             return Cmd::batch(std::move(save_fork),
                               cmd::prewarm_provider(m),
                               std::move(toast), cmd::reset_inline());

@@ -1,4 +1,4 @@
-// agentty::provider — dialect selection. See dialect.hpp for the rationale.
+// agentty::provider — 方言选择。请参阅 dialect.hpp 了解基本原理。
 
 #include "agentty/provider/dialect.hpp"
 #include "agentty/util/digits.hpp"
@@ -10,21 +10,21 @@
 #include <string>
 #include <utility>
 
-#include "agentty/domain/catalog.hpp"   // ModelCapabilities: does the MODEL reason
+#include "agentty/domain/catalog.hpp"   // ModelCapabilities：MODEL原因吗
 #include "agentty/provider/registry.hpp"
 #include "agentty/util/logx.hpp"
 
 namespace agentty::provider {
 namespace {
 
-// Case/punctuation-insensitive family matching. Model slugs arrive in many
-// shapes for the SAME family — "gpt-5", "openai/gpt-5-mini", "gpt-5.4-2026",
-// "GPT-5" — so match on a normalised form rather than a literal prefix.
+// Case/punctuation-insensitive家庭配套。 Model 段头有多种形状，
+// 适合 相同 系列 - "gpt-5"、"openai/gpt-5-mini"、
+// "gpt-5.4-2026"、"GPT-5" - 因此请以标准化形式而不是文字前缀进行匹配。
 [[nodiscard]] std::string normalise(std::string_view id) {
     std::string out;
     out.reserve(id.size());
-    // Drop any vendor prefix ("openai/gpt-5" → "gpt-5"): OpenRouter and
-    // gateways namespace their slugs, the family is the part after the slash.
+    // 删除任何供应商前缀 ("openai/gpt-5" → "gpt-5")：
+    // OpenRouter 和网关名称空间的 slugs，系列是斜杠后面的部分。
     if (const auto slash = id.rfind('/'); slash != std::string_view::npos)
         id.remove_prefix(slash + 1);
     for (const char c : id)
@@ -37,15 +37,15 @@ namespace {
     return s.size() >= p.size() && s.compare(0, p.size(), p) == 0;
 }
 
-// The GPT-5 generation number, if this is a gpt-5 model: "gpt-5.4-mini" → 54,
-// "gpt-5" → 50, "gpt-5-mini" → 50. Returns -1 for non-gpt-5 slugs.
+// GPT-5 代号，如果这是 gpt-5 型号："gpt-5.4-mini" → 54、"gpt-5"
+// → 50、"gpt-5-mini" → 50。对于非 -gpt-5 段返回 -1。
 //
-// Needed because the chat tool-calling cutoff is a POINT RELEASE (5.4), not a
-// whole family: gpt-5 and gpt-5.1 still tool-call on chat, 5.4+ does not.
+// 需要，因为聊天工具-calling截止是POINT RELEASE（5.4），
+// 而不是整个系列：gpt-5和gpt-5.1仍然是聊天工具-call，5.4+则不是。
 [[nodiscard]] int gpt5_generation(std::string_view m) noexcept {
     if (!starts_with(m, "gpt-5")) return -1;
     auto rest = m.substr(5);
-    if (rest.empty() || rest.front() != '.') return 50;   // plain "gpt-5*"
+    if (rest.empty() || rest.front() != '.') return 50;   // 普通 "gpt-5*"
     rest.remove_prefix(1);
     int minor = 0;
     std::size_t i = 0;
@@ -55,22 +55,22 @@ namespace {
     return 50 + std::min(minor, 9);
 }
 
-// ── Learned rejections ───────────────────────────────────────────────────
-using Key = std::pair<std::string, std::string>;   // (provider, model)
+// ── 已学习的拒绝 ───────────────────────────────────────────────────
+using Key = std::pair<std::string, std::string>;   // （提供商、型号）
 
-// What each (provider, model) has rejected, learned at runtime.
+// 每个（提供商、模型）拒绝的内容是在 运行时 学到的。
 struct Observations {
     std::set<Key> rejected_responses;
     std::set<Key> rejected_chat;
 };
-// Read on every routing decision, written only when a host rejects a
-// dialect: a lock-free snapshot, so routing needs no capability.
+// 阅读每个路由决策，仅在主机拒绝方言时写入：锁
+// -free 快照，因此路由不需要任何功能。
 maya::snapshot<Observations>& observations() {
     static maya::snapshot<Observations> o;
     return o;
 }
 
-// Which of the two the host has rejected for this pair, as plain bools.
+// 主机拒绝了这对中的哪两个，作为普通布尔值。
 struct Rejected { bool responses = false; bool chat = false; };
 [[nodiscard]] Rejected rejected_for(std::string_view p, std::string_view m) {
     const auto o = observations().load();
@@ -79,91 +79,91 @@ struct Rejected { bool responses = false; bool chat = false; };
                     o->rejected_chat.count(k) > 0};
 }
 
-} // namespace
+} // 命名空间结束。
 
 bool model_requires_responses(std::string_view model) noexcept {
     const std::string m = normalise(model);
     if (m.empty()) return false;
 
-    // ── GPT-5.4 and later ────────────────────────────────────────────────
-    // OpenAI's reasoning guide: "Starting with GPT-5.4, Chat Completions does
-    // not support tool calling with reasoning_effort values other than none."
-    // agentty always sends tools, so for an agent this is a hard requirement.
+    // ── GPT-5.4 及以后各页 ────────────────────────────────────────────────
+    // OpenAI的推理指南：
+    // "Starting with GPT-5.4, Chat Completions does not support tool calling with reasoning_effort values other than none."（从 GPT-5.4 起，Chat Completions 只在 reasoning_effort 为 none 时支持工具调用。）
+    // agentty总是发送工具，所以对于代理来说这是一个硬性要求。
     if (const int gen = gpt5_generation(m); gen >= 54) return true;
 
-    // ── GPT-6 / Astra generation ─────────────────────────────────────────
-    // "Use the Responses API for function calling. Chat Completions does not
-    // support function calling with GPT-6 Astra." No effort caveat: the chat
-    // dialect simply cannot carry an agent turn for this family.
+    // ── GPT-6 / 气态生成 ─────────────────────────────────────────
+    // "Use the Responses API for function calling. Chat Completions does not support function calling with GPT-6 Astra."（GPT-6 Astra 的函数调用应使用 Responses API，Chat Completions 不支持。）
+    // 不费力的警告：聊天方言根本
+    // 无法为该家庭提供代理轮流。
     if (starts_with(m, "gpt-6") || m.find("astra") != std::string::npos)
         return true;
 
-    // ── Copilot's mai-code-* ─────────────────────────────────────────────
-    // MEASURED against a live Auto session: chat answers 400
-    // unsupported_api_for_model. Responses is the only way to reach these.
+    // ── 副驾驶的Mai -code-* ─────────────────────────────────────────────
+    // MEASURED 针对实时自动会话：聊天回答 400
+    // unsupported_api_for_model。响应是实现这些目标的唯一途径。
     if (starts_with(m, "mai-code")) return true;
 
-    // Earlier reasoning families (gpt-5.0/5.1, o1, o3, o4) remain LEGAL on
-    // chat — they just can't show their thinking there. They're handled as a
-    // preference below, not a requirement, so a chat-only gateway still works.
+    // 早期推理家族（gpt-5.0/5.1、o1、o3、o4）在聊天中
+    // 仍然是 LEGAL — 他们只是无法在那里展示自己的想法。
+    // 它们在下面作为首选项进行处理，而不是必需的，因此 chat-only 网关仍然有效。
     return false;
 }
 
 bool model_emits_reasoning_summaries(std::string_view model) noexcept {
     const std::string m = normalise(model);
     if (m.empty()) return false;
-    // MEASURED: gpt-5* on /responses streams real
-    // response.reasoning_summary_text.delta frames. The o-series and the
-    // gpt-6 line are reasoning models on the same dialect and behave alike.
+    // MEASURED：/响应 数据流 上的 gpt-5*
+    // 真实 response.reasoning_summary_text.delta 帧。
+    // o-series 和 gpt-6 系列是相同方言的推理模型，并且行为相似。
     if (gpt5_generation(m) >= 0) return true;
     if (starts_with(m, "gpt-6") || m.find("astra") != std::string::npos) return true;
     if (starts_with(m, "o1") || starts_with(m, "o3") || starts_with(m, "o4")) return true;
     if (starts_with(m, "mai-code")) return true;
-    // Explicitly NOT claimed: claude-* and gpt-4.x return no summaries even
-    // when a host will accept them on Responses. Claiming otherwise is what
-    // makes the thinking pane spin forever on an empty channel.
+    // 明确NOT声称：claude-*和gpt-4.
+    // x不返回任何摘要，即使主机将在响应上接受它们。否则，
+    // 面板 的思维就会在空荡荡的通道上永远旋转。
     return false;
 }
 
 Dialect dialect_for(std::string_view provider_id, std::string_view model) noexcept {
     const auto* row = preset_for(provider_id);
 
-    // Rows on a non-OpenAI dialect answer structurally: Anthropic speaks
-    // Messages, ACP is a subprocess, Ollama's native API is its own protocol.
+    // 非-OpenAI方言上的行在结构上回答：Anthropic讲消息，
+    // ACP是子进程，Ollama的本机API是其自己的协议。
     if (row) {
         if (row->wire == Wire::AnthropicMessages || row->wire == Wire::Acp)
             return Dialect::Native;
         if (row->native_api) return Dialect::Native;
-        // A row whose DEFAULT is Responses has no second dialect to choose
-        // between (endpoints_consistent forbids it) — e.g. ChatGPT/Codex.
+        // DEFAULT为响应的行没有第二方言可供选择（
+        // endpoints_consistent禁止）-e.g。 ChatGPT/Codex.
         if (row->wire == Wire::OpenAIResponses) return Dialect::Responses;
-        // No Responses endpoint advertised → nothing to route to. This is the
-        // answer for DeepSeek, Mistral, Groq, xAI, Together, Cerebras and a
-        // custom llama.cpp host: they carry reasoning over chat's
-        // `reasoning_content` and have no /responses to offer.
+        // 没有通告响应端点→没有可路由到的内容。这是 DeepSeek、Mistral、
+        // Groq、xAI、Together、Cerebras 和自定义
+        // llama.cpp 主机的答案：它们对聊天的
+        // `reasoning_content` 进行推理，并且没有/响应可提供。
         if (row->responses_path.empty()) return Dialect::Chat;
     } else {
-        // Unknown/custom host (a user's own OpenAI-compatible base URL). We
-        // cannot know it has /responses, and guessing wrong costs a failed
-        // turn on a host we can't probe cheaply. Stay on chat.
+        // Unknown/custom主机(用户自己的OpenAI
+        // -compatible底座URL)。我们无法知道它有/响应，
+        // 并且猜测错误会导致我们无法廉价探测的主机失败。继续聊天。
         return Dialect::Chat;
     }
 
-    // ── The row CAN do both. Now the model decides. ──────────────────────
+    // ── 排队 CAN 两者兼有 现在由模特决定了 ──────────────────────
     if (model.empty()) {
-        // Provider-level question ("could anything here use Responses?").
+        // Provider-level问题("could anything here use Responses?")。
         return Dialect::Responses;
     }
 
     const bool required = model_requires_responses(model);
 
-    // Runtime evidence outranks the prior in BOTH directions.
+    // 运行时证据在BOTH方向上优先于先前的证据。
     {
         const Rejected r = rejected_for(provider_id, model);
         if (r.responses) {
-            // The host told us no. Honour it even for a "required" model:
-            // a failing turn on chat is strictly better than a certain 404,
-            // and the user gets an error from the model rather than from us.
+            // 主持人告诉我们没有。即使是 "required" 型号也值得尊敬：
+            // 聊天失败打开严格来说比某个 404 更好，
+            // 并且用户从模型而不是从我们那里得到错误。
             return Dialect::Chat;
         }
         if (r.chat) return Dialect::Responses;
@@ -171,83 +171,83 @@ Dialect dialect_for(std::string_view provider_id, std::string_view model) noexce
 
     if (required) return Dialect::Responses;
 
-    // Not required, but preferred when the model has thinking worth showing
-    // and the host can carry it: better tool use, better cache hits, and the
-    // reasoning survives across tool rounds via encrypted_content.
+    // 不是必需的，但当模型具有值得展示的思想并且主机可以承载它
+    // 时是首选：更好的工具使用、更好的缓存命中、并且推理通过
+    // encrypted_content跨工具轮次存活。
     if (model_emits_reasoning_summaries(model)) return Dialect::Responses;
 
-    // Everything else (gpt-4o, claude-* on Copilot, generic chat models)
-    // stays on the dialect its row was built for. Dragging a chat-only family
-    // onto Responses 400s — that regression would break every Claude turn on
-    // Copilot, which is why this default is conservative.
+    // 其他一切（Copilot 上的 gpt-4o、claude-*、
+    // 通用聊天模型）都保留其行所针对的方言。将 chat-only 系列
+    // 拖到响应 400 上 — 该回归会破坏 Copilot 上的每个
+    // Claude 转动，这就是为什么此默认值是保守的。
     return Dialect::Chat;
 }
 
 bool streams_reasoning_text(std::string_view provider_id,
                             std::string_view model) noexcept {
     const auto* row = preset_for(provider_id);
-    if (!row) return true;   // unknown/custom host: assume yes, as before.
+    if (!row) return true;   // unknown/custom主机：假设是，如前所述。
 
     if (row->wire == Wire::AnthropicMessages) return true;
     if (row->wire == Wire::Acp) return false;
 
-    // The ONE authority: ask where the turn will actually be sent, then
-    // answer for THAT dialect. This is the join that used to be a second
-    // guess — the reason a mislabelled row could teach the UI to promise
-    // reasoning the wire never delivers.
+    // ONE权限：询问轮将实际发送到哪里，
+    // 然后回答THAT方言。这是曾经是第二次猜测的
+    // 连接 - 错误标记的行可能会教 UI 承诺推理
+    // 传输 永远不会实现的原因。
     switch (dialect_for(provider_id, model)) {
         case Dialect::Responses:
-            // Responses carries reasoning summaries, but only for models that
-            // actually produce them. Empty model = the provider-level "can
-            // anything here?" question, which is a yes.
+            // 响应携带推理摘要，但仅适用于实际产生它们的模型。
+            // 空模型=provider-level "can anything here?"问题，
+            // 这是肯定的。
             return model.empty() || model_emits_reasoning_summaries(model);
         case Dialect::Native:
-            // Ollama and friends: local reasoning models emit <think> spans,
-            // which the transport routes unconditionally.
+            // Ollama和朋友：本地推理模型发出<think>跨度，
+            // 传输层无条件地路由该跨度。
             return true;
         case Dialect::Chat:
             break;
     }
 
-    // ── Chat: who drops reasoning, and why it is not a provider fact ──
+    // ── 聊天:谁放弃推理,为什么它不是提供商的事实 ──
     //
-    // Two hosts return no reasoning on /chat/completions. Both refusals were
-    // MEASURED, and both were measured on the host's OWN models:
+    // 两个主机在/chat/completions.上没有返回任何推理，
+    // 两次拒绝都是MEASURED，并且都是在主机的OWN型号上测量的：
     //
-    //   openai   api.openai.com transmits none at any effort, for anything
-    //            it serves (its reasoning models are Responses-only anyway).
-    //   copilot  claude-* and gpt-4.x return none there.
+    //   openai api.openai.com对于它所服务的任何事物都不进行任何努力
+    //            （无论如何其推理模型是Responses-only）。
+    //   副驾驶claude-*和gpt-4.x在那里没有返回任何内容。
     //
-    // The openai one really is host-wide: every model on that row is a
-    // first-party OpenAI model, so "the host drops it" and "these models
-    // drop it" are the same statement.
+    // openai确实是主机-wide：该行上的每个模型都是第一个-party
+    // OpenAI模型，因此"the host drops it"和
+    // "these models drop it"是相同的陈述。
     //
-    // Copilot's is not. That row is a GATEWAY -- it serves Anthropic,
-    // Google, xAI, DeepSeek and Qwen models alongside OpenAI's, and a
-    // measurement taken on claude-* says nothing about deepseek-r1, which
-    // populates reasoning_content exactly like it does on DeepSeek's own
-    // endpoint. Refusing per PROVIDER told the UI "no thinking here" for
-    // every model on a mixed host, so a reasoning model's visible thinking
-    // was dropped on the floor while the transport was parsing it fine.
+    // 副驾驶的不是。该行是 GATEWAY——它与 OpenAI 一起服务
+    // 于 Anthropic、Google、xAI、DeepSeek 和
+    // Qwen 模型，并且在 claude-* 上进行的测量没有提及 deepseek-r1，
+    // 它填充 reasoning_content 的方式与在 DeepSeek
+    // 自己的端点上的填充方式完全相同。拒绝每个 PROVIDER 告诉
+    // 混合主机上的每个模型的 UI "no thinking here"，
+    // 因此推理模型的可见思维被扔在地板上，而 传输层 是 解析 很好。
     //
-    // So: ask the MODEL whether it reasons, and keep the refusal only for
-    // the families it was actually taken on. supports_effort() is the same
-    // capability the picker's ✦ mark and the effort ladder already read, so
-    // there is no new list to drift -- a model that cannot reason cannot
-    // stream reasoning either, whoever is serving it.
+    // 所以：询问MODEL是否有理由，并仅针对实际接受的
+    // 家庭保留拒绝。 supports_effort() 与
+    // 选择面板 的 ✦ 标记和已读取的工作量阶梯具有相同的功能，
+    // 因此没有新的列表可供漂移 - 无法推理的模型也无法
+    // 推理 数据流，无论是谁为它提供服务。
     if (provider_id == "openai") return false;
     if (provider_id == "copilot") {
-        if (model.empty()) return true;   // provider-level "anything?" → yes
+        if (model.empty()) return true;   // 提供商-level "anything?"→是
         const auto caps = ModelCapabilities::from_id(model);
-        if (!caps.supports_effort()) return false;   // not a reasoning model
-        // Measured silent on this path despite being reasoning-capable.
+        if (!caps.supports_effort()) return false;   // 不是推理模型
+        // 尽管正在推理-capable，但在该路径上测得沉默。
         if (caps.is_opus() || caps.is_sonnet() || caps.is_haiku()) return false;
         return true;
     }
 
-    // Every other OpenAI-COMPAT host on this dialect (DeepSeek, Mistral,
-    // OpenRouter's chat path, vLLM, Ollama) populates reasoning_content,
-    // which the transport parses unconditionally.
+    // 该方言上的每个其他OpenAI-COMPAT主机(DeepSeek、Mistral、
+    // OpenRouter的聊天路径、vLLM、Ollama)都填充reasoning_content，
+    // 其中传输层无条件地填充解析。
     return true;
 }
 
@@ -264,7 +264,7 @@ void note_dialect_rejected(std::string_view provider_id,
             Key{std::string{provider_id}, std::string{model}},
             rejected == Dialect::Responses);
     } catch (...) {
-        return;   // an allocation failure here must never break a turn.
+        return;   // 此处的 分配 故障决不能中断转弯。
     }
     AGT_LOG(Wire, Info, "provider.dialect",
             "{}/{} rejected {} — routing the other way",

@@ -1,14 +1,14 @@
 #pragma once
-// mcp_tools_backends — the agentty-side HostServices backends for the
-// host-coupled tool SHELLS that mcp-cpp's toolset owns (remember/forget/
-// wipe, todo, skill, search_docs, task).
+// mcp_tools_backends-mcp-cpp的工具集拥有的主机-coupled工具SHELLS的agentty-side
+// HostServices后端(remember/forget/擦除、待办事项、
+// 技能、search_docs、任务)。
 //
-//   mcp-cpp owns each tool's protocol surface; agentty supplies the work via
-//   injected backends. install_host_backends() constructs the adapters
-//   (MemoryStore over the JSONL store, SkillResolver over the Agent-Skills
-//   engine, DocRetriever over the RAG pipeline, SubagentRunner over the
-//   subagent loop) and installs them into the HostServices the bridge passes
-//   to make_provider(). A tool whose backend is null isn't advertised.
+//   mcp-cpp拥有各工具的协议面； agentty 通过注入的后端提供工作。
+//   install_host_backends() 构造适配器（JSONL
+//   存储上的 MemoryStore、Agent-Skills 引擎上的
+//   SkillResolver、RAG 管道上的 DocRetriever、
+//   子代理循环上的 SubagentRunner）并将它们安装到桥传递到 make_provider
+//   () 的 HostServices 中。后端为空的工具不会被广告。
 
 #include <mcp/tools/host.hpp>
 
@@ -22,40 +22,40 @@ namespace agentty::store { struct RagConfig; }
 
 namespace agentty::tools {
 
-// Populate svc.memory / svc.skills / svc.retriever / svc.subagent with the
-// agentty backends. Leaves svc.todo null (the mcp todo shell needs no host
-// state) and svc.http untouched (the bridge installs the HttpClient).
+// 用 agentty 后端填充 svc.memory/svc.skills/svc.retriever/svc.subagent。
+// 保留 svc.todo 为空（mcp todo shell 不需要主机状态）
+// 并且 svc.http 保持不变（网桥安装 HttpClient）。
 void install_host_backends(::mcp::tools::HostServices& svc);
 
-// Headless one-shot (`agentty run`): see agentty/tool/one_shot.hpp.
+// 无头-shot (`agentty run`):参见agentty/tool/one_shot.hpp.
 
-// True iff `name` resolves to a real agent role — a built-in (explorer,
-// reviewer, tester, coder, general) or a user-defined one from
-// .agentty/agents/*.md. Exists so `agentty run --agent X` can REJECT a
-// typo instead of silently running as `general`: resolve_agent_type()
-// falls back on purpose (a model naming a role that doesn't exist should
-// still get work done), but for a human at a CLI that fallback turns a
-// typo into the wrong agent with no warning.
+// 正确当且仅当`name`解析为真正的代理角色——内置-in(探索者、
+// 审阅者、测试者、编码员、
+// 一般)或来自.agentty/agents/*.md.的用户-defined存在，
+// 因此`agentty run --agent X`可以REJECT拼写错误，
+// 而不是像`general`那样静默运行：resolve_agent_type()故意
+// 回退（命名不存在的角色的模型）仍然应该完成工作），但对于 CLI 的人来说，
+// 回退 在没有任何警告的情况下将拼写错误变成了错误的代理。
 [[nodiscard]] bool is_known_agent_type(std::string_view name);
 
-// Comma-separated list of the valid names, for that error message.
+// 该错误消息的有效名称的 Comma-separated 列表。
 [[nodiscard]] std::string known_agent_types();
 
-// Names of the subagent types defined in a project .agentty/agents/. Reads
-// the disk, so it runs on a worker (read_library).
+// 项目.agentty/agents/.中定义的子代理类型名称读取磁盘，
+// 因此运行在工作线程(read_library)上。
 [[nodiscard]] std::vector<std::string> project_agent_names();
 
-// Apply user RAG configuration to the process-wide retriever, ON THE CALLING
-// THREAD. It probes the embedder (a network dial) and may block, so the TUI
-// never calls this directly: the reducer returns cmd::apply_rag_settings,
-// which runs this on a jaal worker. Scheduling is the caller's decision, not
-// this function's — that is what keeps update() free of effects. Never throws.
+// 将用户RAG配置应用于进程-wide检索器、ON 该 CALLING THREAD。
+// 它探测嵌入器（网络拨号）并可能会阻塞，因此 TUI 永远不会直接执行 调用
+// 操作：状态更新函数 返回 cmd::apply_rag_settings，
+// 它在 jaal 工作线程 上运行此操作。调度是调用者的决定，而不是该函数
+// 的决定——这就是使 update() 免受 副作用 影响的原因。从不抛出。
 void rag_apply_settings_now(const store::RagConfig& cfg);
 
-// Live dense-embedder status for the RAG picker's status row and
-// `agentty diagnostics`. When the embedder is unavailable, `reason` says why
-// — the point being that a misconfigured endpoint is visible rather than
-// retrieval silently degrading to keyword-only forever.
+// RAG、选择面板的状态行和`agentty diagnostics`
+// 的实时dense-embedder状态。当嵌入器不可用时，
+// `reason` 会说明原因 - 重点是配置错误的端点是可见的，
+// 而不是默默地检索永远降级为关键字 -only。
 struct RagEmbedStatus {
     enum class State : std::uint8_t { Unprobed, Ready, Unavailable };
     State         state      = State::Unprobed;
@@ -66,9 +66,9 @@ struct RagEmbedStatus {
 };
 [[nodiscard]] RagEmbedStatus rag_embed_status(Io);
 
-// Probe an ARBITRARY embed configuration without disturbing the live
-// retriever — what the picker's "Test connection" row runs on a worker
-// thread. Returns the MEASURED dimension, the only trustworthy source for it.
+// 探测ARBITRARY嵌入配置而不干扰活动检索器——选择
+// 面板的"Test connection"行在工作线程 线程上运行。
+// 返回 MEASURED 维度，这是唯一值得信赖的来源。
 struct RagProbeOutcome {
     bool          ok = false;
     std::uint32_t dim = 0;
@@ -78,41 +78,41 @@ struct RagProbeOutcome {
 [[nodiscard]] RagProbeOutcome rag_probe_embedder(const store::RagConfig& cfg,
                                                  const std::string& api_key);
 
-// Stop the process-wide retriever's in-flight background warm and reclaim its
-// worker. Call EARLY in teardown (before static destruction) so ^C is prompt:
-// otherwise the retriever's warm jthread is joined at static-dtor time, after
-// main() returns, and blocks the exit on a multi-second embed pass. Idempotent.
+// 停止进程-wide检索器的in-flight背景热并回收其工作线程。
+// 调用 EARLY 处于拆卸状态（静态销毁之前），因此 ^C 是 提示词：
+// 否则，在main()返回之后，检索器的热j线程在static-dtor时间加入，
+// 并阻止multi-second嵌入通道上的退出。 幂等。
 void rag_shutdown();
 
 
-// Smart Mode Innovation 3 (SPECULATIVE): kick a detached, best-effort code/
-// docs retrieval warm-up for `query` so the workspace index is hot and the
-// grounding is pre-fetched by the time the orchestrator delegates — real
-// speculative execution overlapping the lead's thinking, with zero wasted-
-// token risk (retrieval is local). Returns immediately; never throws.
+// 智能模式创新3 (SPECULATIVE):为`query`
+// 踢出一个独立的、最好的-effort code/文档检索warm-up，
+// 因此工作区索引是热门的，并且在协调器委托时接地是pre
+// -fetched——真正的推测性执行与领导者的思维重叠，
+// 具有零浪费令牌风险(检索是本地的)。立即返回；从不抛出。
 
 
-// ── Proactive retrieval (explicit opt-in) ────────────────────────────
-// Run the RAG pipeline outside the model's tool loop. The app invokes the
-// blocking form on an isolated worker and launches the model only after it
-// settles, so each turn performs at most one retrieval. Automatic proactive
-// injection is disabled unless AGENTTY_RAG_PROACTIVE=1.
+// ── 主动检索( 明确选择-in) ────────────────────────────
+// 在模型的工具循环之外运行RAG管道。该应用程序在孤立的
+// 工作线程 上调用阻塞表单，并仅在其稳定后启动模型，
+// 因此每一轮最多执行一次检索。除非 AGENTTY_RAG_PROACTIVE=1，
+// 否则自动主动注入将被禁用。
 struct ProactiveHit {
-    std::string block;        // fenced <retrieved-context> text for the wire
-    double      confidence;   // [0,1] retrieval confidence that cleared the bar
-    int         passages;     // how many passages the block carries
-    // Cross-turn dedup keys (source:path:line) for the passages this block
-    // ACTUALLY carries. proactive_retrieve builds the block on a worker that
-    // may be abandoned on a latency-budget overrun, so the keys are only
-    // COMMITTED to the dedup FIFO once the hit is really returned to the
-    // caller — an abandoned worker never suppresses a passage it didn't show.
+    std::string block;        // 围栏 <retrieved-context> 文本为 传输
+    double      confidence;   // [0,1] 清除障碍的检索置信度
+    int         passages;     // 该块承载了多少个通道
+    // Cross-turn对该块ACTUALLY携带的段落进行去重密钥(
+    // 源：路径：行)。 proactive_retrieve 在 工作线程
+    // 上构建块，该块可能会在延迟 -budget 溢出时被放弃，
+    // 因此一旦命中真正返回给调用者，密钥就只有 COMMITTED 到
+    // 去重 FIFO — 被放弃的 工作线程 永远不会抑制它未显示的段落。
     std::vector<std::string> dedup_keys;
 };
 [[nodiscard]] std::optional<ProactiveHit>
 proactive_retrieve(const std::string& query, int k = 3);
 
-// Same single-execution funnel used by the app's isolated worker.
-// the caller always injects/stages this result. Never throws.
+// 应用程序的隔离工作线程使用相同的single-execution漏斗。
+// 调用者总是injects/stages这个结果。从不抛出。
 [[nodiscard]] std::optional<ProactiveHit>
 proactive_retrieve_blocking(const std::string& query, int k = 3);
 

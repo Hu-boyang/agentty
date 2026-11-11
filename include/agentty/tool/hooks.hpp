@@ -1,51 +1,51 @@
 #pragma once
-// agentty::tools::hooks — user-authored lifecycle hooks with an explicit
-// consent gate.
+// agentty::tools::hooks — user-authored 生命周期挂钩
+// 具有明确的同意门。
 //
-// A hook is a shell command the user configures to run at a lifecycle
-// event. v1 supports the two highest-value events:
+// 挂钩是用户配置为在生命周期事件运行的shell命令。
+// v1支持最高的两个-value 事件：
 //
-//   pre_tool    before a tool executes.  Receives the tool name + JSON args
-//               on stdin; a NON-ZERO exit BLOCKS the tool call (its stdout
-//               becomes the error the model sees). Use: policy gates
-//               ("never rm -rf", "block edits to prod.config").
-//   post_tool   after a tool executes.   Receives name + args + result on
-//               stdin; exit code is logged but never blocks. Use: auto-
-//               format after edit, notifications, audit logs.
+//   工具执行之前的pre_tool。  在 stdin 上接收工具名称 + JSON args；
+//               NON-ZERO 退出 BLOCKS 工具 调用（其标准输出成为模型
+//               看到的错误）。使用：策略门（"never rm -rf"、
+//               阻止编辑 prod.config。
+//   工具执行后的post_tool。   在 stdin 上接收
+//               名称 + 参数 + 结果；退出代码会被记录但不会阻塞。
+//               用途：编辑后自动格式化、通知、审核日志。
 //
-// Config file (first found wins): .agentty/hooks.json, then
-// ~/.agentty/hooks.json:
+// 配置文件(首先找到获胜)：.agentty/hooks.json，
+// 然后是~/.agentty/hooks.json：
 //
 //   {
-//     "pre_tool":  [ {"match": "shell",       "run": "./scripts/guard.sh"} ],
-//     "post_tool": [ {"match": "edit|write",  "run": "clang-format -i $FILE"} ]
+//     "pre_tool":[{"match":"shell","run":"./scripts/guard.sh"}]，
+//     "post_tool":[{"match":"edit|write","run":"clang-format -i $FILE"}]
 //   }
 //
-// `match` is an ERE matched against the tool name; `run` is executed via
-// sh -c with the event payload on stdin and these env vars:
-//   AGENTTY_HOOK_EVENT   pre_tool | post_tool
-//   AGENTTY_HOOK_TOOL    tool name
+// `match`为与工具名称匹配的ERE； `run` 通过 sh -c 执行，
+// 并在标准输入上使用 事件 载荷 和这些环境变量：
+//   AGENTTY_HOOK_EVENT pre_tool | post_tool
+//   AGENTTY_HOOK_TOOL 工具名称
 //
-// ── SECURITY: the consent gate ─────────────────────────────────────────
-// Hooks are arbitrary shell that runs AUTOMATICALLY on every matching tool
-// call — the single most dangerous extension surface an agent host can
-// offer (a malicious repo could ship .agentty/hooks.json and exfiltrate on
-// the first `read`). agentty therefore NEVER runs a hooks file that has
-// not been explicitly approved:
+// ── SECURITY:同意门 ─────────────────────────────────────────
+// 挂钩是在每个匹配工具 调用 上运行 AUTOMATICALLY 的
+// 任意 shell——代理主机可以提供的最危险的单一扩展表面（
+// 恶意 仓库 可以运送 .agentty/hooks.json 并在第
+// 一个 `read` 上渗漏）。 agentty 因此 绝不 运行
+// 一个尚未明确批准的钩子文件：
 //
-//   • The FIRST time a hooks file (or a changed version of one) is seen,
-//     its hooks DO NOT RUN. agentty surfaces a one-line notice telling the
-//     user to run `agentty hooks approve` to inspect + approve it.
-//   • `agentty hooks approve` prints the full file, asks for explicit
-//     y/N confirmation on the terminal, and stores the file's SHA-256 in
-//     ~/.agentty/hooks_approved.json.
-//   • Any byte change to the file invalidates the approval (hash mismatch
-//     → back to not-running + notice). There is no "approve forever".
-//   • AGENTTY_NO_HOOKS=1 disables the whole subsystem.
+//   • 看到钩子文件（或钩子文件的更改版本）的 首次 时间，
+//     其挂钩DO 不 RUN。 agentty 会显示一个 -line 通知，
+//     告诉用户运行 `agentty hooks approve` 来检查并批准它。
+//   • `agentty hooks approve` 打印完整文件，要求明确
+//     y/N对终端进行确认，
+//     并将文件的SHA-256存储在~/.agentty/hooks_approved.json.中
+//   • 对文件的任何 字节 更改都会使批准无效（哈希不匹配）
+//     →返回not-running+通知）。没有"approve forever"。
+//   ·AGENTTY_NO_HOOKS=1禁用整个子系统。
 //
-// Hook commands run through the SAME sandbox wrapper as the bash tool
-// (bwrap / sandbox-exec when enabled), so an approved-but-compromised hook
-// is still workspace-confined.
+// 钩子命令通过作为 bash 工具的 相同 沙箱 包装器运行（启用时为
+// bwrap/沙箱-exec），因此批准的 -but-compromised 钩子
+// 仍然是 工作区-confined。
 
 #include <optional>
 #include <string>
@@ -57,31 +57,31 @@
 namespace agentty::tools::hooks {
 
 struct PreToolDecision {
-    bool        blocked = false;  // non-zero hook exit → tool call blocked
-    std::string reason;           // hook stdout (the error the model sees)
+    bool        blocked = false;  // 非-zero钩退出→工具调用被阻挡
+    std::string reason;           // hook stdout（模型看到的错误）
 };
 
-// Run every approved+matching pre_tool hook for `tool`. Returns the first
-// blocking decision, or an empty (allowed) one. Never throws; a hooks file
-// that is missing / unapproved / unparseable yields "allowed".
+// 运行`tool`的每个批准+匹配的pre_tool挂钩。
+// 返回第一个阻止决策，或一个空（允许）决策。从不投掷；
+// 丢失/未经批准/不可解析的 hooks 文件会产生 "allowed"。
 [[nodiscard]] PreToolDecision
 run_pre_tool(std::string_view tool, const std::string& args_json);
 
-// Run every approved+matching post_tool hook. Fire-and-forget semantics:
-// failures are logged to the hook log, never propagated.
+// 运行每个批准+匹配的post_tool挂钩。 Fire-and-forget 语义：
+// 失败被记录到挂钩日志中，从不传播。
 void run_post_tool(std::string_view tool, const std::string& args_json,
                    const std::string& result_text);
 
-// True when a hooks file exists whose hash is NOT approved (drives the
-// one-line TUI notice). Cheap: stat + memoised hash.
+// 当存在散列为NOT批准的钩子文件时为真（驱动one-line
+// TUI通知）。便宜：统计+记忆哈希。
 [[nodiscard]] bool pending_approval(Io);
 
-// Path of the active hooks file (project first, then user), empty if none.
+// 活动钩子文件的路径(首先是项目，然后是用户)，如果没有则为空。
 [[nodiscard]] std::string active_file(Io);
 
-// The `agentty hooks` subcommand: `list` shows configured hooks + approval
-// state; `approve` prints the file and interactively approves it. Returns
-// a process exit code.
+// `agentty hooks`子命令：`list`显示配置的钩子
+// +审批状态； `approve` 打印文件并以交互方式批准它。
+// 返回进程退出代码。
 int cli(Io, const maya::unlocked&, const std::string& verb);
 
 } // namespace agentty::tools::hooks

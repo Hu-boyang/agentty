@@ -1,23 +1,23 @@
 #pragma once
-// agentty::ui_prefs — every knob that changes how agentty LOOKS, in one
-// value type.
+// agentty::ui_prefs-以一种值类型改变agentty LOOKS方式
+// 的每个旋钮。
 //
-// ── Why this is its own concern ──────────────────────────────────────────
+// ── 为何这是它自己关心的 ──────────────────────────────────────────
 //
-// Appearance is the one part of the config that belongs to the PERSON, not
-// the project. A permission profile is a property of the repo you are in;
-// a light terminal is a property of your eyes and your office. So these
-// live in the user store and follow you between checkouts, and nothing
-// here is ever written to a project .agentty/.
+// 外观是属于PERSON的配置的一部分，而不是项目。
+// 权限 配置文件是您所在的 仓库 的属性；
+// 终端 灯是您的眼睛和办公室的财产。因此，这些内容存在
+// 于用户存储中，并在结账期间跟随您，并且这里没有任何
+// 内容写入项目 .agentty/.
 //
-// ── Why every field has an explicit "auto" ───────────────────────────────
+// ── 为什么每个领域都有明确的"auto" ───────────────────────────────
 //
-// Two of these — the color tier and the background polarity — are things
-// agentty can usually DETECT. Detection is right almost always and wrong
-// unrecoverably: a terminal that lies about COLORTERM, or one that never
-// set COLORFGBG, leaves a user staring at an unreadable screen with no way
-// to say "no, it's light". Auto is the default and the override is the
-// escape hatch, which is the whole of agentty issue #37.
+// 其中两个——颜色层和背景极性——是 agentty 通常可以
+// DETECT 的东西。检测几乎总是正确的，但错误却无法恢复：
+// 一个关于 COLORTERM 的终端，或者一个从未设置过
+// COLORFGBG 的终端，会让用户盯着一个不可读的屏幕，
+// 无法说出 "no, it's light"。自动是默认值，覆盖是逃生舱口，
+// 这是 agentty 问题 #37 的全部内容。
 
 #include <cstdint>
 #include <string>
@@ -25,42 +25,42 @@
 
 namespace agentty::ui_prefs {
 
-// ── Theme ────────────────────────────────────────────────────────────────
+// ── 主题 ────────────────────────────────────────────────────────────────
 
-// Which palette paints the UI.
+// 哪个调色板绘制了UI。
 //
-// Empty means NATIVE: agentty states no colors of its own and the user's
-// own terminal palette comes through (maya::theme::native). That is the
-// default because it is the only choice that is correct on a light
-// terminal, a dark one, and a monochrome one alike.
+// 空意味着NATIVE:agentty表示没有其自己的
+// 颜色并且用户自己的终端调色板出现(maya::theme::native)。
+// 这是默认设置，因为它是在浅色 终端、
+// 深色和单色上唯一正确的选择。
 //
-// Any other value names one of maya's built-in schemes ("Dracula",
-// "Gruvbox Dark", …). Choosing one is the user saying "paint it like this",
-// and agentty then owns the whole surface including the background.
+// 任何其他值命名maya的内置-in方案之一("Dracula"、
+// "Gruvbox Dark"、…)。选择一个是用户说 "paint it like this"，
+// 然后 agentty 就拥有包括背景在内的整个表面。
 using ThemeName = std::string;
 
-// What agentty may emit.
+// agentty可能发出什么。
 //
-// Auto runs maya's detection stack (NO_COLOR, TERM, COLORTERM, tty). The
-// rest force a tier, for a terminal that misreports — or for someone who
-// simply wants a black-and-white screen, which Mono gives them.
+// 自动运行maya的检测堆栈(NO_COLOR、TERM、COLORTERM、
+// tty)。其余的则强制一个等级，对于错误报告的 终端，或者对于那些只是想要
+// 黑色 -and-white 屏幕的人，Mono 为他们提供了这一点。
 enum class ColorTier : std::uint8_t { Auto, TrueColor, Ansi256, Ansi16, Mono };
 
-// Whether the terminal is light or dark.
+// 终端是浅色还是深色。
 //
-// Only consulted when a named theme has both variants; `native` does not
-// care, which is the point of it. Auto reads COLORFGBG and, failing that,
-// leaves it unknown rather than guessing.
+// 仅当命名主题同时具有变体时才进行咨询； `native`不在乎，
+// 这就是重点。自动读取 COLORFGBG，如果失败，
+// 则将其保留为未知而不是猜测。
 enum class Polarity : std::uint8_t { Auto, Dark, Light };
 
-// ── Density ──────────────────────────────────────────────────────────────
+// ── 密度 ──────────────────────────────────────────────────────────────
 
-// How tall a panel's scrollable body may be.
+// 面板的可滚动正文可以有多高。
 //
-// The shared default is 14 rows, chosen so a picker fits a short terminal.
-// On a tall one that is needlessly cramped — several stats tabs scroll for
-// want of six rows — so this raises the ceiling. It is a MAXIMUM: the panel
-// still clamps to what the terminal actually has.
+// 共享的默认值是14行，如此选择使得选择面板适合短的终端。
+// 在一个高大的、不必要的狭窄的地方——几个统计选项卡滚动
+// 缺少六行——所以这提高了上限。它是 MAXIMUM：
+// 面板仍然固定在 终端 的实际位置上。
 enum class Density : std::uint8_t { Compact, Normal, Roomy };
 
 [[nodiscard]] constexpr int viewport_rows(Density d) noexcept {
@@ -72,79 +72,79 @@ enum class Density : std::uint8_t { Compact, Normal, Roomy };
     return 14;
 }
 
-// ── Motion ───────────────────────────────────────────────────────────────
+// ── 动议 ───────────────────────────────────────────────────────────────
 
-// Whether anything moves.
+// 是否有物体移动。
 //
-// Off is an accessibility setting before it is a preference: vestibular
-// disorders make a typewriter reveal genuinely unpleasant, and a spinner
-// on a slow SSH link is just noise on the wire. Off makes streamed text
-// appear in whole lines and replaces every spinner with a static mark.
+// 在成为偏好之前，关闭是可访问性设置：前庭障碍
+// 使打字机逐步显示确实令人不愉快，而慢速SSH上
+// 的加载动画链接只是传输上的噪音。关闭会使流式
+// 文本整行显示，并用静态标记替换每个 加载动画。
 enum class Motion : std::uint8_t { Full, Reduced, Off };
 
 // ── Scrollback ───────────────────────────────────────────────────────────
 
-// How much of the conversation is redrawn into the terminal's scrollback
-// when a thread opens or the window is resized. The redraw is the biggest
-// memory and time cost of a long thread, and rows past the terminal's own
-// scrollback limit are thrown away anyway. Auto matches the terminal's
-// scrollback length (maya/terminal/scrollback.hpp). Full redraws everything.
+// 当 线程 打开或窗口大小调整时，有多少对话被重新绘制到 终端
+// 的 回滚缓冲区 中。 重绘 是最大的 内存 和长 线程 的时间成本，
+// 并且超过 终端 自己的 回滚缓冲区 限制的行无论如何都会被丢弃。
+// 自动匹配 终端 的 回滚缓冲区 长度 (
+// maya/terminal/scrollback.hpp)。完全重绘一切。
 enum class Scrollback : std::uint8_t { Tiny, Small, Big, Full, Auto };
 
-// Rows for a fixed level; 0 = no limit. Auto is resolved by the caller.
+// 行为固定级别； 0 = 无限制。 Auto 由调用者解决。
 [[nodiscard]] constexpr int scrollback_rows(Scrollback s) noexcept {
     switch (s) {
         case Scrollback::Tiny:  return 1'000;
         case Scrollback::Small: return 5'000;
         case Scrollback::Big:   return 20'000;
         case Scrollback::Full:  return 0;
-        case Scrollback::Auto:  return 5'000;   // until the terminal is known
+        case Scrollback::Auto:  return 5'000;   // 直到已知终端
     }
     return 5'000;
 }
 
-// ── Chrome ───────────────────────────────────────────────────────────────
+// ── 颜色 ───────────────────────────────────────────────────────────────
 
-// How much of a tool's output is shown before you ask for more.
+// 在您要求更多之前，会显示工具的输出量。
 enum class ToolOutput : std::uint8_t { Collapsed, Preview, Full };
 
-// Whether the model's reasoning is shown.
+// 模型的推理是否被展示。
 enum class Thinking : std::uint8_t { Shown, Collapsed, Hidden };
 
-// Whether turns carry a time, and in what form.
+// 回合是否携带时间以及以什么形式携带时间。
 enum class Timestamps : std::uint8_t { Off, Relative, Absolute };
 
-// ── The whole of it ──────────────────────────────────────────────────────
+// ── 整个 ──────────────────────────────────────────────────────
 
 struct Prefs {
     ThemeName  theme;                              // empty = native
     ColorTier  tier        = ColorTier::Auto;
     Polarity   polarity    = Polarity::Auto;
 
-    // UI language, as a BCP-47 tag ("de", "pt-BR"). EMPTY means "follow the
-    // environment" -- $LC_ALL / $LC_MESSAGES / $LANG, then English.
+    // UI语言，作为BCP-47标签("de"，"pt-BR")。 空 的意思是 "follow the environment"
+    // -- $LC_ALL / $LC_MESSAGES / $LANG，然后是英文。
     //
-    // Empty-as-auto rather than defaulting to "en", for the same reason
-    // `theme` is empty-as-native: a user who never opened the picker should
-    // get their system's language, and a stored "en" would be
-    // indistinguishable from an explicit choice of English. Someone who
-    // deliberately picks English gets "en" written out, and then a later
-    // `LANG=de_DE` does not override them.
+    // Empty-as-auto而不是默认为"en"，
+    // 出于同样的原因`theme`是空-as-native：
+    // 从未打开选择面板的用户应该获得他们的系统语言，
+    // 并且存储的"en"将与明确选择的英语无法区分。
+    // 故意选择英语的人会写出 "en"，然后后面的
+    // `LANG=de_DE` 不会覆盖它们。
     //
-    // This is agentty's CHROME only. What language the model answers in is
-    // decided by what the user types to it, and is deliberately not coupled
-    // to this -- see docs/design/i18n.md.
+    // 这仅是agentty的CHROME。模型回答的语言取决于
+    // 用户输入的内容，并且故意不与之耦合 - 请参阅
+    // docs/design/i18n.md.
     std::string lang;
 
     Density    density     = Density::Normal;
-    // Reading measure for assistant prose, in columns. Long lines are hard
-    // to track back to the next line's start; 0 means "no cap".
+    // 助理散文的阅读测量，分栏。长队很难追溯到下一行的起点；
+    // 0 表示 "no cap"。
     int        prose_width = 0;
     bool       compact_turns = false;
-    // The framed preview of the highlighted thread in ^J. Off gives the
-    // list the whole panel.
+    // ^J中突出显示的线程的加框预览。 Off 给出
+    // 整个面板的列表。
     bool       thread_preview = true;
-    // List Codex / Claude Code sessions in ^J so they can be continued here.
+    // 列出 ^J 中的 Codex/Claude 代码会话，以便可以在此处继续它们。
     bool       foreign_sessions = true;
 
     Motion     motion      = Motion::Full;
@@ -158,10 +158,10 @@ struct Prefs {
     bool operator==(const Prefs&) const = default;
 };
 
-// ── Labels ───────────────────────────────────────────────────────────────
+// ── 标签 ───────────────────────────────────────────────────────────────
 //
-// One spelling per value, used by the settings rows AND anything else that
-// reports the state, so the two can never drift.
+// 每个值一个拼写，由设置行AND使用任何其他报告状态的内容，
+// 因此两者永远不会漂移。
 
 [[nodiscard]] constexpr std::string_view label(ColorTier t) noexcept {
     switch (t) {
@@ -239,10 +239,10 @@ struct Prefs {
     return "?";
 }
 
-// ── Cycling ──────────────────────────────────────────────────────────────
+// ── 自行车 ──────────────────────────────────────────────────────────────
 //
-// Enter on a row advances it. Every enum wraps, so a row is a loop the user
-// can always get back around — never a dead end at the last value.
+// Enter连续前进。每个 枚举 都会换行，因此一行是一个循环，
+// 用户可以随时返回 — 永远不会在最后一个值处出现死胡同。
 
 template <typename E, std::uint8_t N>
 [[nodiscard]] constexpr E cycle(E v) noexcept {
@@ -258,41 +258,41 @@ template <typename E, std::uint8_t N>
 [[nodiscard]] constexpr Thinking   next(Thinking v)   noexcept { return cycle<Thinking, 3>(v); }
 [[nodiscard]] constexpr Timestamps next(Timestamps v) noexcept { return cycle<Timestamps, 3>(v); }
 
-// ── The field table ──────────────────────────────────────────────────────
+// ── 实地表格 ──────────────────────────────────────────────────────
 //
-// EVERY Prefs field, declared ONCE. The settings.json writer, its loader and
-// the save-time merge all walk this; none of them names a field.
+// EVERY首选项字段，声明为ONCE。 settings.json 编写器、
+// 其加载器和 保存-time 合并都遵循此原则；他们都没有命名一个字段。
 //
-// WHY THIS EXISTS
+// 原因 此 EXISTS
 // ===============
-// Those three used to spell the list out by hand, and nothing made them
-// agree. Each omission failed differently and silently: missing from the
-// writer meant the setting never reached disk; missing from the loader meant
-// it was written and then ignored on restart; missing from the merge meant a
-// second agentty session clobbered it on its next save. That last one is what
-// "settings don't persist" looked like in practice.
+// 这三个人过去常常用手拼出这个列表，但没有什么能让他们达成一致。
+// 每次遗漏都会以不同的方式失败：写入器缺失意味着设置从未到达磁盘；
+// 加载程序中丢失意味着它已被写入，然后在重新启动时被忽略；
+// 合并中缺失意味着第二个 agentty 会话会在下一个
+// 保存 上破坏它。最后一个就是 "settings don't persist"
+// 在实践中的样子。
 //
-// The other settings blocks (smart, rag, web_search, paste) have had this
-// shape for a while via settings_registry.hpp. `ui` predates it. It does not
-// move ONTO that registry because the registry stores an enum as a STRING
-// ("convex", "auto") while ui stores typed enums written as integers --
-// migrating would change the on-disk format for every existing user to buy
-// nothing the table below does not already give.
+// 其他设置块（智能、碎布、web_search、
+// 粘贴）通过settings_registry.hpp已经具有这种形状一段时间了。
+// `ui` 早于它。它不会移动 ONTO 到 注册表，因为 注册表 将
+// 枚举 存储为 STRING（"convex"、"auto"），
+// 而 ui 存储写为整数的 带类型的 枚举 —— 迁移将更改 on-disk 格式，
+// 让每个现有用户购买下表未提供的任何内容。
 //
-// A field here is `member pointer + json key`. The default comes from
-// `Prefs{}` itself, through the member pointer, so there is no second copy of
-// it to drift: this table cannot disagree with the struct about what a
-// default is, because it never states one.
+// 这里的字段是`member pointer + json key`。
+// 默认值来自 `Prefs{}` 本身，通过成员指针，
+// 因此没有第二个副本可以漂移：该表不能与关于默认值的结构不一致，
+// 因为它从未声明过默认值。
 
-// Visit every Prefs field, passing (member-pointer, json-key) to `f`.
+// 访问每个偏好字段，将(成员-pointer，JSON-key)传递给`f`。
 //
-// A generic lambda sees each field at its OWN type, so a visitor can switch
-// on it with `if constexpr` -- an int stays an int, an enum stays its enum,
-// and nothing round-trips through a variant or a string.
+// 通用 lambda 将每个字段视为其 自身 类型，因此访问者可以使用
+// `if constexpr` 来打开它——int 保持 int，枚举 保持其 枚举，
+// 并且通过 变体 或字符串没有任何 round-trips。
 //
-// ADDING A FIELD: add it to Prefs, add one line here. The writer, loader and
-// merge pick it up with no edit. Forgetting the line is caught by
-// tests/lint/prefs_sync.py, which compares this table against the struct.
+// ADDING A FIELD：添加到Prefs，这里添加一行。编写器、
+// 加载器和合并器无需编辑即可拾取它。忘记该行会被
+// tests/lint/prefs_sync.py 捕获，它会将此表与结构进行比较。
 template <typename F>
 constexpr void for_each_field(F&& f) {
     f(&Prefs::theme,            std::string_view{"theme"});

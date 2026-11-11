@@ -1,16 +1,16 @@
 #!/bin/sh
-# config_move_test.sh — `agentty config move` and `config doctor` end to end,
-# against the real binary in a throwaway AGENTTY_HOME. Storage is configured
-# by environment only, so move moves the data and prints the export line.
-#   usage: config_move_test.sh <agentty>
+# config_move_test.sh — `agentty config move`
+# 财务报告和已审计财务报表 `config doctor` 最终,与真实的 二进制程序
+# 被丢弃 AGENTTY_HOME。存储仅由环境配置,所以移动数据并打印导出行。
+#   使用量:config_move_test.shXXXX <agentty>
 set -u
 A="$1"
 S=$(mktemp -d "${TMPDIR:-/tmp}/agentty_cfgmove_XXXXXX")
-# Canonical: on macOS $TMPDIR is under /var -> /private/var, and agentty
-# prints the resolved path in its export line.
+# 冠词: 打开 macOS $TMPDIR 位于/var - > / 下 private/var ,
+# 和 agentty 打印导出行中的解析路径。
 S=$(cd "$S" && pwd -P)
 trap 'rm -rf "$S"' EXIT
-# GNU stat says -c, BSD/macOS stat says -f.
+# GNU 统计说 -c, BSD/macOS 统计说 -f.
 mode_of() { stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"; }
 export AGENTTY_HOME="$S/home"
 unset AGENTTY_THREADS_DIR AGENTTY_LOGS_DIR AGENTTY_CACHE_DIR AGENTTY_STATE_DIR \

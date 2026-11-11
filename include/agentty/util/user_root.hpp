@@ -1,113 +1,113 @@
 #pragma once
-// agentty::util::user_root — THE single per-user storage root: ~/.agentty
+// agentty::util::user_root —THE单个每-user存储根：~/.agentty
 //
 // ─────────────────────────────────────────────────────────────────────────
-// Why ONE root, and why it is NOT $XDG_CONFIG_HOME/agentty
+// 为什么是ONE根，为什么是NOT $XDG_CONFIG_HOME/agentty
 // ─────────────────────────────────────────────────────────────────────────
-// agentty's per-user footprint is config + data + secrets + cache + logs,
-// tightly coupled: settings reference threads, memory feeds prompts,
-// credentials gate everything. The XDG base-dir spec would scatter that
-// across FOUR roots (config/data/state/cache) — and history shows what a
-// multi-root layout does to this codebase: files landed by coin-flip
-// (modelsdev.json — a cache — in .config; stderr.log in .config while
-// agentty.log sat in ~/.agentty; a comment in main.cpp that said
-// `~/.agentty` beside code that wrote config_dir()). A layout without one
-// obvious answer for "where does a new file go" guarantees drift.
+// agentty的per-user足迹是配置+数据+秘密+缓存+日志，紧密耦合：设置引用线程、
+// 内存提供提示词、凭据门一切。 XDG base-dir 规范会将其分散在
+// FOUR 根 (config/data/state/cache) 上 - 并且
+// 历史显示了 multi-root 布局对这个 代码库 的作用：由 coin-flip
+// 登陆的文件（modelsdev.json - 缓存 - 在 .config 中；
+// stderr.log 在 .config 中，而 agentty.log
+// 位于 ~/.agentty 中；注释main.cpp 在编写
+// config_dir() 的代码旁边表示 `~/.agentty`。
+// 对于 "where does a new file go" 没有一个明显答案的布局肯定会产生漂移。
 //
-// Putting everything under $XDG_CONFIG_HOME/agentty instead would be
-// worse, not better:
-//   • ~/.config is what people BACK UP and SYNC as dotfiles. agentty's
-//     dir holds OAuth refresh tokens and full conversation history —
-//     silently syncing secrets + hundreds of MB of threads into a
-//     dotfiles repo is a real harm, not a style nit.
-//   • The spec itself says .config is for CONFIG. Threads are data,
-//     tokens are secrets, modelsdev.json is a cache, logs are state.
-//     "Technically they're all conf files" is not true, and honoring the
-//     spec would mean the four-way scatter, not .config-for-everything.
+// 将所有内容放在 $XDG_CONFIG_HOME/agentty 下反而会更糟，
+// 而不是更好：
+//   ·~/.config是人们将BACK、UP和SYNC视为点文件。 agentty 的
+//     dir 保存 OAuth 刷新令牌和完整的对话历史记录
+//     — 将秘密 + 数百个 MB 的 线程 静默同步到点
+//     文件 仓库 中是真正的危害，而不是风格问题。
+//   ·规范本身说.config适用于CONFIG。 线程 是数据，
+//     令牌是秘密，modelsdev.json是缓存，日志是状态。
+//     "Technically they're all conf files" 不是真的，
+//     并且遵守规范将意味着 four-way 分散，而不是 .config-for-everything。
 //
-// So agentty follows the convention of its peers (Claude Code, Ghostty's
-// macOS layout, gh, aws, gcloud, cargo, rustup…): ONE app dotdir, owner-
-// only, with an internal layout that tells every future file exactly
-// where it belongs:
+// 所以 agentty 遵循其 对端 的约定（Claude 代码、Ghostty
+// 的 macOS 布局、gh、aws、gcloud、cargo、rustup…）：
+// 一个 应用 dotdir，仅限所有者，具有内部布局，可以准确地告诉每个未来
+// 文件它所属的位置：
 //
 //   ~/.agentty/
-//     settings.json, mcp.json, hooks.json, skills/, agents/, commands/
-//                      ← user-facing config: top level, discoverable,
-//                        the part a user might hand-edit or diff
-//     threads/  memory.jsonl
-//                      ← data: conversation history, learned memory
-//     credentials/     ← secrets (0700 dir, 0600 files): credentials.json,
-//                        accounts.json, provider OAuth files + locks
-//     cache/           ← refetchable: modelsdev.json, update_check.json
-//     logs/            ← agentty.log, stderr.log
+//     settings.json、mcp.json、hooks.json、skills/、
+//                      agents/、commands/ ← user-facing 配置：顶级，
+//                        可发现，用户可能掌握的部分-edit 或 diff
+//     threads/ memory.jsonl
+//                      ← 数据：会话历史记录，学到的 内存 credentials/
+//     ←机密（0700 目录，0600 个文件）：credentials.json、
+//                        accounts.json、提供商 OAuth 文件 + 锁
+//     cache/ ← 可重新获取：modelsdev.json、update_check.json
+//     logs/：保存 agentty.log 和 stderr.log。
 //
-// One `rm -rf ~/.agentty` resets the app. One `chmod 0700` is the whole
-// security story. One directory to document. The layout matches the
-// PROJECT-side .agentty (scope.hpp's dialect ladder) so "the .agentty
-// dir" means the same thing at both loci.
+// 一个`rm -rf ~/.agentty`重置应用程序。一个 `chmod 0700`
+// 就是整个安全故事。一个目录来记录。布局与 PROJECT-side .
+// agentty（scope.hpp 的方言阶梯）相匹配，
+// 因此 "the .agentty dir" 在两个基因座上的含义相同。
 //
-// $AGENTTY_HOME overrides the root wholesale (tests, containers, multi-
-// profile setups). $XDG_* is deliberately NOT consulted — a fixed name
-// keeps `docs`, error messages, and support answers unconditional.
+// $AGENTTY_HOME覆盖根批发（测试、容器、
+// 多配置文件设置）。 $XDG_* 是故意参考 不 的——
+// 固定名称使 `docs`、错误消息和支持答案保持无条件。
 //
-// Migration: the pre-consolidation layout kept credentials & caches in
-// $XDG_CONFIG_HOME/agentty (~/.config/agentty). user_root() migrates
-// those files into place ONCE (copy+verify, then best-effort remove) the
-// first time it runs against an old install; see migrate_legacy_config()
-// in user_root.cpp.
+// 迁移：前-consolidation布局将凭据和缓存保留在$XDG_CONFIG_HOME
+// /agentty(~/.config/agentty)中。 user_root
+// () 在第一次针对旧安装运行时将这些文件迁移到 一次（复制+验证，然后删除 best
+// -effort）；请参阅 user_root.cpp 中的 migrate_legacy_config
+// ()。
 
 #include <filesystem>
 
 namespace agentty::util {
 
-// The per-user root (~/.agentty or $AGENTTY_HOME). Created 0700 on first
-// use; migration from the legacy ~/.config/agentty split-root layout runs
-// once per process (idempotent, best-effort, never throws).
+// per-user根(~/.agentty或$AGENTTY_HOME)。
+// 首次使用时创建 0700；从旧版 ~/.config/agentty split-root
+// 布局的迁移每个进程运行一次（幂等、best-effort，从不抛出）。
 [[nodiscard]] std::filesystem::path user_root();
 
-// Subdirectory accessors — each creates its dir on first use. Use these
-// instead of joining literals so the layout stays enforced in one place.
+// 子目录访问器——每个子目录访问器在第一次使用时创建其目录。
+// 使用它们而不是连接文字，以便布局保持在一处强制执行。
 //
 // ─────────────────────────────────────────────────────────────────────
-// Moving the BULK off the config disk
+// 将 BULK 从配置磁盘上移出
 // ─────────────────────────────────────────────────────────────────────
-// $AGENTTY_HOME moves the whole root, which is the right answer when you
-// want one agentty install somewhere else. It is the wrong answer to a
-// different question users actually ask (issue #58): "keep my config on
-// the system disk, put the data on a second drive."
+// $AGENTTY_HOME 移动整个根，当您想要在其他地方安装 agentty 时，
+// 这是正确的答案。这是用户实际提出的另一个问题的错误答案（问题＃58）：
+// 配置放在系统盘，数据放在第二块磁盘。
 //
-// The numbers are why that question is reasonable. On a working install
-// the split is roughly settings 4 KB, credentials 8 KB — against threads
-// 4 MB, cache 5 MB and logs 38 MB. ~99% of the bytes are the three
-// categories below, and they are exactly the ones that grow without
-// bound.
 //
-// So every directory takes its own environment variable. Storage is set
-// only through the environment; nothing in agentty writes it.
+// 这些数字说明了该问题合理的原因。在工作安装中，
+// 拆分大致为设置 4 KB、凭据 8 KB — 与 线程
+// 4 MB、缓存 5 MB 和日志 38 MB。
+// 字节~99%都是下面这三类，而且正是那些无极限生长
+// 的。
 //
-//   $AGENTTY_THREADS_DIR       conversation history
-//   $AGENTTY_CACHE_DIR         refetchable downloads
-//   $AGENTTY_LOGS_DIR          diagnostics
-//   $AGENTTY_CREDENTIALS_DIR   secrets, forced 0700
-//   $AGENTTY_STATE_DIR         approval hashes
+// 因此每个目录都有其自己的环境变量。存储仅通过环境设置；
+// agentty 中没有任何内容。
 //
-// This is NOT a retreat to the XDG four-root layout the rationale above
-// rejects, and the difference is the default. XDG scatters by default,
-// so "where does a new file go" has four answers and files land by
-// coin-flip. Here the default is still ONE root, every accessor still
-// goes through this header, and an override is a deliberate per-install
-// choice that changes nothing for anyone who does not set it.
+//   $AGENTTY_THREADS_DIR对话历史记录
+//   $AGENTTY_CACHE_DIR可重新获取下载
+//   $AGENTTY_LOGS_DIR诊断
+//   $AGENTTY_CREDENTIALS_DIR秘密，
+//   强制0700 $AGENTTY_STATE_DIR批准散列
 //
-// Relative paths are resolved against the user root rather than the
-// process CWD — `AGENTTY_LOGS_DIR=logs2` means ~/.agentty/logs2, not
-// "wherever agentty happened to be launched from", which would scatter
-// logs across every directory you ever started it in.
+// 这是NOT退到XDG和-root布局上面的理由拒绝的，
+// 区别是默认的。 XDG 默认分散，
+// 因此 "where does a new file go" 有四个答案，
+// 文件通过 coin-flip 登陆。这里默认值仍然是 一个 根，
+// 每个访问者仍然通过这个 头文件，并且覆盖是一个故意的 per-install 选择，
+// 对于任何没有设置它的人来说，没有任何改变。
 //
-// docs/website/storage.md is the user-facing map of all of this.
-[[nodiscard]] std::filesystem::path user_credentials_dir();  // secrets, 0700
-[[nodiscard]] std::filesystem::path user_state_dir();        // approvals
-[[nodiscard]] std::filesystem::path user_cache_dir();        // refetchable
-[[nodiscard]] std::filesystem::path user_logs_dir();         // diagnostics
-[[nodiscard]] std::filesystem::path user_threads_dir();      // conversation history
+// 相对路径是根据用户 root 而不是进程 CWD 解析的 -
+// `AGENTTY_LOGS_DIR=logs2` 表示 ~/.agentty/logs2，
+// 而不是 "wherever agentty happened to be launched from"，
+// 这会将日志分散到您启动它的每个目录中。
+//
+// docs/website/storage.md 是所有这一切的用户-facing 地图。
+[[nodiscard]] std::filesystem::path user_credentials_dir();  // 秘密，0700
+[[nodiscard]] std::filesystem::path user_state_dir();        // 批准
+[[nodiscard]] std::filesystem::path user_cache_dir();        // 可重新取回
+[[nodiscard]] std::filesystem::path user_logs_dir();         // 诊断
+[[nodiscard]] std::filesystem::path user_threads_dir();      // 对话历史
 
 }  // namespace agentty::util

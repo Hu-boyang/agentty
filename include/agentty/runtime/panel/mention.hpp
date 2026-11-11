@@ -1,19 +1,19 @@
 #pragma once
-// @file mention picker — opens above the composer when the user types
-// `@` on an empty buffer.
+// @file提及选择面板——当用户在空的缓冲区上键入`@`
+// 时在编辑器上方打开。
 //
-// The state is a FilteredPicker over workspace file paths: query, cursor,
-// snapshot, filter memo and cold-open refill all come from that one
-// primitive (see panel/filtered_picker.hpp) rather than being hand-rolled
-// here. This header declares only what is specific to `@`: which snapshot
-// feeds it and which filter ranks it.
+// 状态是 工作区 文件路径上的 FilteredPicker：查询、游标、
+// 快照、过滤器 记忆缓存 和冷-open 填充全部来自该一个原语（参见
+// panel/filtered_picker.hpp)，而不是这里的 hand
+// -rolled。这个 头文件 仅声明了 `@` 特有的内容：哪个 快照 为其
+// 提供数据以及哪个过滤器对其进行排名。
 //
-// What used to live here — a `cached_matches / cached_query / cached_valid`
-// trio plus a free `mention_filtered()` accessor — was a byte-level clone of
-// symbol.hpp's, and the pair of them had drifted apart from the palette,
-// which never got the memo at all. The refill was worse: it lived in the
-// reducer's "printable typed" arm, so opening `@` cold and pressing ↓ or
-// Backspace left the picker on "indexing…" permanently.
+// 曾经住在这里的——一个 `cached_matches / cached_query / cached_valid`
+// 三重奏加上一个免费的 `mention_filtered()` 访问器——是
+// symbol.hpp 的 字节-level 克隆，而这对已经从调色板中分离出来，
+// 根本没有得到 记忆缓存。笔芯更糟糕：它位于 状态更新函数 的
+// "printable typed" 臂中，因此冷打开 `@` 并按 ↓ 或
+// Backspace 将 选择面板 永久留在 "indexing…" 上。
 
 #include <string>
 #include <tuple>
@@ -30,9 +30,9 @@ namespace mention {
 
 struct Closed {};
 
-// The `@` picker's source + ranking, in one place. Building the source from
-// the free functions here (rather than at each construction site) is what
-// keeps "which snapshot does `@` read" a single fact.
+// `@` 选择面板的来源+排名，在一处。从此处（而不是在每个构建站
+// 点）的免费函数构建源代码使 "which snapshot does `@` read"
+// 保持为单一事实。
 [[nodiscard]] inline ui::SnapshotSource<std::string> file_source() {
     return {
         .ready = [] { return files_ready(); },
@@ -52,11 +52,11 @@ struct Open {
     ui::FilteredPicker<std::string> picker;
 };
 
-// The picker owns every visible axis (query + cursor), so the panel's parts
-// list is just the picker's. Declared here rather than in the shared
-// visual_parts.hpp because Open now has a user-provided constructor — the
-// brace-arity probe reads 0, so the completeness proof needs the explicit
-// opt-in, and the opt-in belongs next to the thing it describes.
+// 选择面板拥有每个可见轴（查询+光标），因此面板的零件列表只是选择面板的。
+// 在这里声明而不是在共享的 visual_parts.hpp 中声明，
+// 因为 Open 现在有一个 user-provided 构造函数—
+// —brace-arity 探针读取 0，所以完整性证明需要显式的
+// opt-in，而 opt-in 属于它所描述的事物的旁边。
 inline auto visual_parts(const Open& p) {
     return std::make_tuple(visual::ref(p.picker));
 }

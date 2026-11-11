@@ -1,4 +1,4 @@
-// slash.cpp — the one catalog + resolver for `/name`. See slash.hpp.
+// slash.cpp - 其中一个 目录 + 解析器用于 `/name`。见 slash.hpp.
 #include "agentty/runtime/slash.hpp"
 
 #include "agentty/runtime/fuzzy.hpp"
@@ -27,7 +27,7 @@ Entry action(std::string name, std::string desc, Action a, std::string hint = {}
     return e;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 const std::vector<Entry>& builtin_actions() {
     static const std::vector<Entry> v = {
@@ -95,7 +95,7 @@ Resolved resolve(std::string_view text, const Catalog& cat) {
     const auto h = head(text);
     if (!h || h->name.empty()) return r;
     const auto it = std::ranges::find(cat.entries, h->name, &Entry::name);
-    if (it == cat.entries.end()) return r;   // /etc/hosts, /unknown: plain text
+    if (it == cat.entries.end()) return r;   // /etc/hosts,/未知:纯文本
     r.entry = &*it;
     r.args  = std::string{h->args};
     switch (it->kind) {
@@ -110,14 +110,14 @@ Resolved resolve(std::string_view text, const Catalog& cat) {
 std::optional<MenuQuery> menu_query(std::string_view text, int cursor) {
     if (text.empty() || text.front() != '/') return std::nullopt;
     if (cursor < 1 || static_cast<std::size_t>(cursor) > text.size()) return std::nullopt;
-    // The token runs from the '/' to the first whitespace.
+    // 符号从'/'到第一个白空.
     std::size_t end = 1;
     while (end < text.size() && !is_space(text[end])) ++end;
-    if (static_cast<std::size_t>(cursor) > end) return std::nullopt;   // past the name
+    if (static_cast<std::size_t>(cursor) > end) return std::nullopt;   // 过名称
     const std::string_view name = text.substr(1, end - 1);
-    if (name.find('/') != std::string_view::npos) return std::nullopt;   // a path
-    // Attachment placeholders start with a control byte; a token holding
-    // one isn't a name being typed.
+    if (name.find('/') != std::string_view::npos) return std::nullopt;   // 路径
+    // 附件占位符从控件开始 字节 一种象征,不是名字,
+    // 是... 带类型的.
     for (char c : name)
         if (static_cast<unsigned char>(c) < 0x20) return std::nullopt;
     return MenuQuery{name};
@@ -144,7 +144,7 @@ std::vector<Match> filter(const Catalog& cat, std::string_view query) {
         if (n == q) {
             m.score = 1'000'000;
         } else if (n.starts_with(q)) {
-            m.score = 500'000 - static_cast<int>(n.size());   // shorter first
+            m.score = 500'000 - static_cast<int>(n.size());   // 首短数
         } else if (auto f = fuzzy::score(e.name, query); f.matched()) {
             m.score = 100'000 + f.score;
             m.hits  = std::move(f.positions);
@@ -154,7 +154,7 @@ std::vector<Match> filter(const Catalog& cat, std::string_view query) {
         if (m.score == INT_MIN) continue;
         if (m.hits.empty() && m.score >= 500'000)
             for (std::size_t k = 0; k < q.size(); ++k) m.hits.push_back(static_cast<int>(k));
-        // Ties keep catalog order (actions first), so subtract the index.
+        // 绑定保持目录顺序(动作先),所以减去指数.
         m.score -= static_cast<int>(i);
         out.push_back(std::move(m));
     }
@@ -168,7 +168,7 @@ Completed complete(std::string_view text, const Entry& entry) {
     Completed c;
     c.text = "/" + entry.name + " ";
     std::string_view rest = end < text.size() ? text.substr(end) : std::string_view{};
-    // Don't stack a second space when one already follows the token.
+    // 已经跟随了符号的,不要堆叠第二个空间.
     if (!rest.empty() && rest.front() == ' ') rest.remove_prefix(1);
     c.cursor = static_cast<int>(c.text.size());
     c.text += rest;

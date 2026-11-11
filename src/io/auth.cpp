@@ -4,15 +4,15 @@
 
 #include "agentty/util/logx.hpp"
 
-// OAuth config lives with the provider it belongs to; `using` lets the
-// existing OAuthConfig:: references below stay short.
+// OAuth配置与其所属的提供者一起存在； `using` 让下面
+// 现有的 OAuthConfig:: 引用保持简短。
 #include "agentty/provider/anthropic/oauth.hpp"
 #include "agentty/provider/chatgpt/codex_oauth.hpp"
 #include "agentty/provider/copilot/copilot_oauth.hpp"
-// Pasted-key routing: the registry owns the prefix table, credentials:: does
-// the per-provider store write, persistence sets the active provider. Same
-// three that io/account_switch.cpp in this objlib already reaches for, so no
-// new layering edge.
+// Pasted-key路由：注册表拥有前缀表，凭据::per-provider存储写入，
+// 持久化设置活动提供者。该 objlib 中的
+// io/account_switch.cpp 已经达到了相同的三个，
+// 因此没有新的分层边缘。
 #include "agentty/provider/registry.hpp"
 #include "agentty/provider/credentials.hpp"
 #include "agentty/io/persistence.hpp"
@@ -55,14 +55,14 @@
 #  include <io.h>
 #  include <windows.h>
 #  include <shellapi.h>
-#  include <aclapi.h>          // SetNamedSecurityInfoW, SetEntriesInAclW
-#  include <sddl.h>            // (SID helpers)
+#  include <aclapi.h>          // SetNamedSecurityInfoW，SetEntriesInAclW
+#  include <sddl.h>            // (SID帮手)
 #else
 #  include <fcntl.h>
 #  include <sys/file.h>
 #  include <sys/stat.h>
 #  include <unistd.h>
-#  include "agentty/tool/util/exec.hpp"   // run_child: the browser opener
+#  include "agentty/tool/util/exec.hpp"   // run_child:浏览器开启器
 #endif
 
 namespace agentty::auth {
@@ -73,9 +73,9 @@ namespace fs = std::filesystem;
 using json = nlohmann::json;
 
 // ---------------------------------------------------------------------------
-// Credentials accessors — derived views over the variant.
-// std::visit + a generic lambda gives exhaustive matching: adding a new
-// alternative will fail to compile here until handled.
+// 凭据访问器-从变体导出的视图。
+// std::visit+通用 lambda 给出详尽的匹配：在
+// 处理之前添加新的替代方案将无法在此处 编译。
 // ---------------------------------------------------------------------------
 
 static std::int64_t now_ms() {
@@ -99,7 +99,7 @@ bool is_expired(const Credentials& c) noexcept {
             if (v.expires_at_ms == 0) return false;
             return now_ms() >= v.expires_at_ms;
         } else {
-            return false;   // None / ApiKey never expire
+            return false;   // 无/ApiKey永不过期
         }
     }, c);
 }
@@ -121,8 +121,8 @@ AuthHeader make_auth_header(const Credentials& c) {
     return std::visit([](const auto& v) -> AuthHeader {
         using T = std::decay_t<decltype(v)>;
         if constexpr (std::same_as<T, cred::None>) {
-            // Empty ApiKeyHeader is the canonical "unauthenticated" arm —
-            // is_empty(...) catches it before the transport dials.
+            // 空的ApiKeyHeader是典型的"unauthenticated"
+            // 臂——is_empty(...)在传输层刻度盘之前抓住它。
             return AuthHeader{ApiKeyHeader{}};
         } else if constexpr (std::same_as<T, cred::ApiKey>) {
             return AuthHeader{ApiKeyHeader{v.key}};
@@ -166,7 +166,7 @@ std::string OAuthError::render() const {
         case OAuthErrorKind::MissingToken: kind_str = "missing token";break;
         case OAuthErrorKind::Superseded:   kind_str = "superseded";   break;
     }
-    // A machine-readable "status=NNN " prefix is for classification only.
+    // 机器-readable "status=NNN "前缀仅用于分类。
     std::string_view shown = detail;
     if (shown.starts_with("status="))
         if (auto sp = shown.find(' '); sp != std::string_view::npos) shown.remove_prefix(sp + 1);
@@ -174,26 +174,26 @@ std::string OAuthError::render() const {
 }
 
 // ---------------------------------------------------------------------------
-// Paths
+// 路径
 // ---------------------------------------------------------------------------
 
 fs::path config_dir() {
-    // Consolidated: the credential store lives under the ONE per-user
-    // root — ~/.agentty/credentials — not $XDG_CONFIG_HOME/agentty.
-    // See util/user_root.hpp for the full single-root rationale (why
-    // .config is the WRONG home for tokens + threads) and the one-time
-    // migration that moves a legacy ~/.config/agentty install here.
-    // The name `config_dir` is kept for its 13 call sites; semantically
-    // it has always been "where credentials live".
+    // 综合：凭据存储位于ONE per-user根下——~/.agentty/credentials
+    // ——而不是$XDG_CONFIG_HOME/agentty。
+    // 请参阅 util/user_root.hpp 了解完整的 single-root
+    // 基本原理（为什么 .config 是 WRONG 令牌 + 线程 的主目录）以及将
+    // 旧版 ~/.config/agentty 安装移至此处的 one-time 迁移。
+    // 其13个调用站点保留名称`config_dir`；从语义上讲，
+    // 它始终是 "where credentials live"。
     return util::user_credentials_dir();
 }
 
 fs::path credentials_path() { return config_dir() / "credentials.json"; }
 
 // ---------------------------------------------------------------------------
-// Pre-warm: open TCP+TLS+h2 to api.anthropic.com while the user is still
-// typing, so the first real request skips the handshake. The http::Client's
-// pool keeps the connection until used or until the 90 s idle TTL elapses.
+// Pre-warm:当用户仍在打字时打开TCP+TLS+
+// h2到api.anthropic.com，因此第一个真实请求跳过握手。
+// http::Client 的 池 保持连接直到使用或直到 90 秒空闲 TTL 过去。
 // ---------------------------------------------------------------------------
 void prewarm_anthropic() {
     static std::once_flag once;
@@ -211,18 +211,18 @@ void prewarm_anthropic() {
 }
 
 // ---------------------------------------------------------------------------
-// Load/save/clear credentials
+// Load/save/clear 凭据
 // ---------------------------------------------------------------------------
 
 static void restrict_perms(const fs::path& p) {
 #ifdef _WIN32
-    // The credentials file is already AES-256-GCM sealed and bound to this
-    // (machine, user), so a copy is cryptographically useless elsewhere. This
-    // is the matching defence-in-depth for the POSIX 0600: replace the file's
-    // inherited DACL with one that grants FULL control to ONLY the current
-    // user's SID (the token owner), so another local account can't even read
-    // the ciphertext. Best-effort — any failure leaves the inherited ACL and
-    // the encryption remains the real barrier.
+    // 凭据文件已经被密封并绑定到该(机器、用户)AES-256-GCM，
+    // 因此副本在密码上在其他地方是无用的。这是 POSIX
+    // 0600 的匹配 defence-in-depth：将文件
+    // 继承的 DACL 替换为 授权 完整 控制到 仅 当前用户
+    // 的 SID（令牌所有者）的文件，这样另一个本地帐户甚至无法读取密文。
+    // Best-effort — 任何失败都会留下继承的 ACL，
+    // 而加密仍然是真正的障碍。
     HANDLE token = nullptr;
     if (!::OpenProcessToken(::GetCurrentProcess(), TOKEN_QUERY, &token)) return;
     DWORD len = 0;
@@ -247,8 +247,8 @@ static void restrict_perms(const fs::path& p) {
 
     PACL dacl = nullptr;
     if (::SetEntriesInAclW(1, &ea, nullptr, &dacl) != ERROR_SUCCESS) return;
-    // PROTECTED_DACL_SECURITY_INFORMATION strips inherited ACEs so ONLY our
-    // explicit owner-only entry applies.
+    // PROTECTED_DACL_SECURITY_INFORMATION剥离了继承的ACE，
+    // 因此ONLY我们的显式所有者-only条目适用。
     ::SetNamedSecurityInfoW(
         const_cast<LPWSTR>(p.wstring().c_str()), SE_FILE_OBJECT,
         DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
@@ -259,7 +259,7 @@ static void restrict_perms(const fs::path& p) {
 #endif
 }
 
-// Secrets are born 0600 (no chmod window) and replaced atomically.
+// 秘密诞生于0600 (无chmod窗口)并被原子地替换。
 static bool write_private(const fs::path& p, const std::string& content) {
     return persistence::write_atomic(IoAccess::grant(), p, content,
                                      {.durability = persistence::Durability::Durable,
@@ -268,9 +268,9 @@ static bool write_private(const fs::path& p, const std::string& content) {
 
 std::optional<Credentials> load_credentials(Io) {
     std::string raw;
-    // Prefer the OS keystore when enabled — it holds the sealed envelope.
-    // Fall back to the on-disk file when the keystore is off, empty, or the
-    // item is missing (e.g. first run after opting in).
+    // 当启用时优选OS密钥库——它保存密封的信封。
+    // 当密钥库关闭、为空或项目丢失时（e.g.选择加入后首次运行），
+    // 回退到 on-disk 文件。
     if (keystore::available()) {
         std::string ks;
         if (keystore::retrieve("credentials", ks) == keystore::Status::Ok
@@ -286,19 +286,19 @@ std::optional<Credentials> load_credentials(Io) {
     }
     if (raw.empty()) return std::nullopt;
 
-    // Encrypted-at-rest (SECURITY_AUDIT #1). New files are sealed
-    // envelopes; a pre-encryption file is plaintext JSON. Detect which,
-    // decrypt the sealed case, and fall through to the SAME parser for
-    // both — a legacy plaintext file is transparently accepted and gets
-    // re-encrypted the next time save_credentials runs (token refresh /
-    // re-login), so no explicit migration step is needed.
+    // 加密-at-rest (SECURITY_AUDIT#1)。
+    // 新文件采用密封信封； pre-encryption 文件是纯
+    // 文本 JSON。检测到哪个，解密密封的情况，并进入 相同 解析
+    // 器 两者 — 旧版纯文本文件被透明地接受，
+    // 并在下次 save_credentials 运行时获取 re-encrypted
+    // （令牌刷新/re-login），因此不需要显式迁移步骤。
     std::string body;
     if (crypt::looks_sealed(raw)) {
         auto pt = crypt::unseal(raw);
-        if (!pt) return std::nullopt;   // tampered / wrong machine / corrupt
+        if (!pt) return std::nullopt;   // 被篡改/错误的机器/损坏
         body = std::move(*pt);
     } else {
-        body = std::move(raw);          // legacy plaintext
+        body = std::move(raw);          // 遗留明文
     }
 
     try {
@@ -314,7 +314,7 @@ std::optional<Credentials> load_credentials(Io) {
         }
         if (m == "api_key") {
             cred::ApiKey k;
-            k.key = j.value("access_token", "");    // legacy field name
+            k.key = j.value("access_token", "");    // 遗留字段名称
             if (k.key.empty()) return std::nullopt;
             return Credentials{std::move(k)};
         }
@@ -324,29 +324,29 @@ std::optional<Credentials> load_credentials(Io) {
     }
 }
 
-// Cheap, cached "is there an Anthropic credential on disk?" for hot paths like
-// the provider-picker VIEW (rendered once per frame while open). The naive
-// approach — call load_credentials() → keystore/disk read + AES-unseal + JSON
-// parse — costs real work every frame; this caches the boolean keyed on the
-// credentials file's (mtime, size). A stat is ~1us and invalidates correctly on
-// login, logout (file removed), token refresh, and cross-process changes, since
-// save_credentials always (re)writes the encrypted file even when the keystore
-// is enabled. Mirrors provider::copilot::signed_in().
+// 便宜的、缓存的 "is there an Anthropic credential on disk?"
+// 用于热路径，如提供者-picker VIEW（打开时每个 帧 渲染一次）。
+// 幼稚的方法 - 调用 load_credentials() → keystore/disk
+// 读取 + AES-unseal + JSON 解析 - 每个 帧 都会花费实际工作；
+// 这个 缓存 是 凭据 文件（mtime，size）上的布尔值。统计数据约为 1us，
+// 并且在登录、注销（文件删除）、令牌刷新和 cross-process 更改时正确无效，
+// 因为即使启用密钥库，save_credentials 也始终（重新）写入加密文件。
+// 镜子 provider::copilot::signed_in()。
 bool anthropic_signed_in(Io io) {
     struct Cache {
         bool           ok = false;
-        std::int64_t   mtime = 0;   // file_time_type ticks: a Sendable key
+        std::int64_t   mtime = 0;   // file_time_type 刻度：可发送键
         std::uintmax_t size = static_cast<std::uintmax_t>(-1);
     };
-    // Lock-free: the whole (ok, mtime, size) triple is replaced wholesale, and
-    // views reach this on the render path, so no capability is needed.
+    // 锁-free:整个(ok、mtime、size)三元组被批量替换，
+    // 并且视图在渲染路径上到达此，因此不需要能力。
     static maya::snapshot<Cache> cache;
 
     std::error_code ec;
     const fs::path p = credentials_path();
     const std::int64_t mtime = fs::last_write_time(p, ec).time_since_epoch().count();
     const auto size  = ec ? 0 : fs::file_size(p, ec);
-    if (ec) {   // missing / unreadable → signed out; remember cheaply
+    if (ec) {   // 丢失/无法读取 → 已注销；便宜地记住
         cache.store(Cache{});
         return false;
     }
@@ -354,7 +354,7 @@ bool anthropic_signed_in(Io io) {
         const auto c = cache.load();
         if (c->mtime == mtime && c->size == size) return c->ok;
     }
-    // Changed: unseal + parse, then publish.
+    // 修改：解封+解析，然后发布。
     const bool ok = load_credentials(io).has_value();
     cache.store(Cache{ok, mtime, size});
     return ok;
@@ -380,18 +380,18 @@ bool save_credentials(Io, const Credentials& c) {
         }
     }, c);
     fs::path p = credentials_path();
-    // Encrypt at rest (SECURITY_AUDIT #1). If sealing fails (hard OpenSSL
-    // error), refuse to persist rather than silently writing plaintext
-    // tokens — the in-memory credential still works for this session, and
-    // the caller surfaces the save failure.
+    // 静态加密(SECURITY_AUDIT#1)。如果密封失败
+    // （硬 OpenSSL 错误），则拒绝保留而不是默默地写
+    // 入明文令牌 - in-memory 凭据 仍然适用于此会话，
+    // 并且调用者会显示 保存 失败。
     std::string payload = j.dump(2);
     auto sealed = crypt::seal(payload);
     if (!sealed) return false;
-    // When the OS keystore is enabled, it becomes the primary store for the
-    // sealed envelope. We still write the encrypted file too, so a later run
-    // with the keystore disabled (or a keychain that won't unlock) can still
-    // load. The file is already machine-bound-encrypted, so this is not a
-    // downgrade — it's the same protection that shipped before the keystore.
+    // 当启用OS密钥库时，它成为密封信封的主要存储库。
+    // 我们仍然会写入加密文件，因此稍后在禁用密钥库（或无法
+    // 解锁的钥匙串）的情况下运行仍然可以 加载。
+    // 该文件已经是 machine-bound-encrypted，
+    // 因此这不是降级 - 它与密钥库之前提供的保护相同。
     if (keystore::available())
         keystore::store("credentials", *sealed);
     if (!write_private(p, *sealed)) return false;
@@ -408,7 +408,7 @@ bool clear_credentials(Io) {
 }
 
 // ---------------------------------------------------------------------------
-// PKCE helpers
+// PKCE 帮手
 // ---------------------------------------------------------------------------
 
 std::string base64url_no_pad(const unsigned char* data, size_t len) {
@@ -435,24 +435,24 @@ std::string base64url_no_pad(const unsigned char* data, size_t len) {
     return out;
 }
 
-// Cryptographically-secure URL-safe random string (SECURITY_AUDIT: PKCE).
-// The OAuth code_verifier and anti-CSRF state MUST be unpredictable — a
-// non-CSPRNG (mt19937) is recoverable from a handful of outputs, which would
-// let an attacker forge a verifier or predict state. RAND_bytes is the OpenSSL
-// CSPRNG (already linked; used in cred_crypt.cpp). We draw one secure byte per
-// output char and fold it into the 64-char alphabet: 64 divides 256 evenly, so
-// the modulo is unbiased (each char equally likely). RAND_bytes failure is
-// treated as fatal — better to abort login than to emit low-entropy secrets.
+// 加密-secure URL-safe随机字符串(SECURITY_AUDIT:PKCE)。
+// OAuth code_verifier和反-CSRF状态MUST是不可预测的
+// ——非-CSPRNG (mt19937)可从少数输出中恢复，这将使攻击者
+// 伪造验证者或预测状态。 RAND_bytes 是 OpenSSL CSPRNG
+// （已链接；用于 cred_crypt.cpp）。我们为每个输出字符绘制一个
+// 安全的 字节，并将 归并 绘制到 64-char 字母表中：64 可以均匀地
+// 除以 256，因此模数是无偏的（每个字符的可能性相同）。
+// RAND_bytes 失败被视为致命的 — 中止登录比发出低 -entropy 秘密更好。
 std::string random_urlsafe(Io, size_t n) {
     static const char charset[] =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-    // charset has 64 usable chars (sizeof-1 for the NUL); 256 % 64 == 0 so
-    // masking the low 6 bits of a uniform byte is itself uniform — no bias,
-    // no rejection loop needed.
+    // 字符集有64个可用字符(sizeof-1为NUL)； 256 %
+    // 64 == 0 因此屏蔽统一 字节 的低 6 位本身就是统一的——没有偏差，
+    // 不需要拒绝循环。
     static_assert(sizeof(charset) - 1 == 64, "alphabet must be 64 for unbiased mask");
     std::vector<unsigned char> buf(n);
     if (n > 0 && RAND_bytes(buf.data(), static_cast<int>(n)) != 1) {
-        // CSPRNG unavailable — do NOT fall back to a weak generator.
+        // CSPRNG不可用——NOT是否回退到弱生成器。
         throw std::runtime_error("RAND_bytes failed: no secure entropy source");
     }
     std::string out;
@@ -478,13 +478,13 @@ std::string code_challenge_s256(const std::string& verifier) {
 }
 
 // ---------------------------------------------------------------------------
-// HTTP helpers (form-encoded POST against the OAuth endpoint)
+// HTTP 帮助程序（针对 OAuth 端点形成 -encoded POST）
 // ---------------------------------------------------------------------------
 
 namespace {
 
-// RFC 3986 unreserved set passes through; everything else gets %HH-encoded.
-// Mirrors curl_easy_escape's behaviour for the same input set.
+// RFC 3986无保留集通过；其他一切都得到%HH-encoded。
+// 镜像同一输入集的curl_easy_escape的行为。
 std::string url_escape(std::string_view s) {
     static const char* hex = "0123456789ABCDEF";
     std::string out;
@@ -514,12 +514,12 @@ std::string form_urlencode(const std::vector<std::pair<std::string,std::string>>
     return out;
 }
 
-// Endpoint parser for the small set of OAuth URLs we hit. We don't pull in a
-// general URL parser: every URL we use is https://, no userinfo, no fragment.
+// 我们访问的一小组 OAuth URL 的端点 解析器。我们不会引入一般的 URL
+// 解析器：我们使用的每个 URL 都是 https://,，没有用户信息，没有片段。
 struct ParsedUrl {
     std::string host;
     uint16_t    port = 443;
-    std::string path;   // includes leading '/' and any query string
+    std::string path;   // 包括前导 '/' 和任何查询字符串
 };
 
 std::expected<ParsedUrl, std::string> parse_https_url(std::string_view url) {
@@ -547,13 +547,13 @@ std::expected<ParsedUrl, std::string> parse_https_url(std::string_view url) {
     return p;
 }
 
-// Internal HTTP form-POST result. Distinct from the public TokenResult so
-// the typed mapping (HTTP error → OAuthError) happens in exactly one place
-// (parse_token_json below).
+// 内部HTTP形成-POST结果。与公共 TokenResult 不同，因此 带类型
+// 的 映射（HTTP 错误 → OAuthError）恰好发生在一处（下面的
+// parse_token_json）。
 struct FormPostResult {
     int         status = 0;
     std::string body;
-    std::string transport_error;   // non-empty iff request never reached server
+    std::string transport_error;   // non-empty iff请求从未到达服务器
 };
 
 FormPostResult http_post_form(const std::string& url,
@@ -569,10 +569,10 @@ FormPostResult http_post_form(const std::string& url,
     hreq.method = http::HttpMethod::Post;
     hreq.host   = parsed->host;
     hreq.port   = parsed->port;
-    // Air-gapped users tunnel the OAuth host (token exchange + refresh)
-    // through SSH the same way they tunnel the API host — see AGENTTY_OAUTH_HOST
-    // in include/agentty/io/http.hpp.  Without this, OAuth refresh dies on
-    // getaddrinfo the moment the access token expires mid-session.
+    // Air-gapped用户通过SSH隧道传输OAuth主机（令牌交换+刷新），
+    // 就像他们隧道API主机一样——参见include/agentty/io/http.hpp.中的AGENTTY_OAUTH_HOST。
+    // 如果没有这个，当访问令牌在-session中期过期时，
+    // OAuth刷新就会在getaddrinfo上终止。
     if (const auto& ov = http::agentty_oauth_host_override(); ov.active()) {
         hreq.dial_host = ov.host;
         hreq.dial_port = ov.port;
@@ -584,10 +584,10 @@ FormPostResult http_post_form(const std::string& url,
         {"user-agent",   ::agentty::user_agent()},
     };
     hreq.body = form_urlencode(fields);
-    // OAuth token exchange/refresh response is a tiny JSON object
-    // (access_token, refresh_token, expires_in, ~1 KB). Tighten the
-    // unary body cap so a runaway/misbehaving OAuth proxy can't stream
-    // gigabytes back at us before we notice.
+    // OAuth令牌exchange/refresh响应是微小的JSON对象(
+    // access_token、refresh_token、expires_in、
+    // ～1KB)。收紧一元 正文 上限，以便 runaway/misbehaving OAuth
+    // 代理无法在我们注意到之前向我们返回 数据流 GB。
     hreq.max_body_bytes = 1ull * 1024 * 1024;
 
     http::Timeouts tos;
@@ -601,12 +601,12 @@ FormPostResult http_post_form(const std::string& url,
     return r;
 }
 
-} // namespace
+} // 命名空间结束。
 
 // ---------------------------------------------------------------------------
-// Token exchange / refresh — the only place HTTP/JSON failure shapes get
-// mapped to the typed OAuthErrorKind. Downstream callers see only
-// TokenResult and dispatch on `kind`.
+// 令牌交换/刷新——HTTP/JSON故障形状被映射到带类型的
+// OAuthErrorKind的唯一地方。 下游 呼叫者在 `kind` 上
+// 只能看到 TokenResult 和 分派。
 // ---------------------------------------------------------------------------
 
 static TokenResult parse_token_json(const std::string& body, int http_status) {
@@ -656,9 +656,9 @@ std::string oauth_authorize_url(const PkceVerifier& verifier,
 TokenResult exchange_code(const OAuthCode& code,
                           const PkceVerifier& verifier,
                           const OAuthState& state) {
-    // Claude's callback returns "<code>#<state>" joined. Split into the two
-    // halves: everything before '#' is the authorization code, everything
-    // after is the state the IdP echoed back.
+    // Claude的回调返回"<code>#<state>"加入。
+    // 分为两半：'#' 之前的所有内容都是授权码，
+    // 之后的所有内容都是 IdP 回显的状态。
     std::string actual_code = code.value;
     std::string returned_state;
     if (auto hash = actual_code.find('#'); hash != std::string::npos) {
@@ -666,13 +666,13 @@ TokenResult exchange_code(const OAuthCode& code,
         actual_code    = actual_code.substr(0, hash);
     }
 
-    // Anti-CSRF (SECURITY_AUDIT): verify the echoed state matches the one we
-    // generated for THIS login. A mismatch means the pasted code belongs to a
-    // different authorization request (CSRF / mix-up / stale paste) — refuse
-    // to exchange it. Constant-time compare so we don't leak the expected
-    // value through timing. We only enforce when the IdP actually echoed a
-    // state (returned_state non-empty); an older callback page that omits it
-    // still relies on PKCE binding the code to the verifier.
+    // Anti-CSRF (SECURITY_AUDIT)：验证回显状态
+    // 与我们为 此 登录生成的状态是否匹配。不匹配意味着粘贴的代码属于
+    // 不同的授权请求（CSRF / mix-up / 过期 粘贴） -
+    // 拒绝交换它。 Constant-time 进行比较，
+    // 这样我们就不会通过计时泄漏预期值。我们仅在 IdP 实际回显状态（
+    // returned_state 非-empty）时强制执行；省略它的旧
+    // 回调 页面仍然依赖于 PKCE 绑定 验证程序的代码。
     if (!returned_state.empty()) {
         const std::string& expected = state.value;
         bool ok = returned_state.size() == expected.size();
@@ -707,10 +707,10 @@ TokenResult refresh_access_token(Io /*io*/, const RefreshToken& refresh_token) {
         {"client_id",     OAuthConfig::client_id},
         {"refresh_token", refresh_token.value},
     });
-    // A failed refresh presents to the user as "suddenly logged out" or a
-    // silent 401 loop, with nothing on screen to explain it. The refresh
-    // TOKEN never reaches the log (redaction would strip it anyway); only
-    // the outcome does.
+    // 刷新失败向用户呈现为 "suddenly logged out"
+    // 或静默 401 循环，屏幕上没有任何内容对其进行解释。
+    // 刷新 TOKEN 永远不会到达日志（编辑无论如何都会将其删除）；
+    // 只有结果才会如此。
     if (!r.transport_error.empty()) {
         AGT_LOG(Auth, Warn, "auth.refresh", "result=network_error err={}",
                 r.transport_error);
@@ -726,12 +726,12 @@ TokenResult refresh_access_token(Io /*io*/, const RefreshToken& refresh_token) {
 }
 
 namespace {
-// A stale-check on an OAuth cred with the 60s early-refresh skew.
+// OAuth 信用上的 过期-check 具有 60 年代早期-refresh 偏差。
 bool oauth_is_stale(const cred::OAuth& o) {
     return o.expires_at_ms != 0 && now_ms() >= o.expires_at_ms - 60'000;
 }
-// Build a TokenResult success from an already-valid on-disk OAuth cred, so a
-// caller that lost the cross-process race gets the winner's token as success.
+// 从已经-valid on-disk OAuth信用建立TokenResult成功，
+// 因此丢失cross-process 竞态的调用者获得成功者的令牌。
 TokenResult token_result_from(const cred::OAuth& o) {
     OAuthToken tr;
     tr.access_token  = o.access_token;
@@ -741,20 +741,20 @@ TokenResult token_result_from(const cred::OAuth& o) {
                      : 0;
     return tr;
 }
-} // namespace
+} // 命名空间结束。
 
 namespace {
 TokenResult refresh_in_section(Io io, bool cross, std::string rt) {
-    // Re-read under the lock: if a peer already refreshed, adopt its token
-    // instead of firing ours. Anthropic rotates refresh tokens, so a second
-    // refresh would invalidate the peer's and spin the refresh loop.
+    // 锁下的Re-read：如果对端已经刷新，则采用其令牌
+    // 而不是激发我们的令牌。 Anthropic 轮换刷新令牌，
+    // 因此第二次刷新将使 对端 无效并旋转刷新循环。
     if (cross) {
         if (auto loaded = load_credentials(io)) {
             if (auto* o = std::get_if<cred::OAuth>(&*loaded)) {
                 if (!oauth_is_stale(*o) && !o->access_token.empty())
-                    return token_result_from(*o);   // peer already refreshed
+                    return token_result_from(*o);   // 对端 已刷新
                 if (!o->refresh_token.empty())
-                    rt = o->refresh_token;          // use the freshest on-disk token
+                    rt = o->refresh_token;          // 使用最新的on-disk令牌
             }
         }
     }
@@ -762,9 +762,9 @@ TokenResult refresh_in_section(Io io, bool cross, std::string rt) {
     auto tr = refresh_access_token(io, RefreshToken{rt});
     if (!tr) return tr;
 
-    // An account switch writes the store without this lock, so the store may
-    // now hold a different account. If its refresh token is neither the one
-    // we sent nor the one we got back, don't clobber it: report Superseded.
+    // 帐户切换写入商店时没有该锁，因此商店现在可能
+    // 持有不同的帐户。如果其刷新令牌既不是我们发送
+    // 的也不是我们返回的，请不要破坏它：报告已取代。
     if (auto now_on_disk = load_credentials(io)) {
         if (auto* o = std::get_if<cred::OAuth>(&*now_on_disk)) {
             if (!o->refresh_token.empty() && o->refresh_token != rt
@@ -779,8 +779,8 @@ TokenResult refresh_in_section(Io io, bool cross, std::string rt) {
         }
     }
 
-    // Saved inside the section so the next process's re-read sees it. A
-    // failed save leaves a rotated-away token on disk; log it.
+    // 已保存在该部分内，因此下一个进程的re-read可以看到它。
+    // 失败的 保存 会在磁盘上留下旋转的 -away 令牌；记录它。
     Credentials refreshed{cred::OAuth{
         tr->access_token,
         tr->refresh_token.empty() ? rt : tr->refresh_token,
@@ -792,7 +792,7 @@ TokenResult refresh_in_section(Io io, bool cross, std::string rt) {
                      "require re-login (keystore locked / disk full / perms?)");
     return tr;
 }
-}  // namespace
+}  // 命名空间结束。
 
 TokenResult refresh_access_token_locked(Io, const locks::below_cred_file& cap,
                                         const RefreshToken& refresh_token) {
@@ -803,13 +803,13 @@ TokenResult refresh_access_token_locked(Io, const locks::below_cred_file& cap,
 }
 
 // ---------------------------------------------------------------------------
-// Resolve on startup
+// 启动时解决
 // ---------------------------------------------------------------------------
 
-// Single-shot mailbox: written by resolve() on the main thread before the
-// TUI is up, read by AgenttyApp::init() on the same main thread once
-// maya::run has started. Single-producer / single-consumer, so a plain
-// std::optional is sufficient — no atomics needed.
+// Single-shot邮箱：在TUI启动之前由resolve()在主线程上写入，
+// 在maya::run启动后由同一主线程上的AgenttyApp::init()读取。
+// Single-producer / single-consumer，
+// 因此普通的 std::optional 就足够了——不需要原子。
 namespace {
 std::optional<std::string> g_pending_refresh{};
 }
@@ -826,9 +826,9 @@ std::optional<std::string> take_pending_refresh() {
 
 std::optional<std::string>
 oauth_proactive_refresh_token(Io io, std::int64_t window_ms) {
-    // Env-injected OAuth token (CLAUDE_CODE_OAUTH_TOKEN) carries no expiry or
-    // refresh_token, and an env/CLI API key isn't refreshable at all — skip
-    // the disk read for those so we never touch the network for them.
+    // Env-injected OAuth令牌(CLAUDE_CODE_OAUTH_TOKEN)
+    // 没有过期或refresh_token，并且env/CLI API密钥根本
+    // 不可刷新——跳过这些密钥的磁盘读取，因此我们永远不会接触它们的网络。
     using namespace agentty::util;
     if (env::get_or_null<env::Var::AnthropicApiKey>()
      || env::get_or_null<env::Var::ClaudeOAuthToken>())
@@ -837,13 +837,13 @@ oauth_proactive_refresh_token(Io io, std::int64_t window_ms) {
     auto loaded = load_credentials(io);
     if (!loaded) return std::nullopt;
     auto* o = std::get_if<cred::OAuth>(&*loaded);
-    if (!o) return std::nullopt;                 // API-key / None: nothing to do
-    if (o->expires_at_ms == 0) return std::nullopt;   // no expiry info
-    if (o->refresh_token.empty()) return std::nullopt; // nothing to refresh with
-    // Within the proactive window (about to lapse) OR already lapsed. Already-
-    // expired is normally caught at launch / reactively, but returning it here
-    // too is harmless — the caller throttles and gates on in-flight state.
-    if (now_ms() < o->expires_at_ms - window_ms) return std::nullopt; // still fresh
+    if (!o) return std::nullopt;                 // API-key/无：无事可做
+    if (o->expires_at_ms == 0) return std::nullopt;   // 无到期信息
+    if (o->refresh_token.empty()) return std::nullopt; // 没什么可刷新的
+    // 在主动窗口（即将失效）OR内已经失效。
+    // 已过期通常会在启动时/反应性地捕获，但将其返回到此处也是
+    // 无害的 - 调用者会限制并控制 in-flight 状态。
+    if (now_ms() < o->expires_at_ms - window_ms) return std::nullopt; // 依然新鲜
     return o->refresh_token;
 }
 
@@ -859,10 +859,10 @@ Credentials resolve(Io io, const std::string& cli_api_key) {
     auto loaded = load_credentials(io);
     if (!loaded) return Credentials{cred::None{}};
 
-    // Non-blocking: expired-with-refresh stashes the refresh token for
-    // the reducer to pick up after the TUI is mounted; the network
-    // round trip happens off the startup path. Expired-without-refresh
-    // returns None so init.cpp opens the login modal.
+    // Non-blocking:expired-with-refresh隐藏刷新令牌，
+    // 以供状态更新函数在挂载TUI后拾取；网络往返发生在启动路径之外。
+    // Expired-without-refresh 返回 None，
+    // 因此 init.cpp 打开登录 弹出面板。
     return std::visit([&](auto v) -> Credentials {
         using T = std::decay_t<decltype(v)>;
         if constexpr (!std::same_as<T, cred::OAuth>) {
@@ -872,17 +872,17 @@ Credentials resolve(Io io, const std::string& cli_api_key) {
                               && now_ms() >= v.expires_at_ms;
             if (!expired) return Credentials{std::move(v)};
             if (v.refresh_token.empty()) {
-                // Nothing to refresh with; the in-TUI login modal will
-                // surface the empty-creds state to the user.
+                // 没有什么可以刷新的； in-TUI 登录 弹出面板
+                // 将向用户显示empty-creds 状态。
                 return Credentials{cred::None{}};
             }
-            // Hand the refresh token off to the reducer's init Cmd.
-            // The expired access_token is returned so anyone who
-            // inspects creds (e.g. the auth_header in Deps) sees the
-            // pre-refresh state until the background task lands;
-            // submit_message gates user sends on the
-            // oauth_refresh_in_flight flag so no request is fired with
-            // a known-stale token.
+            // 将刷新令牌交给状态更新函数的init Cmd。
+            // 过期的access_token被返回，因此检查信用(
+            // e.g.Deps中的auth_header)的任何人都看到pre
+            // -refresh状态，直到后台任务登陆；
+            // submit_message 控制用户在
+            // oauth_refresh_in_flight 标志 上发送，因此不会使用已知的
+            // -stale 令牌触发请求。
             set_pending_refresh(v.refresh_token);
             return Credentials{std::move(v)};
         }
@@ -890,7 +890,7 @@ Credentials resolve(Io io, const std::string& cli_api_key) {
 }
 
 // ---------------------------------------------------------------------------
-// Synchronous fresh credential (worker-thread safe)
+// 同步保鲜凭据(安全工作线程-thread)
 // ---------------------------------------------------------------------------
 
 namespace {
@@ -902,21 +902,21 @@ AuthHeader fresh_auth_header(Io /*io*/, const locks::below_auth_refresh& cap,
                              const AuthHeader& fallback) {
     using namespace agentty::util;
 
-    // CLI/env API keys are static — nothing to refresh. The env OAuth token
-    // (CLAUDE_CODE_OAUTH_TOKEN) is opaque with no refresh token, so also
-    // returned as-is.
+    // CLI/env API键是静态的——无需刷新。 env OAuth 令牌 (
+    // CLAUDE_CODE_OAUTH_TOKEN) 是不透明的，没有刷新令牌，
+    // 因此也返回为 -is。
     if (env::get_or_null<env::Var::AnthropicApiKey>()
      || env::get_or_null<env::Var::ClaudeOAuthToken>())
         return fallback;
 
-    // Serialize refreshes: several subagent worker threads can land here at
-    // once when a captured OAuth token expires. The first in refreshes +
-    // persists; the rest re-read the freshly-saved token.
+    // 序列化刷新：当捕获的OAuth令牌过期时，多个子代理工作线程
+    // 线程可以立即登陆这里。第一个在刷新+持续；其余的 re
+    // -read 是新鲜的 -saved 令牌。
     static maya::guarded<bool, locks::auth_refresh> lane;
     return lane.with(cap,
         [](const maya::held<locks::auth_refresh>& h, bool&, AuthHeader fb) {
-            // guarded's body can't take the caller's Io (it isn't Sendable),
-            // but this runs under fresh_auth_header, which had one.
+            // 受保护的正文不能接受呼叫者的I/O(它不是可发送的)，
+            // 但是这在有一个的fresh_auth_header下运行。
             return fresh_auth_header_locked(IoAccess::grant(), h, fb);
         },
         fallback);
@@ -930,29 +930,29 @@ AuthHeader fresh_auth_header_locked(Io io, const maya::held<locks::auth_refresh>
 
     auto* oauth = std::get_if<cred::OAuth>(&*loaded);
     if (!oauth) {
-        // A saved API key: hand back its header (also covers the case where
-        // creds changed on disk since startup).
+        // 已保存 API密钥：交还其头文件（还涵盖自启动
+        // 以来盘上信用改变的情况）。
         return make_auth_header(*loaded);
     }
 
-    // Refresh a bit early (60s skew) so a token that expires mid-request
-    // doesn't 401. No expiry info (expires_at_ms == 0) → trust it as-is.
+    // 刷新得有点早（60秒偏差），因此在-request中期过期的令牌不会出现401。
+    // 没有过期信息（expires_at_ms==0）→信任它为-is。
     auto is_stale = [](const cred::OAuth& o) {
         return o.expires_at_ms != 0 && now_ms() >= o.expires_at_ms - 60'000;
     };
     if (!is_stale(*oauth) || oauth->refresh_token.empty())
         return make_auth_header(*loaded);
 
-    // Cross-process serialization + double-checked re-read lives in
-    // refresh_access_token_locked: it funnels every agentty instance through
-    // one refresh at a time and adopts a peer's freshly-saved token instead of
-    // firing a redundant (refresh-token-rotating, hence mutually-invalidating)
-    // refresh — the multi-instance refresh loop this guards against. It also
-    // persists the new creds to disk.
+    // Cross-process 序列化 + double-checked re
+    // -read 存在于 refresh_access_token_locked 中：它
+    // 一次通过一次刷新来汇集每个 agentty 实例，并采用 对端 的 freshly
+    // -saved 令牌，而不是触发冗余（refresh-token-rotating，
+    // 因此相互-invalidating）刷新 — 这是要防范的 multi-instance 刷新循环。
+    // 它还将新的信用信息保存到磁盘上。
     auto tr = refresh_access_token_locked(io, cap, RefreshToken{oauth->refresh_token});
     if (!tr) {
-        // Refresh failed (network / revoked). Return whatever we have; the
-        // transport will surface the eventual 401 with the login hint.
+        // 刷新失败（网络/撤销）。归还我们所拥有的一切；
+        // 传输层 将显示最终的 401 并带有登录提示。
         return make_auth_header(*loaded);
     }
 
@@ -964,34 +964,34 @@ AuthHeader fresh_auth_header_locked(Io io, const maya::held<locks::auth_refresh>
     }};
     return make_auth_header(refreshed);
 }
-}  // namespace
+}  // 命名空间结束。
 
 // ---------------------------------------------------------------------------
-// Browser launch
+// 浏览器启动
 // ---------------------------------------------------------------------------
 
 void open_browser(const std::string& url) {
 #ifdef _WIN32
-    // ShellExecuteA passes the URL as a single argument to the shell's URL
-    // handler — no command line is composed, so there is no shell-quoting
-    // surface. Safe as-is.
+    // ShellExecuteA将URL作为单个参数传递给shell的URL
+    // 处理函数——没有组成命令行，因此不存在shell-quoting表面。
+    // 安全为-is。
     ::ShellExecuteA(nullptr, "open", url.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
 #else
-    // Launch the platform opener with the URL as a distinct argv element,
-    // NOT interpolated into a `/bin/sh -c` string. This removes the shell
-    // entirely from the code path: the URL can never be word-split, globbed,
-    // command-substituted, or break out of quoting no matter what bytes it
-    // carries. (The OAuth URL is all url-escaped today, so this is
-    // defense-in-depth — but it keeps a future caller who passes an
-    // arbitrary URL here safe by construction rather than by luck.)
+    // 启动平台开启器，其中 URL 作为不同的 argv 元素，
+    // 不 插入到 `/bin/sh -c` 字符串中。这会从代码路径中完全
+    // 删除 shell：无论 字节 携带什么，URL 都不能是 word-split、
+    // globbed、command-substituted 或中断引用。
+    // （今天的 OAuth URL 都是 url-escaped，
+    // 所以这是 defence-in-depth ——但它可以通过构造
+    // 而不是运气来保证将来在此处传递任意 URL 的调用者的安全。）
 #  if defined(__APPLE__)
     const char* opener = "open";
 #  else
     const char* opener = "xdg-open";
 #  endif
-    // stdin is /dev/null and its output is captured and dropped, so it
-    // cannot scribble on the terminal agentty owns. The opener forks the real
-    // browser and exits promptly; the browser keeps running after it.
+    // 标准输入是/dev/null并且其输出被捕获并丢弃，
+    // 因此它不能在终端 agentty所拥有的上乱写。
+    // 开启者fork真实浏览器并立即退出；浏览器会继续运行。
     tools::util::ChildRun run;
     run.argv = {opener, url};
     run.idle = std::chrono::seconds{10};
@@ -1002,13 +1002,13 @@ void open_browser(const std::string& url) {
 }
 
 // ---------------------------------------------------------------------------
-// Subcommands
+// 子命令
 // ---------------------------------------------------------------------------
 
 int cmd_login(Io io, const maya::unlocked& cap) {
-    // Surface what you're already signed into so switching accounts is
-    // obvious — pick a different option to add/replace, `agentty logout`
-    // to drop one.
+    // 显示您已经登录的内容，因此切换帐户是显而易见的——选择与
+    // add/replace、`agentty logout` 不同的选项
+    // 来删除一个。
     {
         namespace codex = provider::chatgpt;
         bool any = false;
@@ -1037,8 +1037,8 @@ int cmd_login(Io io, const maya::unlocked& cap) {
     std::getline(std::cin, choice);
     for (auto& c : choice) c = (char)std::tolower((unsigned char)c);
 
-    // GitHub Copilot OAuth — GitHub's device flow (works everywhere, SSH
-    // included): show a code, the user enters it at github.com/login/device.
+    // GitHub Copilot OAuth — GitHub 的设备流程（在任何地方都有效，
+    // 包括 SSH）：显示代码，用户在 github.com/login/device. 输入它
     if (choice == "4" || choice == "copilot" || choice == "github") {
         std::cout << "\nRequesting a GitHub device code\xE2\x80\xA6\n" << std::flush;
         auto r = provider::copilot::login(
@@ -1058,7 +1058,7 @@ int cmd_login(Io io, const maya::unlocked& cap) {
                           << "\n\nWaiting for approval\xE2\x80\xA6\n" << std::flush;
                 open_browser(dc.verification_uri);
             },
-            /*cancelled=*/std::stop_token{});
+            /*已取消=*/std::stop_token{});
         if (!r) {
             std::cerr << "GitHub Copilot sign-in failed: " << r.error().render() << "\n";
             return 1;
@@ -1069,8 +1069,8 @@ int cmd_login(Io io, const maya::unlocked& cap) {
         return 0;
     }
 
-    // ChatGPT OAuth. SSH sessions automatically use OpenAI's device-code
-    // flow; local sessions keep the browser + loopback callback.
+    // ChatGPT OAuth。 SSH会话自动使用OpenAI的
+    // device-code流；本地会话保持浏览器+环回回调。
     if (choice == "3" || choice == "chatgpt" || choice == "codex"
         || choice == "openai") {
         const bool device_auth = provider::chatgpt::codex_device_auth_preferred();
@@ -1104,9 +1104,9 @@ int cmd_login(Io io, const maya::unlocked& cap) {
         return 0;
     }
 
-    // Default (empty / "1" / "api" / "key") is the API-key path; OAuth is
-    // the explicit "2"/"oauth" opt-in. Dispatch is on the string, not on
-    // positional order, so the displayed numbering above is presentation-only.
+    // 默认(空/"1"/"api"/"key")为API-key路径；
+    // OAuth 是显式的 "2"/"oauth" opt-in。 分派 位于字符串上，
+    // 而不是位置顺序上，因此上面显示的编号是presentation-only。
     const bool want_oauth = (choice == "2" || choice == "oauth"
                              || choice == "claude");
     if (!want_oauth) {
@@ -1117,22 +1117,22 @@ int cmd_login(Io io, const maya::unlocked& cap) {
                                 || key.back() == ' ')) key.pop_back();
         if (key.empty()) { std::cerr << "No key entered.\n"; return 1; }
 
-        // Route the key to the provider its PREFIX names, not to Anthropic.
+        // 将密钥路由到提供者的 PREFIX 名称，而不是 Anthropic。
         //
-        // This prompt has always said "or any provider" and then stored every
-        // key in the Anthropic credential store (issue #68). A Groq or
-        // OpenRouter key was accepted, saved, reported as success, and then
-        // failed on the first turn with an auth error naming Anthropic -- so
-        // the user debugged a credential that was correct, against a vendor
-        // they had not chosen.
+        // 这个提示词总是说"or any provider"，
+        // 然后将每个密钥存储在Anthropic 凭据存储中(问题
+        // #68)。 Groq 或 OpenRouter 密钥被接受，
+        // 已保存，报告为成功，然后在第一回合失败，并出现名为 Anthropic
+        // 的身份验证错误 - 因此用户针对他们没有选择的供应商调试
+        // 了正确的 凭据。
         //
-        // provider_for_api_key is deliberately conservative: it answers only
-        // when a registry row claims the prefix unambiguously. A bare `sk-`
-        // could be OpenAI, DeepSeek or a custom endpoint, so it returns empty
-        // and we fall through to the Anthropic store -- which is the historical
-        // behaviour and the right default for a tool whose method menu leads
-        // with Claude. The difference is that it is now a FALLBACK for the
-        // genuinely ambiguous case rather than the answer for every case.
+        // provider_for_api_key是故意保守的：
+        // 仅当注册表行明确声明前缀时它才应答。裸露的 `sk-`
+        // 可能是 OpenAI、DeepSeek 或自定义端点，
+        // 因此它返回空，我们会进入 Anthropic 存储 -
+        // 这是历史行为，也是方法菜单以 Claude 开头的工具
+        // 的正确默认值。不同之处在于，现在它是针对真正不明确
+        // 案例的 FALLBACK，而不是针对每个案例的答案。
         const std::string_view detected = provider::provider_for_api_key(key);
         if (!detected.empty() && detected != "anthropic") {
             const auto* row = provider::preset_for(detected);
@@ -1141,14 +1141,14 @@ int cmd_login(Io io, const maya::unlocked& cap) {
                 std::cerr << "Failed to save the " << label << " key.\n";
                 return 1;
             }
-            // Make it the active provider too: a user who pasted a Groq key
-            // meant to use Groq, and leaving the selection elsewhere would be
-            // the same class of surprise in a quieter form.
+            // 也使其成为主动提供者：粘贴打算使用 Groq
+            // 的 Groq 密钥的用户，并将选择留在其他地方将
+            // 以更安静的形式带来相同类别的惊喜。
             auto s = persistence::load_settings(io);
             s.provider = std::string{detected};
             persistence::save_settings(io, cap, s);
-            // "an OpenRouter key", "a Groq key" — the labels are a fixed set,
-            // so a vowel check is the whole of the grammar needed here.
+            // "an OpenRouter key"，"a Groq key"（OpenRouter 或 Groq 的密钥。）
+            // ——标签是固定的集合，因此元音检查是这里需要的整个语法。
             const bool vowel = !label.empty()
                 && (label[0] == 'A' || label[0] == 'E' || label[0] == 'I'
                     || label[0] == 'O' || label[0] == 'U');
@@ -1165,7 +1165,7 @@ int cmd_login(Io io, const maya::unlocked& cap) {
         return 0;
     }
 
-    // OAuth PKCE flow
+    // OAuth PKCE流程
     PkceVerifier verifier{random_urlsafe(io, 128)};
     OAuthState   state{random_urlsafe(io, 32)};
     std::string  auth_url = oauth_authorize_url(verifier, state);
@@ -1201,8 +1201,8 @@ int cmd_login(Io io, const maya::unlocked& cap) {
 
 int cmd_logout(Io io, const maya::unlocked& cap) {
     namespace codex = provider::chatgpt;
-    // One entry per signed-in account. Scales to N providers without the
-    // 2-way special case (which didn't cover Copilot).
+    // 每个签名的-in账户一个条目。无需 2-way 特殊情况即可
+    // 扩展到 N 个提供商（不包括 Copilot）。
     struct Account {
         std::string label;
         std::string path;
@@ -1224,7 +1224,7 @@ int cmd_logout(Io io, const maya::unlocked& cap) {
 
     if (accounts.empty()) { std::cout << "No saved credentials.\n"; return 0; }
 
-    // Exactly one signed in → drop it, no prompt.
+    // 正好有一个登录→删除它，没有提示词。
     if (accounts.size() == 1) {
         if (!accounts[0].clear()) {
             std::cerr << "Failed to remove " << accounts[0].path << "\n"; return 1;
@@ -1233,7 +1233,7 @@ int cmd_logout(Io io, const maya::unlocked& cap) {
         return 0;
     }
 
-    // Several signed in → pick one (by number) or `a` for all.
+    // 多人登录 → 为所有人选择一个（按号码）或 `a`。
     std::cout << "Signed in to more than one account:\n";
     for (std::size_t i = 0; i < accounts.size(); ++i)
         std::cout << "  " << (i + 1) << ") " << accounts[i].label
@@ -1286,21 +1286,21 @@ int cmd_status(Io io, const maya::unlocked& cap) {
             std::cout << "Refresh token: "
                       << (o->refresh_token.empty() ? "(none)" : "present") << "\n";
         }
-        // At-rest encryption mode for the credentials file.
+        // At-rest 凭据文件的加密模式。
         std::cout << "At-rest encryption: aes-256-gcm ("
                   << (crypt::passphrase_active()
                         ? "machine + passphrase"
                         : "machine-bound; set AGENTTY_PASSPHRASE or "
                           "AGENTTY_ENCRYPT_PASSPHRASE=1 to add a passphrase")
                   << ")\n";
-        // OS keystore backing (opt-in via AGENTTY_USE_KEYSTORE).
+        // OS密钥库支持(通过AGENTTY_USE_KEYSTORE的opt-in)。
         std::cout << "OS keystore: " << keystore::backend_name();
         if (!keystore::available())
             std::cout << " (set AGENTTY_USE_KEYSTORE=1 to enable)";
         std::cout << "\n";
     }
 
-    // ── ChatGPT / Codex OAuth (separate store) ──────────────────────────
+    // ── ChatGPT / Codex OAuth( 单独存储) (OAAAA) ──────────────────────────
     {
         namespace codex = provider::chatgpt;
         std::cout << "\nChatGPT (Codex) file: "
@@ -1324,13 +1324,13 @@ int cmd_status(Io io, const maya::unlocked& cap) {
         }
     }
 
-    // ── GitHub Copilot OAuth (separate store) ───────────────────────
+    // ── GitHub 副驾驶 OAuth( 单独存储) ───────────────────────
     {
         std::cout << "\nGitHub Copilot file: "
                   << provider::copilot::credentials_path().string() << "\n";
         if (provider::copilot::signed_in()) {
             std::cout << "Signed in via GitHub Copilot OAuth\n";
-            // Probe the proxy token so status reflects real usability + host.
+            // 探测代理令牌，以便状态反映真实可用性+主机。
             if (auto t = provider::copilot::fresh_token(cap)) {
                 if (!t->chat_enabled)
                     std::cout << "Chat: NOT entitled on this account\n";

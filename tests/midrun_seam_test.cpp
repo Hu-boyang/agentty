@@ -1,24 +1,24 @@
-// midrun_seam_test — scrollback-duplication regression for the freeze
-// discipline (agent_session-style: ONE freeze per turn, at settle).
+// midrun_seam_test — 回滚缓冲区-duplication 冻结纪律的
+// 回归( agent_session-style: 一个 冻结每转弯,在结算时)。
 //
-// The real symptom users hit: maya's inline diff treats any row that has
-// scrolled past the viewport top as IMMUTABLE — already committed to the
-// terminal's native scrollback, unrewritable. So the rendering
-// contract is: once a row is emitted at canvas position Y, the row at
-// position Y must NEVER change in a later frame (until a full
-// Divergent repaint). If any step of a turn — a tool settling, the
-// stream finishing, the settle-time freeze — shifts the rows above it
-// by even one (a gap appears/disappears, a header row toggles), every
-// already-committed row below the shift is re-emitted at a new
-// position — and the old copy is stuck in scrollback. That's the
-// duplicated-turn ghost.
+// 真正的症状使用者被击中: maya 内置 diff 处理任何
+// 滚动过 可视区域 顶端为 不可变 ——已承诺 终端 本地人 :
+// 回滚缓冲区 无法重写 所以 渲染 合同是:一列在画布位置Y发射,
+// 一列在位置Y必须 绝不 稍后的变动 帧 (直到一个完全分歧
+// 者) 重绘 如果转弯的任何一步——一种工具解决,
+// 则 数据流 完成, 解决 -time 冻结——将上方的行
+// 移到一行(一个空格) appears/disappears,
+// a 头文件 线条 切换 ),每个已经 -committed
+// 班底行为 -emitted 旧副本被卡在了一个新的
+// 位置上 回滚缓冲区。这就是复制 -turn 鬼魂 鬼魂
+// 你该知道鬼魂是谁
 //
-// This test simulates the production cadence (sub-turns land live, the
-// whole run freezes once at settle) and asserts the rendered row PREFIX
-// is stable across every step: frame N+1's rows [0..K) must byte-match
-// frame N's rows [0..K) where K is the shorter common prefix that was
-// already on screen. Any divergence in the committed prefix is a
-// duplication bug.
+// 测试模拟生产cadence( sub) -turns 土地在陆地上,
+// 整个运行在定居时冻结),并声称已执行的行 PREFIX
+// 每一步骤都稳定: 帧 N+1 的行 [0. K] 必须 字
+// 节-match 帧 N 的行 [0. K] , K 是屏幕
+// 上已经显示的较短的常见前缀。 所承诺前缀中的任何差异
+// 都是重复错误。
 
 #include <algorithm>
 #include <chrono>
@@ -76,9 +76,9 @@ static ToolUse settled_edit(const std::string& tag) {
     return t;
 }
 
-// A unified diff payload the edit tool emits into tc.output(), wrapped in
-// the ```diff fence the terminal-state renderer parses. n hunks of `rows`
-// changed lines each — enough body to span past a viewport top.
+// 编辑工具的 diff 载荷 向 tc.output () 中输出, 以 iff 包裹
+// 终端状态渲染器解析的 ```diff 围栏，包含 n 个差异块，每块 rows 行。
+// 每一行都更改了,够了 正文 横跨 a 可视区域 顶部。
 static std::string edit_diff_output(const std::string& tag, int rows) {
     std::string d = "```diff\n";
     d += "--- a/src/" + tag + ".cpp\n";
@@ -92,8 +92,8 @@ static std::string edit_diff_output(const std::string& tag, int rows) {
     return d;
 }
 
-// Render the CONVERSATION region only (frozen + live tail), one row per
-// line, ASCII-folded, trailing blanks stripped.
+// 渲染 编号 CONVERSATION 仅限区域(冻+活) 末尾 每行一行, , ("一行"),
+// ("二行") ASCII-folded 空白的痕迹被剥光了
 static std::vector<std::string> render_rows(const Model& m,
                                             int width = 100,
                                             int height = 40000) {
@@ -125,21 +125,21 @@ static std::vector<std::string> render_rows(const Model& m,
     return rows;
 }
 
-// Compare two frames under maya's inline-overflow contract. Only rows
-// that have scrolled ABOVE the viewport top are committed to native
-// scrollback and immutable; on-screen rows (the bottom `term_h` of the
-// canvas) may be freely rewritten frame-to-frame.
+// 比较两个 帧 下级 maya 内含 -overflow 合同。
+// 只有滚动的行 上方 编号 可视区域 顶部是致力于本土 回滚缓冲区 财务
+// 报告和已审计财务报表 不可变 打开; 打开 -screen 行( 底部)
+// `term_h` )可自由改写 帧-to-frame.
 //
-// A row at index i in frame `prev` was committed iff it had already
-// overflowed: i < prev.size() - term_h. For the duplication bug we only
-// care about those — if a committed row's content differs at the same
-// index in `cur`, the renderer would re-emit it below a row already
-// stuck in scrollback. Returns the first diverging COMMITTED row index,
-// or -1 if every committed row is stable.
+// 索引一行 i 英寸 帧 `prev` 如果它已经溢出:我 <
+// prev.size() - term_h。对于重复错误,
+// 我们只关心这些,如果一个已承诺的行的内容在同一个索引上存在差异的话。
+// `cur` ,则 渲染器 将重新 -emit 已经卡在一排
+// 下面 回滚缓冲区 返回第一个差异 COMMITTED 行指数,
+// 或 -1 如果每个承诺行是稳定的。
 static int first_committed_divergence(const std::vector<std::string>& prev,
                                       const std::vector<std::string>& cur,
                                       int term_h) {
-    // Rows of `prev` that had overflowed the viewport last frame.
+    // 行数 `prev` 已经溢出, 可视区域 最后一个 帧.
     const int committed_end =
         static_cast<int>(prev.size()) - term_h;
     const int common =
@@ -150,19 +150,19 @@ static int first_committed_divergence(const std::vector<std::string>& prev,
     return -1;
 }
 
-// Build the User + N settled edit sub-turns landing one at a time, all
-// staying LIVE (the production discipline — no mid-run freeze), then
-// settle-freeze the whole run once at the end. Assert the committed
-// prefix never changes between consecutive snapshots, INCLUDING across
-// the final settle-time freeze.
+// 构建用户 + N 已定的编辑子 -turns 一次一个降落,
+// 都留下 LIVE (生产纪律——无中. -run ),
+// 然后解决 -freeze 指定已承诺的前缀在连续的
+// 间隔中永不改变 快照, INCLUDING 跨越最后的
+// 和解 -time 别动
 TEST_CASE("incremental freeze prefix stable") {
     constexpr int N = 30;
-    // A realistic viewport: maya keeps the bottom `term_h` rows on
-    // screen; everything above has overflowed into native scrollback
-    // and is immutable. Use a typical 40-row terminal. With N=30 edit
-    // sub-turns (~6 rows each) the canvas grows well past 40 rows, so
-    // early sub-turns genuinely commit to scrollback — exactly the
-    // condition under which a prefix shift becomes a visible duplicate.
+    // 一个现实 可视区域: maya 保持底部( T)
+    // `term_h` 屏幕上排行;上面所有东西都溢到原生的
+    // 回滚缓冲区 并且是, 已经 不可变。使用典型的 40。
+    // -row 终端。使用 N=30 编辑子 -turns (每行
+    // 约6行)画布长得远远超过40行,所以很早的子 -turns
+    // 真正承诺 回滚缓冲区 ——正是前缀移位成为可见重复的条件.
     constexpr int kTermH = 40;
 
     Model m;
@@ -170,7 +170,7 @@ TEST_CASE("incremental freeze prefix stable") {
     Message u; u.role = Role::User; u.text = "please do many edits";
     m.d.current.messages.push_back(std::move(u));
     agentty::app::detail::clear_frozen(m);
-    agentty::app::detail::freeze_through(m, 1);   // User frozen
+    agentty::app::detail::freeze_through(m, 1);   // 用户被冻结
 
     std::vector<std::string> prev;
     int worst_divergence = -1;
@@ -182,8 +182,8 @@ TEST_CASE("incremental freeze prefix stable") {
         if (d >= 0 && (worst_divergence < 0 || d < worst_divergence)) {
             worst_divergence = d;
             diverging_step   = e;
-            // Dump the neighbourhood of the FIRST divergence so a
-            // regression shows exactly which committed row moved.
+            // 抛开FIRST差异的邻里,
+            // 这样回归就能够确切地显示哪个行被移动了。
             std::fprintf(stderr,
                 "  --- step %d, committed-row divergence at row %d ---\n",
                 e, d);
@@ -200,14 +200,14 @@ TEST_CASE("incremental freeze prefix stable") {
     };
 
     for (int e = 0; e < N; ++e) {
-        // A settled edit sub-turn lands.
+        // 已定居的编辑子-turn土地。
         Message a; a.role = Role::Assistant;
         a.tool_calls.push_back(settled_edit("s" + std::to_string(e)));
         m.d.current.messages.push_back(std::move(a));
 
-        // A streaming successor placeholder (exactly what the post-tool
-        // continuation pushes in the real reducer). NO mid-run freeze —
-        // the whole run stays live until settle.
+        // A 流式传输 后续占位符(确切的说,该帖子是什么) -tool
+        // 继续推动真实 状态更新函数). NO 中点 -run
+        // 冻结——整个运行一直持续到和解.
         Message ph; ph.role = Role::Assistant; ph.streaming_text = "working";
         m.d.current.messages.push_back(std::move(ph));
         m.s.phase = agentty::phase::Streaming{agentty::phase::Active{}};
@@ -216,12 +216,12 @@ TEST_CASE("incremental freeze prefix stable") {
         if (!prev.empty()) note_divergence(e, prev, cur);
         prev = std::move(cur);
 
-        // Drop the placeholder before the next real sub-turn (the live
-        // tail is rebuilt each cycle; the next edit message replaces it).
+        // 在下一个真实子之前丢弃占位符 -turn (现场
+        // 直播) 末尾 被重建每个周期;下一个编辑消息替换它。
         m.d.current.messages.pop_back();
     }
 
-    // Settle: the run finishes; the single settle-time freeze fires.
+    // 和解: 运行结束; 单一和解 -time 冻结火灾。
     m.s.phase = agentty::phase::Idle{};
     agentty::app::detail::freeze_through(m, m.d.current.messages.size());
     auto frozen = render_rows(m);
@@ -237,22 +237,22 @@ TEST_CASE("incremental freeze prefix stable") {
           "committed prefix mutated across the live run / settle freeze");
 }
 
-// THE single-tool transition the incremental test above never exercises:
-// ONE edit streamed through Running (args only, no output) -> Done (diff
-// fence in tc.output()) -> mid-run freeze. The renderer SWITCHES shape
-// across this transition (streaming EditDiff-from-args, elided, ->
-// terminal GitDiff-from-fence, full). The seam contract says: any row
-// that already overflowed the viewport top while streaming must render
-// byte-identical after the settle+freeze, or the committed scrollback
-// copy is orphaned and the card duplicates below it.
+// 该 单人 -tool 过渡以上递增测试 永远不要练习:
+// 一个 通过 Run( 仅限参数, 无输出) 编辑流 - > Done(
+// diff 栅栏英寸 tc.output () - > 中点 -run 冻结。
+// 渲染器 SWITCHES 形状,贯穿此过渡( 3) 流式传输
+// EditDiff-from-args ,以斜线表示, - > 终端
+// GitDiff-from-fence 满。 接口边界 合约上说: 任何已经
+// 溢出 可视区域 顶部 流式传输 必须 渲染 字节-identical 解冻后,
+// 或已执行 回滚缓冲区 复制件是孤儿,下面的卡片重复。
 //
-// To make the transition actually commit rows we sandwich the streaming
-// edit between a block of already-frozen edits (so its early rows are
-// pushed above the kTermH viewport top). Then we snapshot:
-//   frame A: edit Running (args preview)
-//   frame B: edit Done    (terminal GitDiff body)
-//   frame C: turn settles — the single settle-time freeze fires
-// and assert the committed prefix is stable A->B and B->C.
+// 为了实现转换,我们把流式传输编辑工作与已经
+// -frozen编辑工作的区块进行三文治(因此,它的早期各行都
+// 推到kTermH 可视区域顶端)。然后我们把快照:
+//   帧 A: 编辑运行( args 预
+//   览) 帧 B: 编辑完成( E) 终端
+//   GitDiff 正文) 帧 C:转弯解决——单一解决 -time
+// 冻结火,并断言承诺的前缀是稳定的 A->B和B->C。
 TEST_CASE("single edit stream to freeze") {
     constexpr int kTermH = 40;
 
@@ -263,10 +263,10 @@ TEST_CASE("single edit stream to freeze") {
     agentty::app::detail::clear_frozen(m);
     agentty::app::detail::freeze_through(m, 1);
 
-    // Lead-in: a run of settled edits. In production this prior portion
-    // of the thread is frozen whole (run fully terminal — freeze_range's
-    // run_is_freezable gate passes), so plenty of rows sit above the
-    // viewport top before the edit-under-test even appears.
+    // 铅 -in : 运行已解析的编辑。在制作中,此部分的前部分 线程
+    // 全部冻结( 全部运行) 终端 — freeze_range's
+    // run_is_freezable 门过,所以有很多行坐上 可视
+    // 区域 编辑前的顶部 -under-test 甚至出现。
     for (int e = 0; e < 20; ++e) {
         Message a; a.role = Role::Assistant;
         a.tool_calls.push_back(settled_edit("lead" + std::to_string(e)));
@@ -285,7 +285,7 @@ TEST_CASE("single edit stream to freeze") {
         t.id   = ToolCallId{"edit_" + tag};
         t.name = ToolName{"edit"};
         nlohmann::json edits = nlohmann::json::array();
-        // Hunk text mirrors the diff body so widths line up.
+        // 差异块 文本映射 diff 正文 宽度会排成一行
         std::string ot, nt;
         for (int i = 0; i < kRows; ++i) {
             ot += "    auto x = compute(" + std::to_string(i) + "); // was\n";
@@ -295,7 +295,7 @@ TEST_CASE("single edit stream to freeze") {
         t.args = {{"path", "src/" + tag + ".cpp"}, {"edits", edits}};
         t.status = ToolUse::Running{steady_clock::now(), ""};
         a.tool_calls.push_back(std::move(t));
-        // Active placeholder behind it so freeze_settled stays valid.
+        // 背后是积极的占位符 freeze_settled 继续有效。
         Message ph2; ph2.role = Role::Assistant; ph2.streaming_text = "...";
         m.d.current.messages.push_back(std::move(a));
         m.d.current.messages.push_back(std::move(ph2));
@@ -303,9 +303,9 @@ TEST_CASE("single edit stream to freeze") {
     auto frame_a = render_rows(m);
 
     // ── frame B: the edit SETTLES. Same args; status -> Done with the
-    //    ```diff fence the terminal renderer parses (renderer SWAPS here).
+    //    终端渲染器解析的 ```diff 围栏，此处会切换渲染器。
     {
-        // Locate the live edit and flip it to Done.
+        // 定位现场编辑并翻转到完成。
         agentty::app::detail::with_live_tool(
             m, ToolCallId{"edit_" + tag}, [&](ToolUse& t) {
                 auto now = steady_clock::now();
@@ -315,7 +315,7 @@ TEST_CASE("single edit stream to freeze") {
     }
     auto frame_b = render_rows(m);
 
-    // ── frame C: the turn settles — the single settle-time freeze fires
+    // 帧 C：轮次收尾，唯一的收尾冻结操作触发。
     //    (finalize_turn → pending_settle_freeze → freeze_through).
     {
         auto& back = m.d.current.messages.back();
@@ -356,16 +356,16 @@ TEST_CASE("single edit stream to freeze") {
     CHECK(d_bc < 0, "single edit Done->freeze rewrote a committed scrollback row");
 }
 
-// THE exact screenshot: a READ batch (INSPECT) then an EDIT batch
-// (MUTATE) in ONE turn. The read settles to a full 12-line body while
-// the run is still active. With a frozen lead-in pushing the read's top
-// above the viewport, the read body's downward growth must NOT rewrite
-// any committed row of the MUTATE batch / continuation below it.
+// 该 准确截图: a READ 批次( 批次) INSPECT
+// 然后是一个 EDIT 批次( 批次) MUTATE ) 中,
+// 一个 转过来,读数算满12 -line 正文 运行时仍然在运行。
+// 使用冷冻铅 -in 将读数的顶端推到 可视区域 ,读数 正文 下行
+// 增长不得 重写任何已承诺的行 MUTATE 批量/继续其下方。
 //
-// frame A: read RUNNING (compact, no body) + edit batch below it
-// frame B: read DONE (full body) — card grows by ~12 rows
-// frame C: mid-run freeze fires
-// The committed prefix must be byte-stable A->B and B->C.
+// 帧 甲:读 RUNNING (契约,无) 正文 + 编辑其下方的批次 帧 B: 读
+// DONE (满 额 正文 )——卡片生长~12行. 帧 中 计: -run
+// 冻结火 已执行的前缀必须是 字节-stable
+// A->B和B->C. 互联网档案馆的存檔,存档日期2013-09-02.
 TEST_CASE("read then edit batch freeze") {
     constexpr int kTermH = 40;
 
@@ -376,8 +376,8 @@ TEST_CASE("read then edit batch freeze") {
     agentty::app::detail::clear_frozen(m);
     agentty::app::detail::freeze_through(m, 1);
 
-    // Lead-in: settled edits frozen whole (terminal run) so the read
-    // card's top is well above the viewport top before it settles.
+    // 铅 -in : 已解冻的编辑器整件( ) 终端
+    // )所以读卡的顶部远高于 可视区域 上方才有结果
     for (int e = 0; e < 20; ++e) {
         Message a; a.role = Role::Assistant;
         a.tool_calls.push_back(settled_edit("rlead" + std::to_string(e)));
@@ -386,7 +386,7 @@ TEST_CASE("read then edit batch freeze") {
     agentty::app::detail::freeze_through(m, m.d.current.messages.size());
     m.s.phase = agentty::phase::Streaming{agentty::phase::Active{}};
 
-    // The INSPECT sub-turn: a read, RUNNING (no body yet).
+    // INSPECT Sub-turn: a 读作RUNNING(尚未译为正文)。
     {
         Message a; a.role = Role::Assistant;
         ToolUse t;
@@ -397,20 +397,20 @@ TEST_CASE("read then edit batch freeze") {
         a.tool_calls.push_back(std::move(t));
         m.d.current.messages.push_back(std::move(a));
     }
-    // The MUTATE sub-turn already streamed in below the read (the model
-    // emitted both in sequence; the read result just hasn't landed yet).
+    // 电话 MUTATE 子目录 -turn 已流到读数
+    // 以下( 模型按顺序同时释放; 读数结果只是还没有降落)。
     {
         Message a; a.role = Role::Assistant;
         a.tool_calls.push_back(settled_edit("mutate"));
         m.d.current.messages.push_back(std::move(a));
     }
-    // Active placeholder behind both.
+    // 两者背后都活跃着占位符.
     Message ph2; ph2.role = Role::Assistant; ph2.streaming_text = "...";
     m.d.current.messages.push_back(std::move(ph2));
     auto frame_a = render_rows(m);
 
-    // frame B: read SETTLES — full 12-line body appears, growing the
-    // INSPECT card and shifting the MUTATE batch below it down.
+    // 帧 B: 读 SETTLES —— 满 12 -line 正文 正在出现,
+    // 正在成长 INSPECT 牌和移动 MUTATE 下方有批量下来
     agentty::app::detail::with_live_tool(
         m, ToolCallId{"read_target"}, [&](ToolUse& t) {
             auto now = steady_clock::now();
@@ -421,7 +421,7 @@ TEST_CASE("read then edit batch freeze") {
         });
     auto frame_b = render_rows(m);
 
-    // frame C: the turn settles — the single settle-time freeze fires.
+    // 帧 C:转弯——单人解决. -time 冻结火灾。
     {
         auto& back = m.d.current.messages.back();
         back.text = std::move(back.streaming_text);
@@ -460,14 +460,14 @@ TEST_CASE("read then edit batch freeze") {
     CHECK(d_bc < 0, "read+edit Done->freeze rewrote a committed scrollback row");
 }
 
-// THE write-tool transition the user actually hits: a single `write`
-// streamed through Running (compact tail-window preview, show_all=false)
-// -> Done (FULL body, show_all=true) -> mid-run freeze. The streaming
-// preview is a small compact card; the settled card is the full file
-// (viewport-overflowing). With a frozen lead-in pushing the card's top
-// rows above the viewport, any height/shape change across the settle
-// strands the streaming copy in scrollback and the settled card paints
-// below it — the duplicated Actions box the user reports.
+// 该 写入 -tool 转换用户实际点击的:单个 `write`
+// 通过运行流( 压缩) 末尾-window 预览, show_all
+// =虚假) - > 完成( 完整 正文, show_all =
+// real) - > 中间 -run 冻结。 流式传输 预览是小的紧凑卡;
+// 结算卡是完整文件( Q) 可视区域-overflowing。
+// 用冷冻铅 -in 将牌的顶端排在上方 可视区域 ,
+// 任何一个 height/shape 整个结算区的变化 流式传输 复制
+// 内容 回滚缓冲区 和下面的定居卡画——用户报告重复的动作框。
 TEST_CASE("single write stream to freeze") {
     constexpr int kTermH = 40;
 
@@ -478,9 +478,9 @@ TEST_CASE("single write stream to freeze") {
     agentty::app::detail::clear_frozen(m);
     agentty::app::detail::freeze_through(m, 1);
 
-    // Lead-in: settled edits frozen whole (terminal run) so the write
-    // card's top rows are pushed well above the viewport top before the
-    // write settles.
+    // 铅 -in : 已解冻的编辑器整件( ) 终端 因此,
+    // 写卡的顶端排位被推到远高于 可视区域 在写完之前,
+    // 请在上面
     for (int e = 0; e < 20; ++e) {
         Message a; a.role = Role::Assistant;
         a.tool_calls.push_back(settled_edit("wlead" + std::to_string(e)));
@@ -489,15 +489,15 @@ TEST_CASE("single write stream to freeze") {
     agentty::app::detail::freeze_through(m, m.d.current.messages.size());
     m.s.phase = agentty::phase::Streaming{agentty::phase::Active{}};
 
-    // The full file content (~170 lines, viewport-overflowing) — the
-    // exact shape of the write that exposed the duplicate.
+    // 文件内容全文( ~ 170行, ) 可视区域
+    // -overflowing )——暴露重复的写作的准确形状.
     std::string content;
     for (int i = 0; i < 170; ++i)
         content += "line " + std::to_string(i) + ": some plausible file content\n";
 
-    // ── frame A: write RUNNING. Args carry the full content (it streams
-    //    in token-by-token; by terminal time it's all present). The body
-    //    config slices a tail window with show_all=false -> compact card.
+    // 帧 A：write 处于 RUNNING，参数带完整内容，并以流式
+    //    以符号表示 -by-token ; 由 终端 时间都到齐了 正文 配置
+    //    切片a 末尾 窗口,带有 show_all =false - > 紧凑卡.
     {
         Message a; a.role = Role::Assistant;
         ToolUse t;
@@ -512,7 +512,7 @@ TEST_CASE("single write stream to freeze") {
     }
     auto frame_a = render_rows(m);
 
-    // ── frame B: write SETTLES. show_all flips true -> full body.
+    // 帧 B：write 稳定后，show_all 变为 true，显示完整正文。
     {
         agentty::app::detail::with_live_tool(
             m, ToolCallId{"write_big"}, [&](ToolUse& t) {
@@ -523,7 +523,7 @@ TEST_CASE("single write stream to freeze") {
     }
     auto frame_b = render_rows(m);
 
-    // ── frame C: the turn settles — the single settle-time freeze fires.
+    // 帧 C：轮次收尾，唯一的收尾冻结操作触发。
     {
         auto& back = m.d.current.messages.back();
         back.text = std::move(back.streaming_text);
@@ -533,8 +533,8 @@ TEST_CASE("single write stream to freeze") {
     agentty::app::detail::freeze_through(m, m.d.current.messages.size());
     auto frame_c = render_rows(m);
 
-    // The settled write MUST be frozen at the settle boundary — the
-    // whole turn graduates into m.ui.frozen at once.
+    // 写下来的 必须 冻结在定居边界上——整个毕业生
+    // 变成 m.ui.frozen 立刻来
     {
         const std::size_t live =
             m.d.current.messages.size() - m.ui.frozen_through;
@@ -542,16 +542,16 @@ TEST_CASE("single write stream to freeze") {
               "settled turn did not freeze whole at the settle boundary");
     }
 
-    // Both the FROZEN snapshot (frame_c) and the LIVE settled card
-    // (frame_b) carry the WHOLE file — byte-identical. A settled write
-    // renders its FULL body (show_all) in the live tail too, NOT only the
-    // frozen snapshot: feeding the same bytes to both keeps the freeze
-    // handoff a pure cache hit (the per-event hash_id in agent_timeline.
-    // cpp makes the tall card a paint-once blit, so the full body is free
-    // per frame after the first paint — no windowing needed). Live ==
-    // frozen body is exactly what keeps the committed prefix byte-stable
-    // across the handoff (checked via first_committed_divergence below).
-    // Assert the full body in BOTH: last, deep-middle, and first lines.
+    // 两者 FROZEN 快照 (frame_c 和 和 数据 LIVE 结算
+    // 卡( frame_b 携带 整个 文件 - 字节-identical。
+    // 一份已解决的书信 渲染 编号 完整 正文 (show_all 现场直播中 末尾 也
+    // 一样 不 只能用冰冻的 快照 :喂养相同 字节 使冻结的状态保持纯净 缓存 击
+    // 打( 百分比) -event hash_id 输入 agent_timeline.
+    // Cpp公司把高牌做成彩绘 -once 布莱特,所以满 正文
+    // 免费的每张 帧 第一次画完后——不需要窗外翻转。
+    // 正文 这正是保持承诺的前缀 字节-stable 交接方式(通过
+    // first_committed_divergence (见下文)。
+    // 保持完整状态 正文 输入 两者 : 最后一个,深 -middle ,并排第一行。
     {
         auto joined = [](const std::vector<std::string>& rows) {
             std::string s;
@@ -602,10 +602,10 @@ TEST_CASE("single write stream to freeze") {
     CHECK(d_bc < 0, "write Done->freeze rewrote a committed scrollback row");
 }
 
-// Reassemble the full assistant body the user should see from the
-// model's messages: every Assistant message's settled `text` plus the
-// active tail's `streaming_text`, in order. The split must be a pure
-// partition of the bytes — no loss, no reorder, no duplication.
+// 重新组装全员助理 正文 用户应该从模型的邮件中看到:
+// 每个助理邮件都解决了 `text` 加活动 末尾's
+// `streaming_text` ,顺序。
+// 分裂必须是纯分化 字节 ——不亏不盈,不重订,不重复.
 static std::string assembled_body(const Model& m) {
     std::string out;
     for (const auto& msg : m.d.current.messages) {
@@ -616,14 +616,14 @@ static std::string assembled_body(const Model& m) {
     return out;
 }
 
-// A long PURE-TEXT answer streaming in. Under the agent_session
-// discipline the WHOLE growing body stays live (no mid-stream carve —
-// maya's StreamingMarkdown two-tier renderer keeps the element-tree
-// height monotone in byte count, so committed rows never move). This
-// test feeds the body in chunks (the real per-tick cadence) and asserts:
-//   (1) the committed scrollback prefix never mutates (no duplication),
-//   (2) the assembled body equals the original bytes at every step,
-//   (3) the settle-time freeze (the ONLY freeze) is row-stable too.
+// 长 PURE-TEXT 回答 流式传输 内。 agent_session
+// 纪律 整个 增长 正文 保持活性(无中位数) -stream 雕刻 -
+// maya's StreamingMarkdown 双 -tier 渲染器 保留
+// 元素 -tree 高单音调在 字节 数,所以承诺行绝不移动。此测试为 正文
+// 区块(每块实数) -tick 245. 律师说,“在法院中,法院有权对被告进行起诉”。
+//   (1) 所犯行为 回滚缓冲区 前缀从不变异( 不存在重复),
+//   (2) 组装 正文 等于原样 字节 分步走,(3) 解决 -time
+//   冻结( 冻结) 仅 冻结)是行 -stable 也一样。
 TEST_CASE("streaming text prefix freeze") {
     constexpr int kTermH = 40;
 
@@ -634,15 +634,15 @@ TEST_CASE("streaming text prefix freeze") {
     agentty::app::detail::clear_frozen(m);
     agentty::app::detail::freeze_through(m, 1);
 
-    // Push the active streaming assistant message.
+    // 按下活动 流式传输 助理消息。
     Message a; a.role = Role::Assistant;
     m.d.current.messages.push_back(std::move(a));
     m.s.phase = agentty::phase::Streaming{agentty::phase::Active{}};
 
-    // The full body the model will produce — prose with the occasional
-    // heading and a fenced code block. Long enough that the canvas
-    // overflows several viewports (committed rows exist), short enough
-    // that the per-chunk full-body re-render keeps the test fast.
+    // 满 正文 模型将产生——偶尔出现
+    // 标题和栅栏的代码块的传言。
+    // -chunk 满 -body 内容
+    // -render 保持测试的速度。
     std::string full;
     for (int i = 0; i < 400; ++i) {
         if (i % 11 == 0) full += "## Heading " + std::to_string(i) + "\n\n";
@@ -667,10 +667,10 @@ TEST_CASE("streaming text prefix freeze") {
         fed += n;
         ++step;
 
-        // (2) content integrity: assembled == bytes fed so far.
+        // (2)内容完整性:编组 == 字节至今已提供.
         if (assembled_body(m) != full.substr(0, fed)) content_ok = false;
 
-        // (1) committed-prefix stability.
+        // (1) 已实施 -prefix 稳定。
         auto cur = render_rows(m);
         if (!prev.empty()) {
             int d = first_committed_divergence(prev, cur, kTermH);
@@ -682,9 +682,9 @@ TEST_CASE("streaming text prefix freeze") {
         prev = std::move(cur);
     }
 
-    // Final settle (finalize_turn): the tail commits to text and the
-    // whole run freezes — the single freeze site. Committed prefix must
-    // be stable across the freeze too.
+    // 最终结算( E) finalize_turn
+    // :  ⁇ 末尾 承诺执行文本和整个冻结
+    // ——单一冻结网站。
     {
         auto& last = m.d.current.messages.back();
         last.text += last.streaming_text;
@@ -714,20 +714,20 @@ TEST_CASE("streaming text prefix freeze") {
           "final assembled body != original after settle");
 }
 
-// (deleted) strip_synthetic_fences + run_giant_fence +
-// test_giant_fence_prefix_freeze exercised the fence close/reopen
-// fallback of freeze_streaming_text_prefix — machinery that is gone.
-// A giant single fence now simply stays live until settle (the
-// agent_session behaviour); its committed-prefix stability is covered
-// by test_streaming_text_prefix_freeze above (which includes fences).
+// (删除) strip_synthetic_fences + run_giant_fence
+// + test_giant_fence_prefix_freeze 栅栏 close/reopen
+// 回退 备注 freeze_streaming_text_prefix - 机器不见了
+// 巨大的单一围栏现在只是停留在生活之中,直到解决(即: agent_session
+// 行为),其行为 -prefix 稳定由以下因素所涵盖:
+// test_streaming_text_prefix_freeze 上方(包括围栏)。
 
-// THE reported bug shape: a settled write/edit card TALLER than the
-// viewport sits in the live tail until the turn settles, then the
-// settle-time freeze moves the whole run into the frozen prefix. The
-// live tail and freeze_range key the run through the SAME
-// assistant_run_hash_id, so the handoff must be a pure cache hit — any
-// row shift across the freeze strands the live copy in scrollback and
-// the card duplicates.
+// 该 已报告的错误形状: 已解析 write/edit 纸牌
+// TALLER 超过 可视区域 坐在现场 末尾 直到转弯而和解,
+// 然后, -time 冻结将整个运行移动到冻结的前缀。 末尾 财务
+// 报告和已审计财务报表 freeze_range 键
+// 相同 assistant_run_hash_id ,所以交接必须是
+// 纯洁的 缓存 点击 —— 任何横跨冰冻的行移将现场复制件拖入
+// 回滚缓冲区 和牌重复。
 TEST_CASE("tall card live to frozen seam") {
     constexpr int kTermH = 40;
 
@@ -736,9 +736,9 @@ TEST_CASE("tall card live to frozen seam") {
     Message u; u.role = Role::User; u.text = "write a big file";
     m.d.current.messages.push_back(std::move(u));
     agentty::app::detail::clear_frozen(m);
-    agentty::app::detail::freeze_through(m, 1);   // User frozen
+    agentty::app::detail::freeze_through(m, 1);   // 用户被冻结
 
-    // A settled edit whose diff body is FAR taller than the viewport.
+    // 已解决的编辑 正文 谓 FAR 高点比 可视区域.
     Message a; a.role = Role::Assistant;
     {
         ToolUse t;
@@ -752,20 +752,20 @@ TEST_CASE("tall card live to frozen seam") {
     }
     m.d.current.messages.push_back(std::move(a));
 
-    // The post-tool continuation placeholder lands (still streaming).
-    // The whole run — tall card included — stays LIVE (agent_session
-    // discipline; no mid-run freeze).
+    // 员额 -tool 土地占有者(仍然) 流式传输).
+    // 整个运行——包括高卡——留下 LIVE (agent_session 纪律;
+    // 无中位 -run ) , 以"冻结"为主.
     Message ph; ph.role = Role::Assistant; ph.streaming_text = "working";
     m.d.current.messages.push_back(std::move(ph));
     m.s.phase = agentty::phase::Streaming{agentty::phase::Active{}};
 
-    // Frame LIVE: the settled card renders in the live tail.
+    // 帧 LIVE:在直播的末尾中结算的卡片渲染.
     const std::size_t frozen_through_before = m.ui.frozen_through;
     auto live = render_rows(m);
     CHECK(frozen_through_before == 1,
           "run unexpectedly frozen while still active");
 
-    // The turn settles — the single settle-time freeze fires.
+    // 转弯定了,单人定了 -time 冻结火灾。
     {
         auto& back = m.d.current.messages.back();
         back.text = std::move(back.streaming_text);
@@ -775,12 +775,12 @@ TEST_CASE("tall card live to frozen seam") {
     agentty::app::detail::freeze_through(m, m.d.current.messages.size());
     auto frozen = render_rows(m);
 
-    // The freeze MUST have taken the whole run.
+    // 冻结 必须 已经跑得快了
     CHECK(m.ui.frozen_through == m.d.current.messages.size(),
           "settle freeze did not take the whole run");
 
-    // Committed prefix (rows that overflowed the viewport top) must be
-    // byte-identical across the live->frozen handoff.
+    // 强制前缀( 溢出数列 可视区域 顶端)必须是 字节
+    // -identical 穿过现场的 / 冻结的交接。
     int d = first_committed_divergence(live, frozen, kTermH);
     if (d >= 0) {
         std::fprintf(stderr,
@@ -797,13 +797,13 @@ TEST_CASE("tall card live to frozen seam") {
           "tall settled card shifted the committed prefix on freeze "
           "(the overflow->scrollback duplication)");
 
-    // And the diff body must appear EXACTLY once across the whole render
-    // (no second copy stranded). The settled edit shows its FULL body, so
-    // any body line appears exactly once — count a line from the last
-    // hunk; >1 copy means a stranded scrollback duplicate. NB: the edit card
-    // caps its rendered diff at kMaxDiffLines (200) — pick a probe line well
-    // inside that window (compute(90) ≈ body row 186) so the assertion tracks
-    // the seam, not the cap elision.
+    // 和阴茎 正文 一定要出现 恰好 一次贯穿整个 渲染 (没有第二个副本
+    // 搁浅) 已解决的编辑显示其 完整 正文 ,所以任何 正文 线条正一次
+    // 出现——从最后一个数起算一条线条 差异块 ; > 1 副本表示搁
+    // 浅 回滚缓冲区 重复,请重复。 NB : 编辑卡盖在 kMaxDiffLines
+    // ( 200) 上渲染的 diff —— 选择该窗口内远处的探针线(
+    // compute( 90) ) {} 正文 第186行),所以断言跟踪
+    // 到: 接口边界 而不是顶部的擦除
     int copies = 0;
     for (const auto& row : frozen)
         if (row.find("compute(90) + offset") != std::string::npos) ++copies;
@@ -811,18 +811,18 @@ TEST_CASE("tall card live to frozen seam") {
           "edit diff body rendered more than once after freeze (duplicate)");
 }
 
-// Compaction-boundary seam: after a WIRE-ONLY compaction, the live tail
-// of the post-compaction turn must already carry the `≡ Conversation
-// compacted` divider that freeze_range stamps at the boundary. If the
-// live tail omits it, the settle-freeze INSERTS the divider as a +1 row
-// shift at the top of the just-streamed turn — every committed row below
-// re-emits over its scrollback copy (the post-compaction duplicate-turn /
-// clipped-panel bug from the mobile screenshots). Models the production
-// state precisely: the pre-compaction prefix froze BEFORE any record
-// existed (so its frozen rows carry no divider), a CompactionRecord then
-// lands at up_to_index == frozen_through (compaction does NOT mutate
-// messages), and a tall post-compaction turn streams LIVE then settles.
-// See INLINE_SCROLLBACK.md pin #3 (divider symmetry).
+// 压缩 -boundary 接口边界 : 以下列日期为准: 传输-ONLY 紧凑,
+// 现场直播 末尾 员额变动情况 -compaction 转弯必须已经携带
+// `≡ Conversation compacted` 分拆这些 freeze_range。
+// 如果有线 末尾 省了,就解决了 -freeze INSERTS 分隔符,
+// 作为正义顶端的+1行移 -streamed 转弯——每行承诺 -emits
+// 及其 回滚缓冲区 副本(帖子) -compaction 复制 -turn 剪
+// 辑( / 剪辑) -panel 移动截图中的bug。 精确地模拟生产状态:
+// 预 -compaction 前缀冻结 之前 任何记录(因此其冻结的行没有分割),
+// a CompactionRecord 然后降落在 up_to_index
+// == frozen_through (合作确实如此) 不 和高高的
+// 帖子 -compaction 转弯 数据流 LIVE 然后再安顿下来。
+// 见INLINE_SCROLLBACK.md pin #3(divider对称).
 TEST_CASE("compaction boundary live to frozen seam") {
     constexpr int kTermH = 40;
 
@@ -831,9 +831,9 @@ TEST_CASE("compaction boundary live to frozen seam") {
     agentty::app::detail::clear_frozen(m);
     auto& msgs = m.d.current.messages;
 
-    // ── Pre-compaction history: a short user+assistant exchange that
-    //    froze before any compaction record existed, so its frozen prefix
-    //    carries NO divider (exactly how production reaches this state).
+    // 压缩前历史：一段简短的用户与助手交互，
+    //    在任何压缩记录存在之前就冻结了,因此其冻结的前缀带有
+    //    NO分解器(确切的说,生产是如何达到这个状态的).
     {
         Message u; u.role = Role::User; u.text = "old question";
         msgs.push_back(std::move(u));
@@ -845,9 +845,9 @@ TEST_CASE("compaction boundary live to frozen seam") {
     CHECK(m.ui.frozen_through == boundary,
           "pre-compaction prefix did not freeze");
 
-    // ── Wire-only compaction lands: a record covering [0, boundary).
-    //    Messages are NOT mutated; the view draws the divider at
-    //    index == up_to_index.
+    // 仅影响传输的压缩到达，记录覆盖 [0, boundary)。
+    //    信件为 不 变异; 视图绘制索引 ====
+    //    up_to_index.
     {
         agentty::Thread::CompactionRecord rec;
         rec.up_to_index = boundary;
@@ -855,9 +855,9 @@ TEST_CASE("compaction boundary live to frozen seam") {
         m.d.current.compactions.push_back(std::move(rec));
     }
 
-    // ── Post-compaction turn: the user asks again and the assistant
-    //    emits a settled edit whose diff body is FAR taller than the
-    //    viewport. The whole run stays LIVE (settle-freeze hasn't fired).
+    // 压缩后轮次：用户再次提问，助手
+    //    发布一个已解析的编辑器,其 diff 正文 谓 FAR 高点比 可视区域
+    //    整个运行会一直持续 LIVE (单位:百日咳) -freeze 还没被开除呢
     {
         Message u; u.role = Role::User;
         u.text = "new question after compaction";
@@ -877,13 +877,13 @@ TEST_CASE("compaction boundary live to frozen seam") {
     msgs.push_back(std::move(ph));
     m.s.phase = agentty::phase::Streaming{agentty::phase::Active{}};
 
-    // Frame LIVE: divider + post-compaction turn render in the live tail.
+    // 帧 LIVE: 分机+ -compaction后转 渲染在直播的末尾.
     CHECK(m.ui.frozen_through == boundary,
           "run unexpectedly frozen while still active");
     auto live = render_rows(m);
 
-    // The divider MUST already be in the LIVE tail (the fix). Without it
-    // the divider would only materialise at freeze time.
+    // 分头人 必须 已经在里面了 LIVE 末尾 没有它,
+    // 分化者将只受分化。 按需加载 冻结时间。
     int live_dividers = 0;
     for (const auto& row : live)
         if (row.find("Conversation compacted") != std::string::npos)
@@ -892,7 +892,7 @@ TEST_CASE("compaction boundary live to frozen seam") {
           "live tail missing the compaction divider before freeze "
           "(it would materialise at freeze time — the +1 row shift)");
 
-    // ── The turn settles — the single settle-time freeze fires.
+    // 轮次收尾，唯一的收尾冻结操作触发。
     {
         auto& back = msgs.back();
         back.text = std::move(back.streaming_text);
@@ -905,9 +905,9 @@ TEST_CASE("compaction boundary live to frozen seam") {
     CHECK(m.ui.frozen_through == msgs.size(),
           "settle freeze did not take the whole post-compaction run");
 
-    // Committed prefix (rows that overflowed the viewport top) must be
-    // byte-identical across the live->frozen handoff. Without the divider
-    // in the live tail, the freeze inserts it as a +1 shift right here.
+    // 强制前缀( 溢出数列 可视区域 顶端)必须是
+    // 字节-identical 将自由的分解器移到现场
+    // 末尾 ,冷冻器将它作为+1的转动插入到这里。
     int d = first_committed_divergence(live, frozen, kTermH);
     if (d >= 0) {
         std::fprintf(stderr,
@@ -924,7 +924,7 @@ TEST_CASE("compaction boundary live to frozen seam") {
           "compaction divider shifted the committed prefix on freeze "
           "(the post-compaction duplicate-turn bug)");
 
-    // The divider must appear EXACTLY once in the frozen frame.
+    // 分头人必须出现 恰好 一次在冰冻中 帧.
     int divider_copies = 0;
     for (const auto& row : frozen)
         if (row.find("Conversation compacted") != std::string::npos)
@@ -932,7 +932,7 @@ TEST_CASE("compaction boundary live to frozen seam") {
     CHECK(divider_copies == 1,
           "compaction divider rendered != once after freeze");
 
-    // And the tall edit body appears exactly once (no stranded copy).
+    // 而高大的编辑正文出现一次(没有搁浅的复制品).
     int body_copies = 0;
     for (const auto& row : frozen)
         if (row.find("compute(90) + offset") != std::string::npos)
@@ -941,16 +941,16 @@ TEST_CASE("compaction boundary live to frozen seam") {
           "post-compaction edit body rendered more than once (duplicate)");
 }
 
-// Production-faithful compaction flow: submit_message (modal.cpp) pushes
-// the next user message, freeze_through()s it, THEN pushes the assistant
-// placeholder — so the `≡ Conversation compacted` divider is stamped into
-// the FROZEN prefix at submit, before the live tail exists. The live tail
-// therefore only ever holds the in-flight assistant run; the divider is
-// never in it. This guards the REAL user-reported path: the submit must be
-// a clean APPEND below the committed prefix, and the assistant settle
-// freeze must not shift a committed row. (Distinct from the unit-level
-// symmetry test above, which forces the boundary into the live tail to
-// exercise build_live_tail's divider+number code directly.)
+// 生产 -faithful 紧凑流 : submit_message (
+// modal.cpp )推下一条用户消息, freeze_through
+// ( ) 是这样 的。 THEN 推动助理占位符——所以
+// `≡ Conversation compacted` 将分隔符印入
+// FROZEN 在提交时, 在活字之前 末尾 已存在。 末尾 因此,
+// 只有永远坚持 -flight 助手运行; 分隔符从不在里面。 此选项将守护
+// 真实 用户 -reported 路径: 提交必须是干净的 APPEND
+// 必须在承诺前缀下方,助理人员必须冻结,不得转移承诺的行。 (从单位中分
+// 离开) -level 上面的对称试验,它迫使边界进入活体 末尾 锻炼
+// build_live_tail '除号器+数字码直接. )
 TEST_CASE("compaction submit freezes divider") {
     constexpr int kTermH = 40;
 
@@ -959,7 +959,7 @@ TEST_CASE("compaction submit freezes divider") {
     agentty::app::detail::clear_frozen(m);
     auto& msgs = m.d.current.messages;
 
-    // Pre-compaction history, frozen before any record exists.
+    // 预览 -compaction 历史,在记录存在之前就冻结了
     {
         Message u; u.role = Role::User; u.text = "old question";
         msgs.push_back(std::move(u));
@@ -969,7 +969,7 @@ TEST_CASE("compaction submit freezes divider") {
     agentty::app::detail::freeze_through(m, msgs.size());
     const std::size_t boundary = msgs.size();
 
-    // Wire-only compaction record at the boundary.
+    // 传输-only 边界上的紧凑记录
     {
         agentty::Thread::CompactionRecord rec;
         rec.up_to_index = boundary;
@@ -977,8 +977,8 @@ TEST_CASE("compaction submit freezes divider") {
         m.d.current.compactions.push_back(std::move(rec));
     }
 
-    // Before the next submit the divider is PENDING, not shown: it sits at
-    // index == frozen_through == total, so neither builder emits it yet.
+    // 在下次提交之前, 分隔符是 PENDING ,未显示:它坐落在索引 =
+    // == frozen_through 完全,所以没有建筑师 发布它。
     auto pre_submit = render_rows(m);
     int pre_dividers = 0;
     for (const auto& row : pre_submit)
@@ -987,8 +987,8 @@ TEST_CASE("compaction submit freezes divider") {
     CHECK(pre_dividers == 0,
           "divider shown before the next submit (should be pending)");
 
-    // ── submit_message's exact order: push user, freeze_through (stamps
-    //    divider + user into FROZEN), then push the assistant placeholder.
+    // submit_message 的准确顺序：加入用户消息，调用 freeze_through 并记录
+    //    将除法器 + 用户输入 FROZEN ),然后按下助理占位符.
     {
         Message u; u.role = Role::User;
         u.text = "new question after compaction";
@@ -997,25 +997,25 @@ TEST_CASE("compaction submit freezes divider") {
     agentty::app::detail::freeze_through(m, msgs.size());
     CHECK(m.ui.frozen_through == boundary + 1,
           "submit did not freeze through the new user message");
-    // The divider is now in the FROZEN prefix — above frozen_through, so
-    // build_live_tail's boundary check (up_to_index == i) can never fire.
+    // 分头人现在在 FROZEN 前缀 - 上方 frozen_through ,所以,
+    // 我说 build_live_tail '边界检查( E) up_to_index ⁇ и)ぃ秨簀
     CHECK(m.ui.frozen_through > boundary,
           "frozen_through must pass the compaction boundary at submit");
 
-    Message ph; ph.role = Role::Assistant;   // empty placeholder, as submit pushes
+    Message ph; ph.role = Role::Assistant;   // 空占位符, 如提交文件推
     msgs.push_back(std::move(ph));
     m.s.phase = agentty::phase::Streaming{agentty::phase::Active{}};
 
-    // The submit only APPENDED (divider + user + placeholder) below the
-    // pre-submit committed prefix — nothing above may move.
+    // 仅提交 APPENDED 预留值以下(潜水器+用户+占位符)
+    // -submit 已执行的前缀——上面的任何内容都不得移动。
     auto after_submit = render_rows(m);
     {
         int d = first_committed_divergence(pre_submit, after_submit, kTermH);
         CHECK(d < 0,
               "post-compaction submit shifted a committed scrollback row");
     }
-    // Divider is now visible exactly once — and it lives in the frozen
-    // prefix, never the live tail.
+    // 分裂者现在完全可见一次——它生活在冰冻的前缀,
+    // 从不活的末尾.
     int submit_dividers = 0;
     for (const auto& row : after_submit)
         if (row.find("Conversation compacted") != std::string::npos)
@@ -1023,12 +1023,12 @@ TEST_CASE("compaction submit freezes divider") {
     CHECK(submit_dividers == 1,
           "compaction divider not stamped exactly once at submit");
 
-    // ── The assistant emits a settled edit whose diff body overflows the
-    //    viewport. No streaming text on it: the deferred settle-freeze
-    //    (meta.cpp) fires only after the reveal has drained, so the freeze
-    //    instant compares a fully-settled body against the frozen one —
-    //    modelling a live reveal here would just race the animation clock
-    //    (that path is covered by reveal_scrollback_test).
+    // 助手产生稳定的 edit，其差异正文超出
+    //    可视区域。无 流式传输 文本: 推迟解决 -freeze
+    //    (meta.cpp (仅于 逐步显示 已经排水,所以冻结瞬间
+    //    比较一个完全 -settled 正文 与冰冻的一面——模拟
+    //    现场 逐步显示 这儿,只是 竞态 动画时钟( 该路径由
+    //    reveal_scrollback_test).
     {
         auto& a = msgs.back();
         ToolUse t;
@@ -1042,7 +1042,7 @@ TEST_CASE("compaction submit freezes divider") {
     }
     auto live = render_rows(m);
 
-    // The turn settles — the single settle-time freeze fires.
+    // 转弯定了,单人定了 -time 冻结火灾。
     m.s.phase = agentty::phase::Idle{};
     agentty::app::detail::freeze_through(m, msgs.size());
     auto frozen = render_rows(m);
@@ -1080,9 +1080,9 @@ TEST_CASE("compaction submit freezes divider") {
           "post-compaction edit body rendered more than once (duplicate)");
 }
 
-// A full write turn's body: the settled write tool + a short text
-// continuation, the exact (tool, text) pair shape the agent emits per
-// turn. `content` rows make the write card overflow the viewport.
+// 写满的转弯 正文 : 已结算的写工具+一个短文本续作,
+// 精确的(工具,文本)对成对,每转一转就使代理发音.
+// `content` 使写卡溢出 可视区域.
 static void push_write_turn(Model& m, const std::string& tag, int rows) {
     Message a; a.role = Role::Assistant;
     ToolUse t;
@@ -1100,24 +1100,24 @@ static void push_write_turn(Model& m, const std::string& tag, int rows) {
     m.d.current.messages.push_back(std::move(a));
 }
 
-// THE multi-turn reproduction: user asks for a write THREE times. Each
-// turn is a (write tool, text summary) pair. "After the third write, the
-// SECOND duplicates." By turn 3, turns 1 & 2 are fully frozen (each
-// frozen whole at its settle boundary). When turn 3's write streams and
-// overflows the viewport, the already-committed rows of turn 2 must NOT
-// move. If the frozen prefix's row sequence shifts when turn 3's live
-// tail grows, turn 2's card re-emits over its scrollback copy — the
-// duplicate.
+// 该 多个 -turn 复制: 用户请求写入 三个。
+// 每个转弯是一对(写工具、文本摘要)。
+// 第三次写入之后，第二次写入的内容重复了。
+// 3转弯1和2转弯完全冻结(每个转弯3转弯的边界处均冻结)。
+// 数据流 并溢出, 可视区域 ,已经 -committed
+// 转弯2行不得 如果冷冻前缀的行序在3号弯时会移动 末尾 长,
+// 转2的牌再 -emits 及其 回滚缓冲区 复制
+// 件副本。
 //
-// We drive the production cadence for each turn:
-//   submit (freeze_through prior turn + user) -> write Done ->
-//   placeholder text streams (whole run LIVE) -> text settles ->
-//   settle-time freeze_through (the single freeze). Then the next
-//   submit. At turn 3 we snapshot every step and assert turn 2's
-//   committed rows are byte-stable across the whole turn-3 sequence.
+// 我们每个回合都开着生产节奏:
+//   提交( freeze_through 前转弯 + 用户) -
+//   > 写 Done - > 占位符文本 数据流 (全程运行)
+//   LIVE ) - > 文本结算 - > 结算 -time
+//   freeze_through 然后,下一个提交。在3号弯,
+//   快照 每一步,并断言转弯2的 承诺行是 字节-stable 整个转弯3个序列
 TEST_CASE("multi turn write pairs seam") {
     constexpr int kTermH = 40;
-    constexpr int kRows  = 60;   // each write overflows a 40-row viewport
+    constexpr int kRows  = 60;   // 每一笔超过40-row 可视区域
 
     Model m;
     m.d.current.id = agentty::ThreadId{"multi"};
@@ -1125,12 +1125,12 @@ TEST_CASE("multi turn write pairs seam") {
 
     auto& msgs = m.d.current.messages;
 
-    // A distinctive body line of a given turn, to count copies.
+    // 给定转弯的 正文 线, 以计数副本。
     auto body_marker = [](const std::string& tag) {
         return tag + " line 30:";
     };
 
-    // Drive turns 1 and 2 to completion (fully frozen).
+    // 驱动器将1号和2号转向完成(完全冷冻).
     for (int turn = 1; turn <= 2; ++turn) {
         const std::string tag = "t" + std::to_string(turn);
         // ── submit
@@ -1141,13 +1141,13 @@ TEST_CASE("multi turn write pairs seam") {
         agentty::app::detail::freeze_through(m, msgs.size());
 
         // ── write settles; the continuation placeholder streams. The
-        //    whole run stays LIVE (no mid-run freeze).
+        //    整个运行停留 LIVE (无中位数) -run ) , 以"冻结"为主.
         push_write_turn(m, tag, kRows);
         Message ph; ph.role = Role::Assistant; ph.streaming_text = "done writing";
         msgs.push_back(std::move(ph));
 
-        // ── continuation text settles, turn finalizes (idle) — the
-        //    single settle-time freeze takes the whole run.
+        // 续接文本稳定，轮次进入空闲并完成收尾，
+        //    单笔结算 -time 冻死整个运行。
         auto& back = msgs.back();
         back.text = std::move(back.streaming_text);
         back.streaming_text.clear();
@@ -1155,15 +1155,15 @@ TEST_CASE("multi turn write pairs seam") {
         agentty::app::detail::freeze_through(m, msgs.size());
     }
 
-    // Both turns must be fully frozen now (nothing live).
+    // 两转弯现在必须完全冻结(没有活的).
     CHECK(m.ui.frozen_through == msgs.size(),
           "turns 1 & 2 not fully frozen before turn 3");
 
-    // Snapshot the settled two-turn transcript — this is the committed
-    // baseline turn 3 must never disturb.
+    // 快照 两人解决了 -turn 记录片——这是承诺的
+    // 基线第3转线,绝不能打扰。
     auto baseline = render_rows(m);
 
-    // ── Turn 3: submit, then the third write streams in (overflowing).
+    // 轮次 3：提交后，第三次写入以流式到达并超出可视区。
     {
         Message u; u.role = Role::User; u.text = "write a file (t3)";
         msgs.push_back(std::move(u));
@@ -1172,10 +1172,10 @@ TEST_CASE("multi turn write pairs seam") {
     }
     auto after_submit = render_rows(m);
 
-    // Write Running (full content present, card windowed) + placeholder.
+    // Write 运行( 完整内容存在, 牌窗口) + 占位符。
     push_write_turn(m, "t3", kRows);
-    // Demote the just-pushed write to Running to model the streaming
-    // arrival before it settles.
+    // 放弃正义 -pushed 写入运行到模拟 流
+    // 式传输 还没到就到
     agentty::app::detail::with_live_tool(
         m, ToolCallId{"write_t3"}, [&](ToolUse& t) {
             t.status = ToolUse::Running{steady_clock::now(), ""};
@@ -1184,19 +1184,19 @@ TEST_CASE("multi turn write pairs seam") {
     msgs.push_back(std::move(ph3));
     auto frame_running = render_rows(m);
 
-    // Write settles. The whole run stays live until the turn finishes.
+    // Write 整场比赛都持续到转弯结束
     agentty::app::detail::with_live_tool(
         m, ToolCallId{"write_t3"}, [&](ToolUse& t) {
             auto now = steady_clock::now();
             t.status = ToolUse::Done{now - milliseconds{5}, now,
                                      "Created /tmp/t3.txt"};
         });
-    // Critical frame: write Done + placeholder present, freeze has NOT
-    // run yet (run still active). The live tail keys this run with the
-    // same assistant_run_hash_id the settle freeze will use.
+    // 关键 帧 : 写入 + 占位符存在, 冻结有 不 运行(
+    // 运行仍在运行)。 运行中 末尾 键此运行时使用相同的
+    // assistant_run_hash_id 冻结会用到的
     auto frame_settled = render_rows(m);
 
-    // The turn settles — the single settle-time freeze fires.
+    // 转弯定了,单人定了 -time 冻结火灾。
     {
         auto& back = msgs.back();
         back.text = std::move(back.streaming_text);
@@ -1206,9 +1206,9 @@ TEST_CASE("multi turn write pairs seam") {
     agentty::app::detail::freeze_through(m, msgs.size());
     auto frame_frozen = render_rows(m);
 
-    // The committed prefix (everything that overflowed the viewport top)
-    // must be byte-stable across EVERY turn-3 step. Turn 2's card lives
-    // in that committed region; any shift duplicates it.
+    // 执着的前缀, 可视区域 顶端)必须是 字节
+    // -stable 横跨 每个 转3步。转2号卡片的
+    // 住址是这个承诺区,任何转折都会重复它。
     struct Step { const char* name; const std::vector<std::string>* rows; };
     const Step steps[] = {
         {"baseline",     &baseline},
@@ -1239,7 +1239,7 @@ TEST_CASE("multi turn write pairs seam") {
               "(turn 2 duplicates)");
     }
 
-    // Turn 2's body must appear EXACTLY once in the final frame.
+    // 转二号 正文 一定要出现 恰好 决赛中一次 帧.
     int t2_copies = 0;
     for (const auto& row : frame_frozen)
         if (row.find(body_marker("t2")) != std::string::npos) ++t2_copies;
@@ -1248,53 +1248,53 @@ TEST_CASE("multi turn write pairs seam") {
           "write (the reported duplicate)");
 }
 
-// NOTE: test_incremental_body_freeze_seam / _seam_chunked (which forced
-// the mid-stream carve on via set_incremental_freeze_override and drove
-// maybe_incremental_freeze) are DELETED along with the incremental-
-// freeze machinery itself. The production discipline — stay live, freeze
-// once at settle — is covered by test_incremental_freeze_prefix_stable
-// (above) and the single/write/read seam tests below.
+// NOTE: test_incremental_body_freeze_seam /
+// _seam_chunked (迫使中层 -stream 雕刻在通过
+// set_incremental_freeze_override 开车
+// maybe_incremental_freeze ) , 即为 DELETED 生产纪律——在定居时保持现场、
+// 冻结——由以下几个方面涵盖: test_incremental_freeze_prefix_stable
+// (以上)和 single/write/read 接口边界 测试结果如下。
 
-// ── Settled-prefix HOIST correctness (the perf split must be invisible).
-//    turn_config_for_assistant_run hoists the leading quiescent sub-turns
-//    of an in-flight run into ONE cacheable bare Turn to keep per-frame
-//    build O(1) in turn depth. The split must NEVER change what the user
-//    sees: every settled tool card must still render EXACTLY once, and
-//    the row output must be identical frame-to-frame as the prefix grows
-//    (a hoisted card silently vanishing, or a stale cache blitting an
-//    old prefix, is the "sometimes not working" bug this guards).
+// 稳定前缀提升的正确性：性能拆分不应改变可观察结果。
+//    turn_config_for_assistant_run 吊起领先的
+//    quiescent 子 -turns 输入 -flight 运行到
+//    一个 可缓存赤色转折以保持每 -frame 以 O(1) 的深度构建。
+//    拆分必须 绝不 更改用户所看到的: 每一个已结算的工具卡必须仍然
+//    渲染 恰好 一次, 行输出必须相同 帧-to-frame 随前缀的
+//    增大(一张挂牌悄悄消失,或 过期 缓存 擦掉一个旧的前缀,
+//    是 "sometimes not working" 窃听这个守卫
 TEST_CASE("prefix hoist all cards present") {
     Model m;
     m.d.current.id = agentty::ThreadId{"hoist"};
     Message u; u.role = Role::User; u.text = "do many edits";
     m.d.current.messages.push_back(std::move(u));
     agentty::app::detail::clear_frozen(m);
-    agentty::app::detail::freeze_through(m, 1);   // User frozen
+    agentty::app::detail::freeze_through(m, 1);   // 用户被冻结
 
-    constexpr int N = 24;   // deep enough that the hoist engages
+    constexpr int N = 24;   // 深到可以让升降机介入
     std::vector<std::string> prev;
 
     for (int e = 0; e < N; ++e) {
-        // A settled edit sub-turn lands (all prior ones become the
-        // hoistable quiescent prefix).
+        // 已定居的编辑子-turn土地(所有前作都成为可升起的
+        // quiescent前缀).
         Message a; a.role = Role::Assistant;
         a.tool_calls.push_back(settled_edit("h" + std::to_string(e)));
         m.d.current.messages.push_back(std::move(a));
 
-        // Streaming successor placeholder = the live edge (never hoisted).
+        // 流式传输 继任占位符 = 活边(从未竖起).
         Message ph; ph.role = Role::Assistant; ph.streaming_text = "working";
         m.d.current.messages.push_back(std::move(ph));
         m.s.phase = agentty::phase::Streaming{agentty::phase::Active{}};
 
         auto cur = render_rows(m);
 
-        // (1) EVERY settled edit card so far must be present EXACTLY
-        //     once. settled_edit stamps tc.output()="edited-<tag>"; the
-        //     card renders the tool name + path src/<tag>.cpp, so the
-        //     unique path is our per-card marker. A hoisted card that
-        //     vanished (defer poisoning / stale prefix cache) drops its
-        //     marker; a double-emit (spurious gap / duplicated slot)
-        //     bumps the count above one.
+        // (1) 每个 迄今已结算的编辑卡必须存在 恰好 一次,我记得,
+        //     我说过,我... settled_edit 邮票 tc.output
+        //     ()="edited-<tag>" ; 牌号 渲染 工具
+        //     名称+路径 src/<tag> .cpp,所以独特的路径是
+        //     我们的 -card 标记。挂牌消失(延迟中毒/ 过期 前缀
+        //     缓存 ) 降低标记;双倍 -emit (纯空/ 重复插
+        //     槽) 将数数撞在 1 以上。
         for (int k = 0; k <= e; ++k) {
             const std::string marker = "src/h" + std::to_string(k) + ".cpp";
             int copies = 0;
@@ -1308,9 +1308,9 @@ TEST_CASE("prefix hoist all cards present") {
                    + ") — prefix hoist dropped or duplicated a card").c_str());
         }
 
-        // (2) The committed prefix must be byte-stable across the grow
-        //     (a stale prefix cache blitting an old shape would rewrite
-        //     an already-overflowed row).
+        // (2) 承诺的前缀必须是: 字节-stable 整个增长(a)
+        //     过期 前缀 缓存 撕裂旧形状会重写一个已经 -overflowed
+        //     ) (中文(简体) ).
         if (!prev.empty()) {
             int d = first_committed_divergence(prev, cur, /*term_h=*/40);
             CHECK(d < 0,
@@ -1318,11 +1318,11 @@ TEST_CASE("prefix hoist all cards present") {
         }
         prev = std::move(cur);
 
-        m.d.current.messages.pop_back();   // drop placeholder
+        m.d.current.messages.pop_back();   // 丢弃占位符
     }
 
-    // (3) Settle-freeze the whole run: the frozen output must contain
-    //     each card exactly once too (the split→flat handoff is clean).
+    // (3) 整行的Snock-freeze:冻结的
+    //     输出必须包含每张卡片一次(分解-平面交接干净)。
     m.s.phase = agentty::phase::Idle{};
     agentty::app::detail::freeze_through(m, m.d.current.messages.size());
     auto frozen = render_rows(m);
@@ -1337,23 +1337,23 @@ TEST_CASE("prefix hoist all cards present") {
     }
 }
 
-// ── The user-reported failure the hoist introduced: a RUNNING tool at
-//    the live edge during a deep run, then the user texts AGAIN. Two
-//    distinct bugs are asserted here, neither of which the all-settled
-//    hoist test above can hit (it only ever has terminal cards):
+// 用户报告的提升缺陷：一个 RUNNING 工具位于
+//    深跑时的直播边缘,然后是用户的短信 AGAIN
+//    这里有两个不同的错误, 两者都不是 -settled
+//    上面的升降测试可以击球(只有曾经 终端 纸牌 :
 //
-//    (A) A still-Running tool card must render while it is running. In a
-//        deep run the quiescent-prefix hoist must NOT swallow the edge
-//        sub-turn whose tool is non-terminal — its spinner/progress has
-//        to keep updating, so it must stay in the eagerly-built tail.
+//    (A) 静态 -Running 工具卡必须 渲染 以奔驰的方式奔驰,
+//        -prefix 举起手来 不 吞下边角子 -turn 工具为非
+//        -terminal ——其国家 spinner/progress
+//        一定要不断更新 所以它必须留在急切的 -built 末尾.
 //
-//    (B) When a NEW user turn (and its assistant reply) is appended after
-//        that run, the just-settled tool cards above must still render
-//        exactly once AND the committed prefix must not be rewritten.
-//        The reported symptom ("reply comes but the earlier tool card's
-//        output shows up broken") is a committed-row rewrite here — a
-//        stale hoisted-prefix cache blitting an old shape over rows that
-//        already overflowed into native scrollback.
+//    (B) 何时a 新 用户转弯(及其助手的答复)在运行后附加,
+//        即 -settled 上方的工具卡必须仍然 渲染 一次
+//        就是一次 一次就是第二次了 和 承诺的前缀不能重写。
+//        报告症状(
+//        回复到达时，先前工具卡片的输出变得错乱。
+//        )是执着的 -row 重写这里—— a 过期 竖起 -prefix 缓存
+//        将一个旧形状 铺在已经溢成原生的行上 回滚缓冲区.
 static ToolUse running_edit(const std::string& tag) {
     ToolUse t;
     t.id   = ToolCallId{"edit_" + tag};
@@ -1375,14 +1375,14 @@ TEST_CASE("running tool then followup user turn") {
     agentty::app::detail::clear_frozen(m);
     agentty::app::detail::freeze_through(m, 1);
 
-    constexpr int N = 24;   // deep enough that the hoist engages
-    // Build a deep run of SETTLED edit sub-turns.
+    constexpr int N = 24;   // 深到可以让升降机介入
+    // 构建一个深层运行 SETTLED 编辑子 -turns.
     for (int e = 0; e < N; ++e) {
         Message a; a.role = Role::Assistant;
         a.tool_calls.push_back(settled_edit("r" + std::to_string(e)));
         m.d.current.messages.push_back(std::move(a));
     }
-    // The live edge: a sub-turn whose tool is STILL RUNNING.
+    // 活的边缘:一个子 -turn 工具是 仍然 RUNNING.
     {
         Message a; a.role = Role::Assistant;
         a.tool_calls.push_back(running_edit("live"));
@@ -1392,7 +1392,7 @@ TEST_CASE("running tool then followup user turn") {
 
     auto with_running = render_rows(m);
 
-    // (A) The running card MUST be present (its path marker shows).
+    // (A) 运行中的卡MUST出现(其路径标记显示).
     {
         const std::string marker = "src/live.cpp";
         int copies = 0;
@@ -1402,7 +1402,7 @@ TEST_CASE("running tool then followup user turn") {
               "running tool card missing while its tool is running "
               "(hoist swallowed the live edge)");
     }
-    // Every settled card present exactly once, too.
+    // 每张卡片都贴过一次
     for (int k = 0; k < N; ++k) {
         const std::string marker = "src/r" + std::to_string(k) + ".cpp";
         int copies = 0;
@@ -1413,7 +1413,7 @@ TEST_CASE("running tool then followup user turn") {
                "running edge").c_str());
     }
 
-    // The tool finishes; the run settles and freezes (turn-end).
+    // 工具完成;运行会结算和冻结(turn-end).
     agentty::app::detail::with_live_tool(
         m, ToolCallId{"edit_live"}, [&](ToolUse& t) {
             auto now = steady_clock::now();
@@ -1424,14 +1424,14 @@ TEST_CASE("running tool then followup user turn") {
     agentty::app::detail::freeze_through(m, m.d.current.messages.size());
     auto after_settle = render_rows(m);
 
-    // Committed prefix stable across settle.
+    // 强制前缀稳定在安居地之间。
     {
         int d = first_committed_divergence(with_running, after_settle, kTermH);
         CHECK(d < 0,
               "committed prefix rewritten when the running tool settled");
     }
 
-    // (B) The user TEXTS AGAIN: new User turn + a fresh assistant reply.
+    // (B)用户TEXTSXXAGAIN:新用户转+新助理回复.
     Message u2; u2.role = Role::User; u2.text = "now explain what you did";
     m.d.current.messages.push_back(std::move(u2));
     Message a2; a2.role = Role::Assistant; a2.streaming_text = "Sure — I ";
@@ -1439,7 +1439,7 @@ TEST_CASE("running tool then followup user turn") {
     m.s.phase = agentty::phase::Streaming{agentty::phase::Active{}};
     auto with_reply = render_rows(m);
 
-    // Every tool card from the prior run must STILL render exactly once.
+    // 上一个运行的每个工具卡必须 仍然 渲染 一次就是这样了
     for (int k = 0; k < N; ++k) {
         const std::string marker = "src/r" + std::to_string(k) + ".cpp";
         int copies = 0;
@@ -1458,8 +1458,8 @@ TEST_CASE("running tool then followup user turn") {
               ("the once-running card broke after a follow-up user turn "
                "(got " + std::to_string(copies) + ")").c_str());
     }
-    // And the committed prefix (the whole frozen run) must be byte-stable
-    // across the new user turn's arrival.
+    // 和承诺的前缀(整个冻结运行)必须是 字节-stable
+    // 整个新用户转弯到达。
     {
         int d = first_committed_divergence(after_settle, with_reply, kTermH);
         CHECK(d < 0,

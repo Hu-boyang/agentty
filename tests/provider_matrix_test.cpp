@@ -1,32 +1,32 @@
-// provider_matrix_test — every SELECTABLE provider, pinned row by row.
+// provider_matrix_test ——每笔 SELECTABLE 提供商,按排排列。
 //
-// ── What this file is for, and what it deliberately is not ───────────────
+// ── 档案是用来做什么的,是故意的 ───────────────
 //
-// provider_conformance_test states ONE contract and instantiates it per
-// DIALECT (4 of them). That is the right shape for wire decoding, and it is
-// where a tool-call framing bug belongs.
+// provider_conformance_test 状态 一个 合同
+// 和即时付款 DIALECT (其中4个),这是正确的形状, 传输 解码,
+// 它是一个工具 -call 框架错误属于。
 //
-// But a user does not pick a dialect. They pick "groq" or "gemini", and 13
-// of our 15 rows share the single OpenAIChat decoder. What actually differs
-// between those 13 is the ROW: where it dials, which env vars carry its key,
-// whether it needs a key at all, whether it has a second dialect, which
-// long-lived transport slot it owns. Those facts are what break a provider
-// for a user, and they are per-row, not per-dialect.
+// 但使用者不会选方言,他们选 "groq" 或 或 时 间 "gemini" ,
+// 我们15行中的13行共用单曲 OpenAIChat 解码器,
+// 这13个之间的区别是 ROW :它拨号的地方,哪个env vars
+// 携带它的钥匙,它是否需要一个钥匙,它是否有第二个方言,
+// 那长 -lived 传输层 时间档,这些事实让一个用户的供应商崩溃,
+// 它们都是 -row 单人 -dialect.
 //
-// Registry COHERENCE is already proven at compile time (routing_consistent,
-// endpoints_consistent, ids_unique, auth_caps_consistent in registry.hpp).
-// This file does not restate those — a test that re-asserts a static_assert
-// is noise. It asserts the things a table cannot prove about itself:
+// 注册表 COHERENCE 已经证明在 编译 时间( routing_consistent, endpoints_consistent,
+// ids_unique, auth_caps_consistent 输入 registry.hpp).
+// 此文件不重述这些内容—— 测试 -asserts a
+// static_assert 上面写着表里无法证明的东西:
 //
-//   1. every row is reachable by the string a user actually types,
-//   2. every row's endpoint survives the round trip into a dialled Endpoint,
-//   3. the auth story is consistent with how the row is reached,
-//   4. a row's declared dialect matches the path it dials,
-//   5. the per-provider quirks we have hand-coded still hold.
+//   1. 每个行都可以被一个用户实际键入的字符串所达到,
+//   2. 每行终点都能够通过圆通转弯 进入一个拨号终点,
+//   3. 认证故事与行的行法一致,
+//   4. 一行的方言 符合它拨打的路
+//   5. 个人 -provider 手有怪声 -coded 坚持住
 //
-// The loop is over kProviders, so a new row is tested the moment it is
-// added. That is the property worth having: the failure mode this guards
-// against is someone appending a row and nothing noticing it is unreachable.
+// 循环是超乎 kProviders 的, 因此在添加时会
+// 测试一个新行。 这正是值得拥有的属性: 守护者所面对的失败
+// 模式是某个人附加一行, 并且没有任何东西能注意到它是无法到达的。
 
 #include <algorithm>
 #include <set>
@@ -50,8 +50,8 @@ using json = nlohmann::json;
 
 namespace {
 
-// Msg is a variant of domain sub-variants; the leaf we want lives one level
-// deeper. get_leaf<T> digs it out, returns nullptr if the Msg isn't that leaf.
+// Msg 是一个 变体 域子的词 -variants 叶子要更深一层
+// get_leaf<T> 挖出来, 返回 nullptr 如果该 Msg 叶子不是么.
 template <class Leaf>
 const Leaf* get_leaf(const Msg& m) {
     const Leaf* found = nullptr;
@@ -64,28 +64,28 @@ const Leaf* get_leaf(const Msg& m) {
     return found;
 }
 
-// Every row in the table, by value, so a loop reads naturally.
+// 表格中的每一行,按数值,一个环自然读取.
 [[nodiscard]] std::vector<const ProviderDescriptor*> all_rows() {
     std::vector<const ProviderDescriptor*> out;
     for (const auto& p : kProviders) out.push_back(&p);
     return out;
 }
 
-// Does this row speak HTTP over the generic OpenAI-compat transport?
-// Anthropic (own transport), ChatGPT (dedicated OAuth transport) and ACP
-// (subprocess) leave `host` empty and are routed by wire/oauth_native.
+// 这排能说话吗? HTTP 超过一般 OpenAI-compat 传输层?
+// Anthropic (自 发) 传输层), ChatGPT (专责官员) 传输层 和。
+// 和 简 况 ACP (子进程)请假 `host` 空且路由为 wire/oauth_native.
 [[nodiscard]] bool http_dialled(const ProviderDescriptor& p) {
     return !p.host.empty();
 }
 
-}  // namespace
+}  // 命名空间结束。
 
-// ── 1. Reachability ──────────────────────────────────────────────────────
+// ── 1. 可达到性 ──────────────────────────────────────────────────────
 //
-// A row exists to be SELECTED. The user types a spec token — "groq",
-// "gemini", "ollama" — and parse_selection has to hand back that row. A row
-// that cannot be reached by its own id is dead weight that still shows up in
-// the picker, which is worse than not existing.
+// 存在一行 SELECTED。用户输入一个光谱符号 - "groq",
+// "gemini", "ollama" ——和
+// parse_selection 无法用自己的身份识别的一排是 仍然
+// 出现在 选择面板 ,这比不存在的还要糟糕。
 
 TEST_CASE("matrix: every provider is reachable by its own id") {
     for (const auto* p : all_rows()) {
@@ -99,8 +99,8 @@ TEST_CASE("matrix: every provider is reachable by its own id") {
 }
 
 TEST_CASE("matrix: every provider has a non-empty label and blurb") {
-    // The picker renders these. An empty label is a blank row the user
-    // cannot identify; an empty blurb is a row they cannot choose between.
+    // 电话 选择面板 渲染。空标签是用户无法
+    // 识别的空白行;空模糊是他们无法选择的行。
     for (const auto* p : all_rows()) {
         CAPTURE(p->id);
         CHECK(!p->id.empty());
@@ -109,13 +109,13 @@ TEST_CASE("matrix: every provider has a non-empty label and blurb") {
     }
 }
 
-// ── 2. Endpoint round-trip ───────────────────────────────────────────────
+// ── 2. 终点回合 -trip ───────────────────────────────────────────────
 //
-// The row states host/path/port/tls. Selecting the provider must produce an
-// Endpoint carrying exactly those. This is the drift the registry comment
-// calls out by name: the `openai` row once claimed Responses while the
-// transport dialled /v1/chat/completions, and the UI promised reasoning the
-// wire never sent.
+// 排队 host/path/port/tls. 选择提供者必须
+// 产生一个完全带有这些内容的终点。 注册表 注释 调用 名称:
+// `openai` 列 曾声称 传输层 拨号/
+// v1/chat/completions ,并显示 UI 答应的推理
+// 传输 从来没有送过
 
 TEST_CASE("matrix: an http-dialled provider round-trips its endpoint") {
     for (const auto* p : all_rows()) {
@@ -128,24 +128,24 @@ TEST_CASE("matrix: an http-dialled provider round-trips its endpoint") {
         CHECK(ep.host == p->host);
         CHECK(ep.port == p->port);
         CHECK(ep.use_tls == p->use_tls);
-        // The completions path is what a turn actually POSTs to. A row whose
-        // path is empty would dial "/" and 404 every request.
+        // 完成路径是 POST 实际的转折。 路径为空的行
+        // 会拨 "/" 和 404 每一个请求。
         CHECK(!p->path.empty());
         CHECK(!p->models_path.empty());
     }
 }
 
 TEST_CASE("matrix: a provider's declared dialect matches the path it dials") {
-    // wire and path are two statements of the same fact. endpoints_consistent()
-    // proves it for the TABLE at compile time; this checks the same holds
-    // after from_spec() has built the endpoint we actually dial.
+    // 传输 路径是两个 事实相同的声明。 endpoints_consistent
+    // ( 证明它是为了 TABLE 时间 编译 时间; 此检查在后面的相同
+    // 保存 from_spec ()已经建立了我们实际拨打的终点.
     for (const auto* p : all_rows()) {
         if (!http_dialled(*p)) continue;
-        // Ollama speaks its OWN protocol on /api/chat — NDJSON with structured
-        // tool_calls, not the OpenAI shim. Its row carries Wire::OpenAIChat
-        // because that is how the TRANSPORT is selected, while native_api
-        // says the payload shape differs. The compile-time proof exempts it
-        // for exactly this reason, and so must this.
+        // Ollama 说吧 自身 议定书》的执行情况 api/chat — NDJSON
+        // 结构化 tool_calls ,而不是 OpenAI 嘘,它的行载着
+        // Wire::OpenAIChat 因为这就是 TRANSPORT 选择,
+        // 而 native_api 说 载荷 形状不同。 编译-time 证据
+        // 可以免除它 完全出于这个原因, 这一点也必须。
         if (p->native_api) continue;
         CAPTURE(p->id);
         switch (p->wire) {
@@ -157,9 +157,9 @@ TEST_CASE("matrix: a provider's declared dialect matches the path it dials") {
                 break;
             case Wire::AnthropicMessages:
             case Wire::Acp:
-                // Not dialled over the generic transport; `host` is empty and
-                // this loop skipped it. Reaching here means a row grew a host
-                // without anyone deciding what path that implies.
+                // 未拨号于通用 传输层; `host`
+                // 到达这里意味着一行会成长一个主机,
+                // 而没有人决定它意味着什么。
                 FAIL("http-dialled row with a non-HTTP wire: " << p->id);
                 break;
         }
@@ -167,43 +167,43 @@ TEST_CASE("matrix: a provider's declared dialect matches the path it dials") {
 }
 
 TEST_CASE("matrix: a native-protocol provider is local and un-keyed") {
-    // native_api means the payload is NOT the OpenAI shape, so every generic
-    // assumption about the body is off. Today that is Ollama alone. If a
-    // second row ever sets it, these are the properties that made it safe to
-    // special-case: it runs on this machine and needs no key, so a wrong
-    // guess costs a local 400 rather than a leaked credential.
+    // native_api 意思是说 载荷 谓 不 编号 OpenAI 形状,
+    // 所以关于 正文 今天是 关机了 今天是 Ollama
+    // 单打独斗,如果第二排设置,这些是使其安全到特别的属性
+    // -case : 它运行于此机器上,不需要钥匙,
+    // 所以错误的猜测花费了当地400美元而不是泄露 凭据.
     for (const auto* p : all_rows()) {
         if (!p->native_api) continue;
         CAPTURE(p->id);
         CHECK(p->is_local);
         CHECK(p->auth == AuthStyle::None);
-        // And its path must NOT look like the OpenAI one, or the exemption
-        // above is hiding a row that could have used the generic shape.
+        // 及其道路不得 看起来像 OpenAI
+        // 上面的豁免就是隐藏一行 可以使用通用形状的
         CHECK(p->path.find("/chat/completions") == std::string_view::npos);
     }
 }
 
 TEST_CASE("matrix: a second dialect, when present, is on the same host") {
-    // The Responses column is the SAME host's other path, not a different
-    // backend. A row that points its second dialect elsewhere would silently
-    // send credentials for host A to host B.
+    // 答复栏是 相同 主机的另一条路径,
+    // 而不是不同的后端。 指向其它方言的行会默默
+    // 发送 凭据 给A组的B组
     for (const auto* p : all_rows()) {
         if (p->responses_path.empty()) continue;
         CAPTURE(p->id);
         CHECK(http_dialled(*p));
         CHECK(p->responses_path.find("/responses") != std::string_view::npos);
-        // And it must differ from the default path, or the column is a no-op
-        // that makes dialect_for() look like it has a choice when it doesn't.
+        // 和默认路径不同,或者列是否定的 -op 这说明
+        // dialect_for ()看似它有选择,当它没有选择。
         CHECK(p->responses_path != p->path);
     }
 }
 
-// ── 3. Auth ──────────────────────────────────────────────────────────────
+// ── 3. 认证 ──────────────────────────────────────────────────────────────
 
 TEST_CASE("matrix: a key-authenticated provider names its env vars") {
-    // A remote row with AuthStyle::ApiKey and no env var can only be
-    // configured through the UI — which is a silent regression for anyone
-    // scripting agentty, and the usual way a new row ships half-wired.
+    // 远程行 AuthStyle::ApiKey 且没有 env
+    // var 只能通过 UI ——这是任何脚本的无声回归.
+    // agentty ,而通常的方式 新排船一半 -wired.
     for (const auto* p : all_rows()) {
         if (p->auth != AuthStyle::ApiKey) continue;
         if (p->is_local) continue;
@@ -216,33 +216,33 @@ TEST_CASE("matrix: a key-authenticated provider names its env vars") {
 }
 
 TEST_CASE("matrix: only a genuinely local backend is marked local") {
-    // is_local means "runs on this machine", NOT "needs no key". Conflating
-    // the two is why ChatGPT once claimed to be local — the credential layer
-    // skips key resolution for a local row, so a mislabelled remote row
-    // dials with no auth and 401s.
+    // is_local 表示 "runs on this machine",
+    // 不 "needs no key" 两者的混杂是为什么 ChatGPT 曾经自称是
+    // 当地人—— 凭据 层跳过本地行的密钥解析度,所以一个错误的标签的远程行
+    // 拨号没有自动执行符和401s。
     for (const auto* p : all_rows()) {
         CAPTURE(p->id);
         if (p->is_local) {
-            // A local backend is reached on loopback, or not over HTTP.
+            // 本地后端在回转上被接通,或者没有超过HTTP.
             if (http_dialled(*p)) {
                 const bool loopback = p->host == "localhost"
                                    || p->host == "127.0.0.1"
                                    || p->host == "::1";
                 CHECK(loopback);
-                // Local HTTP is plain by default; TLS on loopback would need
-                // a cert the user does not have.
+                // 当地 HTTP 默认为普通; TLS 返回
+                // 时需要用户没有的证书。
                 CHECK(!p->use_tls);
             }
-            // And a local backend must not demand a key.
+            // 本地后端不能要求钥匙
             CHECK(p->auth == AuthStyle::None);
         }
     }
 }
 
 TEST_CASE("matrix: an oauth-native provider is long-lived and un-keyed") {
-    // oauth_native means the row rides a DEDICATED transport that owns its
-    // token refresh. That only works if the transport is long-lived, and it
-    // must not also be looking for an API key.
+    // oauth_native 意思是这行骑着... DEDICATED
+    // 传输层 才有新意,只有... 传输层 长 -lived ,
+    // 它一定不会 也寻找一个 API 键。
     for (const auto* p : all_rows()) {
         if (!p->oauth_native) continue;
         CAPTURE(p->id);
@@ -251,12 +251,12 @@ TEST_CASE("matrix: an oauth-native provider is long-lived and un-keyed") {
     }
 }
 
-// ── 4. Routing slots ─────────────────────────────────────────────────────
+// ── 4. 跑道插槽 ─────────────────────────────────────────────────────
 
 TEST_CASE("matrix: long-lived providers own distinct routing slots") {
-    // A long-lived row owns in-process transport state (a session, a token).
-    // Two rows sharing a slot would share that state, which is how one
-    // provider's credentials end up on another's request.
+    // 长 -lived 拥有的行 -process 传输层 状态(会话,一个符号)。
+    // 两行共享一个插槽将共享该状态,这就是一个提供者的
+    // 凭据最终如何应另一个提供者的请求而结束.
     std::set<int> seen;
     for (const auto* p : all_rows()) {
         if (p->lifetime != Lifetime::LongLived) continue;
@@ -268,9 +268,9 @@ TEST_CASE("matrix: long-lived providers own distinct routing slots") {
 }
 
 TEST_CASE("matrix: per-call providers claim no routing slot") {
-    // The converse: a per-call row is rebuilt from the Endpoint every turn
-    // and has no state to own. Claiming a slot would reserve capacity for a
-    // transport that never exists.
+    // 反面:每方 -call 列从每个转弯的终点重建,
+    // 没有状态可拥有。 要求一个槽将保留一个
+    // 传输层 永远不存在
     for (const auto* p : all_rows()) {
         if (p->lifetime != Lifetime::PerCall) continue;
         CAPTURE(p->id);
@@ -278,17 +278,17 @@ TEST_CASE("matrix: per-call providers claim no routing slot") {
     }
 }
 
-// ── 5. The shared decoder, per provider ──────────────────────────────────
+// ── 5. 共享解码器,每个提供者 ──────────────────────────────────
 //
-// 13 rows share the OpenAIChat decoder, so a decoding bug is 13 broken
-// providers. The conformance suite pins the dialect; this pins that each
-// CHAT row actually round-trips a tool call through it — a row that declares
-// OpenAIChat but is somehow not decodable by it is a contradiction worth
-// catching here rather than in a user's session.
+// 13行共享 OpenAIChat 解码器,所以解码器是
+// 13个断开的提供者。兼容套件会将方言标注在其中;
+// 这个标点是每个 CHAT 实际圆形 -trips 工具 调用 ——
+// 一行宣讲 OpenAIChat 但不知何故,它不能解码 是一个
+// 矛盾 值得在这里抓住而不是在用户的会话。
 
 namespace {
 
-// One tool call, framed the way a well-behaved chat server sends it.
+// 一个工具 调用 设计了井的路 -behaved 聊天服务器发送.
 [[nodiscard]] std::string chat_tool_call(std::string_view name,
                                          std::string_view args) {
     const auto mid = args.size() / 2;
@@ -306,7 +306,7 @@ namespace {
     return sse;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("matrix: every chat-dialect provider decodes a tool call") {
     const std::string args =
@@ -314,9 +314,9 @@ TEST_CASE("matrix: every chat-dialect provider decodes a tool call") {
 
     for (const auto* p : all_rows()) {
         if (p->wire != Wire::OpenAIChat) continue;
-        // Ollama's /api/chat is NDJSON, not SSE — a different decoder
-        // entirely (parse_ndjson_for_test), covered by the conformance
-        // suite's OllamaNative arm.
+        // Ollama的/api/chat是NDJSON,而不是SSE——一个完全
+        // 由符合套装的OllamaNative臂覆盖的不同解码器(
+        // parse_ndjson_for_test).
         if (p->native_api) continue;
         CAPTURE(p->id);
 
@@ -335,30 +335,30 @@ TEST_CASE("matrix: every chat-dialect provider decodes a tool call") {
             if (get_leaf<StreamToolUseEnd>(m)) ++ends;
         }
 
-        // Announced once, closed once, arguments intact and parseable.
+        // 一次宣布,一次结束, 辩论完整和可解析。
         CHECK(starts == 1);
         CHECK(ends == 1);
         CHECK(name == "grep");
         CHECK(!id.empty());
-        // Parsed into a local: doctest re-expands its macro argument, so a
-        // `(void)` cast inside REQUIRE_NOTHROW never reaches the real call
-        // and GCC still warns -Wunused-result.
+        // 解析为本地 : doctest 内容 -expands 其宏观论点,所以 `(void)`
+        // 内置 REQUIRE_NOTHROW 永远无法到达真实 调用 财务报告和已审计财务报表
+        // GCC 仍然警告我们 -Wunused-result.
         json parsed;
         REQUIRE_NOTHROW(parsed = json::parse(got));
         CHECK(parsed == json::parse(args));
     }
 }
 
-// ── 6. Hand-coded per-provider quirks ────────────────────────────────────
+// ── 6. 手势 -coded 百分比 -provider 奇数 ────────────────────────────────────
 //
-// Two divergences are coded into the shared decoder by NAME. They are the
-// only places a specific provider's behaviour is special-cased, so they are
-// the only places where "it works for DeepSeek but not Mistral" can hide.
+// 将两个差异编码为共享解码器,由 NAME。它们是唯一一个特定的提供者行为特殊的地方。
+// -cased ,所以他们是唯一的地方 在那里,
+// "it works for DeepSeek but not Mistral" 能够隐藏。
 
 TEST_CASE("matrix: deepseek-style reasoning_content surfaces as thinking") {
-    // DeepSeek and most compat proxies stream reasoning in a field parallel
-    // to content. It must become StreamThinkingDelta — the same event the
-    // Anthropic transport emits — so the UI renders it identically.
+    // DeepSeek 和大多数相似的代理 数据流 与内容平行的领域的推理。
+    // StreamThinkingDelta - 一样 事件 编号
+    // Anthropic 传输层 发射——所以 UI 渲染 完全一样
     const std::string sse =
         "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"step \"}}]}\n\n"
         "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"one\"}}]}\n\n"
@@ -376,9 +376,9 @@ TEST_CASE("matrix: deepseek-style reasoning_content surfaces as thinking") {
 }
 
 TEST_CASE("matrix: openrouter-style empty reasoning_content is not fatal") {
-    // Some OpenRouter passthroughs send an EMPTY reasoning_content alongside
-    // a populated `reasoning`. Breaking on the first key present would drop
-    // all reasoning — the decoder must keep looking until it finds content.
+    // Τ OpenRouter 传球发送 空 reasoning_content
+    // 和人口众多的 `reasoning`。如果打破第一个键的显示,
+    // 则会放弃所有推理——解码器必须不断寻找,直到找到内容。
     const std::string sse =
         "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"\","
             "\"reasoning\":\"real thinking\"}}]}\n\n"
@@ -392,9 +392,9 @@ TEST_CASE("matrix: openrouter-style empty reasoning_content is not fatal") {
 }
 
 TEST_CASE("matrix: mistral-style inline [THINK] tags are re-routed") {
-    // Mistral / Magistral wrap thinking in [THINK]…[/THINK] INSIDE content.
-    // Left alone it leaks into the answer, and the leading '[' trips the
-    // tool-call salvage heuristic.
+    // 迷宫/法官的包装思维 THINK]…[/THINK] 内部 内容。
+    // 独自一人 就会漏进答案 和领先者 '[' 运行工具
+    // -call 抢救热力。
     const std::string sse =
         "data: {\"choices\":[{\"delta\":{\"content\":\"[THINK]pondering[/THINK]\"}}]}\n\n"
         "data: {\"choices\":[{\"delta\":{\"content\":\"the answer\"}}]}\n\n"
@@ -412,8 +412,8 @@ TEST_CASE("matrix: mistral-style inline [THINK] tags are re-routed") {
 }
 
 TEST_CASE("matrix: deepseek-style <think> tags split across deltas") {
-    // The tag itself can be split by the server's chunking ("<thi" | "nk>").
-    // A decoder that only matches whole tags leaks the marker into the answer.
+    // 标记本身可以通过服务器的块("<thi" | "nk>")来分割.
+    // 一个只匹配整块标记的解码器将标记泄露到答案中.
     const std::string sse =
         "data: {\"choices\":[{\"delta\":{\"content\":\"<thi\"}}]}\n\n"
         "data: {\"choices\":[{\"delta\":{\"content\":\"nk>hidden</think>shown\"}}]}\n\n"

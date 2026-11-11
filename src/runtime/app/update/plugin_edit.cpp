@@ -1,20 +1,20 @@
-// plugin_edit.cpp — the plugin detail/add form's reducer.
+// plugin_edit.cpp-插件detail/add形式的状态更新函数。
 //
-// One pane, two modes (see pn::PluginEdit): detail (server non-empty) and
-// add (server empty, kind-first). Everything flows through the shared form
-// layer; this reducer owns only the plugin-specific consequences:
-//   • kind change (add mode)  → rebuild the field set, preserving typed text
-//   • enabled toggle (detail) → set_server_disabled + reload, live
-//   • tool:<name> toggle      → set_tool_enabled + catalog invalidation, live
-//   • Save                    → validate → add_server / update_server →
-//                               reload → ascend with a toast
-//   • Approve                 → approve_server (trust hash) → reload
-//   • Remove                  → two-step arm (same contract as the list's `d`)
+// 一个面板，两种模式（参见pn::PluginEdit):明细（服务器
+// 非-empty）和添加（服务器空，kind-first）。一切都流经共享表单层；
+// 这个状态更新函数只拥有插件-specific后果：
+//   • 种类更改（添加模式）→ 重建字段集，保留 带类型的 文本
+//   • 已启用 切换（详细信息）→ set_server_disabled + 重新加载，实时
+//   ·工具：<name> 切换 → set_tool_enabled + 目录 失效，实时
+//   • 保存 → 验证 → add_server / update_server →
+//                               重新加载→举杯上升
+//   • 批准 → approve_server (信任哈希) → 重新加载
+//   • 移除 → 两个-step 臂（与列表中的`d` 相同的合同）
 //
-// The enabled/tool toggles apply IMMEDIATELY (they're reversible and the
-// list behaves that way today); Save owns only the identity/transport
-// fields, so a user who flips a toggle and never saves still gets what the
-// pane showed them. The form's `dirty` flag tracks only save-owned rows.
+// enabled/tool 切换适用于IMMEDIATELY（它们是可逆的并且
+// 该列表今天的行为方式如此）； 保存 仅拥有 identity/transport 字段，
+// 因此翻转 切换 而从未翻转 保存 的用户仍然可以获得 面板 向他们显示的内容。
+// 该表单的 `dirty` 标志 仅跟踪 保存-owned 行。
 
 #include "agentty/runtime/app/update/internal.hpp"
 #include "agentty/runtime/app/update.hpp"
@@ -37,7 +37,7 @@
 namespace pn = agentty::ui::panel;
 namespace pf = agentty::plugin_form;
 namespace fs = std::filesystem;
-namespace cmdf = agentty::app::cmd;   // cmd_factory (locals named `cmd` shadow)
+namespace cmdf = agentty::app::cmd;   // cmd_factory（当地人名为`cmd`的影子）
 
 namespace agentty::app::detail {
 
@@ -47,16 +47,16 @@ namespace {
 
 using pf::kNoteRemoveArmed;
 
-// ── snapshot → form inputs ────────────────────────────────────────────
+// ── 快照 − 格式输入 ────────────────────────────────────────────
 
 [[nodiscard]] std::string kind_of(const mcp::ServerState& s) {
     if (s.passthrough)     return pf::kKindPassthrough;
-    if (!s.url.empty())    return pf::kKindHttp;   // sse renders as http; type
-    return pf::kKindStdio;                         // is preserved on save
+    if (!s.url.empty())    return pf::kKindHttp;   // SSE 渲染为http；类型
+    return pf::kKindStdio;                         // 保存于保存
 }
 
-// Build detail-mode inputs for one server out of the Model's snapshot.
-// Returns false when the server vanished (removed underneath the pane).
+// 为 Model 的 快照 中的一台服务器构建细节-mode输入。
+// 当服务器消失(在面板下面移除)时返回假。
 [[nodiscard]] bool inputs_for(const Model& m, const std::string& server,
                               pf::PluginFormInputs& in) {
     for (const auto& s : m.ui.plugins.servers) {
@@ -81,9 +81,9 @@ using pf::kNoteRemoveArmed;
     return false;
 }
 
-// ── form → values ───────────────────────────────────────────
-// Field reads go through the form layer's SSOT accessors (form::text_of /
-// toggle_of / choice_of) — no local variant-spelunking here.
+// ── 表单 − 数值 ───────────────────────────────────────────
+// 字段读取通过表单层的SSOT访问器(form::text_of/
+// toggle_of/choice_of)——这里没有本地变体-spelunking。
 using form::text_of;
 using form::toggle_of;
 using form::choice_of;
@@ -109,16 +109,16 @@ using form::choice_of;
     return true;
 }
 
-// Pull save-owned values out of the live form into a ServerSpec, validating
-// as we go. On failure, stamps the offending row's `error` and returns
-// false — the form renders the message inline, exactly where the fix goes.
+// 将 保存-owned 值从实时表单中拉出到 ServerSpec 中，
+// 同时进行验证。失败时，标记有问题的行的 `error` 并
+// 返回 false — 形式 渲染 是内联消息，正是修复所在的位置。
 [[nodiscard]] bool spec_from_form(form::Form& f, const std::string& kind,
                                   std::string name, tools::plugin::ServerSpec& spec) {
     auto fail = [&](const char* id, std::string msg) {
         if (auto* fld = f.find(id)) fld->error = std::move(msg);
         return false;
     };
-    // Clear stale errors — a re-save must not show last attempt's ghosts.
+    // 清除过期错误——re-save不得显示上次尝试的重影。
     for (auto& fld : f.fields) fld.error.clear();
 
     if (name.empty()) name = text_of(f, pf::kName);
@@ -139,12 +139,12 @@ using form::choice_of;
             return fail(pf::kUrl, "must start with http:// or https://");
         spec.type = "passthrough";
         spec.passthrough = split_list(text_of(f, pf::kTools));
-        // Detail mode has no kTools row (tools are toggle rows); keep the
-        // config's existing list by leaving spec.passthrough empty there —
-        // update_server preserves an absent field.
+        // 详细模式没有kTools行（工具为切换行）；
+        // 通过将 spec.passthrough 保留为空来保留配置的现有列表 -
+        // update_server 保留缺失的字段。
         if (f.find(pf::kTools) && spec.passthrough.empty())
             return fail(pf::kTools, "at least one tool name");
-    } else {   // http / sse
+    } else {   // http/SSE
         spec.url = text_of(f, pf::kUrl);
         if (spec.url.rfind("http://", 0) != 0
             && spec.url.rfind("https://", 0) != 0)
@@ -154,7 +154,7 @@ using form::choice_of;
     return true;
 }
 
-// Rebuild the ADD form for a new kind, carrying over what the user typed.
+// 将ADD表格重建为新类型，继承用户带类型的。
 void rebuild_add_form(pn::PluginEdit& o, const std::string& kind) {
     pf::PluginFormInputs in;
     in.add_mode = true;
@@ -179,7 +179,7 @@ void rebuild_add_form(pn::PluginEdit& o, const std::string& kind) {
     return tools::plugin::config_path(false, m.env.user_root);
 }
 
-} // namespace
+} // 命名空间结束。
 
 Cmd plugin_edit_update(Model& m, msg::PluginEditMsg pm) {
     return std::visit(overload{
@@ -198,13 +198,13 @@ Cmd plugin_edit_update(Model& m, msg::PluginEditMsg pm) {
         },
 
         [&](ClosePluginEdit) -> Cmd {
-            ascend(m);   // Esc: back to the pane that opened this, or close
+            ascend(m);   // Esc:回到打开这个的面板，或者关闭
             return Cmd::none();
         },
 
         [&](PluginEditPaste& e) -> Cmd {
             auto* o = m.ui.panel.get<pn::PluginEdit>();
-            if (o) (void)form::paste_into_focused(o->form, e.text);   // starts the edit like typing
+            if (o) (void)form::paste_into_focused(o->form, e.text);   // 像打字一样开始编辑
             return Cmd::none();
         },
 
@@ -220,9 +220,9 @@ Cmd plugin_edit_update(Model& m, msg::PluginEditMsg pm) {
             if (applied.close)
                 return plugin_edit_update(m, msg::PluginEditMsg{ClosePluginEdit{}});
 
-            // Moving off an armed Remove row disarms it — same contract as
-            // the settings list's `d` (any navigation cancels a pending
-            // destructive step; only Enter-again on the SAME row fires).
+            // 离开已武装的移除行会解除其武装——与设置列表的`d`
+            // 相同的合同（任何导航都会取消待处理破坏性步骤；
+            // 仅SAME行上的Enter-again触发）。
             if (o->form.note == kNoteRemoveArmed) {
                 const auto* now_row = o->form.focused();
                 if (!now_row || now_row->id != pf::kRemove) {
@@ -231,16 +231,16 @@ Cmd plugin_edit_update(Model& m, msg::PluginEditMsg pm) {
                 }
             }
 
-            // ── kind change (add mode): rebuild the field set ─────────
+            // ── 类型变化( 添加模式): 重建字段集 ─────────
             if (applied.changed && row_id == pf::kKind && o->server.empty()) {
                 const std::string kind = choice_of(o->form, pf::kKind);
                 if (kind != o->built_kind) rebuild_add_form(*o, kind);
                 return Cmd::none();
             }
 
-            // ── live toggles (detail mode) ────────────────────────────
-            // Each write is an effect (cmd::edit_plugin). Its outcome comes
-            // back as PluginEdited and is handled in plugin_edit_result().
+            // ── 生活切换( 详细模式) ────────────────────────────
+            // 每次写入都是副作用 (cmd::edit_plugin)。其结果作为
+            // PluginEdited 返回并在 plugin_edit_result() 中处理。
             if (applied.changed && !o->server.empty()) {
                 const fs::path path = config_target(*o, m);
                 if (row_id == pf::kEnabled) {
@@ -265,23 +265,23 @@ Cmd plugin_edit_update(Model& m, msg::PluginEditMsg pm) {
                         .project = o->project,
                     });
                 }
-                // Any other change (url text etc.) is save-owned; fall out.
+                // 任何其他改变（url文本等）是保存-owned；掉出来。
             }
 
-            // Leaving an edited field IS the save (Applied::left_field) —
-            // there is no ^S. Detail mode only: an add form is still under
-            // construction, so committing a name with no URL yet would
-            // just stamp errors on rows the user hasn't reached; its
-            // explicit "Add plugin" action row does the write. Field-exit
-            // commits keep the pane OPEN (leaving a field is not leaving
-            // the form); the action row closes.
+            // 留下编辑字段IS和保存 (Applied::left_field)
+            // —没有^S。仅详细模式：添加表单仍在构建中，
+            // 因此提交不带 URL 的名称只会在用户尚未
+            // 到达的行上标记错误；其显式 "Add plugin"
+            // 操作行执行写入操作。 Field-exit
+            // 提交保留 面板 OPEN（离开字段并不离开表单）；
+            // 操作行关闭。
             const bool exit_commit = applied.left_field && !o->server.empty();
             const bool want_save = exit_commit
                 || (applied.fired && row_id == pf::kSave);
 
             if (!applied.fired && !want_save) return Cmd::none();
 
-            // ── action rows ───────────────────────────────────────────
+            // ── 动作行 ───────────────────────────────────────────
             if (row_id == pf::kApprove && !o->server.empty()) {
                 return cmdf::edit_plugin(config_target(*o, m), PluginEdited{
                     .kind   = PluginEdited::Kind::Approve,
@@ -292,7 +292,7 @@ Cmd plugin_edit_update(Model& m, msg::PluginEditMsg pm) {
             }
 
             if (row_id == pf::kRemove && !o->server.empty() && !want_save) {
-                // Two-step: first Enter arms (note explains), second fires.
+                // Two-step:第一Enter武器(注释解释)，第二次开火。
                 if (o->form.note != kNoteRemoveArmed) {
                     o->form.note = kNoteRemoveArmed;
                     o->form.note_replaces_grammar = true;
@@ -311,10 +311,10 @@ Cmd plugin_edit_update(Model& m, msg::PluginEditMsg pm) {
                     ? choice_of(o->form, pf::kKind) : o->built_kind;
                 tools::plugin::ServerSpec spec;
                 if (!spec_from_form(o->form, kind, o->server, spec))
-                    return Cmd::none();   // inline errors set
+                    return Cmd::none();   // 内联错误设置
                 const bool add = o->server.empty();
-                // `server` names the entry the reply is about: the new name
-                // for an add, the existing one for an update.
+                // `server`对回复所涉及的条目进行命名：
+                // 用于添加的新名称，用于更新的现有名称。
                 PluginEdited req{
                     .kind        = add ? PluginEdited::Kind::Add
                                        : PluginEdited::Kind::Update,
@@ -332,22 +332,22 @@ Cmd plugin_edit_update(Model& m, msg::PluginEditMsg pm) {
     }, pm);
 }
 
-// The outcome of a write the edit pane requested (cmd::edit_plugin), routed
-// here by settings_list's PluginEdited arm. Everything that used to follow
-// each write inline: reload the plugin model, toast, close or keep the pane,
-// and the two inline field errors an add/update can produce.
+// 写入所请求的编辑面板 (cmd::edit_plugin)的结果，
+// 由settings_list的PluginEdited臂路由至此处。
+// 用于遵循每个内联写入的所有内容：重新加载插件模型、吐司、关闭或保留 面板，
+// 以及 add/update 可能产生的两个内联字段错误。
 //
-// THE PANE MAY HAVE MOVED ON. The reply lands one message after the request,
-// and by then the user may have closed the pane or opened it on another
-// server. So anything that touches the pane first checks it is still open on
-// the server this reply is about; a stale reply still reloads the plugin
-// model and toasts (the write DID happen), it just doesn't edit a form that
-// is no longer the one it came from.
+// 该 PANE MAY HAVE MOVED ON。
+// 请求后回复会收到一条消息，此时用户可能已关闭 面板 或在
+// 另一台服务器上打开它。因此，任何触及 面板 的内容都会首先
+// 检查它在本回复所涉及的服务器上是否仍然打开； 过期 回复
+// 仍然会重新加载插件模型并进行祝酒（写入 DID 发生），
+// 它只是不会编辑不再是其来源的表单。
 Cmd plugin_edit_result(Model& m, PluginEdited e) {
     using K = PluginEdited::Kind;
     auto* o = m.ui.panel.get<pn::PluginEdit>();
-    // Same pane, same entry. For an add the pane was open on server "" and
-    // the reply names the new server, so an add matches an open add-form.
+    // 相同的面板，相同的条目。对于添加，面板 在服务器 "" 上打开，
+    // 并且回复命名新服务器，因此添加与打开的 add-form 匹配。
     const bool same_pane = o && o->project == e.project
         && (o->server == e.server || (e.kind == K::Add && o->server.empty()));
 
@@ -382,44 +382,44 @@ Cmd plugin_edit_result(Model& m, PluginEdited e) {
 
     switch (e.kind) {
     case K::SetServerDisabled:
-        return Cmd::batch(cmdf::load_plugins_async(/*reconnect=*/true),
+        return Cmd::batch(cmdf::load_plugins_async(/*重新连接=*/true),
                           set_status_toast(m, e.flag ? "disabled" : "enabled"));
     case K::SetToolEnabled:
-        // The catalog was invalidated on the worker, beside the write.
-        return Cmd::batch(cmdf::load_plugins_async(/*reconnect=*/false),
+        // 除了写入之外，目录在工作线程上无效。
+        return Cmd::batch(cmdf::load_plugins_async(/*重新连接=*/false),
                           set_status_toast(m, (e.flag ? "enabled '" : "disabled '")
                                               + e.tool + "'"));
     case K::SetToolPinned:
-        return Cmd::batch(cmdf::load_plugins_async(/*reconnect=*/false),
+        return Cmd::batch(cmdf::load_plugins_async(/*重新连接=*/false),
                           set_status_toast(m, (e.flag ? "pinned '" : "unpinned '")
                                               + e.tool + "'"));
     case K::Approve:
         return Cmd::batch(
-            cmdf::load_plugins_async(/*reconnect=*/true),
+            cmdf::load_plugins_async(/*重新连接=*/true),
             set_status_toast(m, "approved '" + e.server + "'"),
-            // Reopen once the reload lands so the pane reflects the
-            // post-approval state (trusted → connecting). Only if the user is
-            // still looking at it — reopening a pane they closed would yank
-            // them back to it.
+            // 重新加载完成后重新打开，因此 面板 反映了
+            // -approval 后的状态（受信任 → 连接）。
+            // 只有当用户仍在查看它时 - 重新打开他们关闭的 面板 才会
+            // 将他们拉回到它。
             same_pane ? Cmd::after(std::chrono::milliseconds{50},
                                    Msg{OpenPluginEdit{e.server, e.project}})
                       : Cmd::none());
     case K::Remove:
         if (same_pane) ascend(m);
-        return Cmd::batch(cmdf::load_plugins_async(/*reconnect=*/true),
+        return Cmd::batch(cmdf::load_plugins_async(/*重新连接=*/true),
                           set_status_toast(m, "removed '" + e.server + "'"));
     case K::Add:
     case K::Update: {
-        if (same_pane) o->form.dirty = false;   // committed: footer drops "unsaved"
+        if (same_pane) o->form.dirty = false;   // 提交：页脚下降 "unsaved"
         if (e.exit_commit) {
-            // Field-exit commit: written + applied, pane stays open. The
-            // catalog reload runs so the new value is live immediately.
-            return Cmd::batch(cmdf::load_plugins_async(/*reconnect=*/true),
+            // Field-exit提交：书面+应用，面板保持开放。
+            // 目录 重新加载运行，因此新值立即生效。
+            return Cmd::batch(cmdf::load_plugins_async(/*重新连接=*/true),
                               set_status_toast(m, "saved '" + e.server + "'"));
         }
         if (same_pane) ascend(m);
         return Cmd::batch(
-            cmdf::load_plugins_async(/*reconnect=*/true),
+            cmdf::load_plugins_async(/*重新连接=*/true),
             set_status_toast(m, (e.kind == K::Add ? "added '" : "saved '")
                                 + e.server + "'"));
     }

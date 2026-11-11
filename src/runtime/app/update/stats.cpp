@@ -1,12 +1,12 @@
-// stats.cpp — the stats viewer reducer.
+// stats.cpp - 统计查看器 状态更新函数.
 //
-// Three arms, and that is the whole surface: open, step tabs, close. The
-// panel is a projection of the transcript, so there is nothing to select,
-// nothing to commit and nothing to persist — see domain/stats.hpp.
+// 三条手臂,也就是整个表面:打开、步骤标签、关闭。
+// 面板是记录的投影,因此没有选择、没有承诺和坚持的
+// 余地——见domain/stats.hpp.。
 //
-// The tally itself is NOT computed here. It is derived in the view from the
-// live transcript (cached against a stamp), which keeps the reducer free of
-// a snapshot that could go stale the moment the next turn lands.
+// 统计本身不是 此处计算。从现场记录(用印章刻印)中得出,
+// 该记录保存了“E”字。 状态更新函数 免责 快照
+// 可能去的 可能去 过期 下一转弯的那一刻 着陆
 
 #include "agentty/runtime/app/update/internal.hpp"
 #include "agentty/runtime/app/update.hpp"
@@ -27,18 +27,18 @@ using namespace agentty::msg;
 Cmd stats_update(Model& m, msg::StatsMsg sm) {
     return std::visit(maya::overload{
         [&](OpenStats) -> Cmd {
-            // descend(), not a bare open: the viewer is reachable from the
-            // command palette, so Esc must land back where the user came
-            // from rather than closing everything. The shared ascend()
-            // wrapper handles that on the way out.
+            // descend() ,而不是赤裸的开口:从命令
+            // 调色板上可以到达查看器,所以 Esc 必须返回
+            // 用户的来处,而不是关闭所有。
+            // 共享 ascend() 包装器在出门时处理。
             pn::Stats pane{};
             m.ui.panel.descend(std::move(pane));
-            // No scroll reset needed: the offset lives ON the panel, and
-            // the panel is fresh. While it lived on Model::UI it outlived
-            // every open/close, so reopening restored the offset from the
-            // last close against a different tab and a max_y describing
-            // neither — a bug that needed an explicit reset here to fix,
-            // and that ownership makes unwritable.
+            // 不需要卷轴重置: 抵消寿命 ON 和面板是新鲜的。
+            // Model::UI 都长了 open/close ,
+            // 所以重新打开后,将上次关闭时的偏移恢复到
+            // 不同的标签和标签上。 max_y 描述两
+            // 个错误——需要在此明确重置以修复的bug,
+            // 以及 所有权 使无法写作。
             return Cmd::none();
         },
 
@@ -50,69 +50,69 @@ Cmd stats_update(Model& m, msg::StatsMsg sm) {
         [&](StatsTab e) -> Cmd {
             auto* o = m.ui.panel.get<pn::Stats>();
             if (!o) return Cmd::none();
-            // Step within the VISIBLE set, so Tab never lands on a view
-            // the strip is not drawing. That needs the Facts, because
-            // availability is a question about the data — refresh() is
-            // the same amortised-O(1) call the view makes, and the
-            // projection is shared, so this costs nothing extra.
+            // 步骤 可见 设置,所以 Tab 这条带子
+            // 从未在任何视图上降落。这需要《事实》,
+            // 因为数据是否可用是一个问题。 refresh()
+            // 同一摊销 -O(1) 调用 图像显示,
+            // 投影是共享的,所以这不会增加成本。
             const auto& f = o->projection.refresh(m.d.current);
             o->tab = stats::tab_step(o->tab, e.delta, f);
-            // A new tab starts at the top. Carrying the previous tab's
-            // offset means switching from a tall tab to a short one opens
-            // it scrolled past its own content — the user sees a blank
-            // body and no reason for it.
+            // 一个新的标签从顶端开始。 背负上一个标签的
+            // 偏移意味着从一个高标签转换为一个短标签打开它
+            // 滚动过自己的内容。 用户看到一个空白的正文,
+            // 没有理由这样做。
             //
-            // max_y is deliberately NOT reset with it. That field is owned
-            // by the renderer's writeback, so the reducer has no honest
-            // value to put there — the new tab's height is not known until
-            // it is measured. It stays stale for exactly one frame, which
-            // bounds a same-batch scroll to the old tab's range instead of
-            // the new one's; the paint then clamps it. Zeroing it here to
-            // "be safe" would swallow that keystroke entirely, which is a
-            // worse trade than a transient the user cannot see.
+            // max_y 故意的 故意的,故意的,是故意的,
+            // 这是故意的 不 重置此选项。 该字段为
+            // max 所拥有 渲染器 写回,所以 状态更新函数
+            // 无法将新标签的高度。 过期 完全一个 帧 ,
+            // 它同义 -batch 滚动到旧标签的范围之内,
+            // 而不是新标签的;油漆再将其夹住。将它零到这里
+            // "be safe" 将完全吞下键盘,
+            // 这是比用户无法看到的瞬间更糟糕的交易。
             o->scroll.scroll_to_origin();
-            // The projection is per-transcript, not per-tab, so switching
-            // views re-folds nothing.
+            // 预测数为每 -transcript 单人 -tab ,
+            // 因此切换视图 -folds 没什么
             return Cmd::none();
         },
         [&](StatsScroll e) -> Cmd {
             auto* o = m.ui.panel.get<pn::Stats>();
             if (!o) return Cmd::none();
-            // Scroll the body directly. scroll_by() clamps against BOTH
-            // ends, so a delta past either settles at the edge rather than
-            // scrolling into blank rows — which is what the ±1000000 that
-            // nav sends for Home/End relies on.
+            // 滚动 正文 直接来 scroll_by (c)
+            // 打击 两者 结束,所以三角洲过去要么在边缘上安顿,
+            // 而不是卷成空白的行——这就是导航发送的±1000000
+            // 用来 Home/End 依赖。
             //
-            // Through ScrollState rather than `y += delta` by hand. The
-            // hand-rolled version guarded only the lower bound, so End
-            // stored y = 1000000 and the model carried a value its own
-            // invariant forbids until the next paint clamped it. The panel
-            // does re-clamp on render, which is why nothing looked broken
-            // — but that makes the model's correctness depend on a frame
-            // happening, and any reducer reading y before then (a
-            // same-batch StatsScroll after a StatsTab, and a fast terminal
-            // delivers several keys in ONE read) reads a value that was
-            // never legal.
+            // 通关 ScrollState 而不是说 `y += delta` 手,
+            // 手,手 手,双手,手,双手 -rolled 版本只守
+            // 护下方的束缚,所以 End y = 1000 000,
+            // 模型带有自己的值 不变量 禁止直到下一张油漆夹住它。
+            // -clamp 打开 渲染 ,这就是为什么看起来没有破损
+            // —— 但这使得模型的正确性依赖于一个 帧 发生,
+            // 任何 状态更新函数 在此之前读作y( 相同)
+            // -batch StatsScroll 之后的 StatsTab ,
+            // 还有斋戒 终端 提供数个密钥 一个 读起来,
+            // 它永远是合法的。
             //
-            // max_y is still last frame's here: it is written by the
-            // renderer's writeback, so on the very first scroll after a
-            // tab switch it describes the PREVIOUS tab. Clamping against a
-            // stale bound is bounded and self-correcting; not clamping at
-            // all is not. StatsTab resets y to 0 for the same reason.
+            // max_y仍然是最后的帧在这里:它是由渲染器的回
+            // 写书写的,所以在标签切换后的第一个卷轴上它描述了
+            // PREVIOUS标签. Clamping 逆着过期绑定
+            // 和selm-correcting;完全不夹击,
+            // 因为同样的原因,StatsTab 重新ets y 至 0.
             o->scroll.scroll_by(0, e.delta);
             return Cmd::none();
         },
 
-        // ── Skills viewer ──────────────────────────────────────────
-        // Three arms, no fourth: there is no approve message. See
-        // msg.hpp — an approval reachable from a list you are already
-        // scrolling is the habituated yes, and the decision belongs where
-        // the findings and the body can be shown.
+        // ── 技能查看器 ──────────────────────────────────────────
+        // 三臂,没有第四臂:没有批准的信息。
+        // msg.hpp ——您已经滚动的列表中可以
+        // 得到的核准是习惯的"是",决定属于调查结果和
+        // 结果所在的 正文。可以显示。
         [&](OpenSkills) -> Cmd {
-            // The scan happens HERE, once, not in the view. The view is a
-            // pure formatter; screening every skill's body on every frame
-            // to produce a value that cannot change while the panel is
-            // open would be paying per-frame for a snapshot.
+            // 扫描结果 此处 一次,不是在视图中,
+            // 视图是纯的预兆;筛选每个技能 正文 时值
+            // 帧 生成一个无法在面板打开时改变的值的值,
+            // 将按 -frame 代表 快照.
             pn::Skills pane{};
             static_cast<skills_panel::Open&>(pane) = skills_panel::scan(m.ui.library);
             m.ui.panel.descend(std::move(pane));
@@ -127,10 +127,10 @@ Cmd stats_update(Model& m, msg::StatsMsg sm) {
         [&](SkillsMove e) -> Cmd {
             auto* o = m.ui.panel.get<pn::Skills>();
             if (!o || o->rows.empty()) return Cmd::none();
-            // Wraps like every list (single steps); pages stop at the ends.
+            // 与每个列表(单步)一样环绕;页止于结尾。
             o->index = ui::step(o->index, e.delta, static_cast<int>(o->rows.size()));
-            // A new selection means a new detail footer; start it at the
-            // top for the same reason StatsTab does.
+            // 新选择意味着一个新的细节脚步;
+            // 出于StatsTab同样的原因从顶部开始.
             o->scroll.scroll_to_origin();
             return Cmd::none();
         },

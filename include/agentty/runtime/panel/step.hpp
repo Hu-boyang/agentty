@@ -1,10 +1,10 @@
 #pragma once
-// agentty::ui::step — the one rule for moving a list cursor.
+// agentty::ui::step——移动列表光标的唯一规则。
 //
-// A single step (↑/↓, j/k) wraps: ↓ on the last row lands on the first and
-// ↑ on the first lands on the last. A bigger step (PgUp/PgDn sent as ±N)
-// stops at the ends, because jumping a page past the bottom back to the top
-// loses your place. Every list uses this so they all feel the same.
+// 单步(↑/↓，j/k)环绕：最后一行上的↓落在第一行上，
+// 并且第一行上的↑落在最后一行上。更大的步长（PgUp/PgDn
+// 以 ±N 形式发送）会在末尾停止，因为从底部跳到顶部会丢失您的位置。
+// 每个列表都使用这个，所以它们都有相同的感觉。
 
 #include <algorithm>
 
@@ -16,14 +16,14 @@ namespace agentty::ui {
     return std::clamp(index + delta, 0, n - 1);
 }
 
-// Same, skipping rows `skip(i)` says can't hold the cursor (section headers,
-// info lines). Stays put if no other row qualifies.
+// 同样，跳过行`skip(i)`表示无法保持光标（头文件部分，
+// 信息行）。如果没有其他行符合条件，则保持不变。
 template <class Skip>
 [[nodiscard]] constexpr int step_over(int index, int delta, int n, Skip skip) noexcept {
     if (n <= 0) return 0;
     if (delta != 1 && delta != -1) {
         int i = std::clamp(index + delta, 0, n - 1);
-        const int back = delta > 0 ? -1 : 1;   // land on a real row near the edge
+        const int back = delta > 0 ? -1 : 1;   // 落在靠近边缘的真实行上
         for (int g = 0; g < n && skip(i); ++g) {
             const int next = i + back;
             if (next < 0 || next >= n) break;

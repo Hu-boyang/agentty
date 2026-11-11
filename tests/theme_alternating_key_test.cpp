@@ -1,26 +1,26 @@
-// theme_alternating_key_test — the gesture that actually reproduces it.
+// theme_alternating_key_test ——实际复制的姿态.
 //
-// THE REPORT. Pressing Down then Up (or Up then Down) does not update the
-// screen. Pressing the SAME direction twice does. Enter then commits a
-// theme that was never shown live.
+// 该 REPORT. 按下然后上(或上然后下)不更新屏幕,
+// 按SAME方向两次。Enter然后承诺一个
+// 从未显示过直播的主题。
 //
-// WHY EVERY EXISTING PROBE MISSED IT. theme_wire_cost_probe, theme_lag_repro
-// and friends all render through `maya::render_to_string(el, w)`, which
-// builds a FRESH StylePool and a fresh component cache per call. That throws
-// away the one thing the bug lives in: state carried BETWEEN frames. A
-// cache that is empty every frame can never serve a stale entry, so those
-// probes were structurally incapable of failing on this.
+// 原因 每个 EXISTING PROBE MISSED IT.
+// theme_wire_cost_probe, theme_lag_repro 和
+// 所有的朋友们 渲染 结束 `maya::render_to_string(el, w)` ,
+// 它构建了 FRESH StylePool 和新组件 缓存 百分比 调用 丢掉
+// 虫子所生活的东西: 状态 BETWEEN 帧. A 缓存 空的 每一个 帧 永远
+// 不能为一个 过期 输入,所以这些探测器 结构上无法 失败在这个。
 //
-// This test keeps ONE renderer across frames — the way the real app does —
-// and drives the exact alternating gesture from the report.
+// 这个测试保持 一个 渲染器 横跨 帧 ——真实
+// 应用的方式——并驱动报告准确的交替姿态.
 //
-// WHAT ALTERNATING VS REPEATING TELLS US. It is the signature of a memo
-// keyed on something that does not include the theme. Down→Up returns the
-// cursor to a row that was already built and cached under the PREVIOUS
-// palette, so the cache answers and the new colours never reach the wire.
-// Down→Down lands on a row with no entry yet, so it is built fresh under the
-// new palette and appears to work. Same keystroke count, opposite outcome —
-// which is exactly what a content-keyed cache with no theme in the key does.
+// 内容 ALTERNATING VS REPEATING
+// TELLS US。这是一个签名。 记忆缓存 键入到未包含主题的上下。
+// 下 \ Up 返回光标到已建并缓存的行 PREVIOUS
+// 调色板,所以 缓存 答案和新颜色永远无法到达 传输.
+// Down – 下方的地盘上还没有条目,所以它被新调色板下新造出来,
+// 看起来起作用了。同样的键盘计数,相反的结果——这正是一个
+// 内容-keyedXX 缓存,没有键盘中的主题所做的事情。
 
 #include <algorithm>
 #include <cstdio>
@@ -55,24 +55,24 @@ void check(bool ok, const char* what) {
 constexpr int kW = 100;
 constexpr int kH = 40;
 
-// A renderer whose pool and component cache PERSIST across frames, which is
-// what `maya::run` does and what render_to_string does not.
+// A 渲染器 其 人 名 池 和构成部分 缓存 PERSIST 横跨 帧 ,这就是什么 `maya::run`
+// 做和什么 做,什么 做 render_to_string 才不会呢
 class Screen {
 public:
     Screen() : canvas_(kW, kH, &pool_) {}
 
-    // Render one frame and return the cells as text+colour, so a comparison
-    // sees a palette change even when the glyphs are identical.
+    // 渲染 one 帧 并返回存储单元作为文本+颜色,
+    // 因此比较后即使格子完全相同也会看到调色板的变化.
     std::string frame(const Model& m) {
         maya::RenderContext ctx{kW, kH, maya::render_generation(), true};
         maya::RenderContextGuard g(ctx);
 
-        // view() publishes the palette (ui_prefs::publish_theme) as a side
-        // effect of building, exactly as the real host does.
+        // view() 出版调色板( 3) ui_prefs::publish_theme
+        // )作为a. 副作用 建筑, 与真正的主人一样。
         auto el = ui::view(m);
 
-        // The real loop's order: the pool learns of a theme swap, then the
-        // tree is rendered into the same canvas as last frame.
+        // 真正的循环顺序: 池 学习主题交换,
+        // 然后 源码树 被制成与上次相同的画布 帧.
         const bool swapped = pool_.retheme();
         canvas_.clear();
         std::vector<maya::layout::LayoutNode> nodes;
@@ -82,8 +82,8 @@ public:
         last_epoch_   = maya::theme::live_epoch();
         last_live_    = &maya::theme::live();
 
-        // Serialize cell styles, not just glyphs: the whole question is
-        // whether the COLOURS moved.
+        // 序列化 存储单元风格,而不仅仅是格言:整个问题在于
+        // COLOURS是否移动.
         std::string out;
         out.reserve(static_cast<std::size_t>(kW) * kH * 4);
         for (int y = 0; y < canvas_.height(); ++y) {
@@ -122,8 +122,8 @@ Model seeded() {
     });
 
     Model m;
-    // A truecolor terminal, stated in the Model: themes only paint at
-    // truecolor/256, and the view reads the tier from m.env.
+    // 真彩色 终端 ,在 Model : 主题仅画于
+    // truecolor/256 ,视图读取了 m.env.
     m.env.terminal.tier = maya::theme::ColorTier::TrueColor;
     for (int i = 0; i < 40; ++i) {
         Message msg;
@@ -136,19 +136,19 @@ Model seeded() {
     return m;
 }
 
-} // namespace
+} // 命名空间结束。
 
 int main() {
-    // Force the tier BEFORE anything resolves a theme.
+    // 强制执行 之前 级 任何决定主题的事物。
     //
-    // Without this the test is vacuous and looks like a bug: under ctest
-    // stdout is a pipe, detect_tier answers Mono, and ui_prefs::resolve's
-    // `can_paint` gate collapses EVERY named scheme to native. Each frame
-    // then legitimately renders identically, and the test reports a screen
-    // that never changes -- while the real terminal, which is truecolor, is
-    // fine. MAYA_COLOR is checked above every other signal (detect_tier
-    // step 0), so this makes the harness ask the question it means to ask:
-    // given a palette the terminal CAN paint, does a keystroke repaint?
+    // 没有这个测试是空虚的,看起来像个虫子: 在cest stdout
+    // 下是一根管子, detect_tier 回答摩诺,
+    // 和 ui_prefs::resolve's `can_paint`
+    // 闸门坍塌 每个 命名方案为本地。 帧 那样的话,
+    // 就合法地 渲染 测试报告一个屏幕永远不会改变 - 而真实的 终端
+    // 色是真色的,没事的 MAYA_COLOR 检查高于其他信号的(
+    // detect_tier 步骤0),因此这让绳子问它的意思是问:
+    // 给一个调色板 终端 CAN 颜料, 键盘键 重绘 ?
 #if defined(_WIN32)
     _putenv_s("MAYA_COLOR", "truecolor");
 #else
@@ -158,7 +158,7 @@ int main() {
     std::printf("=== theme_alternating_key_test ===\n\n");
     std::printf("one renderer across frames (pool + component cache persist)\n\n");
 
-    // ── 1. The reported gesture: alternating directions ─────────────────
+    // ── 1. 报告的姿态:交替方向 ─────────────────
     {
         Screen scr;
         Model m = seeded();
@@ -174,10 +174,10 @@ int main() {
             const int dir = (i % 2 == 0) ? +1 : -1;
             m = app::update(std::move(m), Msg{AppearanceThemeMove{dir}}).first;
 
-            // THE GATE, which every other probe skips by calling view()
-            // directly. maya renders only when this moves; a hash that
-            // repeats means the frame is dropped no matter how different
-            // view() would have been.
+            // 该 GATE ,其他探测器通过呼叫跳过 view()
+            // 直接来 maya 渲染 仅在此移动时;
+            // 重复的散列表示 帧 被丢弃,无论多么不同
+            // view() 本来是的。
             const std::uint64_t h = app::AgenttyApp::visual_hash(m);
             const bool hash_moved = (h != prev_hash);
             prev_hash = h;
@@ -198,9 +198,9 @@ int main() {
         std::printf("\n");
     }
 
-    // ── 2. The control: the same direction twice ────────────────────────
-    // The report says this one works. If it passes while the above fails,
-    // the difference is the cache, not the reducer.
+    // ── 2. 控制:两次相同的方向 ────────────────────────
+    // 报告说这个能行 如果它能通过而上面的失败 区别在于
+    // 缓存 ,而不是 状态更新函数.
     {
         Screen scr;
         Model m = seeded();
@@ -224,10 +224,10 @@ int main() {
         std::printf("\n");
     }
 
-    // ── 3. Returning to a row seen under the OLD palette ────────────────
-    // The minimal shape of the bug: visit row N, move away, change the
-    // palette by moving, come back. If a memo keyed without the theme is
-    // serving row N, the frame that returns to it paints the old colours.
+    // ── 3. 返回OLD调色板下看到的一排 ────────────────
+    // 错误的最小形状: 访问 N 列, 移动,
+    // 通过移动更改调色板, 返回。 如果有 记忆缓存 键入时
+    // 没有主题的键入是服务于 N 行, 即 帧 画着旧的颜色
     {
         Screen scr;
         Model m = seeded();

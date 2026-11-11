@@ -7,51 +7,51 @@
 
 namespace agentty::ui {
 
-// Build the assistant turn's "Actions" panel config. Aggregates state
-// (total/done/elapsed/category counts), picks per-category colors,
-// computes title/footer, walks tool_calls into events.
+// 建立助手轮的"Actions"面板配置。聚合状态（total/done/elapsed/category
+// 计数），选择每个 -category 颜色，计算 title/footer，
+// 将 tool_calls 放入 事件。
 //
-// Takes the tool_calls by borrowed span so the tool-batch merge in
-// turn_config / freeze_range / build_live_tail can synthesise a panel
-// from multiple disjoint Messages' tool_calls without deep-copying a
-// Message every frame.
+// 通过借用的跨度获取tool_calls，
+// 因此turn_config/freeze_range/build_live_tail中的工具-batch合并可以从多个不相交消息的tool_calls合成面板，
+// 而无需每帧一个消息深
+// -copying。
 [[nodiscard]] maya::AgentTimeline::Config agent_timeline_config(
     std::span<const ToolUse> tool_calls,
     int spinner_frame,
     maya::Color rail_color);
 
-// Build the panel as a ready-to-emit Element. For an ALL-TERMINAL batch
-// (every tool Done/Failed/Rejected) the batch bytes are immutable, so the
-// fully-built Element is memoized under a content-address of the batch
-// (each tool's id + status + output size + render key, plus the grep-hits
-// signature + rail color). On hit it returns a copy of the cached Element
-// — skipping the entire agent_timeline_config rebuild (grep scan, detail
-// strings, footer, per-event CacheIdBuilder) AND the maya layout walk.
+// 将面板构建为ready-to-emit元素。对于 全部-TERMINAL 批次
+// （每个工具 Done/Failed/Rejected），批次 字节 不是可变，
+// 因此 full-built 元素被存储在该批次的 content-address
+// 下（每个工具的 id + 状态 + 输出大小 + 渲染 键，加上 grep
+// -hits 签名 + 轨道颜色）。命中时，它返回缓存元素的副本 - 跳过整个
+// agent_timeline_config 重建（grep 扫描、详细字符串、
+// 页脚、per-event CacheIdBuilder）和 maya 布局行走。
 //
-// This is the fix for the long-in-flight-turn lag: an edit/write-heavy
-// autopilot turn accumulates MANY already-settled tool panels in the live
-// tail; the run carries no hash_id while the tail still streams, so the
-// host previously rebuilt EVERY settled panel every frame — O(Σ batch
-// sizes) per frame. A non-terminal batch (a tool still running/pending,
-// or an animated spinner) is built fresh every frame as before.
+// 这是对长-in-flight-turn滞后的修复：
+// edit/write-heavy自动驾驶仪转弯在实时末尾中累积了MANY已经-settled工具面板；
+// 该运行没有 hash_id，而 末尾 仍然是 数据流，因此主机之前每
+// 帧 重建 每个 固定面板 — 每 帧 O(Σ 批量大小)。像以前一样，
+// 每个 帧 都会重新构建一个非 -terminal 批次（仍然是
+// running/pending 的工具，或动画 加载动画）。
 //
-// Emitted bytes are byte-identical to a fresh build, so the freeze handoff
-// (freeze_range stamps the same assistant_run_hash_id) stays a pure maya
-// cache hit — no scrollback-corruption surface.
+// 发射的字节是新构建的字节-identical，因此冻结切换(freeze_range
+// 标记相同的assistant_run_hash_id)保持纯粹的maya 缓
+// 存命中——没有回滚缓冲区-corruption表面。
 [[nodiscard]] maya::Element agent_timeline_element(
     std::span<const ToolUse> tool_calls,
     int spinner_frame,
     maya::Color rail_color);
 
-// Memoized variant. Same result as agent_timeline_element, but keyed
-// FIRST on the sub-turn's stable MessageId + render_key (a single
-// uint64 compare) via a dedicated per-message panel memo. On a settled
-// sub-turn this skips the O(tools) content-key string build that even a
-// g_panel_cache hit would otherwise pay, so a long in-flight run whose
-// settled panels are re-emitted every frame stays flat with turn depth.
-// `msg_id` is Message::id.value; `render_key` is
-// Message::compute_render_key(). Falls through to the content-addressed
-// path (g_panel_cache) on a memo miss.
+// 记忆变体。结果与 agent_timeline_element 相同，
+// 但通过专用的 per-message 面板备忘录在 sub-turn 的稳定
+// MessageId + render_key（单个 uint64 比较）上键入 首次。
+// 在固定的 sub-turn 上，这会跳过 O(tools) content-key
+// 字符串构建，即使是 g_panel_cache 命中也会付出代价，
+// 因此在 -flight 的长运行中，其固定面板是 re-emitted，每帧都保持平坦的转弯深度。
+// `msg_id`为Message::id.值； `render_key`
+// 是 Message::compute_render_key()。在 记忆缓存 未命中时落入内容
+// -addressed 路径 (g_panel_cache)。
 [[nodiscard]] maya::Element agent_timeline_element_memoized(
     std::string_view msg_id,
     std::uint64_t render_key,

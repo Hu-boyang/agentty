@@ -1,38 +1,38 @@
-// dup_tool_call_id_test — duplicate tool-call id ingest regression.
+// dup_tool_call_id_test ——重复工具. -call id摄入回归。
 //
-// Root cause: several OpenAI-compatible gateways mint a DETERMINISTIC id per
-// (tool, index) — literally "bash:0" for every bash call on every turn —
-// instead of a unique ToolCallId. One agent turn holds several assistant
-// messages in the live tail (kick_pending_tools appends a fresh placeholder
-// per sub-turn), so turn 2's "bash:0" lands beside turn 1's, already Done.
-// The old `with_live_tool` matched the FIRST id in the whole live tail: turn
-// 2's result was stamped onto turn 1's dead card, the real call stayed
-// Pending, and its card hung until the 330 s step timeout — on every response
-// with a tool call.
+// 根因: 数 OpenAI-compatible 网关薄荷a DETERMINISTIC
+// id /(工具,指数)——字面意思 "bash:0" 每一次的打击 调用
+// 而不是一个独特的 ToolCallId。一个代理转弯在直播中保存着几个
+// 助理消息 末尾 (kick_pending_tools 附加每个子的新占位
+// 符 -turn ),所以转2's "bash:0" 已经完成,在1号线旁边
+// 旧的 `with_live_tool` 匹配的 首次 在整个
+// 现场中 末尾 :转2的成绩被印在转1的死卡上,
+// 真实的 调用 留下来 待处理 ,它的卡挂到330步 超时 ——每一次用
+// 工具回应 调用.
 //
-// The fix (update/internal.hpp): `with_live_tool` prefers the first
-// NON-TERMINAL call carrying the id, falling back to a terminal one only when
-// no live call has it. Result/progress/timeout/permission routing all go
-// through `with_live_tool`, so this alone lands each event on the correct
-// (live) card even when an earlier sub-turn left an identically-id'd Done
-// call in the tail.
+// 固定( 4) update/internal.hpp): `with_live_tool`
+// 喜欢第一个 NON-TERMINAL 调用 带着身份证明,掉回 终端 只有一个,
+// 当没有生命 调用 已经有了。 Result/progress/timeout/permission
+// 线路都通了 `with_live_tool` ,所以单靠它就着陆 事件
+// 正确(活)卡,即使更早的子 -turn 留下一个相同的 -id 已经完成
+// 调用 输入 末尾.
 //
-// Streaming assembly (stream.cpp `find_streaming_tool`) needs no special
-// casing: it is scoped to messages.back() — the CURRENT sub-turn's assistant
-// message — so an earlier sub-turn's identically-id'd call is simply out of
-// range and cannot shadow the one being streamed.
+// 流式传输 组装( 组装) stream.cpp `find_streaming_tool`
+// 不需要特殊外壳:其范围为 messages.back () —— 国家 当前
+// 子目录 -turn 助理消息——所以更早的子程序 -turn 同样的 -id'd
+// 调用 完全超出范围,不能遮蔽被流的那个人。
 //
-// Asserts:
-//   1. with_live_tool targeted at a duplicated id picks the first
-//      NON-TERMINAL carrier — not the first (already-Done) match.
-//   2. Full cross-sub-turn flow: turn 1's call is Done; turn 2 replays the
-//      same wire id; its streamed args + observed result land on turn 2's
-//      live call, and turn 1's Done card keeps its own output.
-//   3. find_streaming_tool is isolated to the current sub-turn: a delta for
-//      the replayed id never leaks onto the previous sub-turn's call.
-//   4. A hanging (never-terminated) first call in the SAME message does not
-//      swallow a genuinely distinct later call's result.
-//   5. Unique ids route to their own call, untouched.
+// 请求 :
+//   1. with_live_tool 瞄准重复的ID选择第一个
+//      NON-TERMINAL 承运人——不是第一个(已经) -Done 相匹配( 匹配 ).
+//   2. 完全交叉 -sub-turn 流量: 转1's 调用 已写成; 转2 重放
+//      相同 传输 id;其流转的 ⁇ +观测到的结果值在2号线的直播时间 调用 ,
+//      然后转动 1 的 Done 卡片保持自己的输出。
+//   3. find_streaming_tool 被隔离到当前子 -turn : 三角洲用于
+//      重播的ID从不泄露到之前的 -turn 的 调用 上.
+//   4. 绞刑(从未) -terminated ) 首个 调用 输入 相同 信件不为
+//      以后再吞下一个真正不同的 调用 结果是
+//   5. 通往自己调用的独特编号路线,未受影响。
 
 #include <string>
 #include <utility>
@@ -84,13 +84,13 @@ static Step end(Model m, const std::string& id) {
 static Step observed(Model m, const std::string& id, std::string out) {
     return ::agentty::app::detail::step(::agentty::app::detail::stream_update, std::move(m),
                          msg::StreamMsg{StreamObservedToolResult{
-                             ToolCallId{id}, /*failed=*/false,
+                             ToolCallId{id}, /*失败=*/false,
                              std::move(out)}});
 }
 
-// sub_turn_start mirrors kick_pending_tools: append the next sub-turn's
-// assistant placeholder without freezing the prior one, so both live in the
-// tail at once — the precondition for the duplicate-id collision.
+// sub_turn_start 镜像 kick_pending_tools
+// : 附加下一个子 -turn 助理占位符没有冻结前一个,
+// 所以都住在 末尾 重复的前提条件 -id 碰撞 撞车 撞车
 static void sub_turn_start(Model& m) {
     m.d.current.messages.push_back(asst_placeholder());
 }
@@ -108,12 +108,12 @@ static ToolUse::Done done_status(const char* out) {
     return ToolUse::Done{now, now, out};
 }
 
-// ── 1. with_live_tool prefers the first non-terminal carrier ───────────────
+// ── 1. with_live_tool 更喜欢第一个非 -terminal 承运人 ───────────────
 TEST_CASE("with live tool prefers non terminal") {
     Model m;
-    // Two live assistant messages, both carrying "bash:0": the first Done
-    // (previous sub-turn), the second Pending (current). The raw lookup must
-    // land on the Pending one.
+    // 两名助理现场留言,都带着 "bash:0" : 第一个完成(
+    // 上一个子) -turn ),第二个 待处理 (当前)原始的望望
+    // 必须降落在 待处理 一个
     m.d.current.messages.push_back(asst_placeholder());
     m.d.current.messages.back().tool_calls.push_back(
         make_call("bash:0", done_status("stale")));
@@ -130,18 +130,18 @@ TEST_CASE("with live tool prefers non terminal") {
     check(!hit_terminal, "L1: did not route to the Done card");
     check(hit_pending,   "L1: routed to the live (Pending) card");
 
-    // With the live call gone (all terminal), it may fall back to a terminal
-    // match rather than silently no-op.
+    // 与现场 调用 不见了( 所有 终端 ),它可能会倒向一个 终端
+    // 匹配而不是默默无声的不 -op.
     m.d.current.messages.back().tool_calls[0].status = done_status("fresh");
     bool any = false;
     with_live_tool(m, ToolCallId{"bash:0"}, [&](ToolUse&) { any = true; });
     check(any, "L1: falls back to a terminal match when none are live");
 }
 
-// ── 2. Cross-sub-turn: result lands on the live call, Done card untouched ──
+// ── 2. 十字记 -sub-turn :结果在现场登陆 调用 ,未调整的已写卡 ──
 TEST_CASE("result routes across sub turns") {
     Model m;
-    // Turn 1: stream bash:0, finish it, drive it Done with its own output.
+    // 转1:数据流 shash:0,完成,驱动它用自己的输出完成.
     m.d.current.messages.push_back(asst_placeholder());
     Step s = start(std::move(m), "bash:0", "shell");
     s = delta(std::move(s.first), "bash:0", "{\"cmd\":\"one\"}");
@@ -149,12 +149,12 @@ TEST_CASE("result routes across sub turns") {
     m = std::move(s.first);
     m.d.current.messages.back().tool_calls[0].status = done_status("first-out");
 
-    // Turn 2: new sub-turn placeholder, same wire id replays.
+    // 转二:新子 -turn 占位符, 不变 传输 id重播. 爱丽丝·卡西尔·卡西姆·卡西里·卡西
     sub_turn_start(m);
     s = start(std::move(m), "bash:0", "shell");
     s = delta(std::move(s.first), "bash:0", "{\"cmd\":\"two\"}");
     s = end(std::move(s.first), "bash:0");
-    // The observed result for turn 2 must land on turn 2's live call.
+    // 发现2号线的试验结果 必须在2号线现场着陆 调用.
     s = observed(std::move(s.first), "bash:0", "second-out");
     m = std::move(s.first);
 
@@ -170,10 +170,10 @@ TEST_CASE("result routes across sub turns") {
           "T2: turn 2's result landed on turn 2's call");
 }
 
-// ── 3. find_streaming_tool is scoped to the current sub-turn ───────────────
+// ── 3. find_streaming_tool 被限制到当前子 -turn ───────────────
 TEST_CASE("streaming isolated to current sub turn") {
     Model m;
-    // Turn 1: a fully-streamed bash:0 with args "{A}".
+    // 转一圈:全程 -streamed 以参数击打: 0 "{A}".
     m.d.current.messages.push_back(asst_placeholder());
     Step s = start(std::move(m), "bash:0", "shell");
     s = delta(std::move(s.first), "bash:0", "{A}");
@@ -181,7 +181,7 @@ TEST_CASE("streaming isolated to current sub turn") {
     m = std::move(s.first);
     const std::string turn1_args = m.d.current.messages.back().tool_calls[0].args_streaming;
 
-    // Turn 2: new placeholder, same id, DIFFERENT args stream.
+    // 转二: 新的占位符, 相同的ID, 不同 参数 数据流.
     sub_turn_start(m);
     s = start(std::move(m), "bash:0", "shell");
     s = delta(std::move(s.first), "bash:0", "{B}");
@@ -195,13 +195,13 @@ TEST_CASE("streaming isolated to current sub turn") {
           "T3: turn 2's delta landed on turn 2's call");
 }
 
-// ── 4. A hanging first call doesn't swallow a distinct later call ──────────
+// ── 4. 先吊死一个 调用 以后不会吞下一个明显的 调用 ──────────
 TEST_CASE("hanging first call does not swallow") {
     Model m;
-    // One message, two DISTINCT ids (normal parallel calls). The first never
-    // terminates; the second gets its own result.
+    // 一、二、二、一、二、三、二、四、四、五、五、四、六、五、六、四、七、五、七、七、八、八、七、九、九、八、九、七、十、九、十二、九、十、八、十二、十二、十四、九、十四、十四、十二、十七、十四、十七、十二、十一、十四、十一、十二、十三、十四、十六、十四、十三、十二、十六、十二、十八、十二、十、十二、十五、十四、十、十四、十五、十二、十九、十四、十八、十四、十九、十二、
+    // 七、十四、七、十二、二十二、十四、八、十四、四、十四、二十二、十二、四、十二、二十、十四、二十、十二、八、十七、十七、十三、十七、 DISTINCT ids( 通常平行) 调用。第一个是永不终止的;第二个是获得自己的结果。
     m.d.current.messages.push_back(asst_placeholder());
-    Step s = start(std::move(m), "bash:0", "shell");   // never ended → hangs
+    Step s = start(std::move(m), "bash:0", "shell");   // 永远没有结束 挂
     s = start(std::move(s.first), "bash:1", "shell");
     s = end(std::move(s.first), "bash:1");
     s = observed(std::move(s.first), "bash:1", "b1-out");
@@ -214,7 +214,7 @@ TEST_CASE("hanging first call does not swallow") {
           "T4: second call received its own result");
 }
 
-// ── 5. Unique ids route to their own call ──────────────────────────────────
+// ── 5. 通往自己调用的独特编号路线 ──────────────────────────────────
 TEST_CASE("unique ids untouched") {
     Model m;
     m.d.current.messages.push_back(asst_placeholder());
@@ -234,9 +234,9 @@ TEST_CASE("unique ids untouched") {
           "T5: call_b got its own args");
 }
 
-// ── 6. A worker that outlives its call can't hit a reused id ──────────────
-// Turn 1 ran call_0 (seq 7), the user cancelled, turn 2 reuses call_0 and
-// runs it as seq 8. Turn 1's worker finally returns: it must be dropped.
+// ── 6. A 工作线程 超越了它的寿命 调用 无法击中重用过的ID ──────────────
+// 转1跑 call_0 (seq 7),用户 已取消 ,转动 2 再利用
+// call_0 并运行它作为以下8. 转1's 工作线程 最后返回:必须放弃。
 TEST_CASE("stale tool result is dropped by exec seq") {
     using agentty::ToolExecOutput;
     using agentty::ToolExecProgress;

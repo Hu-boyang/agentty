@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Print every message for a few prompts, for poking at `agentty acp` by hand.
+"""输出少量提示词对应的全部消息，便于手动调试 `agentty acp`。
 
-usage: acp_trace.py <agentty> <cwd> <prompt>...   (AGENTTY_HOME from env)
+用法：acp_trace.py <agentty> <cwd> <prompt>...，AGENTTY_HOME 从环境变量读取。
 """
 import json
 import os

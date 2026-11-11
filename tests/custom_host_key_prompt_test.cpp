@@ -1,18 +1,18 @@
-// custom_host_key_prompt_test — how a custom host gets added. Every host is
-// probed first, TLS or not, because plenty of remote hosts need no key. The
-// key prompt opens only when the probe gets a 401/403 (key required) or the
-// host already has a saved key (to check or change it). On an optional
-// prompt, an empty Enter probes keyless instead of failing. Esc at the key
-// prompt cancels the switch.
+// custom_host_key_prompt_test ——自定义主机
+// 是如何被添加的。每个主机首先被探测到, TLS 或不是,因为许多远程主机
+// 不需要钥匙。 提示词 只有在探测器得到一个时才打开 401/403 (
+// 需要键)或主机已经有一个 已保存 键( 检查或更改它)。
+// 在可选的键上 提示词 空的,一个空的 Enter 探测无键而不是失败。
+// Esc 键位 提示词 取消开关。
 //
-// Pure reducer test: stubs deps() with an in-memory store::Settings and
-// sets XDG_CONFIG_HOME to a temp dir so auth::load_credentials() returns
-// nullopt (no on-disk creds interfere with the non-TLS path). The test
-// detects whether commit_provider_switch ran via m.s.models_loading (which
-// commit_provider_switch sets at modal.cpp:691) — same indirection
-// codex_login_flow_test uses for the ChatGPT path.
+// 纯 状态更新函数 测试: 根 deps() 与一个英寸 -memory store::Settings
+// 组合 XDG_CONFIG_HOME 临时目录 auth::load_credentials
+// ()返回无选择(无) -disk 证书干扰非 -TLS。测试是否检测 commit_provider_switch
+// 运行通过 m.s.models_loading (哪个) commit_provider_switch
+// 设定 modal.cpp :691)——同为间接.
+// codex_login_flow_test 用于生产 ChatGPT 路径。
 //
-// Run: build the `custom_host_key_prompt_test` target, execute. Exit 0 = pass.
+// 运行: 构建`custom_host_key_prompt_test`目标, 执行。 退出 0 = 通过。
 
 #include "agentty/runtime/app/update/internal.hpp"
 #include "agentty/runtime/app/update.hpp"
@@ -38,9 +38,9 @@ namespace login = agentty::ui::login;
 namespace msg = agentty::msg;
 namespace app = agentty::app;
 
-// Helper: install deps() with an in-memory Settings captured by reference.
-// The other Deps members are stubbed to no-ops since login_submit's
-// CustomHostInput arm only calls deps().load_settings() and deps().auth.
+// 帮助者: 安装 deps() 与一个英寸 -memory 引用时捕获的设置。
+// 另一边 Deps 成员被扭曲为否 -ops 已撤销 login_submit's CustomHostInput
+// 仅指臂 调用 deps().load_settings (a) 与 deps() . 奥斯.
 static void install_stub_deps(agentty::store::Settings& s) {
     app::install_deps(app::Deps{
         .stream         = [](const maya::unlocked&, auto, auto) {},
@@ -57,10 +57,10 @@ static void install_stub_deps(agentty::store::Settings& s) {
 }
 
 TEST_CASE("setting up a provider does not switch to it") {
-    // AUTHENTICATING IS NOT SELECTING. Adding a host or pasting a key used
-    // to end in commit_provider_switch, which moves the active provider AND
-    // picks a model for it -- so registering a backup key while mid-task
-    // silently changed the model out from under you.
+    // AUTHENTICATING IS 不 SELECTING 中
+    // 添加主机或粘贴用于结尾的密钥 commit_provider_switch ,
+    // 移动活动提供者 和 选择一个模型- 因此在中点注册备份
+    // 密钥 -task 默默地改变了你的模型
     fs::path tmp_xdg = fs::temp_directory_path() /
         ("agentty-noswitch-" + std::to_string(::getpid()));
     std::error_code ec;
@@ -68,10 +68,10 @@ TEST_CASE("setting up a provider does not switch to it") {
     ::setenv("AGENTTY_HOME", tmp_xdg.c_str(), 1);
     agentty::provider::set_custom_auth_header(::agentty::IoAccess::grant(), "");
 
-    // ── A host added while ALREADY configured leaves the session alone ──
+    // ── 在配置 ALREADY 时添加了主机, 将会话单独离开 ──
     {
         agentty::store::Settings s;
-        s.provider_keys["anthropic"] = "sk-ant-existing";   // already set up
+        s.provider_keys["anthropic"] = "sk-ant-existing";   // 已经设置
         install_stub_deps(s);
 
         agentty::Model m;
@@ -82,8 +82,8 @@ TEST_CASE("setting up a provider does not switch to it") {
         m.d.model_id = agentty::ModelId{"claude-opus-4-5"};
         const auto before_model = m.d.model_id;
         const auto before_kind  = m.d.selection.kind;
-        // host_probed drops a result whose attempt id doesn't match the
-        // live HostProbing state, so the picker has to actually be there.
+        // host_probed 放弃一个结果,其尝试ID 与现场不符
+        // HostProbing 州,所以, 选择面板 一定要去那儿 一定要去 一定要去
         m.ui.login = login::HostProbing{.spec = "localhost:11434",
                                         .attempt_id = 1};
 
@@ -101,16 +101,16 @@ TEST_CASE("setting up a provider does not switch to it") {
               "adding a host must not change the active model");
         check(m2.d.selection.kind == before_kind,
               "adding a host must not change the active provider");
-        // But it IS saved, so the picker can offer it.
+        // 但它却 IS 已保存 ,所以,请 选择面板 能够提供它。
         check(m2.d.persisted.provider_keys.count("localhost:11434") == 1,
               "the host is still registered");
         check(m2.s.status.find("^P") != std::string::npos,
               "the toast names how to switch");
     }
 
-    // ── First run: nothing configured, so adopting IS the right move ──
+    // ── 第一跑: 没有配置, 所以采用 IS 右移 ──
     {
-        agentty::store::Settings s;   // empty: no keys anywhere
+        agentty::store::Settings s;   // 空: 任何地方都没有密钥
         install_stub_deps(s);
 
         agentty::Model m;
@@ -134,7 +134,7 @@ TEST_CASE("setting up a provider does not switch to it") {
         check(m2.s.status.find("^P") == std::string::npos,
               "and does not tell you to switch to what you are already on");
     }
-    // ── Pasting an API KEY for another provider also leaves you put ──
+    // ── 粘贴一个 API KEY 给另一个供应商,你放的也留下 ──
     {
         agentty::store::Settings s;
         s.provider_keys["anthropic"] = "sk-ant-existing";
@@ -171,10 +171,10 @@ TEST_CASE("setting up a provider does not switch to it") {
 }
 
 TEST_CASE("first-run host adopt leaves provider and model agreeing") {
-    // The reported half-switch: entering a local host changed the provider
-    // chip but left the model chip empty, and dismissing the auto-opened
-    // picker stranded you there. A switch that cannot name a model must not
-    // commit the provider half on its own.
+    // 报告的一半 -switch : 输入本地主机更改了
+    // 提供者 标签 却离开了模型 标签 空的,
+    // 并开除自动 -opened 选择面板 无法命名模型的开关
+    // 不能让提供商自己承担一半的责任。
     fs::path tmp_xdg = fs::temp_directory_path() /
         ("agentty-halfswitch-" + std::to_string(::getpid()));
     std::error_code ec;
@@ -182,7 +182,7 @@ TEST_CASE("first-run host adopt leaves provider and model agreeing") {
     ::setenv("AGENTTY_HOME", tmp_xdg.c_str(), 1);
     agentty::provider::set_custom_auth_header(::agentty::IoAccess::grant(), "");
 
-    agentty::store::Settings s;          // nothing configured: first run
+    agentty::store::Settings s;          // 无配置: 第一次运行
     install_stub_deps(s);
 
     agentty::Model m;
@@ -201,21 +201,21 @@ TEST_CASE("first-run host adopt leaves provider and model agreeing") {
         ::agentty::app::detail::login_update, std::move(m),
         msg::LoginMsg{std::move(r)});
 
-    // First run adopts, so the provider SHOULD have moved.
+    // 初行采用,故提供方SHOULD已移动.
     check(m2.d.selection.kind == agentty::provider::Kind::OpenAI,
           "first run adopts the host");
-    // The catalog has not landed yet, so model_id is deliberately empty --
-    // carrying the outgoing provider's model would file it under the new
-    // provider's recall. That is fine as a TRANSIENT, but it must resolve
-    // the moment the catalog arrives, not wait for the user to pick.
+    // 电话 目录 还没降落,所以...
+    // model_id 刻意空置 - 携带出厂商的模型
+    // 会将其存档于新厂商的召回之下。 TRANSIENT
+    // 但必须解决那一刻 目录 到了,不要等用户选。
     check(m2.d.model_id.empty(),
           "model is empty until the catalog lands (not the outgoing one)");
     check(m2.s.models_loading,
           "and the badge can say so: a fetch is in flight");
 
-    // The catalog arrives. Even if the user dismissed the auto-opened
-    // picker without choosing, this must fill the model in -- otherwise
-    // the provider chip names a backend with no model behind it.
+    // 电话 目录 到了,即使用户解开这辆汽车 -opened
+    // 选择面板 无需选择, 模型必须填入,
+    // 否则提供方 标签 命名一个后端, 后面没有模型。
     agentty::ModelsLoaded loaded;
     loaded.provider_id = m2.d.selection.catalog_id();
     for (const char* id : {"qwen3:30b-a3b", "qwen3:8b"}) {
@@ -235,11 +235,11 @@ TEST_CASE("first-run host adopt leaves provider and model agreeing") {
 }
 
 TEST_CASE("a second local host does not adopt over the one in use") {
-    // Guards the end-to-end behaviour rather than the predicate: a user
-    // working against one local box adds another and keeps their session.
-    // (The predicate's own edge -- a keyless host that is NOT active -- is
-    // the "saved-but-unusable" case below, which is where the old
-    // provider_keys.empty() test and this one actually disagree.)
+    // 守护端-to-end行为而非上游:一个针对一个
+    // 本地框工作的用户会添加另一个并保持它们的会话.
+    // (上游的边缘——无键主机,即 不 活动 -- -- 是
+    // "saved-but-unusable" 下个案例,这就是旧的
+    // provider_keys.empty ()测试和这个实际上不同意。 )
     fs::path tmp_xdg = fs::temp_directory_path() /
         ("agentty-2ndhost-" + std::to_string(::getpid()));
     std::error_code ec;
@@ -248,13 +248,13 @@ TEST_CASE("a second local host does not adopt over the one in use") {
     agentty::provider::set_custom_auth_header(::agentty::IoAccess::grant(), "");
 
     agentty::store::Settings s;
-    s.provider_keys["localhost:11434"] = "";   // keyless, already added
+    s.provider_keys["localhost:11434"] = "";   // 无键, 已添加
     install_stub_deps(s);
 
     agentty::Model m;
     m.d.persisted = s;
     m.d.auth.loaded = true;
-    // ...and it is what the user is CURRENTLY working against.
+    // ...这就是用户 CURRENTLY 与我们对抗
     m.d.selection = agentty::provider::parse_selection("localhost:11434");
     m.d.model_id  = agentty::ModelId{"qwen3:8b"};
     const auto before_sel   = m.d.selection.catalog_id();
@@ -283,12 +283,12 @@ TEST_CASE("a second local host does not adopt over the one in use") {
 }
 
 TEST_CASE("a saved-but-unusable host still counts as unconfigured") {
-    // The case the two predicates actually disagree on, and the reason the
-    // old one was wrong in BOTH directions. A keyless host is stored as an
-    // empty-string value, so "provider_keys.empty()" called it configured --
-    // even though nothing in the map can serve a turn and the active
-    // provider has no credential either. Someone in that state adding a
-    // real backend got no adopt and a dead session.
+    // 之前两个前提的 事实和旧的错在 两者 方向。
+    // 无密钥主机被存储为空 -string 数值,
+    // 所以 "provider_keys.empty()"
+    // 名为配置( ) -- 尽管地图中没有任何内容可以服务于转弯,
+    // 且活动提供者没有 凭据 某个在那个状态下添加了
+    // 真正的后端的人 没有收养,而且会死
     fs::path tmp_xdg = fs::temp_directory_path() /
         ("agentty-unusable-" + std::to_string(::getpid()));
     std::error_code ec;
@@ -297,14 +297,14 @@ TEST_CASE("a saved-but-unusable host still counts as unconfigured") {
     agentty::provider::set_custom_auth_header(::agentty::IoAccess::grant(), "");
 
     agentty::store::Settings s;
-    // A keyless host was added once, but it is NOT what is selected, and
-    // the selected provider (Anthropic) has no credential.
+    // 曾经添加过一个无键主机, 但它不是 选择哪些,
+    // 以及选择的提供者( Anthropic )没有 凭据.
     s.provider_keys["localhost:11434"] = "";
     install_stub_deps(s);
 
     agentty::Model m;
     m.d.persisted = s;
-    m.d.auth.loaded = true;          // loaded, and empty: nothing stored
+    m.d.auth.loaded = true;          // 已加载, 空: 无存储
     m.ui.login = login::HostProbing{.spec = "localhost:8080",
                                     .attempt_id = 3};
     agentty::HostProbed r;
@@ -322,12 +322,12 @@ TEST_CASE("a saved-but-unusable host still counts as unconfigured") {
 }
 
 TEST_CASE("switching provider drops the previous turn's live stamp") {
-    // The status badge prefers m.s.smart_turn_model over the selection, so
-    // a stamp left over from the OUTGOING provider paints an impossible
-    // pair: "Ollama" beside "Opus 4.5". The stamp is normally cleared when
-    // a turn settles, but a switch can happen any time after that -- and
-    // since #120 every turn sets it, not just Smart-Mode-routed ones, so
-    // the stale value is now the common case rather than a rare one.
+    // 状态徽章更喜欢 m.s.smart_turn_model 以图示
+    // 你们所剩的章子, OUTGOING 提供者绘制一对不可能的配对
+    // : "Ollama" 边上 "Opus 4.5"。通常,
+    // 转弯时会清除印章,但之后随时可能发生开关 -- -- 而且,
+    // 由于#120每转都设置,而不仅仅是Smart -Mode-routed
+    // 其中一个,所以 过期 价值现在是常见情况,而不是罕见的情况。
     fs::path tmp_xdg = fs::temp_directory_path() /
         ("agentty-stamp-" + std::to_string(::getpid()));
     std::error_code ec;
@@ -343,7 +343,7 @@ TEST_CASE("switching provider drops the previous turn's live stamp") {
     m.d.persisted = s;
     m.d.auth.loaded = true;
     m.d.model_id = agentty::ModelId{"claude-opus-4-5"};
-    // A turn just ran on Anthropic and left its stamp behind.
+    // 转动一下就跑开 Anthropic 并留下了它的印记。
     m.s.smart_turn_model = agentty::ModelId{"claude-opus-4-5"};
 
     auto cmd = ::agentty::app::detail::commit_provider_switch(
@@ -353,18 +353,18 @@ TEST_CASE("switching provider drops the previous turn's live stamp") {
     check(m.s.smart_turn_model.empty(),
           "the outgoing provider's live stamp is dropped on the switch");
     check(!m.s.smart_turn_role.has_value(), "and so is its role");
-    // The badge reads smart_turn_model first; with it cleared it falls back
-    // to the selection, which is the host's own (as yet unresolved) model.
+    // 徽章首先读为smart_turn_model;随着它被清除,
+    // 它又回到了选择,这是东道主自己的(尚未解决)模式.
     check(m.d.model_id.value != "claude-opus-4-5",
           "so the badge cannot still name the old provider's model");
 }
 
 TEST_CASE("picking a new model on the same provider updates the badge now") {
-    // Reported: switch Opus 5.5 -> Opus 5 and the badge keeps saying 5.5
-    // until you send the next message. The badge prefers the live routing
-    // stamp over the selection, and the SAME-PROVIDER model switch never
-    // cleared it -- so the chip kept naming the model the last turn ran on
-    // until a new turn overwrote the stamp.
+    // 报告:切换Opus 5.5 - > Opus 5,
+    // 徽章在发送下一条信息之前会一直说5.5。徽章更喜欢现场的
+    // 路由图章而不是选择,徽章则会显示: 相同-PROVIDER
+    // 模型开关从未清理过 - 所以 标签 一直给上次转弯的模型
+    // 命名 直到新的转弯翻转邮票为止
     fs::path tmp_xdg = fs::temp_directory_path() /
         ("agentty-modelstamp-" + std::to_string(::getpid()));
     std::error_code ec;
@@ -380,11 +380,11 @@ TEST_CASE("picking a new model on the same provider updates the badge now") {
     m.d.auth.loaded = true;
     m.d.selection = agentty::provider::parse_selection("anthropic");
     m.d.model_id  = agentty::ModelId{"claude-opus-5-5"};
-    // A turn just finished on 5.5 and left its stamp.
+    // 转弯5.5秒就结束了,留下了它的邮票.
     m.s.smart_turn_model = agentty::ModelId{"claude-opus-5-5"};
 
-    // Pick a different model on the SAME provider, through the real
-    // picker path: open, put the cursor on the other row, Enter.
+    // 在画上选一个不同的模型 相同 提供者,通过真实 选择
+    // 面板 路径:打开,将光标放在另一行, Enter.
     m.d.available_models = {
         [] { agentty::ModelInfo i; i.id = agentty::ModelId{"claude-opus-5-5"};
              i.display_name = "Opus 5.5"; i.provider = "anthropic";
@@ -411,11 +411,11 @@ TEST_CASE("picking a new model on the same provider updates the badge now") {
 }
 
 TEST_CASE("working on Ollama counts as configured") {
-    // Ollama is a REGISTRY preset with is_local=true, not a custom host. The
-    // adopt check skips Local auth (Ollama being installed isn't evidence
-    // agentty was set up) and only spares a keyless CUSTOM host when it is
-    // active -- so a user actually working on the Ollama preset looked
-    // unconfigured, and adding any provider adopted it and pulled them off.
+    // Ollama 是一个 REGISTRY 预设为 is_local =
+    // real,不是自定义主机。通过检查跳过本地认证( Ollama
+    // 安装不是证据 agentty 被设置),只留下一个无键 CUSTOM
+    // 主机在活动时 - 所以用户实际上正在工作 Ollama 预
+    // 设看起来没有配置, 添加任何提供者 采纳了它, 并把它们拉下来。
     fs::path tmp_xdg = fs::temp_directory_path() /
         ("agentty-ollama-" + std::to_string(::getpid()));
     std::error_code ec;
@@ -423,7 +423,7 @@ TEST_CASE("working on Ollama counts as configured") {
     ::setenv("AGENTTY_HOME", tmp_xdg.c_str(), 1);
     agentty::provider::set_custom_auth_header(::agentty::IoAccess::grant(), "");
 
-    agentty::store::Settings s;          // no keys anywhere
+    agentty::store::Settings s;          // 任何地方都没有密钥
     install_stub_deps(s);
 
     agentty::Model m;
@@ -450,10 +450,10 @@ TEST_CASE("working on Ollama counts as configured") {
 }
 
 TEST_CASE("an empty provider key is not a credential, Anthropic included") {
-    // auth_source checked non-empty for every key provider EXCEPT Anthropic,
-    // which used count() -- so an empty-string entry read as signed in. The
-    // picker would have filed it under YOURS and the adopt check would have
-    // called it configured.
+    // auth_source 选中非 -empty 用于每个密钥提供者
+    // EXCEPT Anthropic ,该词使用了 count() - 这么
+    // 空 -string 条目改为签名。 选择面板 本来会把它放在 YOURS
+    // 收养支票会称之为配置
     agentty::store::Settings s;
     s.provider_keys["anthropic"] = "";
     agentty::auth::AuthView view;
@@ -470,23 +470,23 @@ TEST_CASE("an empty provider key is not a credential, Anthropic included") {
 
 TEST_CASE("custom host key prompt transitions") {
 
-    // Redirect XDG_CONFIG_HOME to a temp dir with no agentty/ subdir so
-    // auth::load_credentials() returns nullopt (no credentials.json exists).
-    // This keeps the non-TLS path deterministic regardless of the host env.
+    // 重定向 XDG_CONFIG_HOME 改为临时目录,无 agentty/ 子目录为此
+    // auth::load_credentials ()返回无选择(无) credentials.json ) , 已存在).
+    // 这保持了非-TLS路径决定论,而不管主机的内涵.
     fs::path tmp_xdg = fs::temp_directory_path() /
         ("agentty-test-" + std::to_string(::getpid()));
     std::error_code mkdir_ec;
     fs::create_directories(tmp_xdg, mkdir_ec);
     ::setenv("AGENTTY_HOME", tmp_xdg.c_str(), 1);
-    // Ensure parse_selection's custom_auth_header() read is deterministic.
+    // 保证 parse_selection's custom_auth_header () 改为 " 决定 "。
     agentty::provider::set_custom_auth_header(::agentty::IoAccess::grant(), "");
 
-    // ── Case 1: TLS host, no saved key → probe it, no key prompt ──
+    // ── 案例1: TLS 东道主,没有 已保存 – 探究它,没有钥匙 提示词 ──
     {
         agentty::store::Settings s;
         install_stub_deps(s);
         agentty::Model m;
-        m.d.persisted = s;   // the record, as init() seeds it
+        m.d.persisted = s;   // 记录,作为 init() 种子,种子,种子
         m.ui.login = login::CustomHostInput{.host_input = "https://chat.example.org/api"};
         auto [m2, cmd] = ::agentty::app::detail::step(::agentty::app::detail::login_update, std::move(m), msg::LoginMsg{agentty::LoginSubmit{}});
         auto* hp = std::get_if<login::HostProbing>(&m2.ui.login);
@@ -496,7 +496,7 @@ TEST_CASE("custom host key prompt transitions") {
               "1: probing the full URL spec");
         check(!m2.s.models_loading, "1: no commit while probing");
 
-        // The server answers 401 → the key prompt opens, marked required.
+        // 服务器回答 401 ~ 键 提示词 打开,需要标记.
         agentty::HostProbed needs;
         needs.attempt_id = hp ? hp->attempt_id : 0;
         needs.spec = "https://chat.example.org/api";
@@ -510,7 +510,7 @@ TEST_CASE("custom host key prompt transitions") {
               "1: ApiKeyInput.provider is the full URL spec (persistence key)");
         check(api && api->key_required, "1: the key is marked required");
 
-        // Enter on an empty required key stays on the prompt.
+        // Enter 空键上需要的键 提示词.
         auto [m4, cmd4] = ::agentty::app::detail::step(::agentty::app::detail::login_update, std::move(m3), msg::LoginMsg{agentty::LoginSubmit{}});
         check(std::holds_alternative<login::ApiKeyInput>(m4.ui.login),
               "1: empty submit on a required key stays on the prompt");
@@ -518,7 +518,7 @@ TEST_CASE("custom host key prompt transitions") {
         (void)cmd; (void)cmd3; (void)cmd4;
     }
 
-    // ── Case 1b: optional key prompt, empty Enter → probe keyless ──
+    // ── 判例1b:可选密钥 提示词 空的,请检查date=中的日期值 (帮助) Enter □ 无键探测器 ──
     {
         agentty::store::Settings s;
         install_stub_deps(s);
@@ -535,13 +535,13 @@ TEST_CASE("custom host key prompt transitions") {
         (void)cmd;
     }
 
-    // ── Case 2: TLS host, saved key exists → ApiKeyInput pre-filled ──
+    // ── 案例2: TLS 东道主, 已保存 键存在 − ApiKeyInput 预览 -filled ──
     {
         agentty::store::Settings s;
         s.provider_keys["https://chat.example.org/api"] = "sk-test-key";
         install_stub_deps(s);
         agentty::Model m;
-        m.d.persisted = s;   // the record, as init() seeds it
+        m.d.persisted = s;   // 记录,作为 init() 种子,种子,种子
         m.ui.login = login::CustomHostInput{.host_input = "https://chat.example.org/api"};
         auto [m2, cmd] = ::agentty::app::detail::step(::agentty::app::detail::login_update, std::move(m), msg::LoginMsg{agentty::LoginSubmit{}});
         auto* api = std::get_if<login::ApiKeyInput>(&m2.ui.login);
@@ -556,13 +556,13 @@ TEST_CASE("custom host key prompt transitions") {
         (void)cmd;
     }
 
-    // ── Case 3: Non-TLS bare host:port → PROBE first (HostProbing), commit
-    //    only on HostProbed{ok} ──
+    // 用例 3：未启用 TLS 的 host:port，先进入 HostProbing 探测，再提交
+    //    仅打开 HostProbed ⁇
     {
         agentty::store::Settings s;
         install_stub_deps(s);
         agentty::Model m;
-        m.d.persisted = s;   // the record, as init() seeds it
+        m.d.persisted = s;   // 记录,作为 init() 种子,种子,种子
         m.d.available_models.push_back(agentty::ModelInfo{
             .id = agentty::ModelId{"old-model"}, .display_name = "old"});
         m.ui.login = login::CustomHostInput{.host_input = "localhost:8080"};
@@ -574,7 +574,7 @@ TEST_CASE("custom host key prompt transitions") {
               "3: probing the canonical spec");
         check(!m2.s.models_loading,
               "3: not committed while probing");
-        // Successful probe result → commit (models_loading flips, modal closes).
+        // 成功探测结果 − 承诺( models_loading 翻转, 弹出面板 )),"("关").
         agentty::HostProbed ok;
         ok.attempt_id = hp->attempt_id;
         ok.spec = "localhost:8080";
@@ -582,8 +582,8 @@ TEST_CASE("custom host key prompt transitions") {
         ok.models_path = "/v1/models";
         ok.model_count = 2;
         auto [m3, cmd3] = ::agentty::app::detail::step(::agentty::app::detail::login_update, std::move(m2), msg::LoginMsg{std::move(ok)});
-        // The keyless-host save is an EFFECT; play the host and run it, or
-        // the assertion below is checking a write nobody performed.
+        // 键盘的-hostXX保存是EFFECT;播放主机并运行它,
+        // 或者下面的断言是检查没有执行的字迹.
         {
             agtest::fx::Store store;
             store.settings = s;
@@ -596,18 +596,18 @@ TEST_CASE("custom host key prompt transitions") {
               "3: commit_provider_switch ran (models_loading true)");
         check(m3.d.available_models.empty(),
               "3: commit_provider_switch cleared available_models");
-        // The keyless host was persisted as a saved row (empty key).
+        // 无键主机作为已保存行(空键)一直存在.
         check(s.provider_keys.count("localhost:8080") == 1,
               "3: keyless host persisted into provider_keys");
         (void)cmd; (void)cmd3;
     }
 
-    // ── Case 4: probe FAILURE returns to the input with the spec restored ──
+    // ── 案例4: 探测器FAILURE 返回输入, 并恢复光谱 ──
     {
         agentty::store::Settings s;
         install_stub_deps(s);
         agentty::Model m;
-        m.d.persisted = s;   // the record, as init() seeds it
+        m.d.persisted = s;   // 记录,作为 init() 种子,种子,种子
         m.ui.login = login::CustomHostInput{.host_input = "http://10.0.0.5:5000/custom"};
         auto [m1, cmd1] = ::agentty::app::detail::step(::agentty::app::detail::login_update, std::move(m), msg::LoginMsg{agentty::LoginSubmit{}});
         auto* hp = std::get_if<login::HostProbing>(&m1.ui.login);
@@ -624,7 +624,7 @@ TEST_CASE("custom host key prompt transitions") {
         check(ch && ch->host_input == "http://10.0.0.5:5000/custom",
               "4: typed spec restored for re-editing");
         check(!m2.s.models_loading, "4: no commit on failure");
-        // A STALE probe result (wrong attempt id) is dropped.
+        // 投放STALE探测结果(错误尝试id).
         agentty::HostProbed stale;
         stale.attempt_id = 9999;
         stale.ok = true;
@@ -634,19 +634,19 @@ TEST_CASE("custom host key prompt transitions") {
         (void)cmd1; (void)cmd2; (void)cmd3;
     }
 
-    // ── Case 5: Esc at the key prompt → cancel the whole switch ──
+    // ── 案例5: Esc 键位 提示词 → 取消 整个开关 ──
     {
         agentty::store::Settings s;
         s.provider_keys["https://chat.example.org/api"] = "sk-test-key";
         install_stub_deps(s);
         agentty::Model m;
-        m.d.persisted = s;   // the record, as init() seeds it
-        // A host with a saved key lands in ApiKeyInput.
+        m.d.persisted = s;   // 记录,作为 init() 种子,种子,种子
+        // 主持人 已保存 关键土地 ApiKeyInput.
         m.ui.login = login::CustomHostInput{.host_input = "https://chat.example.org/api"};
         auto [m1, cmd1] = ::agentty::app::detail::step(::agentty::app::detail::login_update, std::move(m), msg::LoginMsg{agentty::LoginSubmit{}});
         check(std::holds_alternative<login::ApiKeyInput>(m1.ui.login),
               "5: setup — host with saved key entered ApiKeyInput");
-        // Now press Esc (CloseLogin).
+        // 现在按 Esc (CloseLogin).
         auto [m2, cmd2] = ::agentty::app::detail::step(::agentty::app::detail::login_update, std::move(m1), msg::LoginMsg{agentty::CloseLogin{}});
         check(std::holds_alternative<login::Closed>(m2.ui.login),
               "5: Esc at key prompt closes the modal");
@@ -655,7 +655,7 @@ TEST_CASE("custom host key prompt transitions") {
         (void)cmd1; (void)cmd2;
     }
 
-    // Cleanup the temp XDG dir.
+    // 清理临时的XDG dir.
     std::error_code ec;
     fs::remove_all(tmp_xdg, ec);
 }

@@ -1,4 +1,4 @@
-// agentty::tools::plan — see tool_plan.hpp.
+// agentty::tools::plan - 看见了 tool_plan.hpp.
 
 #include "agentty/tool/tool_plan.hpp"
 
@@ -34,13 +34,13 @@ std::size_t schema_tokens(const ToolDef& t) {
 
 namespace {
 
-// Always on the wire: the core toolset, what the user pinned, and the few
-// broker tools that carry their own always_expose (resources, prompts).
+// 总是在 传输 :核心工具箱,用户所粘贴的,以及携带自己工具的
+// 少数经纪人工具 always_expose (资源, 提示词).
 bool always_loaded(const ToolDef& t) {
     return t.origin == ToolOrigin::Native || t.always_expose;
 }
 
-} // namespace
+} // 命名空间结束。
 
 void Loaded::touch(std::string_view name) {
     std::string n{name};
@@ -60,9 +60,9 @@ Plan make_plan(const std::vector<ToolDef>& catalog,
 
     std::vector<char> load(catalog.size(), 0);
     std::size_t count = 0, tokens = 0;
-    // Auto's budget is for PLUGIN schemas only, like Claude Code's tool-search
-    // threshold: the natives are the core toolset and always ride, so
-    // charging them would leave no room for any plugin on a small window.
+    // 汽车的预算仅是PLUGIN 模式定义,就像Claude
+    // 代码的工具-search阈值:土人是核心工具,
+    // 总是骑马,所以收费不会给小窗口上的任何插件留下任何空间.
     std::size_t plugin_tokens = 0;
     auto take = [&](std::size_t i) {
         load[i] = 1;
@@ -72,13 +72,13 @@ Plan make_plan(const std::vector<ToolDef>& catalog,
         if (catalog[i].origin != ToolOrigin::Native) plugin_tokens += cost;
     };
 
-    // 1. Must-load: natives and pins.
+    // 1. 必须 -load :土人与针.
     for (std::size_t i = 0; i < catalog.size(); ++i)
         if (catalog[i].advertise && always_loaded(catalog[i])) take(i);
 
-    // With a hard cap, the fill can't know in advance whether something will
-    // be left over, so it stops one short when anything was or would be:
-    // that last slot is tool_search's.
+    // 有了硬帽,填充无法事先知道是否会留下什么,
+    // 所以它会短停一个,当什么是或将是:
+    // 最后一个插槽是tool_search的。
     bool skipped = false;
     auto fits_cap = [&](std::size_t left_after_this) {
         if (cap == 0) return true;
@@ -92,9 +92,9 @@ Plan make_plan(const std::vector<ToolDef>& catalog,
         return n;
     };
 
-    // 2. What this thread already used, newest first: past the schema budget
-    //    but never past the cap. A long thread can touch more tools than the
-    //    cap allows; the oldest go back on demand.
+    // 2. 情况是什么? 线程 已使用, 最新第一: 超过 模式定义 预算
+    //    长的 线程 可以比盖子允许的多。
+    //    年龄最大的 , 需要返回。
     if (!loaded.order.empty()) {
         std::unordered_map<std::string_view, std::size_t> by_name;
         for (std::size_t i = 0; i < catalog.size(); ++i)
@@ -109,14 +109,14 @@ Plan make_plan(const std::vector<ToolDef>& catalog,
         }
     }
 
-    // 3. The rest, by mode. Catalog order is the fill order, so the same
-    //    catalog and the same loaded set always give the same wire.
+    // 3. 其余按模式排列。目录是填充顺序,所以相同。
+    //    目录 和同样 已加载 设定总是给予相同的 传输.
     if (mode != Loading::OnDemand) {
         std::size_t remaining = unloaded();
         for (std::size_t i = 0; i < catalog.size(); ++i) {
             const auto& t = catalog[i];
             if (!t.advertise || load[i]) continue;
-            --remaining;   // tools still to consider after this one
+            --remaining;   // 在此之后,尚需考虑的工具
             const std::size_t cost = schema_tokens(t);
             const bool in_budget = mode == Loading::All || plugin_tokens + cost <= budget;
             if (in_budget && fits_cap(remaining)) {
@@ -128,7 +128,7 @@ Plan make_plan(const std::vector<ToolDef>& catalog,
         }
     }
 
-    // 4. Emit in catalog order.
+    // 4. 释放 目录 秩序。 秩序。
     for (std::size_t i = 0; i < catalog.size(); ++i) {
         const auto& t = catalog[i];
         if (!t.advertise) continue;
@@ -149,12 +149,12 @@ Plan make_plan(const std::vector<ToolDef>& catalog,
     return out;
 }
 
-// ── Search ───────────────────────────────────────────────────────────────
+// ── 搜索 ───────────────────────────────────────────────────────────────
 
 namespace {
 
-// Lowercase words, with identifiers split: snake_case, kebab-case,
-// camelCase, digits, and the mcp__server__tool separator all become breaks.
+// 小写单词, 并分拆标识符 : snake_case , kebab 键盘 -case,
+// camelCase 数字,和 mcp__server__tool 分隔器全部变成断层。
 std::vector<std::string> tokenize(std::string_view s) {
     std::vector<std::string> out;
     std::string cur;
@@ -164,7 +164,7 @@ std::vector<std::string> tokenize(std::string_view s) {
     };
     for (std::size_t i = 0; i < s.size(); ++i) {
         const auto c = static_cast<unsigned char>(s[i]);
-        if (c >= 0x80) {             // keep UTF-8 runs whole (non-English names)
+        if (c >= 0x80) {             // 保留 UTF -8 运行整组( 非) -English 名称)
             cur.push_back(static_cast<char>(c));
             continue;
         }
@@ -182,7 +182,7 @@ std::vector<std::string> tokenize(std::string_view s) {
     return out;
 }
 
-// Light stemming so "functions"/"function", "decompiled"/"decompile" meet.
+// 光线在阻止它 "functions"/"function", "decompiled"/"decompile" 相见.
 std::string stem(std::string w) {
     auto strip = [&](std::string_view suf, std::size_t keep) {
         if (w.size() > suf.size() + keep && w.ends_with(suf)) {
@@ -196,7 +196,7 @@ std::string stem(std::string w) {
     return w;
 }
 
-// Damerau–Levenshtein distance, bounded: returns > max as soon as it can.
+// Damerau - Levenshtein 距离, 边界: 尽快返回 > 最大值。
 std::size_t edit_distance(std::string_view a, std::string_view b, std::size_t max) {
     if (a.size() > b.size() + max || b.size() > a.size() + max) return max + 1;
     std::vector<std::size_t> pp(b.size() + 1), p(b.size() + 1), c(b.size() + 1);
@@ -220,18 +220,18 @@ std::size_t edit_distance(std::string_view a, std::string_view b, std::size_t ma
 
 struct Doc {
     const ToolDef* tool;
-    std::unordered_map<std::string, double> tf;   // field-weighted term counts
+    std::unordered_map<std::string, double> tf;   // 字段-weighted 术语计数
     double len = 0;
 };
 
-} // namespace
+} // 命名空间结束。
 
 std::vector<Hit> search(const std::vector<ToolDef>& catalog,
                         std::string_view query, std::size_t k) {
     std::vector<Hit> out;
     if (k == 0) return out;
 
-    // select:a,b — exact names (bare or full), in the order given.
+    // 选择:a,b——按给出的顺序,精确(空或满)名称。
     if (query.starts_with("select:")) {
         std::string_view rest = query.substr(7);
         while (!rest.empty()) {
@@ -242,7 +242,7 @@ std::vector<Hit> search(const std::vector<ToolDef>& catalog,
             for (const auto& t : catalog) {
                 if (t.origin == ToolOrigin::Native) continue;
                 const std::string_view full = t.name.value;
-                // The wire name may be shortened; the server's own name isn't.
+                // 传输名称可能缩短;服务器本身的名称不是.
                 const std::string_view bare = !t.origin_tool.empty() ? std::string_view{t.origin_tool}
                     : (full.rfind("__") == std::string_view::npos ? full
                                                                    : full.substr(full.rfind("__") + 2));
@@ -257,9 +257,9 @@ std::vector<Hit> search(const std::vector<ToolDef>& catalog,
         return out;
     }
 
-    // Index the searchable tools. Field weights: the tool's own name is the
-    // strongest signal, then its server, then the description and argument
-    // names (which carry the verbs and nouns people actually type).
+    // 索引可搜索工具。 字段权重:工具本身的名字是
+    // 最强的信号,然后是它的服务器,然后是描述和
+    // 参数名称(它携带动词和名词的人实际类型).
     std::vector<Doc> docs;
     for (const auto& t : catalog) {
         if (t.origin == ToolOrigin::Native || !t.advertise) continue;
@@ -271,7 +271,7 @@ std::vector<Hit> search(const std::vector<ToolDef>& catalog,
             }
         };
         add(t.name.value, 3.0);
-        if (!t.origin_tool.empty()) add(t.origin_tool, 3.0);   // unshortened
+        if (!t.origin_tool.empty()) add(t.origin_tool, 3.0);   // 未缩短
         add(t.origin_id, 1.5);
         add(t.description, 1.0);
         if (t.input_schema.is_object() && t.input_schema.contains("properties")
@@ -283,16 +283,16 @@ std::vector<Hit> search(const std::vector<ToolDef>& catalog,
 
     std::vector<std::string> terms;
     for (auto& tok : tokenize(query)) terms.push_back(stem(std::move(tok)));
-    // A few words people use that tool names spell differently. Added as
-    // extra terms (never replacing), so an exact match still wins.
+    // 几个词人们使用工具名称拼写不同。 加成附加条件(
+    // 从未替换) , 因此精确的匹配仍然获胜。
     static const std::pair<std::string_view, std::string_view> kAlso[] = {
         {"bug", "issue"},   {"ticket", "issue"},  {"pr", "pull"},
         {"caller", "xref"},  {"call", "xref"},     {"reference", "xref"},
         {"repo", "repository"}, {"msg", "message"}, {"dm", "message"},
         {"sql", "query"},    {"db", "database"},   {"url", "navigate"},
         {"log", "logs"},
-        // Verbs: what the user wants done picks between same-noun tools
-        // (create_issue vs get_issue vs list_issues).
+        // 动词:用户想要做什么在相同的时候选择 -noun 工具( 工具) create_issue
+        // 数字 get_issue 数字 list_issues).
         {"file", "create"},  {"open", "create"},   {"make", "create"},
         {"new", "create"},   {"add", "create"},    {"show", "get"},
         {"fetch", "get"},    {"read", "get"},      {"find", "search"},
@@ -306,8 +306,8 @@ std::vector<Hit> search(const std::vector<ToolDef>& catalog,
     terms.erase(std::unique(terms.begin(), terms.end()), terms.end());
     if (terms.empty()) return out;
 
-    // Vocabulary, for typo fallback: a query word that matches nothing is
-    // mapped to the closest indexed word within a small edit distance.
+    // Vobulary,用于 tvo 回退:一个不匹配无
+    // 的查询词,在小编辑距离内被映射到最接近的索引词.
     std::unordered_map<std::string, std::size_t> df;
     for (const auto& d : docs)
         for (const auto& [w, _] : d.tf) ++df[w];
@@ -339,7 +339,7 @@ std::vector<Hit> search(const std::vector<ToolDef>& catalog,
             double tf = 0;
             if (auto it = d.tf.find(term); it != d.tf.end()) tf = it->second;
             else {
-                // Prefix match ("decomp" → "decompile") at half weight.
+                // 前缀匹配( E) "decomp" → "decompile" ) 半重(半重)时.
                 for (const auto& [w, c] : d.tf)
                     if (term.size() >= 4 && w.starts_with(term)) tf = std::max(tf, c * 0.5);
             }
@@ -356,7 +356,7 @@ std::vector<Hit> search(const std::vector<ToolDef>& catalog,
     return scored;
 }
 
-// ── Thread state ─────────────────────────────────────────────────────────
+// ── 线程 状态 ─────────────────────────────────────────────────────────
 
 Loaded loaded_in(const Thread& thread) {
     return loaded_in(thread.messages);
@@ -370,7 +370,7 @@ Loaded loaded_in(const std::vector<Message>& messages) {
                 out.touch(tc.name.value);
                 continue;
             }
-            // tool_search: its result names what it loaded, one per line.
+            // tool_search : 其结果名称 已加载 ,每行1个.
             const auto* done = std::get_if<ToolUse::Done>(&tc.status);
             if (!done) continue;
             std::string_view text = done->output;

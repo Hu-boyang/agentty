@@ -1,16 +1,16 @@
-// cmd_code_block_run.cpp — the EFFECT half of the Ctrl+G code-block flow.
+// cmd_code_block_run.cpp-Ctrl+G代码-block流的EFFECT一半。
 //
-// update/code_blocks.cpp is the reducer: it decides WHICH block runs and
-// returns cmd::run_code_block(...). This file is what that Cmd does when the
-// runtime runs it — fork/exec on the real tty with a tee (POSIX), or the
-// captured subprocess runner (Windows). It lived inside the reducer file,
-// which put ~500 lines of fork, termios, signals and clock reads under
-// update/: not called from a fold (it always ran as a task), but readable
-// as if it were, and invisible to the elm_purity lint's file boundary.
+// update/code_blocks.cpp是状态更新函数：它决定WHICH块
+// 运行并返回cmd::run_code_block(...)。该文件是 运行时 运行
+// 时 Cmd 所做的事情 - 带有 T 恤的真实 tty 上的 fork/exec
+// (POSIX)，或捕获的子进程运行程序 (Windows)。它位于 状态更新函数
+// 文件内，该文件在 update/ 下放置了约 500 行 fork、
+// termios、信号和时钟读取：不是从 归并 调用（它始终作为任务运行），但可读，
+// 就好像它是一样，并且对 elm_purity lint 的文件边界不可见。
 //
-// Nothing here is reached except through the Cmd. See update/code_blocks.cpp
-// for the user-facing design (interactive-first, capture to the composer
-// only on request, Windows degradation).
+// 除了通过Cmd之外，无法到达这里。请参阅 update/code_blocks.cpp
+// 的用户-facing 设计（交互式-first，仅根据请求捕获
+// 到作曲家，Windows 降级）。
 
 #include "agentty/runtime/app/cmd_code_block_run.hpp"
 
@@ -49,33 +49,33 @@ namespace agentty::app::cmd {
 namespace cbp = agentty::code_blocks;
 
 namespace {
-// the real terminal with a stdout/stderr tee — fully interactive, output
-// captured. Windows: non-interactive captured runner (subprocess), same
-// as the bash tool.
+// 真实的 终端 与 stdout/stderr T 恤 — 完全交互，捕获输出。
+// Windows：non-interactive 捕获的运行程序（子进程），
+// 与 bash 工具相同。
 #if !defined(_WIN32)
 
-// Run `command` via /bin/sh -c on the REAL terminal (we're inside maya's
-// suspend: cooked tty, TUI escapes torn down). stdin is inherited — the
-// actual tty — so line editing / password reads behave; sudo talks to
-// /dev/tty directly either way. stdout+stderr are dup2'd onto a pipe the
-// parent tees: each read chunk is written straight to the tty (live
-// output) and appended to the capture buffer. Returns the finished Msg.
-// Small helpers so the transcript looks the same whether or not stdout is
-// a real terminal. Colour/heartbeat are TTY-only (piped output stays clean
-// for `agentty ... | tee`), but the command echo + status always print.
+// 在 真实 终端 上通过 /bin/sh -c 运行 `command`（
+// 我们在 maya 的挂起内：cooked tty，TUI 逃逸被拆除）。
+// stdin 是继承的——实际的 tty——所以行编辑/密码读取行为；
+// 无论哪种方式，sudo 都会直接与 /dev/tty 对话。 stdout
+// +stderr 被 dup2'd 到父 tee 的管道上：每个读取块
+// 都直接写入 tty（实时输出）并附加到捕获 缓冲区。返回完成的 Msg。
+// 小助手，因此无论标准输出是否是真正的 终端，成绩单看起来都相同。
+// Colour/heartbeat 是 TTY-only（`agentty ... | tee`
+// 的管道输出保持干净），但命令 echo + status 始终打印。
 namespace runner_ui {
-    // Colour here cannot go through the theme, and that is not an oversight:
-    // maya is SUSPENDED at this point (cooked tty, TUI torn down) and we are
-    // writing bytes straight at the terminal, so there is no canvas, no
-    // style pool and no frame to paint into. These are the only hand-written
-    // escapes in agentty for exactly that reason.
+    // 这里的颜色不能贯穿主题，这不是疏忽：
+    // maya此时是SUSPENDED（熟的tty，TUI被拆掉）
+    // 并且我们直接在终端处写入字节，所以没有画布，没有样式池并且
+    // 没有帧可以绘制。正是出于这个原因，这些是 agentty 中
+    // 唯一的 hand-written 逃脱。
     //
-    // What they MUST still honour is whether the user wants colour at all.
-    // This used to be a bare isatty() check, which silently ignored NO_COLOR
-    // and TERM=dumb — so `NO_COLOR=1 agentty` stayed clean everywhere except
-    // here, which is the one place a user cannot theme their way out of.
-    // maya::theme::detect_tier() is the same detector the renderer uses, so
-    // the answer is consistent across the suspend boundary.
+    // 他们MUST仍然尊重的是用户是否想要颜色。
+    // 这曾经是一个纯粹的 isatty() 检查，它默默地忽略了 NO_COLOR
+    // 和 TERM=哑巴——所以 `NO_COLOR=1 agentty`
+    // 在除了这里之外的任何地方都保持干净，这是用户无法主题化的地方。
+    // maya::theme::detect_tier()与渲染器使用
+    // 相同的检测器，因此答案在整个挂起边界上是一致的。
     inline bool tty() {
         static const bool on = ::isatty(STDOUT_FILENO) == 1
             && maya::theme::detect_tier(/*tty=*/true)
@@ -92,79 +92,79 @@ namespace runner_ui {
     inline void emit(const std::string& s) {
         (void)!::write(STDOUT_FILENO, s.data(), s.size());
     }
-    // Clear the current line (used to wipe an in-place heartbeat before
-    // real output or the final status lands on top of it).
+    // 清除当前行（用于在实际输出或最终状态到达其顶
+    // 部之前擦除in-place心跳）。
     inline void clear_line() { if (tty()) emit("\r\x1b[2K"); }
-    // Set / restore the terminal window title (OSC 2). This is an
-    // ALWAYS-ON elapsed-time readout that lives in the titlebar, so it
-    // updates every second even while output is streaming without ever
-    // touching the scrollback area. No-op off a TTY.
+    // 设置/恢复终端窗口标题(OSC 2)。这是标题栏中的
+    // 始终-ON elapsed-time 读数，
+    // 因此即使输出是 流式传输，它也会每秒更新一次，而不会触及
+    // 回滚缓冲区 区域。 No-op 关闭 TTY。
     inline void set_title(const std::string& t) {
         if (tty()) emit("\x1b]2;" + t + "\x07");
     }
     inline void restore_title() { if (tty()) emit("\x1b]2;\x07"); }
 
-    // ── Pinned bottom-line status (DECSTBM) ──────────────────────────────
-    // A universal fallback for terminals/multiplexers that drop the OSC-2
-    // window title: reserve the bottom screen row as a fixed status line so
-    // the elapsed-time readout is ALWAYS visible even while output streams.
-    // Output written by the tee loop scrolls within rows 1..h-1 (the
-    // DECSTBM margin); we repaint row h out-of-band. Every escape here is
-    // TTY-gated and fully torn down by end_status(), so piped output and
-    // the captured buffer never see any of it.
+    // ── 压在底部 -line 状态( 4) DECSTBM) ──────────────────────────────
+    // 用于terminals/multiplexers的通用回退，
+    // 其删除OSC-2窗口标题：保留底部屏幕行作为固定状态行，
+    // 使得经过的-time读数即使在输出数据流时也是可见的ALWAYS。
+    // 由tee循环写入的输出在第1..h-1行（DECSTBM边距）内滚动；
+    // 我们从 重绘 排 h 出来 -of-band。这里的每个转义都是
+    // TTY-gated 并被 end_status() 完全拆除，
+    // 因此管道输出和捕获的 缓冲区 永远看不到任何它。
     inline int term_rows() {
         struct winsize ws{};
         if (::ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_row > 2)
             return ws.ws_row;
-        return 0;   // unknown / too small — caller disables the status line
+        return 0;   // 未知/太小——呼叫者禁用状态行
     }
-    // Enter status mode: set the scroll region to rows 1..(rows-1), leaving
-    // row `rows` reserved. Cursor is parked at the top of the scroll region.
+    // Enter状态模式：将滚动区域设置为行1..
+    // (rows-1)，保留行`rows`。光标停在滚动区域的顶部。
     inline void begin_status(int rows) {
         if (!tty() || rows < 3) return;
         std::string s;
-        s += "\x1b[1;" + std::to_string(rows - 1) + "r";  // DECSTBM margin
-        s += "\x1b[" + std::to_string(rows - 1) + ";1H";  // park cursor
+        s += "\x1b[1;" + std::to_string(rows - 1) + "r";  // DECSTBM保证金
+        s += "\x1b[" + std::to_string(rows - 1) + ";1H";  // 公园光标
         emit(s);
     }
-    // Repaint the reserved bottom row with `text` (already styled), then
-    // return the cursor into the scroll region so output continues above.
+    // 重绘保留底行与`text`(已经样式化)，
+    // 然后将光标返回到滚动区域，以便输出继续在上面。
     inline void paint_status(int rows, const std::string& text) {
         if (!tty() || rows < 3) return;
         std::string s;
-        s += "\x1b[s";                                    // save cursor
-        s += "\x1b[" + std::to_string(rows) + ";1H";      // to status row
-        s += "\x1b[2K";                                   // clear it
+        s += "\x1b[s";                                    // 保存光标
+        s += "\x1b[" + std::to_string(rows) + ";1H";      // 到状态行
+        s += "\x1b[2K";                                   // 清除它
         s += text;
-        s += "\x1b[u";                                    // restore cursor
+        s += "\x1b[u";                                    // 恢复光标
         emit(s);
     }
-    // Leave status mode: reset the scroll region to full screen and clear
-    // the reserved row so the transcript ends clean.
+    // 离开状态模式：将滚动区域重置为全屏并清除保留行，
+    // 以便记录结束干净。
     inline void end_status(int rows) {
         if (!tty() || rows < 3) return;
         std::string s;
-        s += "\x1b[r";                                    // reset DECSTBM
+        s += "\x1b[r";                                    // 重置DECSTBM
         s += "\x1b[" + std::to_string(rows) + ";1H";
         s += "\x1b[2K";
         s += "\x1b[" + std::to_string(rows - 1) + ";1H";
         emit(s);
     }
-    // Hand the child a clean screen. maya's inline-mode suspend only emits
-    // "\r\n" on teardown — it moves the cursor onto a fresh line but leaves
-    // the whole last TUI frame (transcript, composer, picker) still painted
-    // ABOVE it. The run header + child output then scroll up INTO that stale
-    // frame and overlap it ("text already there that overlaps when you
-    // type"). Clear the visible viewport and home the cursor so the child
-    // starts on a blank screen.
+    // 递给孩子一个干净的屏幕。 maya 的 inline-mode 挂起
+    // 仅在拆卸时发出 "\r\n" — 它将光标移动到新行，但留下整个最后的
+    // TUI 帧（转录，作曲家，选择面板）仍然绘制 上方 它。运行 头文件
+    // + 子输出，然后向上滚动 INTO 到 过期 帧 并重叠它 (
+    // 已有文字在输入时发生重叠。
+    // 清除可见的 可视区域 并将光标置于主页，
+    // 以便子项在空白屏幕上开始。
     //
-    // ED2 (\x1b[2J) clears the VIEWPORT only; scrollback is untouched (that
-    // needs ED3 / \x1b[3J, which we deliberately do NOT send) so the
-    // conversation history the user scrolled through stays in native
-    // scrollback. TTY-gated, so piped/captured output never sees it.
+    // ED2 (\x1b[2J) 仅清除 VIEWPORT； 回滚缓冲区 未受
+    // 影响（需要 ED3 / \x1b[3J，我们故意通过 不 发送），
+    // 因此用户滚动的对话历史记录保留在本机 回滚缓冲区 中。
+    // TTY-gated，所以 piped/captured 输出永远看不到它。
     inline void reset_screen() {
         if (!tty()) return;
-        emit("\x1b[2J\x1b[H");   // ED2 clear viewport + cursor home
+        emit("\x1b[2J\x1b[H");   // ED2 清除 可视区域 + 光标主页
     }
 }
 
@@ -173,21 +173,21 @@ namespace runner_ui {
     CodeBlockRunFinished fin;
     fin.command = command;
 
-    // Hand the child a CLEAN screen. maya's inline suspend leaves the last
-    // TUI frame painted above the cursor; without this the header and child
-    // output scroll up into it and overlap. reset_screen() clears the
-    // viewport (scrollback preserved) and homes the cursor.
+    // 递给孩子一个CLEAN屏幕。 maya 的内联挂起将最后一个
+    // TUI 帧 绘制在光标上方；如果没有这个，头文件 和子输出将
+    // 向上滚动到其中并重叠。 reset_screen()
+    // 清除 可视区域（保留 回滚缓冲区）并恢复光标。
     ui::reset_screen();
 
-    // Framed run header: a clearly-delimited banner so the user can see at
-    // a glance WHERE the run started (the TUI just tore down, so a bare
-    // "$ cmd" line was easy to lose) and, crucially, that Ctrl-C stops it.
-    // The command still reads like a shell prompt so the transcript is
-    // copy-paste-faithful.
+    // 框架运行头文件：清晰的-delimited横幅，因此用户可以一眼
+    // 看到运行开始的WHERE（TUI刚刚被撕毁，因此裸露的"$ cmd"
+    // 线很容易丢失），并且至关重要的是，Ctrl-C停止了运行。
+    // 该命令读起来仍然像 shell 提示词，因此记录是 copy
+    // -paste-faithful。
     {
         std::string header;
         header += ui::dim();
-        // No leading \n — reset_screen() already homed the cursor to row 1.
+        // 无前导 \n — reset_screen() 已将光标定位到第 1 行。
         header += "\xe2\x95\xad\xe2\x94\x80 running \xe2\x94\x80 Ctrl-C to stop \xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80";
         header += ui::reset();
         header += "\n";
@@ -201,10 +201,10 @@ namespace runner_ui {
         ui::emit(header);
     }
 
-    // Started by jaal: no inherited descriptors, default signals in the
-    // child. It stays in OUR session and keeps our stdin, because it is a
-    // foreground job on the user's terminal: Ctrl-C at the tty has to reach
-    // it, and an interactive command has to be able to read keys.
+    // 由jaal开始：无继承描述符，子级中的默认信号。
+    // 它停留在 OUR 会话中并保留我们的标准输入，
+    // 因为它是 tty 上用户 终端: Ctrl-C 上的前台
+    // 作业必须到达它，并且交互式命令必须能够读取密钥。
     namespace pf = maya::platform;
     pf::process_spec spec;
     spec.argv         = {"/bin/sh", "-c", command};
@@ -222,23 +222,23 @@ namespace runner_ui {
     const int out_fd  = proc.stdout_handle()->get();
     const int exit_fd = proc.exit_handle().get();
 
-    // ── Parent ── classic system() semantics: ignore INT/QUIT while the
-    // child runs so Ctrl+C kills only the command, not agentty.
+    // 父进程沿用经典 system() 语义：子进程运行期间忽略 INT/QUIT。
+    // child 运行，因此 Ctrl+C 仅终止命令，而不终止 agentty。
     struct sigaction ign{}, old_int{}, old_quit{};
     ign.sa_handler = SIG_IGN;
     ::sigaction(SIGINT,  &ign, &old_int);
     ::sigaction(SIGQUIT, &ign, &old_quit);
 
-    // Tee loop: live to the tty, captured to the buffer. Bounded capture
-    // (2 MB) so a runaway command can't OOM the composer — the SCREEN
-    // still shows everything; only the buffer stops growing.
+    // Tee循环：直播到tty，捕获到缓冲区。有界捕获 (2 MB)，
+    // 因此失控命令无法 OOM 作曲家 — SCREEN
+    // 仍然显示所有内容；只有 缓冲区 停止生长。
     //
-    // We poll(2) with a 1s timeout instead of a bare blocking read so a
-    // SILENT command (npm install fetching, a network wait, a `sleep`)
-    // still shows a heartbeat — "⠿ running… 12s (Ctrl-C to stop)" redrawn
-    // in place — instead of a frozen-looking screen. The heartbeat is
-    // TTY-only and is wiped the instant real output or the exit status
-    // arrives, so it never pollutes the captured buffer or piped output.
+    // 我们使用 1s 超时 而不是裸露的阻塞读取来轮询（2），
+    // 因此 SILENT 命令（npm install fetching、
+    // 网络等待、`sleep`）仍然显示心跳 —
+    // "⠿ running… 12s (Ctrl-C to stop)" 就地重
+    // 绘 — 而不是冻结的 -looking 屏幕。心跳是TTY-only，
+    // 并在即时实际输出或退出状态到达时被擦除，因此它永远不会污染捕获的缓冲区或管道输出。
     constexpr std::size_t kCaptureMax = 2u * 1024 * 1024;
     bool truncated = false;
     char buf[8192];
@@ -246,15 +246,15 @@ namespace runner_ui {
     long last_status_secs = -1;
     int  spin = 0;
     static constexpr const char* kSpin[] = {"⣷","⣯","⣟","⡿","⣾","⣽","⣻","⣷"};
-    // Short command label for the timers (first token, clipped).
+    // 计时器的短命令标签（第一标记，被剪裁）。
     std::string label = command.substr(0, command.find_first_of(" \t\n"));
     if (label.size() > 24) label.resize(24);
 
-    // Two always-on elapsed readouts, belt-and-suspenders so SOMETHING is
-    // visible regardless of terminal quirks:
-    //   1. OSC-2 window title — non-intrusive, but some multiplexers drop it.
-    //   2. A DECSTBM-pinned bottom status row — universal; output scrolls
-    //      above it. Enabled only when we can read the terminal height.
+    // 两个always-on经过的读数，带-and-suspenders，
+    // 因此SOMETHING是可见的，无论终端怪癖如何：
+    //   1.OSC-2窗口标题-非-intrusive，但一些多路复用器将其丢弃。
+    //   2、DECSTBM-pinned底部状态行——通用；输出卷轴
+    //      其上方。仅当我们可以读取 终端 高度时才启用。
     const int rows = ui::term_rows();
     ui::begin_status(rows);
     auto tick = [&] {
@@ -272,31 +272,31 @@ namespace runner_ui {
         }
     };
     tick();
-    // Exit conditions, in the order they matter:
-    //   • EOF on the pipe — the normal case (child exited, no survivors).
-    //   • CHILD DEAD + PIPE QUIET — the hang-proof case. EOF requires
-    //     EVERY write end closed, and a grandchild the command left
-    //     behind (`npm run dev &`, a daemonizing build, a watcher)
-    //     inherits stdout/stderr and can hold the pipe open FOREVER
-    //     after the child exits. Without this arm the TUI stayed
-    //     suspended indefinitely — the reported "^G sometimes hangs".
-    //     So: reap the child without blocking inside the loop; once it
-    //     is dead and a full poll interval passes with no data, stop.
-    //     A still-attached background survivor that writes later gets
-    //     EPIPE/SIGPIPE — the price of restoring the UI; a command that
-    //     WANTS a survivor should redirect its output (`… > log &`).
+    // 退出条件，按其重要顺序：
+    //   ·管道上的EOF——正常情况（儿童退出，无幸存者）。
+    //   ·CHILD DEAD + PIPE QUIET —hang-proof 情况。 EOF 需要
+    //     EVERY写入端关闭，命令留下的孙子（`npm run dev &`，
+    //     守护进程构建，
+    //     观察者）继承stdout/stderr并且可以在子退出后保持管道打开FOREVER。
+    //     如果没有这个手臂，TUI 就会无限期地暂停——
+    //     所报告的 "^G sometimes hangs"。
+    //     所以：在循环内部不阻塞的情况下收割子进程；
+    //     一旦它死了并且完整的轮询间隔过去但没有数据，则停止。
+    //     稍后写入的仍然-attached背景幸存者获得EPIPE/SIGPIPE
+    //     ——恢复UI的价格； WANTS 幸存者应重
+    //     定向其输出的命令 (`… > log &`)。
     bool child_dead = false;
     for (;;) {
         struct pollfd pfds[2] = {{out_fd, POLLIN, 0}, {exit_fd, POLLIN, 0}};
         const int pr = ::poll(pfds, child_dead ? 1 : 2, 1000);
-        tick();   // refresh timers whether or not output arrived this tick
+        tick();   // 刷新计时器，无论输出是否到达此滴答
         if (pr < 0) {
             if (errno == EINTR) continue;
             break;
         }
         if (!child_dead && (pfds[1].revents & (POLLIN | POLLHUP))) child_dead = true;
         if (!(pfds[0].revents & (POLLIN | POLLHUP))) {
-            if (child_dead && pr <= 1) break;   // dead + quiet ≥ 1s → done
+            if (child_dead && pr <= 1) break;   // 死+安静≥1s→完成
             continue;
         }
         const ssize_t n = ::read(out_fd, buf, sizeof buf);
@@ -325,9 +325,9 @@ namespace runner_ui {
     ::sigaction(SIGINT,  &old_int,  nullptr);
     ::sigaction(SIGQUIT, &old_quit, nullptr);
 
-    // Distinguish a user interrupt (Ctrl-C / Ctrl-\) from a genuine
-    // command failure — "failed exit 130" reads like the command broke
-    // when the user actually stopped it on purpose.
+    // 将用户中断（Ctrl-C/Ctrl-\)与真正的命令
+    // 失败区分开——"failed exit 130"读起来
+    // 就像当用户实际上故意停止命令时命令中断了。
     bool interrupted = false;
     if (!status) {
         fin.exit_code = -1;
@@ -339,8 +339,8 @@ namespace runner_ui {
     }
     if (truncated) fin.output += "\n[capture truncated at 2 MB — full output was shown on screen]";
 
-    // Completion footer: a colour-coded status line so success/failure/
-    // interrupt is unmistakable at a glance, with elapsed time.
+    // 完成页脚：颜色-coded状态行，
+    // 因此success/failure/中断一目了然，带有经过的时间。
     {
         const long secs = static_cast<long>(::time(nullptr) - started);
         const bool ok = (fin.exit_code == 0);
@@ -357,19 +357,19 @@ namespace runner_ui {
         ui::emit(tail);
     }
 
-    // Keypress-to-continue: hold the transcript on screen until the user
-    // acknowledges, so a fast command's output isn't repainted away before
-    // it can be read. Only when stdout AND stdin are a real terminal (so
-    // we can actually read a key); piped/redirected runs skip it. The
-    // prompt is on its own line and cleared afterward so the restored TUI
-    // starts on a clean row. Any key continues.
+    // Keypress-to-continue：将记录保留在屏幕上
+    // 直到用户确认，因此快速命令的输出在可以读取之前不会被重新绘制。
+    // 仅当 stdout 和 stdin 是真正的 终端 时（这样
+    // 我们实际上可以读取密钥）； piped/redirected运行跳过它。
+    // 提示词 位于其自己的行上并随后被清除，因此恢复的 TUI
+    // 从干净的行开始。任意键继续。
     if (ui::tty() && ::isatty(STDIN_FILENO) == 1) {
         std::string prompt = ui::dim();
         prompt += "   press any key to return to agentty…";
         prompt += ui::reset();
         ui::emit(prompt);
-        // Best-effort raw single-key read: disable canonical mode + echo
-        // so a lone keypress (no Enter) continues, then restore.
+        // Best-effort原始single-key读取：禁用规范模式+回显，
+        // 以便单独按键（无Enter）继续，然后恢复。
         struct termios oldt{}, raw{};
         const bool have_termios = (::tcgetattr(STDIN_FILENO, &oldt) == 0);
         if (have_termios) {
@@ -380,9 +380,9 @@ namespace runner_ui {
             ::tcsetattr(STDIN_FILENO, TCSANOW, &raw);
         }
         char c;
-        // EINTR retries; EOF (0) and real errors (EIO after a hangup) fall
-        // through to the restore path — this gate can stall only for a live
-        // tty with a human who hasn't pressed a key yet, which is its job.
+        // EINTR 重试; EOF (0) 和真正的错误（
+        // 挂断后的 EIO）会进入恢复路径——这个门只能对
+        // 尚未按下按键的人的实时 tty 停止，这是它的工作。
         while (::read(STDIN_FILENO, &c, 1) < 0 && errno == EINTR) {}
         if (have_termios) ::tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
         ui::clear_line();
@@ -390,58 +390,58 @@ namespace runner_ui {
     return fin;
 }
 
-[[nodiscard]] Cmd run_block_cmd(std::string command, cbp::BlockShell /*shell*/) {
+[[nodiscard]] Cmd run_block_cmd(std::string command, cbp::BlockShell /*外壳*/) {
     return Cmd::suspend(
         [cmd = std::move(command)]() -> Msg {
             return Msg{run_on_real_tty(cmd)};
         });
 }
 
-#else  // _WIN32 — non-interactive fallback via the shared subprocess runner
+#else  // _WIN32 — non-interactive 回退 通过共享子进程运行程序
 
 #include <maya/runtime.hpp>
 
-// Wrap the block body for the chosen Windows interpreter. cmd.exe is the
-// default shell of run_command_s (it wraps in `cmd.exe /S /C "..."`), so
-// a Cmd block passes through verbatim. A PowerShell block is handed to
-// powershell -NoProfile -Command; we base64-encode it via -EncodedCommand
-// so arbitrary quoting/newlines survive the cmd.exe wrapper intact
-// (nested quotes through cmd /C are the classic breakage). Multi-line
-// scripts Just Work because the whole body is one encoded argument.
+// 为所选择的Windows解释器包装块正文。 cmd.exe 是 run_command_s
+// 的默认 shell（它包装在 `cmd.exe /S /C "..."` 中），
+// 因此 Cmd 块会逐字传递。将 PowerShell 块交给 powershell
+// -NoProfile -Command；我们通过 -EncodedCommand 对其
+// 进行 base64-encode，因此任意 quoting/newlines
+// 在 cmd.exe 包装中完好无损（通过 cmd /C 的嵌套引号是经典的破坏）。
+// Multi-line 脚本可以正常工作，因为整个 正文 是一个编码参数。
 [[nodiscard]] std::string wrap_for_windows_shell(cbp::BlockShell shell,
                                                  const std::string& body) {
     if (shell != cbp::BlockShell::PowerShell) return body;  // Cmd: verbatim
-    // PowerShell -EncodedCommand contract (base64 of UTF-16LE) lives in a
-    // shared, platform-independent header so it can be verified off Windows
-    // — the header carries a compile-time known-answer static_assert block
-    // that fails THIS build if the transform ever regresses.
+    // PowerShell -EncodedCommand合约(UTF-16LE的
+    // base64)存在于共享平台-independent 头文件中，因此可以在Windows
+    // 上对其进行验证——头文件携带编译-time已知-answer static_assert块，
+    // 如果转换出现倒退，则该块将导致THIS构建失败。
     return win_shell::powershell_command(body);
 }
 
-// The task BODY for the Windows runner. jaal requires a task body to capture
-// nothing (`TaskBody<Body, Msg, Args...>` resolves to a plain function
-// pointer), so everything it needs arrives as Sendable arguments after the
-// stop_token. This used to be a capturing lambda, which is why the msys2 leg
-// — the only CI lane with a compiler new enough to instantiate jaal's checks
-// — failed with "a task body must not capture anything" while MSVC reported
-// the same thing as a Sendable static_assert.
+// Windows跑步者的任务BODY。 jaal 需要任务 正文 不捕获任何内容（
+// `TaskBody<Body, Msg, Args...>` 解析为普通函数指针），
+// 因此它需要的所有内容都作为可发送参数在 stop_token 之后到达。
+// 这曾经是一个捕获 lambda，这就是为什么 msys2 分支（唯一的 CI 通道，
+// 具有足够新的 编译器 来实例化 jaal 的检查）失败并显示
+// "a task body must not capture anything"，而 MSVC
+// 报告了与可发送 static_assert 相同的情况。
 //
-// The console-echo helper below is also deliberately NOT named `out`: the
-// Sink parameter owns that name, and shadowing it made `out.send(...)`
-// resolve to the echo lambda.
+// 下面的console-echo帮助器还特意将NOT命名为`out`：
+// Sink参数拥有该名称，并且遮蔽它使得`out.send(...)`
+// 解析为回显lambda。
 static void run_block_body(const maya::unlocked& cap, maya::Sink<Msg> out, std::stop_token stop,
                            std::string cmd, cbp::BlockShell shell) {
     const std::string wrapped = wrap_for_windows_shell(shell, cmd);
 
-    // Windows parity for "what's happening while it runs": the
-    // shared subprocess runner (run_command_s) is blocking and
-    // non-streaming — output only appears in the Result card at the
-    // end — so we can't tee live. But we CAN show the run is alive:
-    // print a header, spin a background thread that ticks an
-    // elapsed-time heartbeat (OSC-2 title + an in-place line;
-    // modern Windows Terminal / conhost with VT processing render
-    // both), run the command, then a footer. All decoration is
-    // console-only and never enters the captured buffer.
+    // 运行过程中发生了什么？
+    // 的 Windows 奇偶校验：共享子进程运行程序 (
+    // run_command_s) 正在阻塞并且非 -streaming — 输出仅
+    // 出现在最后的结果卡中 — 因此我们无法实时查看。但我们 CAN 显示运行还活着：
+    // 打印 头文件，旋转背景 线程，它会滴答过去的 -time
+    // 心跳（OSC-2 标题 + in-place 行；
+    // 现代 Windows 终端 / conhost 与 VT
+    // 处理 渲染 两者），运行命令，然后运行页脚。所有装饰都是
+    // console-only，并且永远不会进入捕获的缓冲区。
     const bool con = (::_isatty(_fileno(stdout)) != 0);
     auto echo = [](const std::string& s) {
         std::fputs(s.c_str(), stdout); std::fflush(stdout);
@@ -454,40 +454,40 @@ static void run_block_body(const maya::unlocked& cap, maya::Sink<Msg> out, std::
     std::string label = cmd.substr(0, cmd.find_first_of(" \t\n"));
     if (label.size() > 24) label.resize(24);
 
-    // The heartbeat runs in a maya::scope, not a bare std::thread.
+    // 心跳在maya::scope中运行，而不是在裸露的std::thread中运行。
     //
-    // The old shape was `std::thread ticker; ... ticker.join()` with the
-    // blocking run_command_s between them. Two problems, both invisible until
-    // they bite: if anything in that window threw, ~thread ran on a joinable
-    // thread and the process called std::terminate (no stack, no message);
-    // and the helper captured `done_flag` and `label` by reference, which is
-    // only safe because of that same join nobody was guaranteed to reach.
+    // 旧形状是`std::thread ticker; ... ticker.join()`，
+    // 其间有阻挡run_command_s。有两个问题，在它们咬住之前
+    // 都是看不见的：如果该窗口中抛出任何东西，〜线程在可连接的线程上运行，
+    // 并且进程称为std::terminate（没有堆栈，没有消息）；
+    // 并且助手通过引用捕获了 `done_flag` 和 `label`，
+    // 这只是安全的，因为没有人保证能够到达相同的连接。
     //
-    // scope() joins every helper on EVERY exit path — normal return, early
-    // return, exception — which is what makes the [&] capture of locals
-    // legitimate rather than lucky. There is also no detach() to reach for,
-    // so the helper cannot be made to outlive the frame it borrows from.
+    // scope()加入EVERY退出路径上的每个帮助者
+    // ——正常返回、提前返回、异常——这使得[&]捕获
+    // 当地人是合法的而不是幸运的。也没有 detach()
+    // 可以到达，因此助手不能比它借用的 帧 活得更久。
     //
-    // The task's own stop_token is passed in as the parent, so Esc (or
-    // shutdown) cancels the heartbeat through the same path as everything
-    // else instead of needing its own flag. done_flag stays for the normal
-    // "the command finished" stop, which is not a cancellation.
+    // 任务自己的stop_token作为父代被传入，因此Esc（
+    // 或关闭）通过与其他所有任务相同的路径取消心跳，而不需要其自己的标志。
+    // done_flag 停留在正常的
+    // "the command finished" 停止位置，这不是 取消。
     struct Outcome {
         tools::util::SubprocessResult r;
         long                          secs = 0;
     };
 
-    // What the heartbeat shares with this thread: one stop flag. Sync
-    // (const stop_source), held by a co_owned so neither side can free it
-    // under the other. request_stop() is non-const in the standard (only
-    // libstdc++ marks it const), so it goes through a copy: copies share the
-    // stop state, and copying a const source is allowed from any thread.
+    // 心跳与这个线程共享什么：一站标志。同步（const stop_source），
+    // 由 co_owned 持有，因此双方都不能在另一方下释放它。
+    // request_stop() 在标准中是非 -const（只有
+    // libstdc++ 将其标记为 const），因此它会经历一个副本：
+    // 副本共享停止状态，并且允许从任何 线程 复制 const 源。
     struct Beat { const std::stop_source done; };
     auto beat_state = maya::co_owned<Beat>::make();
 
     auto outcome = maya::scope(cap, stop, [&](maya::nursery& n) {
-        // The helper's own token comes from the scope's, so Esc reaches the
-        // spinner too; the callback folds it into `done`.
+        // 帮助者自己的令牌来自作用域的，因此 Esc 也到达 加载动画；
+        // 将 回调 归并 改成 `done`。
         auto beat = n.spawn([](const maya::unlocked& hcap, std::stop_token st, maya::co_owned<Beat> b, std::string label,
                                bool con) {
             if (!con) return;
@@ -508,8 +508,8 @@ static void run_block_body(const maya::unlocked& cap, maya::Sink<Msg> out, std::
             } while (!maya::delay_for(hcap, b->done.get_token(), std::chrono::milliseconds(250)));
         }, beat_state, label, con);
 
-        // However the command ends (or throws), stop the spinner before the
-        // handle joins it.
+        // 然而，命令结束（或抛出），在句柄加入它之前停止
+        // 加载动画。
         struct StopBeat {
             const Beat& b;
             ~StopBeat() { std::stop_source(b.done).request_stop(); }
@@ -523,7 +523,7 @@ static void run_block_body(const maya::unlocked& cap, maya::Sink<Msg> out, std::
                 std::chrono::steady_clock::now() - start).count());
 
         std::stop_source(beat_state->done).request_stop();
-        beat.join();          // explicit, so a throwing helper surfaces here
+        beat.join();          // 明确的，所以这里有一个投掷助手
         return o;
     });
 
@@ -531,7 +531,7 @@ static void run_block_body(const maya::unlocked& cap, maya::Sink<Msg> out, std::
     const long secs = outcome.secs;
 
     CodeBlockRunFinished fin;
-    fin.command   = cmd;   // show the ORIGINAL body in the card
+    fin.command   = cmd;   // 卡中显示ORIGINAL 正文
     fin.timed_out = r.timed_out;
     if (!r.started) {
         fin.output    = "[failed to start: " + r.start_error + "]";
@@ -544,7 +544,7 @@ static void run_block_body(const maya::unlocked& cap, maya::Sink<Msg> out, std::
 
     if (con) {
         const bool ok = (fin.exit_code == 0 && !r.timed_out);
-        std::string tail = "\r\x1b[2K\x1b]2;\x07";   // wipe hb + restore title
+        std::string tail = "\r\x1b[2K\x1b]2;\x07";   // 擦除hb+恢复标题
         tail += ok ? "\x1b[32m╰─ ✓ done"
              : r.timed_out ? "\x1b[33m╰─ ■ timed out"
              : "\x1b[31m╰─ ✗ failed";
@@ -557,9 +557,9 @@ static void run_block_body(const maya::unlocked& cap, maya::Sink<Msg> out, std::
 }
 
 [[nodiscard]] Cmd run_block_cmd(std::string command, cbp::BlockShell shell) {
-    // Body is a captureless lambda over the plain function, so jaal hands it
-    // the worker's `unlocked` (the heartbeat scope joins: it needs one); the
-    // command and shell ride along as Sendable arguments.
+    // 正文是普通函数上的无捕获lambda，因此jaal将工作线程
+    // 的`unlocked`交给它（心跳范围加入：它需要一个）；
+    // 命令和 shell 作为可发送参数一起运行。
     return Cmd::task_isolated(
         [](const maya::unlocked& cap, maya::Sink<Msg> out, std::stop_token stop,
            std::string cmd, cbp::BlockShell sh) {
@@ -569,7 +569,7 @@ static void run_block_body(const maya::unlocked& cap, maya::Sink<Msg> out, std::
 }
 
 #endif
-} // namespace
+} // 命名空间结束。
 
 Cmd run_code_block(std::string command, cbp::BlockShell shell) {
     return run_block_cmd(std::move(command), shell);

@@ -1,17 +1,17 @@
 #pragma once
-// agentty::stats — Unit and format(): the ONE place a number becomes text.
+// agentty::stats-单位和format():ONE处的数字变成文本。
 //
-// Every statistic in the panel is a double plus a unit. This file owns the
-// translation, and owning it once is the point: without it, a token count
-// gets spelled "12.4k" on one tab and "12400" on the next, a duration is
-// "3.2s" here and "3200ms" there, and the eleventh statistic arrives with
-// a twelfth spelling. That drift is invisible in review — each site looks
-// correct on its own — and glaring in use.
+// 面板中的每个统计量都是双加一个单位。这个文件拥有翻译，
+// 拥有它一次就是重点：没有它，令牌计数在一个选项卡上拼写为 "12.4k"，
+// 在下一个选项卡上拼写为 "12400"，持续时间在这里是
+// "3.2s"，那里是 "3200ms"，第十一个统计数据以第
+// 十二个拼写出现。这种偏差在审查中是看不见的——每个网站本身看起来
+// 都是正确的——并且在使用中很明显。
 //
-// The widget (maya::StatSheet) deliberately does NOT do this. It takes
-// strings, because units belong to the domain that owns the numbers; a
-// widget that knew what a kilotoken was would need a new enumerator every
-// time a host learned a new unit.
+// 小部件(maya::StatSheet)故意使NOT这样做。
+// 它需要字符串，因为单位属于拥有数字的域；
+// 每当主机学习一个新单位时，知道千代币是什么的小部件
+// 就需要一个新的枚举器。
 
 #include <cmath>
 #include <cstdint>
@@ -21,10 +21,10 @@
 namespace agentty::stats {
 
 enum class Unit : std::uint8_t {
-    Count,    // 1, 47, 1.2k        — turns, calls, errors
-    Tokens,   // 847, 12.4k, 1.3M   — same ramp as Count, named for intent
-    Bytes,    // 512 B, 4.1 KB      — 1024-based
-    Millis,   // 340ms, 3.2s, 4m12s — reads as a duration, never as a number
+    Count,    // 1, 47, 1.2k — 圈数，调用，错误
+    Tokens,   // 847、12.4k、1.3M — 与 Count 相同的坡道，根据意图命名
+    Bytes,    // 512B，4.1KB — 1024-based
+    Millis,   // 340ms、3.2s、4m12s-读取为持续时间，而不读取为数字
     Ratio,    // 0.62 → "62%"
     Rate,     // 1.2k/s
     Usd,      // $0.42
@@ -32,17 +32,17 @@ enum class Unit : std::uint8_t {
 
 namespace detail {
 
-// Thousands ramp shared by Count / Tokens / Rate.
+// 由计数/令牌/速率共享的数千个斜坡。
 //
-// One decimal below 10 and none above it: "1.2k" and "12k" both fit four
-// columns, so a table of them stays aligned without padding, and the
-// precision that gets dropped at 12k was never being read anyway.
+// 10以下一位小数且没有一位小数以上："1.2k"和
+// "12k"都适合四列，因此它们的表保持对齐而无需填充，
+// 并且无论如何都不会读取在12k处下降的精度。
 [[nodiscard]] inline std::string si(double v) {
     char buf[32];
     const double a = v < 0 ? -v : v;
     if (a < 1000.0) {
-        // Integers print as integers. "47.0 turns" implies a precision the
-        // count does not have.
+        // 整数打印为整数。 "47.0 turns" 表示
+        // 计数不具有精度。
         if (a == std::floor(a)) {
             std::snprintf(buf, sizeof buf, "%.0f", v);
         } else {
@@ -60,8 +60,8 @@ namespace detail {
     return buf;
 }
 
-// Durations read as durations. 214000 is a number; "3m34s" is a fact about
-// how long you waited, and the reader should not have to divide.
+// 持续时间读作持续时间。 214000 是一个数字；
+// "3m34s"是一个关于你等了多久的事实，读者不应该有分歧。
 [[nodiscard]] inline std::string duration(double ms) {
     char buf[32];
     if (ms < 0) ms = 0;
@@ -95,7 +95,7 @@ namespace detail {
 
 }  // namespace detail
 
-// The single formatter. Every number the panel shows passes through here.
+// 单一格式化器。面板显示的每个数字都经过这里。
 [[nodiscard]] inline std::string format(Unit u, double v) {
     switch (u) {
         case Unit::Count:
@@ -107,11 +107,11 @@ namespace detail {
             return detail::duration(v);
         case Unit::Ratio: {
             char buf[16];
-            // Whole percents. A share is read as a proportion, and "61.7%"
-            // spends a column on precision nobody acts on. But a non-zero
-            // share never prints as "0%" — same rule as the bar that is
-            // not allowed to round to empty: "almost none" and "none" are
-            // different readings.
+            // 整数百分比。份额被解读为比例，"61.7%" 花了一个
+            // 专栏来讨论没人采取行动的精度。但非 -zero 份额
+            // 永远不会打印为 "0%" — 与不允许舍入为空的条形
+            // 规则相同："almost none" 和 "none"
+            // 是不同的读数。
             const double pct = v * 100.0;
             if (pct > 0.0 && pct < 1.0) return "<1%";
             if (pct < 0.0 && pct > -1.0) return ">-1%";
@@ -123,8 +123,8 @@ namespace detail {
         case Unit::Usd: {
             char buf[24];
             const double a = v < 0 ? -v : v;
-            // Sub-cent amounts are real on cheap models and rounding them
-            // to "$0.00" reports a free turn that was not free.
+            // Sub-cent金额在廉价型号上是真实的，并且将它们四舍
+            // 五入到"$0.00"报告了并非免费的免费转弯。
             std::snprintf(buf, sizeof buf, a < 0.01 && a > 0 ? "$%.4f" : "$%.2f", v);
             return buf;
         }

@@ -1,5 +1,5 @@
-// Appearance settings: the rows exist, Enter changes them, and a change
-// both persists and reaches the renderer.
+// 外观设置: 存在行, Enter 改变它们,
+// 改变既持续,也到达 渲染器.
 #include "agtest.hpp"
 #include "agtest_fx.hpp"
 
@@ -32,8 +32,8 @@ namespace se = agentty::settings;
 
 namespace {
 
-// A settings store that lives in memory, so a test can assert that a row
-// press actually WROTE rather than only mutated the model in hand.
+// 住进的设置存储器 内存 ,所以测试可以断言一行按
+// 实际 WROTE 而不是仅仅改变 手头的模型。
 store::Settings g_saved;
 
 void install_stub_deps() {
@@ -52,12 +52,12 @@ void install_stub_deps() {
     });
 }
 
-// Apply whatever effects a step returned to the stub store.
+// 应用任何副作用 步骤返回到 stub 商店。
 //
-// Saving is an EFFECT now: the reducer returns a value describing the write
-// and the HOST performs it. These tests assert on `g_saved`, i.e. on what
-// reached the store, so they have to play the host's part — which is also
-// the point: a save only shows up here if the arm actually returned it.
+// 保存是一个 EFFECT 现在: 状态更新函数 返回描述
+// 写作和写的值 HOST 测试结果 `g_saved`,
+// i.e .关于商店的到来,所以他们必须扮演主持人的角色——
+// 这也是重点:a 保存 只有手臂真的还回来时 才会出现在这里
 void apply_fx(const Cmd& c) {
     agtest::fx::Store s;
     s.settings = g_saved;
@@ -65,7 +65,7 @@ void apply_fx(const Cmd& c) {
     g_saved = s.settings;
 }
 
-// Open the Appearance pane and hand back the model holding it.
+// 打开"外观面板",将模型拿回来.
 Model opened() {
     auto [m, cmd] = app::update(Model{}, Msg{OpenAppearance{}});
     apply_fx(cmd);
@@ -78,10 +78,10 @@ ui::panel::Appearance& pane(Model& m) {
     return *o;
 }
 
-// Put the cursor on the row with `id` and send one key action, exactly as a
-// keystroke would. Addressing rows BY ID rather than by index is the same
-// discipline the reducer uses — a test that counts rows breaks every time
-// the pane grows a section, and for no real reason.
+// 将光标放在行上 `id` 并发送一个关键动作,
+// 恰好是按键键。 处理行 BY ID 而不是指数 和
+// 本学科一样 状态更新函数 使用——每次进行数行断裂
+// 的测试 面板 生长一节,无实故也.
 Model press(Model m, std::string_view id, form::keys::Action a) {
     auto& f = pane(m).pane.form;
     int idx = -1;
@@ -94,15 +94,15 @@ Model press(Model m, std::string_view id, form::keys::Action a) {
     return std::move(next);
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("appearance: the pane opens on a setting, not a header") {
     install_stub_deps();
     Model m = opened();
     const auto& f = pane(m).pane.form;
     REQUIRE(!f.fields.empty());
-    // A cursor parked on a section header reads as a broken pane — the
-    // first thing you press does nothing.
+    // 区域上停放的光标 头文件 读作破损 面板 - 你
+    // 按的第一件事 什么也没做。
     CHECK(!f.fields[(size_t)f.cursor].is_header());
 }
 
@@ -115,7 +115,7 @@ TEST_CASE("appearance: adjusting in place wraps") {
     m = press(std::move(m), ui::panel::kApDensity, form::keys::Action{form::keys::Intent::AdjustUp});
     CHECK(m.d.ui().density == ui_prefs::Density::Compact);
     m = press(std::move(m), ui::panel::kApDensity, form::keys::Action{form::keys::Intent::AdjustUp});
-    CHECK(m.d.ui().density == ui_prefs::Density::Normal);   // wrapped
+    CHECK(m.d.ui().density == ui_prefs::Density::Normal);   // 包起来
 }
 
 TEST_CASE("appearance: a toggle is a toggle") {
@@ -132,39 +132,39 @@ TEST_CASE("appearance: a change is persisted, not just held") {
     install_stub_deps();
     Model m = opened();
     m = press(std::move(m), ui::panel::kApMotion, form::keys::Action{form::keys::Intent::AdjustUp});
-    // The pane has no apply step, so "what I see" and "what is saved"
-    // must never be two different things — not even for one keystroke.
+    // 电话 面板 没有应用步骤,所以 "what I see" 财务报告和已审计
+    // 财务报表 "what is saved" 决不能是两件不同的事情——即使是按键。
     CHECK(g_saved.ui.motion == m.d.ui().motion);
     CHECK(m.d.ui().motion != ui_prefs::Motion::Full);
 }
 
-// The Scrollback row picks how many rows a replay prints. Auto (default)
-// is the terminal's own length; AGENTTY_REPLAY_ROWS beats every level;
-// tmux's history-limit caps them.
+// 电话 回滚缓冲区 列选择重放打印的行数。自动(默认)是 终端 长度;
+// AGENTTY_REPLAY_ROWS 击败每关; tmux 的
+// 历史 -limit 盖住他们。
 TEST_CASE("appearance: scrollback sets the replay row cap") {
     install_stub_deps();
     Model m = opened();
     CHECK(m.d.ui().scrollback == ui_prefs::Scrollback::Auto);
 
-    // Auto before the probe: the env-only guess, else a safe 5k.
+    // 探测器前自动:env-only猜,否则安全5k.
     m.env.auto_scrollback_rows = 0;
     CHECK(app::detail::scrollback_replay_limits(m).first == 5'000);
-    m.env.auto_scrollback_rows = 2'000;        // e.g. kitty's default
+    m.env.auto_scrollback_rows = 2'000;        // e.g . 小猫的默认
     CHECK(app::detail::scrollback_replay_limits(m).first == 2'000);
-    // The startup probe answers (it read kitty.conf): that wins.
+    // 启动探测器的答案( 它读作kitty.conf): 获胜。
     m = app::update(std::move(m), Msg{TerminalScrollbackProbed{7'654, false, true, "kitty.conf"}}).first;
     CHECK(app::detail::scrollback_replay_limits(m).first == 7'654);
     m = app::update(std::move(m), Msg{TerminalScrollbackProbed{0, true, true, "kitty.conf"}}).first;
     CHECK(app::detail::scrollback_replay_limits(m).first == std::numeric_limits<int>::max());
-    // A probe that learnt nothing leaves the guess in charge.
+    // 探测器什么也学不到 猜想就由我们来负责
     m = app::update(std::move(m), Msg{TerminalScrollbackProbed{0, false, false, ""}}).first;
     CHECK(app::detail::scrollback_replay_limits(m).first == 2'000);
 
-    // Fixed levels ignore the terminal.
+    // 固定水平忽略了终端.
     m.d.ui().scrollback = ui_prefs::Scrollback::Small;
     CHECK(app::detail::scrollback_replay_limits(m).first == 5'000);
     {
-        // Open the pane on Small so the row starts there; up is Big.
+        // 打开小号上的面板, 排从那里开始; 上方是大号。
         Model start;
         start.d.ui().scrollback = ui_prefs::Scrollback::Small;
         Model p = app::update(std::move(start), Msg{OpenAppearance{}}).first;
@@ -179,20 +179,20 @@ TEST_CASE("appearance: scrollback sets the replay row cap") {
     m.d.ui().scrollback = ui_prefs::Scrollback::Tiny;
     CHECK(app::detail::scrollback_replay_limits(m).first == 1'000);
 
-    // tmux drops rows past its history-limit, so never print more.
+    // tmux 的行数已经超过它的-limit,所以永远不要打印了.
     m.d.ui().scrollback = ui_prefs::Scrollback::Full;
     m.env.terminal_history_rows = 2'000;
     CHECK(app::detail::scrollback_replay_limits(m).first == 2'000);
 
-    // The env override wins over every level.
+    // 内幕覆盖器会战胜每个级别
     m.env.replay_rows_override = 0;
     CHECK(app::detail::scrollback_replay_limits(m).first == 0);
     m.env.replay_rows_override = 500;
     CHECK(app::detail::scrollback_replay_limits(m).first == 500);
 }
 
-// The row lists Auto first, which isn't enum order: picking a choice must
-// store the level it shows, not the one at that enum index.
+// 行列出自动, 而不是 枚举 顺序: 选择必须存储
+// 显示的级别, 而不是该级别 枚举 索引。
 TEST_CASE("appearance: scrollback choices map to the level shown") {
     install_stub_deps();
     Model m = opened();
@@ -217,11 +217,11 @@ TEST_CASE("appearance: the theme row hands off to a browser, not a dropdown") {
 TEST_CASE("appearance: moving in the browser previews the theme live") {
     install_stub_deps();
     Model m = opened();
-    CHECK(m.d.ui().theme.empty());              // native by default
+    CHECK(m.d.ui().theme.empty());              // 默认本地
     m = press(std::move(m), ui::panel::kApTheme, form::keys::Action{form::keys::Intent::Activate});
 
-    // Moving APPLIES — the list is its own preview, so you judge a scheme
-    // on the real UI rather than on its name.
+    // 移动 APPLIES - 列表是它自己的预览,所以你判断一个方案
+    // 在真实的 UI 而不是在它的名字上。
     {
         auto [n, fxc] = app::update(std::move(m), Msg{AppearanceThemeMove{+1}});
         apply_fx(fxc);
@@ -229,8 +229,8 @@ TEST_CASE("appearance: moving in the browser previews the theme live") {
     }
     CHECK(!m.d.ui().theme.empty());
 
-    // Esc is a true cancel: it puts back what we opened on, in the model
-    // AND on disk, so a browse you abandoned leaves nothing behind.
+    // Esc 是个真人 取消 :它让我们在模型
+    // 中重新打开 和 光是光线就一无所有了
     {
         auto [n, fxc] = app::update(std::move(m), Msg{AppearanceThemeCancel{}});
         apply_fx(fxc);
@@ -271,22 +271,22 @@ TEST_CASE("appearance: typing filters and previews the top match") {
         m = std::move(n);
     }
     CHECK(pane(m).pane.picker.picker.query() == "dra");
-    // Narrowing PREVIEWS too — "dra" shows you Dracula without a second
-    // keystroke to move onto it.
+    // 缩小 PREVIEWS 也... 也别忘了... "dra" 让你看看德古拉
+    // 没有第二个键盘可以移动到它上.
     CHECK(!m.d.ui().theme.empty());
 }
 
 TEST_CASE("appearance: resolution never leaves the user unable to read") {
-    // A scheme needs 256 colors to be worth painting; below that native —
-    // the user's own palette — is strictly better than a quantised
-    // approximation, so resolve() must fall back rather than obey.
+    // 一个方案需要256种颜色才能值得绘画;低于这个原生的—
+    // —用户自己的调色板——严格来说比一个量化的近似值更好,
+    // 所以resolve()必须倒回去而不是服从.
     ui_prefs::Prefs p;
     p.theme = "Dracula";
     p.tier  = ui_prefs::ColorTier::TrueColor;
     CHECK(ui_prefs::resolve(p, agentty::ui_prefs::detect(true)).theme != &maya::theme::native);
     p.tier  = ui_prefs::ColorTier::Ansi16;
     CHECK(ui_prefs::resolve(p, agentty::ui_prefs::detect(true)).theme == &maya::theme::native);
-    // An unknown name is a config typo, not a reason to refuse to start.
+    // 未知名称是配置类型,不是拒绝开始的理由.
     p.theme = "Nope";
     p.tier  = ui_prefs::ColorTier::TrueColor;
     CHECK(ui_prefs::resolve(p, agentty::ui_prefs::detect(true)).theme == &maya::theme::native);
@@ -298,15 +298,15 @@ TEST_CASE("appearance form: rows, groups and provenance") {
     ui_prefs::Prefs p;
     const auto f = ui::panel::build_appearance_form(p, ui_prefs::detect(true));
 
-    // Every knob has a row, and the pane is grouped rather than a flat wall.
+    // 每个把手都有排,还有 面板 被组合起来,而不是平面墙。
     CHECK(f.fields.size() >= 11);
     int headers = 0;
     for (const auto& r : f.fields)
         if (std::holds_alternative<form::field::Header>(r.value)) ++headers;
     CHECK(headers >= 4);
 
-    // The theme row leads and is a Pick — 57 schemes is a searchable set,
-    // not a dropdown.
+    // 主题行领先,是Pick——57种方案是可搜索的集,
+    // 而不是滴水.
     bool found_pick = false;
     for (const auto& r : f.fields)
         if (r.id == ui::panel::kApTheme)
@@ -316,31 +316,31 @@ TEST_CASE("appearance form: rows, groups and provenance") {
 
 TEST_CASE("appearance: theme search is a fuzzy subsequence") {
     using ui::panel::matching_themes;
-    // Empty query is a browsable catalogue, native first.
+    // 空查询是一个可浏览目录, 本地先。
     const auto all = matching_themes("");
     CHECK(all.size() > 20);
-    CHECK(all.front().empty());              // native
+    CHECK(all.front().empty());              // 本地语言
 
-    // Subsequence, not substring: the point of a fuzzy picker.
+    // 子序,而非子弦:一个模糊的选择面板的点.
     const auto gvd = matching_themes("gvd");
     bool has_gruvbox_dark = false;
     for (const auto& n : gvd) if (n == "Gruvbox Dark") has_gruvbox_dark = true;
     CHECK(has_gruvbox_dark);
 
-    // Case-insensitive.
+    // 大小写 -insensitive.
     CHECK(!matching_themes("DRACULA").empty());
-    // A query that means a scheme does not drag native along.
+    // 查询意味着一个方案不会拖动本地程序。
     const auto dr = matching_themes("dracula");
     CHECK(!dr.empty());
     CHECK(!dr.front().empty());
 }
 
-// ── The knobs actually DO something ─────────────────────────────────
+// ── 其实是小把手 DO 东西 ─────────────────────────────────
 //
-// A settings panel whose rows persist but change nothing is worse than no
-// panel: it is a promise the UI breaks silently. These assert the SEAM —
-// that a published pref reaches the code that reads it — rather than
-// re-testing each consumer's own rendering, which its own tests cover.
+// 设置面板, 其行不变, 但变化并不比面板更糟糕: 这是对
+// 您的许诺 UI 安静地打破。 SEAM ——一个已出版的
+// 预告达到读它时的代码——而不是重新读到它.
+// -testing 每一个消费者自己 渲染 ,它自己的测试覆盖。
 
 TEST_CASE("appearance: publishing a pref reaches its consumers") {
     ui_prefs::Prefs p;
@@ -352,9 +352,9 @@ TEST_CASE("appearance: publishing a pref reaches its consumers") {
     ui_prefs::publish(p);
     CHECK(ui_prefs::panel_rows() == 22);
 
-    // Motion is two questions, not one: whether anything moves at all, and
-    // whether the DECORATIVE layer moves. Reduced keeps the progressive
-    // reveal (progress is information) and drops the glyph churn.
+    // 动议是两个问题,不是问题之一: 任何事物是否在移动,
+    // 以及是否 DECORATIVE 层移动。减少后保持渐进式
+    // 逐步显示 (进步是信息) 并放下甘油的churn。
     p.motion = ui_prefs::Motion::Full;
     ui_prefs::publish(p);
     CHECK(ui_prefs::animations_on());
@@ -370,30 +370,30 @@ TEST_CASE("appearance: publishing a pref reaches its consumers") {
     CHECK(!ui_prefs::animations_on());
     CHECK(!ui_prefs::reveal_decoration_on());
 
-    ui_prefs::publish(ui_prefs::Prefs{});   // leave the slot clean
+    ui_prefs::publish(ui_prefs::Prefs{});   // 离开空档干净
 }
 
 TEST_CASE("appearance: reduce-motion freezes maya's animation primitives") {
-    // The gate lives at the BOTTOM of maya's animation stack, under every
-    // spinner/blink/frame counter, so "nothing moves" is true of widgets
-    // that have never heard of this setting — including ones written later.
+    // 大门位于第maya动画堆的BOTTOM,
+    // 每台spinner/blink/frame计数器下,
+    // 所以第"nothing moves"是从未听说过这种设置的部件——包括后来写的部件——的真谛.
     maya::anim::set_reduce_motion(false);
     CHECK(!maya::anim::reduce_motion());
 
     maya::anim::set_reduce_motion(true);
     CHECK(maya::anim::reduce_motion());
-    // Frame 0 is the resting glyph of every frame set maya ships, so a
-    // frozen spinner shows a stable mark rather than whichever glyph the
-    // clock happened to be on when motion was switched off.
-    CHECK(maya::anim::frame_index(10, 90.0, /*request=*/false) == 0u);
-    // A caret held ON: stuck OFF would lose the cursor entirely, which is
-    // a worse outcome than not blinking.
+    // 帧 0是每艘帧定型的maya舰的休眠格莱弗,
+    // 因此一个冷冻的加载动画显示的是稳定的标记,
+    // 而不是在关闭时时恰好在哪个格莱弗上.
+    CHECK(maya::anim::frame_index(10, 90.0, /*请求=*/false) == 0u);
+    // A 光标 举行 ON : 粘贴 OFF 光标会完全丢失,
+    // 这将是比不眨眼更糟糕的结果。
     CHECK(maya::anim::blink(530.0));
-    // A "breathing" value held at its MIDDLE — frozen at the trough it
-    // would read as a rendering bug.
+    // A "breathing" 持有的数值 MIDDLE 冷冻在槽里,
+    // 它会读作 渲染 虫子,你这混蛋
     CHECK(maya::anim::wave(1400.0) == doctest::Approx(0.5));
 
-    maya::anim::set_reduce_motion(false);   // leave the process clean
+    maya::anim::set_reduce_motion(false);   // 保存进程干净
 }
 
 TEST_CASE("appearance: thread preview turns the ^J preview off") {
@@ -403,16 +403,16 @@ TEST_CASE("appearance: thread preview turns the ^J preview off") {
     m = press(std::move(m), ui::panel::kApThreadPeek,
               form::keys::Action{form::keys::Intent::AdjustUp});
     CHECK_FALSE(m.d.ui().thread_preview);
-    CHECK_FALSE(g_saved.ui.thread_preview);   // and it was saved
+    CHECK_FALSE(g_saved.ui.thread_preview);   // 并且它曾经是 已保存
 
-    // With it off, ^J draws no preview and loads nothing for the row.
+    // 关机了 ^J 没有绘制预览, 并且 加载 排队没什么
     Thread t;
     t.id = ThreadId{"t-1"};
     t.title = "some thread";
     t.message_count = 4;
     m.d.threads.push_back(t);
     auto [open, cmd] = app::update(std::move(m), Msg{OpenThreadList{}});
-    // Nothing scheduled for the row: no settle timer, no load in flight.
+    // 排行没有安排:没有定时器,没有 加载 飞行中。
     int timers = 0;
     agtest::fx::for_each(cmd, [&](const auto& e) {
         if constexpr (requires { e.delay; }) ++timers;
@@ -427,10 +427,10 @@ TEST_CASE("appearance: thread preview turns the ^J preview off") {
 }
 
 TEST_CASE("appearance: compact turns changes the seam's height AND its rows") {
-    // Frozen scrollback seals each element with an explicit row count; if
-    // the count and the element disagree the ledger drifts and the canvas
-    // tears. So these two must move together — that coupling is the whole
-    // reason gap_rows() is a function rather than a constant.
+    // 冻 回滚缓冲区 将每个元素都用明确的行数封存;
+    // 如果该元素和该元素不同意分类账漂移和画布泪水。
+    // 因此,这两个元素必须一起移动—— 组合是全部原因。
+    // gap_rows ()是函数而非常数.
     ui_prefs::Prefs p;
 
     p.compact_turns = false;
@@ -448,43 +448,43 @@ TEST_CASE("appearance: compact turns changes the seam's height AND its rows") {
 
 
 TEST_CASE("appearance: the palette follows the chosen theme") {
-    // THE regression this file exists for. Every colour in agentty used to
-    // be an `inline constexpr` ANSI literal, so the theme browser was a
-    // lie: you could pick Dracula, watch the name change, and not one cell
-    // on screen moved. The tokens are theme reads now, and this asserts it
-    // by the only means that would have caught the original bug — comparing
-    // what the tokens RESOLVE TO across a theme change.
+    // 该 返回此文件存在。 每种颜色都包含 agentty
+    // 曾经是 `inline constexpr` ANSI
+    // 字面意思,所以主题浏览器是谎言: 你可以选择德古拉,
+    // 观看名称的改变,而不是一个 存储单元 显示在屏幕上。
+    // 符号是主题读到的,这个表示它的唯一方法就是捕获原始错误——
+    // 比较符号 RESOLVE TO 跨主题变化。
 
-    // Native: the terminal's own colours. Nothing literal, so `fg` RESOLVES
-    // to the terminal default rather than a colour we picked for the user.
+    // 土著: 终端 颜色,没有文字,所以 `fg` RESOLVES
+    // 编号 终端 默认, 而不是我们为用户选择的颜色。
     ui_prefs::publish_theme(maya::theme::native);
     const maya::LitColor native_fg     = ui::fg();
     const maya::LitColor native_accent = ui::accent();
     CHECK(native_fg.kind() == maya::LitColor::Kind::Default);
 
-    // Now a scheme with literal RGB. Same token, different colour.
+    // 现在的图谋是用文字 RGB 相同标志,不同颜色。
     const maya::Theme* dracula = nullptr;
     for (const auto& s : maya::theme::schemes)
         if (std::string_view{s.name} == "Dracula") dracula = s.theme;
     REQUIRE(dracula != nullptr);
 
     ui_prefs::publish_theme(*dracula);
-    // Call the token explicitly: a Slot converts to both LitColor and Color,
-    // so a bare `ui::fg != x` is ambiguous. `ui::fg()` names the read.
+    // 调用 明确符号: 槽转换为两个 LitColor 颜色,所以赤裸的
+    // `ui::fg != x` 意思是说不清的 `ui::fg()` 给读数起名
     CHECK(ui::fg() != native_fg);
     CHECK(ui::accent() != native_accent);
     CHECK(ui::fg().kind() == maya::LitColor::Kind::Rgb);
 
-    // The Color conversion stays SYMBOLIC — that is the late-binding
-    // invariant (docs/LATE_BINDING.md). A token dropped into a Style must
-    // still name a slot so the resolve happens at PAINT, which is what lets
-    // a stored Element follow a later theme switch. Asserting Rgb here would
-    // be asserting the bug.
+    // 颜色转换保留 SYMBOLIC - 这是晚 -binding
+    // 不变量 (docs/LATE_BINDING.md。
+    // 投入样式的符号必须仍然指定一个位置,这样下定决心就发生于
+    // PAINT ,这就是让存储的元素遵循后继主题切换。在此将使用
+    // Rgb 来维护错误。
     CHECK(maya::Color{ui::fg}.kind() == maya::ColorKind::Slot);
 
-    // And every token tracks the SAME theme — not just the one we looked at.
-    // Compared as RESOLVED values, since that is what a Theme field holds.
-    // What goes live is the scheme with its contrast floor applied.
+    // 每一个标志都追踪到 相同 主题——不仅仅是我们所看到的。
+    // 与RESOLVED值相比,因为这是一个主题字段所持有的值。
+    // 实际操作的是这个方案 及其对比的底线。
     const maya::Theme fd = maya::theme::with_contrast_floor(*dracula);
     CHECK(ui::danger()    == fd.error);
     CHECK(ui::success()   == fd.success);
@@ -492,34 +492,34 @@ TEST_CASE("appearance: the palette follows the chosen theme") {
     CHECK(ui::highlight() == fd.primary);
     CHECK(ui::code_path() == fd.link);
 
-    // Back to native, so the rest of the suite paints as it expects.
+    // 回到原生,所以其他套房的油漆都按其预期.
     ui_prefs::publish_theme(maya::theme::native);
     CHECK(ui::fg() == native_fg);
 }
 
 TEST_CASE("appearance: publishing a theme reaches the PROJECTED palettes too") {
-    // The second half of the same regression, and the one that actually
-    // shipped broken.
+    // 同样的回归的后半部分, 以及实际运出
+    // 的破损。
     //
-    // There are two theme sinks. agentty's atom feeds the `ui::` tokens,
-    // which are read while BUILDING an Element. maya's app_set_theme feeds
-    // the RENDERER — and, through on_theme_changed, every palette that is
-    // PROJECTED from the theme rather than read from it per-frame: markdown
-    // keeps its 37 colours flat (its render path is hot and its parse worker
-    // is off-thread), the component cache blits already-resolved pixels, and
-    // StylePool caches SGR bytes.
+    // 有两个主题汇。 agentty 原子输入 `ui::` 符号,
+    // 在读时 BUILDING a 元素。 maya's app_set_theme
+    // 输入 RENDERER ——并通过 on_theme_changed ,
+    // 每个调色板是 PROJECTED 而不是从主题读取 -frame : 降标
+    // 保持37种颜色平坦(其 渲染 路径是热的,它的 解析 工作线程 关闭 -thread ),
+    // 该部分 缓存 已经擦了点 -resolved 像素,还有 StylePool
+    // 缓存 SGR 字节.
     //
-    // The test above only ever exercised the first sink, so nothing caught
-    // the appearance reducer publishing one and not the other. The reducer
-    // re-seals the whole transcript IMMEDIATELY after publishing, so a
-    // stale projection is not a one-frame flicker — it is baked into the
-    // sealed Elements. On a dark→light swap that left every older turn in
-    // the outgoing theme's ink (washed-out prose, dark code-span slabs on a
-    // light canvas) while the newest message, built after view() caught up,
-    // looked correct.
+    // 上面的测试只是第一次 水槽,所以没有发现外表 状态更新函数
+    // 出版一个,而不是另一个。 状态更新函数 内容 -seals
+    // 整个记录 IMMEDIATELY 出版之后,
+    // 所以 过期 投影不是一个 -frame 闪烁器 —— 它被
+    // 烤成密封元素。 在黑暗的光线交换中, 将每一个老转弯留在了
+    // 即将发售的主题的墨水中( 被洗净) -out 流言,
+    // 暗码 -span 光帆上有板块),而最新消息则建于 view() 追上来了,
+    // 看起来没错
     //
-    // Assert the coupling at its source: ONE publish must move maya's live
-    // theme too. A future refactor that splits them again fails here.
+    // 将组合置于其源头: 一个 发布必须移动 maya
+    // 也使用现场主题。 将它们再次分割的未来重构失败。
     const maya::Theme* dracula = nullptr;
     const maya::Theme* rose = nullptr;
     for (const auto& s : maya::theme::schemes) {
@@ -529,16 +529,16 @@ TEST_CASE("appearance: publishing a theme reaches the PROJECTED palettes too") {
     REQUIRE(dracula != nullptr);
 
     ui_prefs::publish_theme(*dracula);
-    // What goes live is the scheme with its contrast floor applied.
+    // 实际操作的是这个方案 及其对比的底线。
     CHECK(maya::theme::live() == maya::theme::with_contrast_floor(*dracula));
     CHECK(ui_prefs::theme() == maya::theme::live());
 
-    // A light scheme, because polarity is what made the bug visible: light
-    // ink left over from a dark theme is unreadable on a light canvas.
+    // 一个光线方案,因为极性是使bug可见的:从暗色
+    // 主题上留下的光墨在光线画布上是无法读取的.
     if (rose != nullptr) {
         ui_prefs::publish_theme(*rose);
         CHECK(maya::theme::live() == maya::theme::with_contrast_floor(*rose));
-        // The two sinks agree with each other, which is the whole point.
+        // 两汇相互一致,这是整个观点.
         CHECK(maya::theme::live() == ui_prefs::theme());
     }
 
@@ -547,10 +547,10 @@ TEST_CASE("appearance: publishing a theme reaches the PROJECTED palettes too") {
 }
 
 TEST_CASE("appearance: every scheme's ink reads on its own background") {
-    // A third of the bundled schemes ship `primary`/`accent`/`error` under
-    // 4.5:1 on their own canvas, so links, headings and bullets were hard
-    // to read. The floor lifts them; check it held for every scheme, and
-    // that a slot which already read was left exactly as the scheme set it.
+    // 三分之一的捆绑计划船 `primary`/`accent`
+    // /`error` 不到4.5:1 在自己的画布上,
+    // 所以 链接 ,标题和子弹很难读。地板上会抬起它们;
+    // 检查每个方案是否都保留了,而且已经读过的一个插槽是按方案设置的。
     int lifted = 0, checked = 0;
     for (const auto& s : maya::theme::schemes) {
         const maya::Theme& t = *s.theme;
@@ -568,33 +568,33 @@ TEST_CASE("appearance: every scheme's ink reads on its own background") {
                 CHECK_MESSAGE(out == raw, s.name);
             } else {
                 ++lifted;
-                // A mid-grey canvas may not allow 4.5 at all, but the floor
-                // must never make a slot worse.
+                // 中间 -grey 画布可能根本不允许4.5,
+                // 但地板绝不能使槽更坏。
                 CHECK_MESSAGE(after >= std::min(4.5, before) - 1e-9, s.name);
             }
         }
     }
     CHECK(checked > 1000);
-    CHECK(lifted > 100);   // the floor really is doing work
+    CHECK(lifted > 100);   // 地板真的在工作吗?
 }
 
 TEST_CASE("appearance: only a theme that names a background owns the canvas") {
-    // agentty is Mode::Inline — the frame is a window onto scrollback, not
-    // the whole screen. So "paint the theme's background" is a decision with
-    // real consequences, and it is keyed on DATA (does the theme state a
-    // background?) rather than on a name or a table index.
+    // agentty 谓 Mode::Inline - 电话 帧 是一个窗口,
+    // 在上方 回滚缓冲区 而不是整个屏幕 "paint the theme's background"
+    // 是一个有实际后果的决定,它的关键在于 DATA (
+    // 主题是否为背景?)而不是在名称或表格索引上。
 
-    // native states none: there is nothing to paint, and painting a guess
-    // would destroy the terminal's own background — including transparency
-    // and background images. That is the entire point of native.
+    // 当地没有:没有画,画一个猜想会破坏
+    // 终端 自己的背景,包括透明度和背景图像。
+    // 这是本土的全部要点。
     CHECK_FALSE(maya::theme::owns_canvas(maya::theme::native));
     CHECK(maya::theme::native.background.kind()
           == maya::Color::Kind::Default);
 
-    // Every shipped scheme states a real background, because its
-    // foregrounds were contrast-checked against THAT canvas. Half-applying
-    // one — Dracula's inks over the user's white terminal — is exactly the
-    // "theme looks broken" failure this replaces.
+    // 每个运出的方案都写了一个真实的背景,因为其前景是相对
+    // 的 -checked 反对 该 画布,一半 -applying
+    // 德古拉的墨水在用户的白色上 终端 - 这正是
+    // "theme looks broken" 失败此替换。
     int owning = 0;
     for (const auto& s : maya::theme::schemes) {
         CHECK_MESSAGE(maya::theme::owns_canvas(*s.theme), s.name);
@@ -604,22 +604,22 @@ TEST_CASE("appearance: only a theme that names a background owns the canvas") {
 }
 
 TEST_CASE("appearance: usable on the terminals issue #37 reported") {
-    // github.com/agentty-org/agentty#37 — "Horrible look and feel in non-black
-    // terminals. Almost unusable." Light-grey background, black fonts, and
-    // a reasonable objection that TERM was being ignored.
+    // github.com/agentty-org/agentty#37 —
+    // 非黑色背景终端中的外观很差，几乎无法使用。
+    // 轻 -grey 背景、黑色字体和合理的反对 TERM 被忽略了,我被忽略了。
     //
-    // The defence is that the DEFAULT theme states no colours at all, so it
-    // cannot be wrong about a background it never assumed. This walks the
-    // reporter's actual environments and asserts exactly that.
+    // 辩护方是DEFAULT主题完全没有颜色,
+    // 因此它从未假设过的背景是不会错的。
+    // 这走过了记者的实际环境,并断言了这一点。
 
     struct Env { const char* term; const char* colorterm;
                  const char* fgbg; const char* no_color; };
 
     auto with_env = [](const Env& e, auto&& fn) {
-        // A terminal that names itself (Windows Terminal's WT_SESSION,
-        // ConEmuANSI, TERM_PROGRAM) outranks TERM in detect_tier, so the
-        // HOST running the suite would leak into every case. Clear them for
-        // the duration and restore after.
+        // A 终端 名称( 3) Windows 终端's WT_SESSION,
+        // ConEmuANSI, TERM_PROGRAM 排名 TERM
+        // 输入 detect_tier ,所以,请 HOST 运行套房会渗入每个案件。
+        // 在持续时间内清除,然后恢复。
         const char* host_vars[] = {"WT_SESSION", "ConEmuANSI", "TERM_PROGRAM", "CLICOLOR_FORCE"};
         std::vector<std::pair<std::string, std::optional<std::string>>> saved;
         for (const char* k : host_vars) {
@@ -641,8 +641,8 @@ TEST_CASE("appearance: usable on the terminals issue #37 reported") {
     };
 
     const Env envs[] = {
-        {"rxvt-unicode",   nullptr,     "0;15", nullptr},  // the report: light bg
-        {"xterm",          nullptr,     "0;7",  nullptr},  // light bg, other index
+        {"rxvt-unicode",   nullptr,     "0;15", nullptr},  // 报告: 轻 bg
+        {"xterm",          nullptr,     "0;7",  nullptr},  // 轻 bg, 其他索引
         {"vt100",          nullptr,     nullptr, nullptr}, // "TERM=vt100 solves it"
         {"dumb",           nullptr,     nullptr, nullptr},
         {"xterm-256color", "truecolor", nullptr, "1"},     // NO_COLOR
@@ -652,22 +652,22 @@ TEST_CASE("appearance: usable on the terminals issue #37 reported") {
 
     for (const Env& e : envs) {
         with_env(e, [&] {
-            // Defaults: native, tier auto, polarity auto.
+            // 默认:原生,阶梯自动,极性自动.
             const auto r = ui_prefs::resolve(ui_prefs::Prefs{}, agentty::ui_prefs::detect(true));
 
-            // THE invariant. Whatever was detected, the default theme states
-            // neither a foreground nor a background, so it is legible on a
-            // light terminal, a dark one, and a monochrome one alike.
+            // 该 不变量. 无论检测到什么,默认主题既不是前缘,
+            // 也不是背景,所以在光终端上可以辨识,
+            // 是暗色的,是单色的,也是一样的.
             CHECK(r.theme->text.kind() == maya::Color::Kind::Default);
             CHECK(r.theme->background.kind() == maya::Color::Kind::Default);
-            // And it never fills the canvas, so the user's own background
-            // (and its transparency) survives.
+            // 而它从不填满画布,因此用户自己的背景(
+            // 及其透明度)得以存活.
             CHECK_FALSE(maya::theme::owns_canvas(*r.theme));
         });
     }
 
-    // TERM is genuinely consulted — the reporter's specific complaint.
-    // Different TERMs must produce different tiers, or detection is theatre.
+    // TERM 真正受到咨询的是——记者的具体申诉。
+    // 不同的TERMS必须产生不同的层次,或者检测是戏剧.
     with_env({"dumb", nullptr, nullptr, nullptr}, [&] {
         CHECK(ui_prefs::resolve(ui_prefs::Prefs{}, agentty::ui_prefs::detect(true)).tier
               == maya::theme::ColorTier::Mono);
@@ -684,20 +684,20 @@ TEST_CASE("appearance: usable on the terminals issue #37 reported") {
         CHECK(ui_prefs::resolve(ui_prefs::Prefs{}, agentty::ui_prefs::detect(true)).tier
               == maya::theme::ColorTier::TrueColor);
     });
-    // konsole over ssh: COLORTERM does not survive the hop, TERM does.
+    // 宽度超过 sh : COLORTERM 跳下去就活不下来了 TERM 已经。
     with_env({"konsole", nullptr, nullptr, nullptr}, [&] {
         CHECK(ui_prefs::resolve(ui_prefs::Prefs{}, agentty::ui_prefs::detect(true)).tier
               == maya::theme::ColorTier::TrueColor);
     });
 
-    // A light background is DETECTED, not guessed, when COLORFGBG says so.
+    // 淡背景为DETECTED,不猜测,当COLORFGBG说到.
     with_env({"xterm", nullptr, "0;15", nullptr}, [&] {
         CHECK(ui_prefs::resolve(ui_prefs::Prefs{}, agentty::ui_prefs::detect(true)).polarity
               == maya::theme::Polarity::Light);
     });
 
-    // "What if I need or want black&white terminal?" — an explicit mono
-    // request is honoured, and still leaves a readable, unpainted frame.
+    // 如果需要黑白终端怎么办？
+    // ——明确单项请求获得满足,仍留下可读,不涂的. 帧.
     with_env({"xterm-256color", "truecolor", nullptr, nullptr}, [&] {
         ::setenv("MAYA_COLOR", "none", 1);
         const auto r = ui_prefs::resolve(ui_prefs::Prefs{}, agentty::ui_prefs::detect(true));
@@ -705,8 +705,8 @@ TEST_CASE("appearance: usable on the terminals issue #37 reported") {
         CHECK_FALSE(maya::theme::owns_canvas(*r.theme));
     });
 
-    // A named RGB scheme is NOT applied below 256 colours: quantising
-    // Dracula into sixteen is worse than the user's own palette.
+    // 一个名字 RGB 方案为 不 应用在256以下的颜色:
+    // 将德古拉量化为16比用户自己的调色板更糟糕.
     with_env({"vt100", nullptr, nullptr, nullptr}, [&] {
         ui_prefs::Prefs p; p.theme = "Dracula";
         const auto r = ui_prefs::resolve(p, agentty::ui_prefs::detect(true));
@@ -714,25 +714,25 @@ TEST_CASE("appearance: usable on the terminals issue #37 reported") {
     });
 }
 
-// Every knob that changes RESOLVED COLOUR must invalidate what is already
-// rendered — not just the theme row.
+// 每一个变换的把手 RESOLVED COLOUR 必须使已经
+// 实现的无效,而不仅仅是主题行。
 //
-// The transcript is cached as BUILT Elements: settled turns memoized in
-// ViewCache, sealed ones in m.ui.frozen. Colour is resolved at build time,
-// and none of these caches are keyed on appearance, so a knob that changes
-// how a colour resolves without invalidating them leaves the entire visible
-// conversation painted in the palette it was built under. Only new turns
-// would look right — which is the "it only half-changed" report.
+// 记录被缓存为 BUILT 要件:已定转折 ViewCache ,
+// 密封在 m.ui.frozen。颜色在构建时解决,
+// 其中没有 缓存 以外观键入, 因此一个旋钮可以改变颜色
+// 的解析方式而不使它们无效, 它会留下整个可见的对话框。
+// 只有新转弯才看起来对, 就是它所建的调色板。
+// "it only half-changed" 报告。
 //
-// Tier and polarity are the easy ones to miss: they never touch
-// `ui.theme`, so a check for "did the theme change" does not see them, but
-// tier decides whether a scheme renders as truecolor / 256 / 16 / mono and
-// polarity decides which side of the canvas the inks sit on.
+// 极性与极性是容易错过的:它们永远不会触碰 `ui.theme` ,
+// 所以一个支票 "did the theme change"
+// 看不到,但级决定 是否计划 渲染 以真彩 / 256 /
+// 16 / 单极和极性决定画布的哪一面是墨水。
 TEST_CASE("appearance: a colour knob invalidates what is already rendered") {
     install_stub_deps();
 
-    // A settled entry stands in for the rendered transcript: it holds a
-    // built Element whose colours are already resolved.
+    // 已公布的记录记录有固定的条目:它保存着
+    // 一个已解决其颜色的已建成元素。
     const auto seed_cache = [](Model& m) {
         m.ui.view_cache.message_md(ThreadId{"t"}, MessageId{"m1"}).finalized =
             std::make_shared<maya::Element>();
@@ -754,11 +754,11 @@ TEST_CASE("appearance: a colour knob invalidates what is already rendered") {
                       k.what << " changed but the rendered transcript was kept");
     }
 
-    // The counterexample, and the reason this is a list rather than "always
-    // invalidate": a STRUCTURAL knob must NOT do this. Density and compact
-    // turns change row HEIGHTS, and a sealed turn's height is load-bearing
-    // for the inline scrollback ledger — re-sealing at a new height tears
-    // it. Those settings are forward-only by design.
+    // 反例,和原因 这是一个列表而不是 "always invalidate":
+    // a STRUCTURAL 手势不得 密度和紧凑度转换行
+    // HEIGHTS 和一个密封的转弯的高度是 加载-bearing
+    // 内置线性 回滚缓冲区 分类账——再 -sealing 新的高度
+    // 将它撕裂,这些设置是向前的 -only 设计
     for (const Knob k : {Knob{ui::panel::kApDensity, "density"},
                          Knob{ui::panel::kApCompact, "compact turns"}}) {
         Model m = opened();
@@ -769,40 +769,40 @@ TEST_CASE("appearance: a colour knob invalidates what is already rendered") {
     }
 }
 
-// ── The two save paths must not fight ──────────────────────────────
+// ── 两者 保存 道路不能争吵 ──────────────────────────────
 //
-// agentty saves settings two different ways:
+// agentty 保存 设置两种不同的方式:
 //
-//   A. load-modify-save through the seam  (ToggleChangesStrip, and ~20 more)
-//   B. persist_settings(m), which seeds from m.d.persisted and writes it back
+//   A. 加载-modify-save 通过 接口边界  (ToggleChangesStrip ,
+//   和~20 以上) B. persist_settings (m),种子来自: m.d.persisted 写回去
 //
-// B only sees what A left in `m.d.persisted`. An A-style arm that writes the
-// seam but not the record leaves the two disagreeing, and the next B — a
-// theme tweak, a model switch, a rag save, or Quit — writes the stale record
-// over the top. That is "settings don't persist": the write lands, then a
-// later unrelated save silently reverts it.
+// B只看到A留下的东西 `m.d.persisted`。
+// A 语句 -style 写着 接口边界 但没有留下两人的分歧,
+// 下B——主题调侃,模型切换,布 保存 ,或退出 ——写下 过期 记录在顶端。
+// "settings don't persist" : 写作土地,
+// 然后是后来无关的 保存 默然还原.
 TEST_CASE("settings: a toggle survives a later whole-record save") {
     install_stub_deps();
 
     Model m;
-    m.d.persisted = g_saved;   // as init() seeds it
+    m.d.persisted = g_saved;   // 以 init() 种子,种子,种子
 
     auto [m2, toggle_cmd] = app::update(std::move(m), Msg{ToggleChangesStrip{}});
     apply_fx(toggle_cmd);
     m = std::move(m2);
 
-    // The toggle itself works — it reaches both the model and the store.
+    // 切换本身是有效的——它既可以到达模型,也可以到达商店.
     CHECK(m.d.show_changes_strip == true);
     CHECK(g_saved.show_changes_strip == true);
 
-    // ...and it must still be there after ANY other save runs.
+    // ..它一定还在后面 任意 其他项目 保存 运行。
     apply_fx(agentty::app::detail::persist_settings(m));
     CHECK(g_saved.show_changes_strip == true);
 }
 
 TEST_CASE("settings: Esc steps back, it does not close everything") {
     install_stub_deps();
-    // Reached the way a user reaches it: Ctrl+K, then the Settings row.
+    // 用户到达的方式 : Ctrl +K,然后是设置行。
     auto [m1, _1] = app::update(Model{}, Msg{OpenPalette{}});
     REQUIRE(m1.ui.panel.get<ui::panel::Palette>() != nullptr);
 
@@ -810,8 +810,8 @@ TEST_CASE("settings: Esc steps back, it does not close everything") {
                                 Msg{OpenSettingsList{agentty::settings::Category::General}});
     REQUIRE(m2.ui.panel.get<ui::panel::SettingsList>() != nullptr);
 
-    // Esc must land back on the palette — the step we came from — and only
-    // a second Esc should reach the thread.
+    // Esc 必须回到调色板上——我们从那里走出来的一步——而且
+    // 只有一秒钟 Esc 到达 线程.
     auto [m3, _3] = app::update(std::move(m2), Msg{CloseSettingsList{}});
     CHECK(m3.ui.panel.get<ui::panel::Palette>() != nullptr);
 }

@@ -1,20 +1,20 @@
-// theme_discipline_test — agentty spells no colours of its own.
+// theme_discipline_test — agentty 拼写其自己的颜色。
 //
-// THE RULE
+// 该 RULE
 // ========
-// agentty has no UI layer. Every colour decision lives in maya, reached
-// through the theme: agentty names a semantic TOKEN (ui::accent,
-// ui::status_ok) or a ThemeSlot, and maya decides what that looks like at
-// paint time.
+// agentty 没有 UI 层中。每个颜色决定都存在于 maya ,通过主题达到:
+// agentty 名称一个语义 TOKEN (ui::accent,
+// ui::status_ok 或 或 a 或 类型 ThemeSlot ,和 maya 确定
+// 油漆时间的形状
 //
-// A literal anywhere in agentty breaks that in a way nothing else catches.
-// It is evaluated once, with no theme in scope, so it silently pins that
-// one element to whatever palette it was compiled with — and it keeps
-// rendering, keeps looking fine on the developer's terminal, and only
-// shows up when a user picks a scheme and part of the screen ignores them.
-// Every round of this bug has been that shape.
+// 任何一处的文字 agentty 以某种方式打破了它 其它没有捕获。
+// 它只被评估一次,没有主题的范围,所以它默默地
+// 将一个元素钉在它编译的调色板上——它保持了
+// 渲染 继续寻找好开发者 终端 ,
+// 并且只有在用户选择一个方案而部分屏幕忽略时才会出现.
+// 这只虫子的每颗都长成这样
 //
-// So it is checked mechanically, against the source, on every build.
+// 所以每个建筑都用机械方式 对照源头进行检查
 #include "agtest.hpp"
 
 #include <filesystem>
@@ -27,22 +27,22 @@ namespace fs = std::filesystem;
 
 namespace {
 
-// The ONE file allowed to spell colours: the semantic palette itself.
+// 允许拼写颜色的ONE文件:语义调色板本身.
 //
-// palette.hpp is where agentty's tokens are defined, and each one is a
-// theme-slot read (AGENTTY_THEME_SLOT) rather than a literal — so it is
-// exempt from the scan but not from the rule.
+// palette.hpp 在哪里是 7 个 agentty 符号被定义,
+// 每个都是一个主题 -slot 改为( AGENTTY_THEME_SLOT )
+// 而不是字面——所以它可以免于扫描,但不能免于规则.
 const std::vector<std::string> kAllowed = {
     "include/agentty/runtime/view/palette.hpp",
 };
 
-// The one file allowed to write RAW SGR escapes.
+// 允许写RAWXXSGR逃逸的文档.
 //
-// The code-block runner emits colour while maya is SUSPENDED — cooked tty,
-// TUI torn down, no canvas or style pool to paint into — so it genuinely
-// cannot go through the theme. It still honours maya's tier detection for
-// whether to emit colour at all, which is the part a user can observe
-// (NO_COLOR / TERM=dumb).
+// 代码 -block 运行时释放颜色 maya 谓 SUSPENDED
+// 煮的Tty,(笑声) TUI 拆掉,没有画布或样式 池 ——
+// 所以它真的不能通过主题。 maya 是否释放颜色的分级检测,
+// 用户可以观察到的部分( ) NO_COLOR / TERM ⁇ ,
+// ⁇ , ⁇ ).
 const std::vector<std::string> kAllowedRawSgr = {
     "src/runtime/app/cmd_code_block_run.cpp",
 };
@@ -58,36 +58,36 @@ const std::vector<std::string> kAllowedRawSgr = {
     return listed(kAllowed, rel);
 }
 
-// ── Prefilters ───────────────────────────────────────────────────────
+// ── 过滤器 ───────────────────────────────────────────────────────
 //
-// libstdc++'s std::regex is an interpreted backtracker with no literal
-// prefix optimisation, so it walks every position of every line even when
-// the line cannot possibly match. At 117k lines x 3 patterns that cost
-// 7.4 SECONDS in the debug build the tests actually run in — making this
-// grep the third-slowest test in the suite, slower than the render
-// benchmarks. Measured: 7515ms -> 24ms, a 310x speedup, by asking a cheap
-// substring question first.
+// libstdc++ 的双倍 std::regex 是一个
+// 没有字面前缀优化的解译后跟踪器,所以它走每行的每个位置,
+// 即使线条不可能匹配。在117k行x3位图案上,它花费7.4美元。
+// SECONDS 在调试中构建实际运行的测试——使这个grep
+// 成为第三个 -slowest 测试在套房,
+// 比 渲染 测量:7515ms - > 24ms,一个310x加速,
+// 先问一个便宜的底弦问题。
 //
-// CORRECTNESS RULE: each prefilter must be strictly WEAKER than its
-// regex — it may pass lines the regex rejects, never the reverse. A
-// prefilter that filters out a real hit is a silent hole, which is the
-// one failure this file exists to prevent. So each one below tests for a
-// literal substring that the regex PROVABLY requires:
+// CORRECTNESS RULE: 每个预过滤器必须严格地是
+// WEAKER 而不是它的 regex —— 它可能通过 regex
+// 拒绝的线, 而不是反向。 过滤出一个真实命中的预过滤器是一个静音孔,
+// 这是这个文件存在的一个防止的失败。 因此, 在下方每个测试一个字面的
+// 子字符串, 由 rgex PROVABLY 要求:
 //
-//   lit         needs "Color::" or "AnsiColor::" or "fg_"/"bg_" — EVERY
-//               one of its eight alternatives starts with one of those.
-//               (Note AnsiColor:: and the fg_/bg_ presets: an earlier
-//               draft of this filter tested only for ::hex/::rgb and would
-//               have silently switched most of the rule off. A prefilter
-//               must be checked against the pattern it fronts, alternative
-//               by alternative — that is the whole risk of this technique.)
-//   raw_sgr     needs "\x1b[" / "\033[" / "\e["  (its literal prefixes)
-//   channel_read needs ".r()" / ".g()" / ".b()" (it IS that literal set)
+//   点亮需求 "Color::" 或 或 时 间 "AnsiColor::" 或 或 时 间
+//               "fg_"/"bg_" — 每个 其八个备选方案之一以其中之一为起点。
+//               (注: AnsiColor * 和 fg_/bg_ 预
+//               设:此过滤器的较早草稿仅测试于 * hex/ * rgb
+//               并且会悄悄地把大部分规则切换掉,必须对照它前面的图案检查前过滤器,
+//               代之以其他方法——这就是这一技术的整个风险。
+//               ) raw_sgr 需求 "\x1b[" / "\033["
+//   / "\e[" (其字面前缀) channel_read 需求
+//   ".r()" / ".g()" / ".b()" (该词 IS 即该字节集).
 //
-// find() is memchr-backed and stops at the first hit, so the common case
-// (no match) costs one scan of the line rather than one per position.
+// find() 是个小姑娘 -backed 并在第一次命中时停止,
+// 所以常见的病例(无匹配)需要一线扫描而不是每个位置扫描一次.
 [[nodiscard]] inline bool may_be_literal(const std::string& l) noexcept {
-    return l.find("Color::") != std::string::npos   // covers AnsiColor:: too
+    return l.find("Color::") != std::string::npos   // 涵盖 AnsiColor: 也:
         || l.find("fg_")     != std::string::npos
         || l.find("bg_")     != std::string::npos;
 }
@@ -104,37 +104,37 @@ const std::vector<std::string> kAllowedRawSgr = {
         || l.find(".b()") != std::string::npos;
 }
 
-// ── Is this channel read guarded? ───────────────────────────────────────
+// ── 这个频道有看管吗? ───────────────────────────────────────
 //
-// `has_channels()` establishes a fact about a colour that holds for the
-// REST OF THE ENCLOSING BLOCK, not for one line. A line-scoped check forced
-// the guard marker onto the arithmetic line itself, which is unreadable
-// (`... + bg.b())  // has_channels`), teaches the wrong lesson about how the
-// predicate works, and quietly fails open the moment someone writes the
-// natural thing:
+// `has_channels()`确立了一个事实,
+// 即第RESTXXOFTHEENCLOSINGBLOCK,
+// 不是一条线。 第-scoped线检查强迫守军标记在算术线本身上,
+// 这是不可读的(第`... + bg.b())  // has_channels`),
+// 教错上游如何工作,在有人写自然事物的时刻悄悄地
+// 不打开:
 //
 //     if (!bg.has_channels()) return std::nullopt;
 //     return 0.2126 * bg.r() + ...;        // flagged, though it is correct
 //
-// So track brace depth instead. A guard seen at depth d covers every line
-// until depth drops back below d — which is exactly the scope in which the
-// compiler agrees the fact still holds.
+// 反之,轨道的支撑深度。在深度d看到的警卫覆盖
+// 了每一行,直到深度下降回到d以下,这正是编译器
+// 同意事实仍然存在的范围。
 //
-// This is a heuristic, not a parser: braces inside string literals or
-// comments would skew the depth. It is deliberately BIASED TOWARD FALSE
-// POSITIVES (a skew makes a guard expire early and flags a safe line),
-// because the failure mode of this test is a nuisance, while the failure
-// mode of missing a real hit is #45 shipping again.
+// 这是一个热度,而不是解析器:字符串字元内的套接字或评论
+// 会扭曲深度。这是故意的BIASEDXXTOWARDFALSEPOSITIVES
+// (一个Skew使警卫提前到期,标志成为安全线),
+// 因为这次测试的失败模式是一种烦恼,而缺失一个真实
+// 命中的失败模式是再次的#45航运。
 class GuardScope {
 public:
-    // Feed every line of the file in order, BEFORE testing it.
+    // 按顺序为文件的每行提供饲料,BEFORE测试.
     void observe(const std::string& line) {
-        // A guard is CODE. Honouring one found in a COMMENT is not a
-        // detail: every function near this hazard carries a comment
-        // explaining it, so reading comments disarmed the scanner in
-        // exactly the files that needed it most. maya's anim::lerp sat
-        // under a comment headed "Why this checks has_channels()" and was
-        // waved through with its guard deleted.
+        // 警卫是 CODE。纪念在A. COMMENT 并非细节:
+        // 接近此危险的每一函数都会有一个注释来解释它,
+        // 因此读注释就可以在最需要它的文件中解开扫描器。
+        // maya's anim::lerp 坐在一个评论标题下
+        // "Why this checks has_channels()"
+        // 并挥舞通过, 并删除了它的警戒。
         const auto first = line.find_first_not_of(" \t");
         const bool comment =
             first != std::string::npos
@@ -142,23 +142,23 @@ public:
                 || line.compare(first, 2, "/*") == 0
                 || line.compare(first, 1, "*") == 0);
 
-        // has_channels() is the name, but a proven Kind::Rgb is the same
-        // fact stated the long way, and the SGR emission paths use it
-        // because they must switch on the kind anyway. Inside such a
-        // branch, r()/g()/b() genuinely ARE channels.
+        // has_channels ()是名字,但已经证明
+        // Kind::Rgb 远处所陈述的同样事实,以及 SGR
+        // 排放路径使用它,因为不管怎样,它们必须切换到这种。
+        // r()/g()/b() 痷 ARE 频道。
         const bool establishes =
             line.find("has_channels") != std::string::npos
             || line.find("ColorKind::Rgb") != std::string::npos
             || line.find("Kind::Rgb") != std::string::npos;
 
         if (!comment && establishes) guarded_depth_ = depth_;
-        if (comment) return;   // braces in prose are not scope, either
+        if (comment) return;   // 传言中的支架也不在范围之内
 
         for (char c : line) {
             if (c == '{') ++depth_;
             else if (c == '}') {
                 --depth_;
-                // The guard's block closed: the fact no longer holds.
+                // 警卫挡板关闭:事实不再坚持.
                 if (guarded_depth_ >= 0 && depth_ < guarded_depth_)
                     guarded_depth_ = -1;
             }
@@ -174,15 +174,15 @@ private:
     int guarded_depth_ = -1;
 };
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("theme discipline: the guard tracker is block-scoped") {
-    // The scanner is itself code, and a guard that silently stops guarding
-    // is worse than none — it reads green forever. The line-scoped version
-    // failed exactly that way: it accepted only a marker ON the arithmetic
-    // line, so every correctly-written guard was a false positive, and the
-    // obvious fix ("append // has_channels") taught the wrong model of how
-    // the predicate works. Pin the scope rules so they cannot rot.
+    // 扫描仪本身就是密码,一个默默停止守卫的警卫比没有更糟糕
+    // ——它永远读作绿色。 -scoped 版本完全失败 :
+    // 它只接受一个标记 ON 算术线,所以每一个正确
+    // -written 卫队是虚伪的,是明显的固定的。
+    // "append // has_channels" ) 教错
+    // 上游如何工作的模型。 将范围规则固定, 使其不能腐烂。
     auto scan = [](std::initializer_list<const char*> lines) {
         GuardScope s;
         std::vector<bool> guarded;
@@ -194,8 +194,8 @@ TEST_CASE("theme discipline: the guard tracker is block-scoped") {
         return guarded;
     };
 
-    // The case that forced the ugly inline marker in ui_theme.hpp: a guard
-    // must cover the REST OF ITS BLOCK, not just its own line.
+    // 将丑陋的内线标记塞进 ui_theme.hpp : 警卫必须掩护
+    // REST OF ITS BLOCK 不只是它自己的线。
     {
         const auto g = scan({
             "bool f(LitColor c) {",
@@ -209,7 +209,7 @@ TEST_CASE("theme discipline: the guard tracker is block-scoped") {
         CHECK(!g[3], "the guard expires when its block closes");
     }
 
-    // A nested guard does not leak to its siblings.
+    // 窝内警卫不会泄露给兄弟姐妹
     {
         const auto g = scan({
             "void f() {",
@@ -223,7 +223,7 @@ TEST_CASE("theme discipline: the guard tracker is block-scoped") {
         CHECK(!g[4], "a sibling statement is NOT covered by it");
     }
 
-    // The fail-open case: one function's guard must not cover the next.
+    // 故障-open案例:一个职能的守卫不能覆盖下一个.
     {
         const auto g = scan({
             "int a(LitColor c) {",
@@ -238,11 +238,11 @@ TEST_CASE("theme discipline: the guard tracker is block-scoped") {
         CHECK(!g[5], "the next function must NOT inherit the guard");
     }
 
-    // A guard in a COMMENT is not a guard. This one is load-bearing: every
-    // function near this hazard documents it, so honouring comments
-    // disarmed the scanner in precisely the files that needed it. maya's
-    // anim::lerp sat under "// Why this checks has_channels()" and was
-    // waved through with the guard itself deleted.
+    // 一个警卫在... COMMENT 这个人不是警卫 加载-bearing
+    // : 接近这个危险值的每个函数都记录它, 因此遵守注释就可以在
+    // 需要的文件中将扫描仪解开。 maya's anim::lerp 坐在下面,
+    // 我看见了 "// Why this checks has_channels()"
+    // 被警察自己删除了
     {
         const auto g = scan({
             "// Why this checks has_channels() ...",
@@ -254,9 +254,9 @@ TEST_CASE("theme discipline: the guard tracker is block-scoped") {
         CHECK(!g[2], "so the body is UNGUARDED and must be flagged");
     }
 
-    // A proven Kind::Rgb branch is the same fact stated the long way — the
-    // SGR emission paths switch on the kind anyway, and inside such a
-    // branch the bytes genuinely are channels.
+    // 一个证明 Kind::Rgb 分支是同样的事实,
+    // 它所描述的漫长的道路是: SGR 排放路径在这种路径上切换,
+    // 并且在这个分支中, 字节 真正的渠道。
     {
         const auto g = scan({
             "switch (c.kind()) {",
@@ -270,16 +270,16 @@ TEST_CASE("theme discipline: the guard tracker is block-scoped") {
 }
 
 TEST_CASE("theme discipline: prefilters never reject a real hit") {
-    // A prefilter is an optimisation that can silently DISABLE a rule: if
-    // it rejects a line the regex would have matched, the check quietly
-    // stops checking and the suite stays green forever. Drafting these I
-    // got `lit` wrong on the first attempt — tested for "::hex("/"::rgb"
-    // and missed Color::black(), AnsiColor:: and the fg_/bg_ presets,
-    // which is five of the pattern's eight alternatives.
+    // 预过滤器是一种可以默默地进行优化的 DISABLE 规则:如果
+    // 它拒绝一条线, 将匹配的正则线, 支票会悄悄地停止检查,
+    // 套房将永远绿化。 起草这些我得到的 `lit` 第一次尝试时
+    // 有错误—— "::hex("/"::rgb" 并错过
+    // Color::black(), AnsiColor * 和
+    // fg_/bg_ 预设,是图案的八个替代品中的五个.
     //
-    // So assert the implication directly, on strings chosen to hit every
-    // alternative: regex matches => prefilter passes. The converse is fine
-    // and expected (a prefilter may over-admit; that only costs time).
+    // 因此,直接断言其含义,即选择的字符串:regex
+    // 匹配QQ预过滤器通过。反转是好的,也是预期的(预
+    // 过滤器可能超过-admit;只有成本时间 )。
     const std::regex lit{
         R"(Color::(black|red|green|yellow|blue|magenta|cyan|white|bright_\w+)\(\))"
         R"(|Color::hex\(0x)"
@@ -292,7 +292,7 @@ TEST_CASE("theme discipline: prefilters never reject a real hit") {
     const std::regex raw_sgr{R"((\\x1b|\\033|\\e)\[[0-9;]*m)"};
     const std::regex channel_read{R"(\.[rgb]\(\))"};
 
-    // One probe per alternative, plus near-misses that must NOT match.
+    // 每一个替代品都有一个探测器,加上近距离的探测器 -misses 一定要这样 不 相匹配,对吗?
     const std::vector<std::string> corpus = {
         "auto c = Color::black();",
         "auto c = Color::bright_magenta();",
@@ -310,7 +310,7 @@ TEST_CASE("theme discipline: prefilters never reject a real hit") {
         "return c.r() + c.g();",
         "put_u8(o, c.b());",
         "return LitColor::rgb(mix(a.r(), b.r()));",
-        // Near-misses: no match expected from either layer.
+        // 近-misses: 任何一层都没有匹配的预期值。
         "auto c = Color::slot(ThemeSlot::Accent);",
         "int red = 5;",
         "// just a comment about rgb",
@@ -339,9 +339,9 @@ TEST_CASE("theme discipline: agentty names tokens, never colours") {
     const fs::path root{AGENTTY_SRC_ROOT};
     REQUIRE(fs::exists(root));
 
-    // A bare literal colour. Color::slot() is the point, and a computed
-    // Color::rgb(expr) is arithmetic — both are fine. Hardcoded channel
-    // values are not.
+    // 赤色字色(变种). Color::slot 即点,且算出;
+    // Color::rgb (expr)是算术的——两者都很好,
+    // 硬码通道值不是.
     const std::regex lit{
         R"(Color::(black|red|green|yellow|blue|magenta|cyan|white|bright_\w+)\(\))"
         R"(|Color::hex\(0x)"
@@ -350,38 +350,38 @@ TEST_CASE("theme discipline: agentty names tokens, never colours") {
         R"(|Color::hsl\(\s*[0-9])"
         R"(|Color::indexed\(\s*[0-9])"
         R"(|AnsiColor::)"
-        // maya's literal Style presets are the same bet by another name.
+        // maya的字面样式预设是另一个名字的同一种注.
         R"(|\b(fg|bg)_(black|red|green|yellow|blue|magenta|cyan|white)\b)"};
 
-    // A hand-written SGR escape sidesteps Color entirely, so the regex above
-    // cannot see it. This is the evasion that matters most: it is invisible
-    // to every type-level guard AND to the theme, and it is how colour
-    // creeps back in once the obvious route is closed.
+    // 一只手,你来帮忙 -written SGR 全部逃逸的颜色,
+    // 所以上面的正则无法看到它。 这是最关键的逃避: 它对每
+    // 一种类型都看不见。 -level 警卫 和 ,
+    // 它是如何爬回到 颜色,一旦明显的路径关闭。
     const std::regex raw_sgr{R"((\\x1b|\\033|\\e)\[[0-9;]*m)"};
 
-    // Arithmetic on a colour's channel bytes.
+    // 彩色频道字节上的算术.
     //
-    // Resolving a slot yields a LitColor, which is PAINTABLE but not
-    // necessarily NUMERIC: only Kind::Rgb carries channels. Named and
-    // Indexed keep a PALETTE INDEX in the r byte with g/b zero, and Default
-    // has nothing at all — and theme::native states every slot as Named or
-    // Default deliberately, so the user's own palette reaches the screen.
+    // 解析槽后产生 a LitColor ,这是 PAINTABLE
+    // 但不一定要这样 NUMERIC 仅 Kind::Rgb 带有频道。
+    // 命名和索引保存一个 PALETTE INDEX 数字 字节 与
+    // g/b 零,默认完全无任何——和 theme::native
+    // 将每个槽都刻意指定为命名或默认,因此用户自己的调色板到达屏幕。
     //
-    // Multiplying or differencing those bytes therefore reads a palette
-    // index as a colour channel. That is issue #45: bright_black (Named 8)
-    // blended into rgb(8,0,0) and painted over every line of every
-    // reasoning block — invisible on a dark terminal, and invisible to any
-    // developer, because they all run a scheme rather than native.
+    // 乘以或异于这些 字节 因此,将调色板索引读作彩色通道。
+    // 这就是第45期: bright_black (名称8)
+    // 混入rgb(8,0,0),并涂在每一个推理块的
+    // 每行上——暗处隐形. 终端 ,并且对任何开发者来说都是隐形的,
+    // 因为他们都运行着一个计划而不是本地的.
     //
-    // ANY channel read — not just one adjacent to an operator.
+    // 任意 频道读取——不只是一个与操作员相邻的频道.
     //
-    // The first version required a [-+*/] next to the read. That felt
-    // precise and was useless: the original #45 bug passes its channels to
-    // a FUNCTION — `LitColor::rgb(mix(a.r(), b.r()), ...)` — so no operator
-    // is in sight and the scanner walked past the very line it was written
+    // 第一个版本需要有一个[- ⁇ /]在读数旁边。 感觉很精确,
+    // 毫无用处: 原始的# 45 bug 将频道传递到一个 FUNCTION
+    // — `LitColor::rgb(mix(a.r(), b.r()), ...)`
+    // ——所以没有接线员在眼前,扫描仪走过了它写下的线条.
     // for. Flag every read; the two legitimate shapes (index() for palette
-    // emission, a has_channels/Kind::Rgb branch for real arithmetic) are
-    // already explicit and say so.
+    // 排放,一个has_channels/Kind:Rgb分支用于真实的
+    // 算术)已经明确,并说成如此.
     const std::regex channel_read{R"(\.[rgb]\(\))"};
 
     std::vector<std::string> offenders;
@@ -397,12 +397,12 @@ TEST_CASE("theme discipline: agentty names tokens, never colours") {
 
             const std::string rel =
                 fs::relative(e.path(), root).generic_string();
-            // NOTE: kAllowed exempts a file from the COLOUR LITERAL rule
-            // only. It must not skip the whole file — an exemption earned
-            // for one rule silently granting another is how a guard rots.
-            // The channel check below applies everywhere, no exceptions:
-            // palette.hpp reads theme slots, so it has colours in hand and
-            // is exactly the kind of place a blend could appear.
+            // NOTE : kallowed 免除文件 COLOUR
+            // LITERAL 规则只允许。它不能跳过整个文件——
+            // 一个规则默默地给予另一个规则一个例外是警卫如何腐烂。
+            // 以下频道检查在各地都适用,无例外:
+            // palette.hpp读了主题槽,
+            // 所以它手头有颜色,正是混合可以出现的地方.
             const bool lit_exempt = allowed(rel);
             ++scanned;
 
@@ -434,8 +434,8 @@ TEST_CASE("theme discipline: agentty names tokens, never colours") {
         }
     }
 
-    // Guard the guard: a walk that found nothing to scan would pass for
-    // entirely the wrong reason.
+    // 守卫:走一步,找不到任何扫描,
+    // 会完全因为错误的理由而通过.
     CHECK(scanned > 100);
 
     if (!offenders.empty()) {

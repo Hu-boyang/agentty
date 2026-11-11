@@ -1,22 +1,22 @@
-// agentty::tools::memory — implementation. See memory_store.hpp for the
-// shape of the data and the storage rationale.
+// agentty::tools::memory ——执行。
+// memory_store.hpp 用于数据形状和存储理由。
 //
-// On-disk format (JSONL, one record per line):
+// 打开 -disk 格式 (单位:千美元) JSONL ,每行记录一册:
 //
 //   {"id":"a1b2c3d4","ts":1731860000,"scope":"project","text":"prefer fish"}
 //
-// Reads tolerate slop: lines that fail to parse are skipped and counted
-// internally for a future "memory health" surface; the agent never sees
-// them. Writes are append-only on the happy path; the rare cap-rollover
-// path rewrites the file atomically through util::write_file (which
-// itself uses write+flush+rename when the underlying impl supports it).
+// 读取容忍斜线:无法读取的行 解析 跳过并计算未来内部
+// "memory health" 表面; 代理商从未看到它们。
+// 写入是附件 -only 快乐的道路上; 稀有的帽子 -rollover
+// 路径在原子上重写文件 util::write_file (它
+// 本身在基础的impl支持时使用write+flush+重命名).
 
 #include "agentty/util/user_root.hpp"
 #include "agentty/tool/memory_store.hpp"
 
 #include "agentty/io/shared_file.hpp"     // FileLocks, write_atomic, append_atomic
 #include "agentty/scope/scope.hpp"
-#include "agentty/config/inventory.hpp"   // kMemoryLayout — the one declaration
+#include "agentty/config/inventory.hpp"   // KMemary Layout—— 唯一的宣言
 #include "agentty/tool/util/fs_helpers.hpp"
 #include "agentty/tool/util/utf8.hpp"
 #include "agentty/util/lock_levels.hpp"
@@ -49,15 +49,15 @@ namespace {
 
 using json = nlohmann::json;
 
-// Every read-modify-write on either scope file runs inside store().with.
-// Contention is at most "the agent fired remember + forget back-to-back".
-// Helpers that need the lock take the Files token, which only exists inside.
+// 每一个读数 -modify-write 显示在任意一个范围文件内运行 store() .. .. 和... . 一起,我和你们一起
+// 内容最多为"the agent fired remember + forget back-to-back".
+// 需要锁的帮助者会拿走文件符号,它只存在于内部.
 //
-// store() covers THIS process only. The user-scope file is shared by every
-// agentty on the machine, and the project file by every agentty in the repo,
-// so a rewrite also holds the files' cross-process locks (persistence::
-// FileLocks, bounded, sorted so two processes can't deadlock), taken inside
-// the body.
+// store() 覆盖 此 进程。用户 -scope 文件由每个文件
+// 共享 agentty 和工程文件,按每个 agentty 输入 仓库 ,
+// 所以重写时,文件的十字架也保存着 -process 锁 (持久化::
+// FileLocks , 绑定, 排序, 所以两个进程不能 死锁 ),内带.
+// 正文.
 struct Files {};
 using StoreLock = maya::guarded<Files, locks::memory_store>;
 StoreLock& store() { static StoreLock f; return f; }
@@ -67,13 +67,13 @@ StoreLock& store() { static StoreLock f; return f; }
 #if defined(_WIN32)
     if (auto* h = std::getenv("USERPROFILE"); h && *h) return fs::path{h};
 #else
-    // HOME can legitimately be unset (cron, systemd units with
-    // ProtectHome=, containers launched without --env HOME). Fall
-    // back to the password database for the current uid — every
-    // POSIX system has a real home for every login uid.
+    // HOME 合法可不设( 已设置的 ProtectHome
+    // = 未经批准发射的容器 --env HOME。
+    // 返回当前 uid 的密码数据库中。
+    // POSIX 系统有真正的家 每个登录uid。
     if (::geteuid() != 0 || std::getenv("SUDO_USER") == nullptr) {
-        // getpwuid_r is the thread-safe variant; bound the buffer at
-        // 16 KiB, more than any sane pw_dir + login name + shell.
+        // getpwuid_r 是那个 线程-safe 变体 ; 绑定 缓冲区 16
+        // 岁时 KiB ,比任何理智的 pw_dir +登录名称+ shell.
         std::vector<char> buf(4096);
         struct passwd  pw{};
         struct passwd* result = nullptr;
@@ -94,19 +94,19 @@ StoreLock& store() { static StoreLock f; return f; }
     return {};
 }
 
-// True if `dir` already exists and is writable by us, OR doesn't exist
-// yet but its first existing ancestor is writable (so create_directories
-// will succeed). False on root='/' for any non-root user, on a path
-// inside a read-only mount, etc. The check is best-effort — a TOCTOU
-// race between this and the actual write is harmless: the writer's own
-// errno surfaces if the race lands the wrong way.
+// 真实的如果 `dir` 已经存在,而且可以被我们写下来, OR 还没有存在,
+// 但是它的第一个现存祖先是可写(所以) create_directories
+// 将成功。 root 上的假 = '/' 任何非缔约方 -root 用户,
+// 在读数中的路径 -only 挂载等。 检查最好 -effort —
+// a TOCTOU 竞态 写作与实际写作之间无害:如果写作与写作之间有误,
+// 则写作者自己会浮出水面。 竞态 降落方向不对
 [[nodiscard]] bool dir_path_writable(const fs::path& dir) noexcept {
 #ifdef _WIN32
-    // ::access(W_OK) on Windows is famously unreliable for directory
-    // ACL checks. Defer to the write itself — return true and let the
-    // failure path produce the real Windows error message. The fall-
-    // back logic below is only there for POSIX hosts that mount /
-    // read-only or run as nobody.
+    // * Windows上的存取(W_OK)对于目录ACL的检查来说是
+    // 著名的不可靠的。 将写入本身的操作程序拖到 XX002xx 上。
+    // 返回真实的, 让失败路径生成真正的 Windows 错误消息。
+    // 下面的倒转逻辑只用于装载/ 读出 -only 或者作为无人
+    // 运行的 POSIX 主机。
     (void)dir;
     return true;
 #else
@@ -114,7 +114,7 @@ StoreLock& store() { static StoreLock f; return f; }
     fs::path probe = dir;
     while (!probe.empty() && !fs::exists(probe, ec)) {
         auto parent = probe.parent_path();
-        if (parent == probe) break;            // can't ascend past root
+        if (parent == probe) break;            // 无法超越根
         probe = parent;
     }
     if (probe.empty()) return false;
@@ -122,15 +122,15 @@ StoreLock& store() { static StoreLock f; return f; }
 #endif
 }
 
-// Generate an 8-char hex id. `random_device` is seeded once per
-// process; collisions across the lifetime of one memory file are
-// negligibly rare (2^32 space, ~hundreds of records). Two records
-// landing on the same id within milliseconds of each other would just
-// produce two lines with the same id — `forget {id}` would clear
-// both, which is the user-intuitive outcome anyway.
+// 生成一个 8-char x id. `random_device`
+// 是一个过程的种子; 跨一个 内存 文件的 生命周期 碰撞
+// 是微不足道的( ^32 空间, ~ 数百 记录 )。
+// 两种记录在彼此的毫秒内在同一 id 上着陆, 只会产生两条带有
+// 相同 id 的线 — — `forget {id}` 将清除两者,
+// 毕竟是 -intuitive 的结果。
 [[nodiscard]] std::string make_id() {
-    // One engine per thread: no lock, so this is callable from inside the
-    // memory_store lock body (remember() mints ids there).
+    // 每台1个发动机 线程 : 无 锁 ,所以这个可以调用 从内部
+    // memory_store 锁 正文 (remember() 薄荷的标识
     thread_local std::mt19937_64 engine{std::random_device{}()};
     const auto v = static_cast<std::uint32_t>(engine());
     char buf[9];
@@ -143,9 +143,9 @@ StoreLock& store() { static StoreLock f; return f; }
     return duration_cast<seconds>(system_clock::now().time_since_epoch()).count();
 }
 
-// Trim ASCII whitespace from both ends. We deliberately don't normalise
-// internal whitespace or NFC — what the user typed is what the model
-// reads back later.
+// 双端的Trim ASCII 白空。我们故意不使
+// 内部的白空或NFC正常化 — 用户带类型的是模型
+// 后来读到的。
 [[nodiscard]] std::string trim(std::string_view s) {
     std::size_t b = 0, e = s.size();
     while (b < e && std::isspace(static_cast<unsigned char>(s[b]))) ++b;
@@ -167,10 +167,10 @@ StoreLock& store() { static StoreLock f; return f; }
         r.scope = *sc;
         r.text = j.value("text", std::string{});
         if (r.id.empty() || r.text.empty()) return std::nullopt;
-        // Optional fields — absent in legacy records, defaulted on read.
-        // Defensive parses: a hand-edited file with the wrong type for
-        // a field falls back to the default rather than dropping the
-        // whole record.
+        // 选字段——在遗留记录中缺失,默认读取.
+        // 防御性 解析 : 一只手 : -edited
+        // 字段错误类型的文件会回到默认状态,
+        // 而不是丢弃整个记录。
         if (j.contains("pinned") && j["pinned"].is_boolean())
             r.pinned = j["pinned"].get<bool>();
         if (j.contains("hits") && j["hits"].is_number_integer())
@@ -194,25 +194,25 @@ StoreLock& store() { static StoreLock f; return f; }
     j["ts"]    = r.ts;
     j["scope"] = to_string(r.scope);
     j["text"]  = r.text;
-    // Only emit optional fields when set — keeps the line short for the
-    // common case (no tags, not pinned, never deduped) and the on-disk
-    // format byte-identical to the legacy shape.
+    // 设定时只发出可选字段——为普通大小写保持短线(没有标记,
+    // 没有固定,从未解开)和上 -disk 格式 字节
+    // -identical 以遗赠的形状。
     if (r.pinned)        j["pinned"] = true;
     if (r.hits > 0)      j["hits"]   = r.hits;
     if (!r.tags.empty()) j["tags"]   = r.tags;
-    // dump() with no indent: one record per line by construction.
+    // dump() 不得缩进:每行施工记录1个。
     return j.dump();
 }
 
-// Lower-case ASCII + collapse internal whitespace runs to single space
-// + strip ends. Used by the dedup hash so "Build moha with cmake "
-// matches "build moha with cmake". Does NOT touch UTF-8 multi-byte
-// runs — the model is unlikely to vary case on those between calls and
-// folding them properly would pull in ICU.
+// 下调 -case ASCII + 崩溃 内部白空间运行到单空间 + 条尾。
+// 被 解开 散列 使用 "Build moha with cmake "
+// 匹配 "build moha with cmake"。是否将 不 触摸(
+// T) UTF -8个多 -byte 运行中——模型不太可能在两种情况之间发生
+// 差异: 调用 并妥善折叠它们会拉进来 ICU.
 [[nodiscard]] std::string normalise_for_dedup(std::string_view s) {
     std::string out;
     out.reserve(s.size());
-    bool in_ws = true;   // skip leading whitespace
+    bool in_ws = true;   // 跳过正向空白
     for (unsigned char c : s) {
         if (std::isspace(c)) {
             if (!in_ws) { out.push_back(' '); in_ws = true; }
@@ -226,12 +226,12 @@ StoreLock& store() { static StoreLock f; return f; }
     return out;
 }
 
-// Cheap similarity: prefix-bounded Jaro for short strings. Returns a
-// score in [0, 1]; we treat ≥ 0.92 as "same fact, different wording".
-// We don't pull in Jaro-Winkler because the prefix bias would make
-// "build with cmake" and "build with cargo" score >0.95 — they share a
-// common prefix but mean different things. Plain Jaro is enough
-// resolution for the typical model-restatement case.
+// 便宜相似性: 前缀 -bounded 短弦的Jaro。返回[0] 1 的分数;
+// 我们把 0.92 当作 "same fact, different wording".
+// 我们不拉在贾罗 -Winkler 因为前缀偏差会使 "build with cmake"
+// 财务报告和已审计财务报表 "build with cargo" 分数 > 0.
+// 95 — 它们有一个共同的前缀, 但意思不同。 普通的Jaro 足够用于
+// 典型的模型的分辨率。 -restatement 案件记录。
 [[nodiscard]] double jaro_similarity(std::string_view a, std::string_view b) {
     if (a.empty() && b.empty()) return 1.0;
     if (a.empty() || b.empty()) return 0.0;
@@ -254,7 +254,7 @@ StoreLock& store() { static StoreLock f; return f; }
         }
     }
     if (matches == 0) return 0.0;
-    // Transpositions: count pairs that match but in different order.
+    // 转位:数对对,但顺序不同。
     std::size_t k = 0, t = 0;
     for (std::size_t i = 0; i < la; ++i) {
         if (!a_matched[i]) continue;
@@ -266,16 +266,16 @@ StoreLock& store() { static StoreLock f; return f; }
     return (m / la + m / lb + (m - t / 2.0) / m) / 3.0;
 }
 
-// Tag normalisation: lower-case ASCII, drop empties, dedup, sort.
+// 标记正常化: 下-case ASCII, 放下空格, 解脱, 排序。
 [[nodiscard]] std::vector<std::string> normalise_tags(
         const std::vector<std::string>& in) {
     std::vector<std::string> out;
     out.reserve(in.size());
     for (auto t : in) {
-        // lowercase ASCII in place
+        // 小写 ASCII 已就位
         for (auto& c : t)
             if (c >= 'A' && c <= 'Z') c = static_cast<char>(c + 32);
-        // trim
+        // 修剪
         while (!t.empty() && std::isspace(static_cast<unsigned char>(t.front())))
             t.erase(t.begin());
         while (!t.empty() && std::isspace(static_cast<unsigned char>(t.back())))
@@ -300,7 +300,7 @@ StoreLock& store() { static StoreLock f; return f; }
     return out;
 }
 
-// Rewrite the file atomically (temp + fsync + rename). Empty on success.
+// 重写文件的原子化( temp + fsync + 重命名)。 成功时空。
 [[nodiscard]] std::string write_records(const fs::path& p,
                                         const std::vector<Record>& recs) {
     std::string out;
@@ -311,8 +311,8 @@ StoreLock& store() { static StoreLock f; return f; }
     return "could not write " + p.string();
 }
 
-// Append one record in ONE write(2) with O_APPEND, so two agentty processes
-// appending at once never splice into each other's line. Empty on success.
+// 附加 一个 写 (2) 中的一个记录, 加上 O_APPEND ,
+// 因此两个 agentty 进程 总是不同时附加到彼此的行中。 空在成功时。
 [[nodiscard]] std::string append_line(const fs::path& p, std::string_view line) {
     std::string rec{line};
     rec += '\n';
@@ -322,20 +322,20 @@ StoreLock& store() { static StoreLock f; return f; }
     return "could not append to " + p.string();
 }
 
-// ── mtime-keyed cache for the prompt-loader hot path ────────────────────
-// `default_system_prompt` calls load_recent_*() on every turn. Mirrors
-// the read_memory_cached pattern in transport.cpp so memory loading
-// stays free when nothing has changed on disk. The cache key is the
-// scope-file path; the value is the tail-N records list, regenerated
-// when mtime moves.
+// ── 时间 -keyed 缓存 财务报告和审定财务报表 提示词-loader 高频路径 ────────────────────
+// `default_system_prompt` 调用 load_recent_ *
+// ()每转时,都照亮 read_memory_cached 模式在
+// transport.cpp 这么说吧 内存 当磁盘上没有任何变化时, 仍可免费加载。
+// Name 缓存 键是范围 -file 路径; 值是 末尾-N 记录列表,
+// 当 mtime 移动时重生成。
 struct CacheEntry {
-    long long           mtime = 0;   // file_time_type ticks
+    long long           mtime = 0;   // file_time_type 勾选
     std::vector<Record> tail;
 };
 using Cache = std::unordered_map<std::string, CacheEntry>;
-// A snapshot: at most two entries (user + project), replaced on a miss and
-// read on every turn. No lock, so the loader and bump_cache need no
-// capability and are callable from inside the memory_store lock body.
+// A 快照 : 最多两个条目(用户+项目),在错误时替换,并在每次转弯时读取。
+// 没有 锁 ,所以装填器和 bump_cache 不需要能力,
+// 而且可以从内部调用 memory_store 锁 正文.
 maya::snapshot<Cache>& cache() { static maya::snapshot<Cache> c; return c; }
 
 [[nodiscard]] std::vector<Record> tail_of(const std::vector<Record>& all,
@@ -352,7 +352,7 @@ maya::snapshot<Cache>& cache() { static maya::snapshot<Cache> c; return c; }
     std::error_code ec;
     const auto t = fs::last_write_time(p, ec);
     if (ec) {
-        // Missing file — drop cache entry so a future re-creation is observed.
+        // 缺少文件 - 滴 缓存 输入这样的未来 -creation 兹予观察。
         cache().update([](const Cache& c, const std::string& k) {
             Cache next = c; next.erase(k); return next;
         }, key);
@@ -371,11 +371,11 @@ maya::snapshot<Cache>& cache() { static maya::snapshot<Cache> c; return c; }
     return tail;
 }
 
-// Invalidate the cache entry for one scope after a mutating call.
-// `last_write_time` is updated by the OS when we write, so the cache
-// would self-heal on the next stat — but invalidating eagerly keeps
-// the next loader call from racing with filesystem time granularity
-// (HFS+ and some NFS exports have second-resolution mtimes).
+// 无效 缓存 变异后的一个范围 调用.
+// `last_write_time` 由 OS 当我们写,
+// 所以 缓存 将自己 -heal 下个数据表上 —— 但急切地取消
+// 保留下一个加载器 调用 由具有文件系统时间颗粒性的赛车( ) HFS
+// +和一些 NFS 出口量第二 -resolution 时间。
 void bump_cache(Scope s) {
     const auto p = path_for(s);
     if (p.empty()) return;
@@ -384,7 +384,7 @@ void bump_cache(Scope s) {
     }, p.string());
 }
 
-} // namespace
+} // 命名空间结束。
 
 std::optional<Scope> parse_scope(std::string_view s) noexcept {
     if (s == "user") return Scope::User;
@@ -392,14 +392,14 @@ std::optional<Scope> parse_scope(std::string_view s) noexcept {
     return std::nullopt;
 }
 
-// ── suggest_scope: a scored signal model over the fact text ───────────────
-// Not a keyword grab-bag: each cue is a weighted piece of EVIDENCE pulling
-// toward User (fact about the human) or Project (fact about the codebase).
-// We sum the evidence, take the margin, and squash it into [0,1] confidence.
-// A tie or no-evidence text lands at confidence 0 → caller keeps its default.
+// ── suggest_scope:一个在事实文本上打分的信号模型 ───────────────
+// 不是关键字抓取 -bag :每个提示是加权的 EVIDENCE
+// 向用户(关于人类的事实)或项目(关于人类的真相)拉动 代码库).
+// 我们把证据汇总起来,把比值, 并压扁它 [0,1] 信心。
+// 平局或无-evidence文本 以0 = 调用者保持默认值。
 ScopeSuggestion suggest_scope(std::string_view text) noexcept {
-    // Lowercased, space-padded copy so word-boundary probes are simple and
-    // don't match inside longer tokens (" i " vs "api").
+    // 较小的大小写, 空格 -padded 复制到这个字 -boundary 探测器简单,
+    // 在较长的标志内不匹配( " i " 数字 "api").
     std::string t;
     t.reserve(text.size() + 2);
     t.push_back(' ');
@@ -411,8 +411,8 @@ ScopeSuggestion suggest_scope(std::string_view text) noexcept {
 
     struct Cue { std::string_view probe; float w; std::string_view why; bool boundary; };
 
-    // USER evidence — the fact is ABOUT THE HUMAN. First-person self-
-    // reference and identity/preference verbs are the strong separators.
+    // USER 证据——事实是 ABOUT 该 HUMAN 首页 -person
+    // 自我参考和 identity/preference 动词是强分词.
     static constexpr Cue kUser[] = {
         {" i ",         0.45f, "first-person 'I'",           false},
         {" i'm ",       0.45f, "first-person 'I'm'",         false},
@@ -428,8 +428,8 @@ ScopeSuggestion suggest_scope(std::string_view text) noexcept {
         {"personal",    0.40f, "'personal'",                 false},
         {"pronoun",     0.35f, "identity (pronouns)",        false},
     };
-    // PROJECT evidence — the fact is ABOUT THIS CODEBASE. Repo deixis, team
-    // 'we', and concrete build/path/command tokens.
+    // PROJECT 证据——事实是 ABOUT 此 CODEBASE. 仓库 团队,德克西 'we' ,
+    // 和混凝土 build/path/command 标志。
     static constexpr Cue kProject[] = {
         {"this project",  0.65f, "repo deixis ('this project')", false},
         {"this repo",     0.65f, "repo deixis ('this repo')",    false},
@@ -456,9 +456,9 @@ ScopeSuggestion suggest_scope(std::string_view text) noexcept {
         if (has(c.probe) && c.w > user) { user = c.w; user_why = c.why; }
     for (const auto& c : kProject)
         if (has(c.probe) && c.w > proj) { proj = c.w; proj_why = c.why; }
-    // Accumulate a little for MULTIPLE independent cues on a side (a second,
-    // weaker hit adds a fraction) so "I prefer, and my name is" reads louder
-    // than either alone — without letting one class run away.
+    // 积聚一点 MULTIPLE 独立提示在一边(秒,弱击加分),
+    // 所以 "I prefer, and my name is"
+    // 读起来比单独读更响亮——不放一班人跑了。
     auto bump = [&]<std::size_t N>(const Cue (&cues)[N], float& top) {
         float extra = 0.0f;
         for (const auto& c : cues) if (has(c.probe)) extra += c.w * 0.25f;
@@ -478,9 +478,9 @@ ScopeSuggestion suggest_scope(std::string_view text) noexcept {
         s.confidence = std::min(1.0f, -margin);
         s.reason = std::string{proj_why};
     } else {
-        // No evidence, or a genuine tie → ambiguous. Project is the neutral
-        // prior (matches the prompt's documented default) at zero confidence,
-        // so confident() is false and the caller keeps its own default.
+        // 没有任何证据,或真正的领带 + 模糊不清。项目是中性前置(
+        // 匹配 提示词 '' 记录的默认) , 以零置信度,
+        // 所以 confident() 虚假的,而呼叫者自己守着默认。
         s.scope = Scope::Project;
         s.confidence = 0.0f;
         s.reason = user == 0.0f ? "no signal" : "conflicting signals";
@@ -489,17 +489,17 @@ ScopeSuggestion suggest_scope(std::string_view text) noexcept {
 }
 
 fs::path path_for(Scope s) {
-    // Memory is the first consumer of agentty::scope. It owns edge resolution
-    // (its home_dir() carries a getpwuid_r fallback scope's doesn't) and hands
-    // scope a fabricated Env; scope::plan() then centralises the Locus ×
-    // Dialect layout + the project-clamp/writability guard that used to live
-    // inline here. Behaviour is identical: User → ~/.agentty/memory.jsonl,
-    // Project → <project-root>/.agentty/memory.jsonl (empty at "/" or when
-    // unwritable). Memory only uses the native .agentty dialect, so we take
-    // the Agentty source for the requested locus.
+    // 内存 消费者的第一 agentty::scope。它拥有边缘分辨率(它拥有
+    // home_dir (a) 携带 getpwuid_r 回退 瞄准镜不)和手瞄准镜 虚构的天线;
+    // scope::plan ()然后集中Locus × Dialect 排版 + o.
+    // project-clamp/writability 守护器, 用来在此处内线。
+    // 行为相同 : 用户。 ~/.agentty/memory.jsonl ,
+    // 项目 + <project-root>/.agentty/memory.jsonl
+    // (空着,在 "/" 或当不可写时)。 内存 只能使用本地人。
+    // agentty 方言,所以我们把代理源 要求的蝗虫。
     const scope::Layout& layout = ::agentty::config::kMemoryLayout;
     scope::Env env;
-    env.home             = home_dir();       // richer than scope's own
+    env.home             = home_dir();       // 比范围本身更丰富
     env.user_native_base = ::agentty::util::user_root();
     env.project_root     = util::project_root();
     env.project_writable = dir_path_writable(env.project_root / ".agentty");
@@ -508,14 +508,14 @@ fs::path path_for(Scope s) {
         (s == Scope::User) ? scope::Locus::User : scope::Locus::Project;
 
     for (const scope::Source& src : scope::plan(layout, env)) {
-        // Locus is still a filter here — path_for answers "the path for THIS
-        // scope", not "the winning path". The dialect check that used to sit
-        // beside it is gone: the Layout asks for native only, so every source
-        // plan() yields is already .agentty.
+        // 洛克斯还是个过滤器... path_for 答案( T)
+        // "the path for THIS scope" ,没有 "the winning path"。
+        // 过去坐在旁边的方言检查已经不存在:布局只要求本地语言,所以每个来源
+        // plan() 产量已经。 agentty.
         if (src.locus != want) continue;
-        // Project scope must be writable to be a valid store target (a
-        // project fact silently promoted to user scope would bleed across
-        // workspaces). User scope only needs a resolved base.
+        // 项目范围必须能够写成有效的存储目标(默默
+        // 地推广到用户范围的项目事实将流血于工作区).
+        // 用户范围只需要一个解决的基础.
         if (want == scope::Locus::Project && !src.writable) return {};
         return src.base / layout.leaf;
     }
@@ -537,10 +537,10 @@ AppendResult append(const locks::below_memory_store& cap, Scope s,
         return res;
     }
     if (body.size() > kMaxTextBytes) {
-        // Truncate on a (likely-)UTF-8-safe boundary. We don't pull in
-        // the full utf8 helper here — back off to the last leading byte
-        // within the cap. The 4-byte rewind covers the longest legal
-        // UTF-8 sequence; worst case we lose one trailing code point.
+        // 断线在(可能) UTF-8-safe 我们不拉
+        // utf8 的帮助在这里 —— 回到最后的领先 字节 4
+        // 号机 -byte 倒影覆盖最长的法律 UTF -8个序列,
+        // 最糟糕的情况是,我们失去了一个跟踪的代码点。
         std::size_t cut = kMaxTextBytes;
         for (int back = 0; back < 4 && cut > 0; ++back, --cut) {
             unsigned char c = static_cast<unsigned char>(body[cut]);
@@ -556,12 +556,12 @@ AppendResult append(const locks::below_memory_store& cap, Scope s,
     auto p = path_for(s);
     Scope actual_scope = s;
     if (p.empty() && s == Scope::Project) {
-        // Project scope unavailable (unresolvable/unwritable project cwd).
-        // Do NOT silently fall back to user scope: a project fact
-        // promoted to user scope loads into EVERY other workspace's system
-        // prompt — the cross-workspace "memory bleed" where a fact about
-        // project A surfaces while you're working on project B. Refuse, and
-        // tell the caller how to opt in to a global fact explicitly.
+        // 项目范围不详(unresolvable/unwritable项目 cwd)。
+        // 不执行 默默地回到用户范围:一个推广到
+        // 用户范围的项目事实 加载 输入 每个 其他项目
+        // 工作区 系统 提示词 - 十字架 - 十字记
+        // -workspace "memory bleed"
+        // 告诉打电话者如何明确选择一个全球事实
         res.error =
             "remember: project scope is unavailable here — workspace root '"
             + util::workspace_root().string()
@@ -572,7 +572,7 @@ AppendResult append(const locks::below_memory_store& cap, Scope s,
         return res;
     }
     if (p.empty()) {
-        // s == Scope::User and even the user path is unresolvable.
+        // s ⁇  Scope::User甚至用户路径也无法解决.
         res.error = "remember: can't resolve a writable user memory path "
                     "(HOME is unset and getpwuid_r returned no home directory).";
         return res;
@@ -591,11 +591,11 @@ namespace {
 AppendResult append_locked(Files&, Scope actual_scope, std::string body,
                            std::vector<std::string> tags_norm, AppendOptions opts,
                            const fs::path& p, AppendResult res) {
-    // Other agentty processes: see the note on store(). A supersede may also
-    // rewrite the OTHER scope's file, so when it's asked for, both files are
-    // locked up front in one fixed order (user, then project) -- a fixed
-    // order is what keeps two processes from each holding one and waiting
-    // for the other.
+    // 其他人员 agentty 进程:见关于 store()。
+    // 替换时也可能重写 OTHER 范围文件,所以当它被要求的时候,
+    // 两个文件都被锁在前面一个固定的顺序(用户,然后是工程)—
+    // —一个固定的次序是使两个进程不同时存在,而每个进程都等待
+    // 另一个进程.
     const persistence::FileLocks xlocks = [&] {
         const fs::path pu = actual_scope == Scope::User ? p : path_for(Scope::User);
         const fs::path pp = actual_scope == Scope::Project ? p : path_for(Scope::Project);
@@ -607,12 +607,12 @@ AppendResult append_locked(Files&, Scope actual_scope, std::string body,
     }();
     auto existing = read_records(p);
 
-    // ── Dedup pass ───────────────────────────────────────────────────
-    // Walk existing records looking for one whose normalised text is
-    // a near-match for the incoming body. On hit: refresh ts, bump
-    // hits, merge pin ("once pinned, stays pinned"), union tags.
-    // No new id is allocated; the existing record's id is returned
-    // and `deduped` flags the dedup for the caller.
+    // ── 跳过 ───────────────────────────────────────────────────
+    // 将已有的记录走过, 寻找一个正版文本接近的 -match 预选表 正文。
+    // 在命中时:刷新 t, 撞击, 合并 pin( Q)
+    // "once pinned, stays pinned" 工会的标签。
+    // 没有分配新的 id; 返回现有记录的 id ,
+    // `deduped` 标志 给打电话者的解约
     if (!opts.no_dedup) {
         const auto needle = normalise_for_dedup(body);
         for (auto& rec : existing) {
@@ -630,9 +630,9 @@ AppendResult append_locked(Files&, Scope actual_scope, std::string body,
                                   tags_norm.begin(), tags_norm.end());
                     rec.tags = normalise_tags(merged);
                 }
-                // Supersede during dedup: rare but possible (a model
-                // both restates and tries to drop a prior version).
-                // Apply the supersede in the same rewrite below.
+                // 解脱时的替换:罕见但有可能(一个
+                // 模型既重复又试图放弃之前的版本).
+                // 将替换应用到下面相同的重写中。
                 std::string sup = trim(opts.supersedes_id);
                 std::size_t sup_dropped = 0;
                 if (!sup.empty()) {
@@ -665,10 +665,10 @@ AppendResult append_locked(Files&, Scope actual_scope, std::string body,
         }
     }
 
-    // ── Supersede pass ───────────────────────────────────────────────
-    // Drop the named predecessor (in either scope) inside the same
-    // rewrite that adds the new record. A missing id is non-fatal —
-    // we just note it. This is the atomic edit-an-existing-fact path.
+    // ── 补过 ───────────────────────────────────────────────
+    // 将命名的前身( 无论是范围还是范围) 丢入添加新记录的重写中。
+    // 缺少的 id 是非 -fatal 我们只是注意到了 这
+    // 是原子编辑 -an-existing-fact 路径。
     std::string sup = trim(opts.supersedes_id);
     bool sup_hit = false;
     if (!sup.empty()) {
@@ -679,9 +679,9 @@ AppendResult append_locked(Files&, Scope actual_scope, std::string body,
             existing.end());
         sup_hit = (existing.size() != before);
         if (!sup_hit) {
-            // The id might live in the OTHER scope. Drop it there too
-            // — keeps the supersede semantics consistent regardless of
-            // which scope the model thought it was editing.
+            // id可能生活在OTHER范围中。
+            // 把它也放在那里—— 无论模型认为它是在编辑
+            // 哪个范围, 替换语义都保持一致。
             Scope other = (actual_scope == Scope::User) ? Scope::Project : Scope::User;
             auto op = path_for(other);
             if (!op.empty()) {
@@ -705,7 +705,7 @@ AppendResult append_locked(Files&, Scope actual_scope, std::string body,
         else { res.note += "; "; res.note += add; }
     }
 
-    // ── Build the new record ─────────────────────────────────────────
+    // ── 构建新记录 ─────────────────────────────────────────
     Record r;
     r.id     = make_id();
     r.ts     = now_unix();
@@ -715,12 +715,12 @@ AppendResult append_locked(Files&, Scope actual_scope, std::string body,
     r.tags   = std::move(tags_norm);
     r.hits   = 0;
 
-    // ── Cap rollover ─────────────────────────────────────────────────
-    // Pinned records are cap-exempt: walk oldest-first and drop the
-    // first UNPINNED record until we fit. Falling back to dropping
-    // pinned only if everything in the file is pinned and we still
-    // overflow — in that degenerate case the user has more pinned
-    // facts than the cap can hold, and the oldest pinned has to go.
+    // ── 翻转车头 ─────────────────────────────────────────────────
+    // 封存记录是封顶的 -exempt : 走最老路
+    // -first 放下第一个 UNPINNED 只有在
+    // 文件里的所有东西都被封住,我们仍会溢出的情况下,
+    // 才恢复到被封住的状态——如果这种堕落的情况,
+    // 用户拥有比盖子更坚固的事实,而最古老的被封住者必须离开。
     auto drop_oldest_unpinned = [](std::vector<Record>& v) -> bool {
         for (auto it = v.begin(); it != v.end(); ++it) {
             if (!it->pinned) { v.erase(it); return true; }
@@ -731,7 +731,7 @@ AppendResult append_locked(Files&, Scope actual_scope, std::string body,
     while (existing.size() + 1 > kMaxRecordsPerScope) {
         bool dropped = drop_oldest_unpinned(existing);
         if (!dropped) {
-            // All-pinned overflow — sacrifice the oldest pinned.
+            // 全部( A) -pinned 溢出——牺牲最古老的钉子.
             existing.erase(existing.begin());
         }
         ++res.rolled;
@@ -745,8 +745,8 @@ AppendResult append_locked(Files&, Scope actual_scope, std::string body,
     };
     while (existing.size() > 1 && total_bytes(existing) > kMaxFileBytes) {
         if (!drop_oldest_unpinned(existing)) {
-            // All-pinned overflow on byte cap — drop the oldest pinned
-            // that isn't the record we just pushed.
+            // 全部( A) -pinned 溢出时间 字节 盖子 放下
+            // 最古老的钉子 而不是我们刚刚推的纪录
             if (existing.size() > 1) existing.erase(existing.begin());
             else break;
         }
@@ -756,7 +756,7 @@ AppendResult append_locked(Files&, Scope actual_scope, std::string body,
 
     std::string err;
     if (rollover || sup_hit) {
-        // Any rewrite-shaped mutation goes through the atomic path.
+        // 任何重写-shaped突变都经过原子路径.
         err = write_records(p, existing);
     } else {
         err = append_line(p, serialise_record(r));
@@ -769,7 +769,7 @@ AppendResult append_locked(Files&, Scope actual_scope, std::string body,
     bump_cache(actual_scope);
     return res;
 }
-} // namespace
+} // 命名空间结束。
 
 std::vector<Record> load_all(const locks::below_memory_store& cap, Scope s) {
     const auto p = path_for(s);
@@ -780,16 +780,16 @@ std::vector<Record> load_all(const locks::below_memory_store& cap, Scope s) {
 std::vector<Record> load_recent_user()    { return load_recent_for(Scope::User); }
 std::vector<Record> load_recent_project() { return load_recent_for(Scope::Project); }
 
-// UTF-8-safe clip to at most `cap` bytes, ending on a complete code point.
+// UTF-8-safe剪辑最多为`cap`XX字节,以一个完整的代码点结束.
 static std::string clip_text(const std::string& s, std::size_t cap) {
     if (s.size() <= cap) return s;
     std::size_t cut = cap;
     for (int back = 0; back < 4 && cut > 0; ++back, --cut) {
         unsigned char c = static_cast<unsigned char>(s[cut]);
-        if ((c & 0xC0) != 0x80) break;   // leading byte → safe boundary
+        if ((c & 0xC0) != 0x80) break;   // 领导 字节 □ 安全边界
     }
     std::string out = s.substr(0, cut);
-    out += "\xe2\x80\xa6";   // … — signals the prompt copy is clipped
+    out += "\xe2\x80\xa6";   // ——信号提示词副本被剪辑
     return out;
 }
 
@@ -798,34 +798,34 @@ PromptSelection select_for_prompt(std::vector<Record> recent,
     PromptSelection sel;
     if (recent.empty()) return sel;
 
-    // Approximate per-record prompt cost: render_for_prompt adds an
-    // `[id] ` prefix (~11 bytes), an optional ★, a tag suffix, and a
-    // trailing newline. Charge the clipped text length + a fixed chrome
-    // estimate so the budget reflects what actually lands in the prompt.
+    // 大约每名 -record 提示词 成本 :
+    // render_for_prompt 添加一个 `[id] ` 前缀
+    // ( ~11) 字节 ,可选的 QQ, 标记后缀, 以及一条后缀的新线。
+    // 输入剪辑的文本长度+固定的铬估计值, 这样预算将反映实际在 提示词.
     auto cost_of = [](const Record& r) -> std::size_t {
         std::size_t c = std::min(r.text.size(), kPromptRecordCap);
-        c += 16;                                   // [id] + ★ + newline
+        c += 16;                                   // [id] + +  ⁇ + 新线
         for (const auto& tg : r.tags) c += tg.size() + 2;
         return c;
     };
 
-    // Rank for budget-fill: pinned first, then more hits, then more
-    // recent. We keep an index list so the FINAL emission can be restored
-    // to stable oldest-first order (recent[] is already oldest-first).
+    // 预算排名 -fill : 被锁定,然后是更多点击,然后是最近。
+    // 我们保留一个索引列表,这样就可以 FINAL 排放量可恢复到最古老的稳定
+    // -first 顺序( 最近[ ] 已经是最古老的 -first).
     std::vector<std::size_t> order(recent.size());
     for (std::size_t i = 0; i < recent.size(); ++i) order[i] = i;
     std::stable_sort(order.begin(), order.end(),
         [&](std::size_t a, std::size_t b) {
             const Record& ra = recent[a];
             const Record& rb = recent[b];
-            if (ra.pinned != rb.pinned) return ra.pinned;       // pinned wins
-            if (ra.hits   != rb.hits)   return ra.hits > rb.hits;// more hits wins
-            return ra.ts > rb.ts;                                // more recent wins
+            if (ra.pinned != rb.pinned) return ra.pinned;       // 被钉住的胜者
+            if (ra.hits   != rb.hits)   return ra.hits > rb.hits;// 更多点击数获胜
+            return ra.ts > rb.ts;                                // 较近期获胜
         });
 
-    // Walk the ranked order, admitting records until the byte budget is
-    // spent. Pinned records are admitted even past the budget (they are
-    // load-bearing by definition); everything else respects the cap.
+    // 顺着顺序排列, 接受记录直到 字节 预算已经用完。
+    // 即使超过预算,也承认有固定记录(它们已经使用)。
+    // 加载-bearing 定义上,其他一切都尊重盖子。
     std::vector<char> keep(recent.size(), false);
     std::size_t spent = 0;
     for (std::size_t idx : order) {
@@ -836,8 +836,8 @@ PromptSelection select_for_prompt(std::vector<Record> recent,
         }
     }
 
-    // Emit kept records in stable oldest-first order, clipping any
-    // over-long text to the per-record cap. Count the drops.
+    // 爱慕保存在最古老的档案 -first 命令,剪辑任何结束
+    // -long 文本为每张 -record 盖子,数数滴子
     for (std::size_t i = 0; i < recent.size(); ++i) {
         if (!keep[i]) { ++sel.dropped; continue; }
         Record r = std::move(recent[i]);
@@ -848,14 +848,14 @@ PromptSelection select_for_prompt(std::vector<Record> recent,
 }
 
 namespace {
-// Drop every record matching `pred` from both scope files.
+// 从两个范围文件中丢弃匹配`pred`的每个记录.
 template <class Pred>
 std::size_t remove_where(Files&, Pred pred) {
     std::size_t removed = 0;
     for (auto s : {Scope::User, Scope::Project}) {
         const auto p = path_for(s);
         if (p.empty()) continue;
-        const persistence::FileLocks xlock({p});   // see the note on store()
+        const persistence::FileLocks xlock({p});   // 见关于store()的说明
         auto recs = read_records(p);
         const std::size_t before = recs.size();
         std::erase_if(recs, pred);
@@ -867,7 +867,7 @@ std::size_t remove_where(Files&, Pred pred) {
     }
     return removed;
 }
-} // namespace
+} // 命名空间结束。
 
 std::size_t forget_by_id(const locks::below_memory_store& cap, std::string_view id) {
     std::string want{id};
@@ -894,11 +894,11 @@ std::string render_for_prompt(const Record& r) {
     out += '[';
     out += r.id;
     out += "] ";
-    if (r.pinned) out += "\xe2\x98\x85 ";   // ★ — visual cue for pinned
-    // A record can round-trip arbitrary bytes from a pasted tool output or a
-    // clipboard capture (e.g. a truncated multi-byte UTF-8 sequence). Repair
-    // it here so the system prompt — which is serialized by the provider's
-    // JSON dump — is always well-formed. Cheap no-op when already valid.
+    if (r.pinned) out += "\xe2\x98\x85 ";   // +++- 固定的视觉提示
+    // 记录可以循环 -trip 任意 字节 从粘贴工具输出或剪贴板抓取
+    // 中( ) e.g。一个短长的复数 -byte UTF - 给它修补一下,
+    // 系统就修好了 提示词 ——由提供者的系列 JSON 垃圾场,
+    // 总是好的 -formed 便宜无 -op。当已经有效时。
     out += tools::util::to_valid_utf8(r.text);
     if (!r.tags.empty()) {
         out += "  {";
@@ -946,10 +946,10 @@ std::vector<Record> preview_forget_by_substring(const locks::below_memory_store&
 std::optional<std::size_t> wipe(const locks::below_memory_store& cap, Scope s) {
     const auto p = path_for(s);
     if (p.empty()) return std::nullopt;
-    // Truncate (write empty) rather than fs::remove — keeps the path
-    // valid for subsequent append calls without re-running
-    // create_directories. write_records on an empty vector writes a
-    // zero-byte file, which read_records / load_all both handle.
+    // 特朗卡特(写作空)而不是fs::remove——保留路径对后续的附录调用有效,
+    // 而不用re-running create_directories.
+    // write_records在空矢量上写作0-byte文件,
+    // 其中read_records / load_all都处理.
     const std::size_t n = store().with(cap, [](Files&, std::string path) {
         const persistence::FileLocks xlock({fs::path{path}});
         const std::size_t count = read_records(path).size();

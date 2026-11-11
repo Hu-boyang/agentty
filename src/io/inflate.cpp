@@ -1,9 +1,9 @@
-// agentty::io::compress — gzip / zlib / raw DEFLATE decoding for HTTP bodies.
+// agentty::io::compress-HTTP 正文的gzip/zlib/原始DEFLATE解码。
 //
-// The DEFLATE core (Huffman, BitReader, inflate_deflate) is a canonical
-// RFC 1951 decoder ported from rag-cpp's OOXML loader — written for being
-// obviously bounds-safe on hostile input rather than for throughput. HTTP
-// JSON bodies are small; correctness and safety are what matter here.
+// DEFLATE核心(Huffman、BitReader、
+// inflate_deflate)是从rag-cpp的OOXML加载器移植的规范RFC
+// 1951解码器——显然是为了在恶意输入上限制-safe而不是为了吞吐量而编写的。
+// HTTP JSON 正文 较小；正确性和安全性在这里很重要。
 
 #include "agentty/io/inflate.hpp"
 
@@ -14,7 +14,7 @@
 namespace agentty::io::compress {
 namespace {
 
-// ─── Canonical Huffman decoding ──────────────────────────────────────────
+// ─── 坎诺式Huffman解码 ──────────────────────────────────────────
 struct Huffman {
     std::array<std::uint16_t, 16> counts{};
     std::vector<std::uint16_t> symbols;
@@ -23,8 +23,8 @@ struct Huffman {
         counts.fill(0);
         for (std::size_t i = 0; i < n; ++i) counts[lengths[i]]++;
         counts[0] = 0;
-        // Reject over-subscribed code sets (a corrupt table that would let
-        // decode() run off the end of symbols[]).
+        // 拒绝超过-subscribed代码集（一个损坏的表，
+        // 其会让decode()跑出符号[]的末尾）。
         int left = 1;
         for (std::size_t len = 1; len < 16; ++len) {
             left <<= 1;
@@ -46,8 +46,8 @@ class BitReader {
 public:
     explicit BitReader(std::string_view d) : d_(d) {}
 
-    // Returns -1 on exhaustion rather than throwing: every caller checks, and
-    // truncated input is expected, not exceptional.
+    // 耗尽时返回-1而不是抛出：每个调用者都会检查，
+    // 并且截断的输入是预期的，而不是例外。
     int bit() {
         if (nbits_ == 0) {
             if (pos_ >= d_.size()) { ok_ = false; return -1; }
@@ -114,7 +114,7 @@ constexpr std::uint16_t kDistBase[30] = {
 constexpr std::uint8_t kDistExtra[30] = {
     0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13};
 
-// Build the fixed (block type 01) literal/length + distance Huffman tables.
+// 构建固定(块类型01)literal/length+距离霍夫曼表。
 void build_fixed(Huffman& lit, Huffman& dist) {
     std::array<std::uint8_t, 288> ll{};
     for (int i = 0; i < 144; ++i)   ll[i] = 8;
@@ -127,7 +127,7 @@ void build_fixed(Huffman& lit, Huffman& dist) {
     dist.build(dl.data(), dl.size());
 }
 
-// Read a dynamic (block type 10) code-length table and build lit/dist.
+// 读取动态(块类型10)code-length表并构建lit/dist.
 bool read_dynamic(BitReader& br, Huffman& lit, Huffman& dist) {
     int hlit  = br.bits(5);  if (hlit  < 0) return false; hlit  += 257;
     int hdist = br.bits(5);  if (hdist < 0) return false; hdist += 1;
@@ -160,7 +160,7 @@ bool read_dynamic(BitReader& br, Huffman& lit, Huffman& dist) {
         } else if (sym == 17) {
             int rep = br.bits(3); if (rep < 0) return false; rep += 3;
             while (rep-- > 0) lengths.push_back(0);
-        } else {  // sym == 18
+        } else {  // 符号== 18
             int rep = br.bits(7); if (rep < 0) return false; rep += 11;
             while (rep-- > 0) lengths.push_back(0);
         }
@@ -172,7 +172,7 @@ bool read_dynamic(BitReader& br, Huffman& lit, Huffman& dist) {
     return true;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 std::optional<std::string> inflate_deflate(std::string_view in,
                                            std::size_t max_out) {
@@ -186,7 +186,7 @@ std::optional<std::string> inflate_deflate(std::string_view in,
         if (type < 0) return std::nullopt;
 
         if (type == 0) {
-            // Stored block: align, then LEN / ~LEN, then LEN raw bytes.
+            // 存储块：对齐，然后LEN/~LEN，然后LEN原始字节。
             br.align();
             std::size_t p = br.pos();
             if (p + 4 > br.size()) return std::nullopt;
@@ -200,7 +200,7 @@ std::optional<std::string> inflate_deflate(std::string_view in,
             if (p + len > br.size()) return std::nullopt;
             if (out.size() + len > max_out) return std::nullopt;
             out.append(d.substr(p, len));
-            // Resume the bit reader just past the stored bytes.
+            // 刚刚经过所存储的字节时恢复位读取器。
             BitReader nb(d.substr(p + len));
             br = nb;
         } else if (type == 1 || type == 2) {
@@ -211,7 +211,7 @@ std::optional<std::string> inflate_deflate(std::string_view in,
             for (;;) {
                 int sym = br.decode(lit);
                 if (sym < 0) return std::nullopt;
-                if (sym == 256) break;          // end of block
+                if (sym == 256) break;          // 块结束
                 if (sym < 256) {
                     if (out.size() + 1 > max_out) return std::nullopt;
                     out.push_back(static_cast<char>(sym));
@@ -233,10 +233,10 @@ std::optional<std::string> inflate_deflate(std::string_view in,
                 if (out.size() + length > max_out) return std::nullopt;
                 std::size_t start = out.size() - distance;
                 for (std::size_t i = 0; i < length; ++i)
-                    out.push_back(out[start + i]);   // may overlap (LZ77)
+                    out.push_back(out[start + i]);   // 可能重叠(LZ77)
             }
         } else {
-            return std::nullopt;   // reserved block type
+            return std::nullopt;   // 保留块类型
         }
 
         if (final) break;
@@ -248,7 +248,7 @@ std::optional<std::string> inflate_deflate(std::string_view in,
 std::optional<std::string> decode_content_encoding(std::string_view encoding,
                                                    std::string_view body,
                                                    std::size_t max_out) {
-    // Case-insensitive trim of the encoding token.
+    // Case-insensitive 修剪编码令牌。
     auto lower = [](std::string_view s) {
         std::string o;
         o.reserve(s.size());
@@ -268,9 +268,9 @@ std::optional<std::string> decode_content_encoding(std::string_view encoding,
         return std::string{body};
 
     if (enc == "gzip" || enc == "x-gzip") {
-        // RFC 1952: 10-byte header, optional extra fields, DEFLATE, 8-byte
-        // trailer. Byte 3 (FLG) bits select the optional fields.
-        if (body.size() < 18) return std::nullopt;   // header(10)+trailer(8)
+        // RFC 1952:10-byte 头文件，可选额外字段，DEFLATE，
+        // 8-byte尾部。 字节 3 (FLG) 位选择可选字段。
+        if (body.size() < 18) return std::nullopt;   // 头文件(10)+预告片(8)
         auto u8 = [&](std::size_t i) {
             return static_cast<unsigned char>(body[i]);
         };
@@ -282,32 +282,32 @@ std::optional<std::string> decode_content_encoding(std::string_view encoding,
             std::size_t xlen = u8(p) | (static_cast<std::size_t>(u8(p + 1)) << 8);
             p += 2 + xlen;
         }
-        auto skip_cstr = [&]() -> bool {              // FNAME / FCOMMENT
+        auto skip_cstr = [&]() -> bool {              // FNAME/FCOMMENT
             while (p < body.size() && body[p] != '\0') ++p;
             if (p >= body.size()) return false;
-            ++p;                                      // consume the NUL
+            ++p;                                      // 消耗NUL
             return true;
         };
         if (flg & 0x08) { if (!skip_cstr()) return std::nullopt; }   // FNAME
         if (flg & 0x10) { if (!skip_cstr()) return std::nullopt; }   // FCOMMENT
         if (flg & 0x02) p += 2;                       // FHCRC
-        if (p + 8 > body.size()) return std::nullopt; // need room for trailer
+        if (p + 8 > body.size()) return std::nullopt; // 需要拖车空间
         std::string_view deflate = body.substr(p, body.size() - p - 8);
         return inflate_deflate(deflate, max_out);
     }
 
     if (enc == "deflate") {
-        // "deflate" is RFC 1950 (zlib) per HTTP, but some servers send RAW
-        // DEFLATE. Detect the 2-byte zlib header: CMF/FLG where CM==8 and
-        // (CMF*256+FLG) % 31 == 0. If it looks like zlib, strip the 2-byte
-        // header + 4-byte Adler32 trailer; otherwise inflate the whole body.
+        // "deflate"是每HTTP的RFC 1950 (zlib)，但是一些服务器发送RAW
+        // DEFLATE。检测 2-byte zlib 头文件: CMF/FLG，其中 CM==
+        // 8 和 (CMF*256+FLG) % 31 == 0。如果它看起来像 zlib，
+        // 则剥离 2-byte 头文件 + 4-byte Adler32 尾部；否则对整个 正文 进行充气。
         if (body.size() >= 2) {
             const unsigned cmf = static_cast<unsigned char>(body[0]);
             const unsigned flg = static_cast<unsigned char>(body[1]);
             const bool zlib = (cmf & 0x0f) == 8 &&
                               ((cmf << 8) | flg) % 31 == 0;
             if (zlib) {
-                if (body.size() < 6) return std::nullopt;   // hdr(2)+adler(4)
+                if (body.size() < 6) return std::nullopt;   // hdr(2)+阿德勒(4)
                 return inflate_deflate(body.substr(2, body.size() - 2 - 4),
                                        max_out);
             }
@@ -315,7 +315,7 @@ std::optional<std::string> decode_content_encoding(std::string_view encoding,
         return inflate_deflate(body, max_out);
     }
 
-    return std::nullopt;   // unknown encoding — caller keeps raw body + logs
+    return std::nullopt;   // 未知编码 — 调用者保留原始 正文 + 日志
 }
 
 }  // namespace agentty::io::compress

@@ -1,54 +1,54 @@
-// theme_idle_async_parse_test — a live theme switch must recolour a SETTLED
-// message, not just the parts of the screen that were repainting anyway.
+// theme_idle_async_parse_test ——现场主题
+// 切换必须重新颜色 a SETTLED 不只是屏幕上那些重新油漆的部位
 //
-// THE REPORT. Switching themes live "sometimes doesn't work well", but it
-// always works when something else is already animating (the welcome screen,
-// a spinner, a live stream). That conditional is the clue: what repaints
-// correctly is whatever REBUILDS from live theme slots every frame, and what
-// stays stale is whatever was already committed.
+// 该 REPORT. 切换主题直播"sometimes doesn't work well",
+// 但当其他东西已经动画化(欢迎屏幕,加载动画, 数据流)时,
+// 它总是起作用. 条件是: 重绘正确是什么,
+// 从每个帧的现场主题位置上, 哪些是REBUILDS,
+// 哪些停留的过期是已经承诺的.
 //
-// THE MECHANISM. A committed markdown block is stored as a fully RENDERED
-// Element:
+// 该 MECHANISM。一个承诺的减值块被作为完整存储 RENDERED
+// 元素 :
 //
-//     prefix_blocks.push_back(
-//         std::make_shared<const Element>(md_block_to_element(block)));
+//     prefix_blocks.push_back
+//         ( std::make_shared<const Element>(md_block_to_element (块))
 //
-// and md_block_to_element resolves ~58 `colors::` slots to concrete colours
-// AT COMMIT TIME. render_committed_block_ then just replays that frozen
-// Element forever. So the palette a settled message renders in is the one
-// that was live when its text was committed — and nothing downstream can
-// change it, because there is no theme term anywhere in the chain:
+// 财务报告和已审计财务报表 md_block_to_element 解析
+// ~58 `colors::` 混凝土颜色的插槽 AT COMMIT
+// TIME. render_committed_block_ 然后重放
+// 被冻结的元素, 将调色板调色板显示为已解密的信息 渲染 里面有它被
+// 执行的文字, 下游 能够改变它,因为链条中没有任何主题名词:
 //
-//   • set_content/set_content_async no-op on unchanged bytes, and a theme
-//     switch does not change a message's bytes. So no re-parse, and
-//     build_dirty_ stays clear.
-//   • the settled fast path in build() returns cached_build_ outright.
-//   • the incremental "prefix grew" / "windowed prefix" paths reuse the
-//     existing child Elements for every unchanged block — after a pure
-//     theme change, all of them.
-//   • render_committed_block_'s hash_id has no theme term either, so the
-//     renderer's cell cache would blit the stale cells regardless.
+//   • set_content/set_content_async 无 -op 不变 字节 ,并设置主题
+//     切换不更改信件的 字节。所以没有 -parse ,
+//     和 build_dirty_ 保持清醒,别走开
+//   • 已定居的快速通道进入 build() 返回时 cached_build_ 直截了当的。
+//   • 递增 "prefix grew" / "windowed prefix" 路径再使用
+//     每一个不变块的现有儿童元素——经过纯粹的主题改变后,
+//     所有这些元素。
+//   • render_committed_block_'s hash_id 也没有主题词,所以
+//     渲染器's 存储单元 缓存 就会打碎 过期 存储单元 随便你
 //
-// The result is not a late repaint. It is PERMANENT: without the fix this
-// test shows builds #3, #4 and #5 all stable and all wrong. The transcript
-// keeps the old scheme until something forces a re-parse.
+// 结果是不晚 重绘。这是 PERMANENT :没有修复
+// 这个测试显示, 3, 4和5 都建得稳定, 都是错误的。
+// 记录片将旧方案保存到某事迫使 -parse.
 //
-// THE FIX (maya, streaming/build.cpp). CommittedPrefix now retains each
-// block's PARSED form beside its rendered Element, and build() compares
-// theme::live_epoch() against the epoch the blocks were rendered under. When
-// the palette moves, the committed blocks are RE-RENDERED from the parsed
-// form (not re-parsed) and the prefix generation is bumped so every cache
-// tier above notices.
+// 该 FIX (maya, streaming/build.cpp).
+// CommittedPrefix 现在保留每个区块的 PARSED 其元素
+// 旁的形状,以及 build() 比较 theme::live_epoch ()
+// 在时间的旁边,块块被制成。当调色板移动时,承诺的块是 RE-RENDERED
+// 从解析表单( 不重写) -parsed ) 前面的字节被撞到,
+// 所以每个 缓存 以上各级通知。
 //
-// WHAT THIS TEST DOES. Commits a settled body under one scheme, publishes a
-// second scheme, and renders ONCE. The result must be byte-identical to a
-// fresh widget committed under that second scheme. No extra frame, no
-// keystroke, no re-parse.
+// 内容 此 TEST 执行。提交已解决 正文 在一个计划下,
+// 发布第二个计划; 渲染 一次。结果必须是 字节-identical
+// 以至在第二个方案下承诺的新部件。 帧 没有键盘键,
+// 没有 -parse.
 //
-// WHY THE EXISTING THEME TESTS MISS IT. theme_memo_stale_probe and
-// theme_alternating_key_test both feed content AFTER publishing the theme,
-// so their blocks are committed under the new palette and the staleness
-// never arises. The bug needs content committed under the OLD theme.
+// 原因 该 EXISTING THEME TESTS MISS IT.
+// theme_memo_stale_probe 财务报告和已审计财务报表
+// theme_alternating_key_test 两种种子内容 之后 发布主题, 因此它们的块被
+// 新调色板下执行, 并且不会出现 Staleness。 错误需要在 $ 下执行的内容。 旧 主题。
 
 #include <cstdio>
 #include <string>
@@ -71,9 +71,9 @@ void check(bool ok, const char* what) {
     if (!ok) ++failures;
 }
 
-// A settled assistant body comfortably over async.cpp's 16 KB threshold,
-// with enough markdown structure that the palette actually shows up in the
-// emitted SGR (headings, fences, inline code, links).
+// 有个安顿的助理 正文 舒适的结束 async.cpp's
+// 16 KB 阈值,带有足够的标记下结构,调色板实际出现在发射
+// 的 SGR (头,栅栏,内含码, 链接).
 std::string big_body() {
     std::string s;
     s.reserve(48 * 1024);
@@ -91,8 +91,8 @@ std::string big_body() {
     return s;
 }
 
-// One settled StreamingMarkdown, fed exactly the way cached_markdown_for
-// feeds a settled message: set_content_async + finish().
+// 一个解决了 StreamingMarkdown ,喂得正好的方式, 和我们一样 cached_markdown_for
+// 输入已解密的消息 : set_content_async + finish().
 std::string render_settled(maya::StreamingMarkdown& md,
                            std::string_view body) {
     md.set_content_async(body);
@@ -100,10 +100,10 @@ std::string render_settled(maya::StreamingMarkdown& md,
     return maya::render_to_string_ansi(md.build(), 100);
 }
 
-// The FIX, in the same shape the reducer applies it: a settled body is fed
-// SYNCHRONOUSLY, so there is no async window and no frame to wait for. This
-// mirrors settle_message_md (stream.cpp), which is what restyle_sealed_turns
-// now calls for the live tail.
+// 电话 FIX ,形状相同 状态更新函数 适用:已解决 正文 输入 SYNCHRONOUSLY ,
+// 所以没有自动窗口和 帧 等待。这个镜子 settle_message_md
+// (stream.cpp ),这是什么 restyle_sealed_turns
+// 现在 调用 现场直播 末尾.
 std::string render_settled_sync(maya::StreamingMarkdown& md,
                                 std::string_view body) {
     md.set_content(body);
@@ -111,14 +111,14 @@ std::string render_settled_sync(maya::StreamingMarkdown& md,
     return maya::render_to_string_ansi(md.build(), 100);
 }
 
-// Build until the tree stops changing, and return that stable render.
+// 构建到 源码树 停止改变,并返回稳定 渲染.
 //
-// A settled widget legitimately takes one SETTLE-FRAME rebuild after
-// finish() before it reaches its final form, so "the render after one
-// build()" is not a fixpoint even in the healthy case. Comparing a
-// post-swap build against a fixpoint would therefore compare two different
-// things and report a bug that isn't there. Fixpoint-to-fixpoint is the
-// honest comparison.
+// 解决的部件合法地需要一个 SETTLE-FRAME 重建于
+// finish() 还没到最后的状态
+// 执行一次 build() 之后的渲染。
+// 即使是健康病例,也不是固定点。 -swap 相对于固定点构建会比较两种
+// 不同的事物,并报告一个不存在的bug。 -to-fixpoint
+// 是一种诚实的对比。
 std::string render_to_fixpoint(maya::StreamingMarkdown& md) {
     std::string prev = maya::render_to_string_ansi(md.build(), 100);
     for (int i = 0; i < 8; ++i) {
@@ -129,13 +129,13 @@ std::string render_to_fixpoint(maya::StreamingMarkdown& md) {
     return prev;
 }
 
-} // namespace
+} // 命名空间结束。
 
 int main() {
-    // These compare painted bytes across palettes; a NO_COLOR in the
-    // caller's env (CI, agent shells, a console with no VT) would make every
-    // scheme identical. MAYA_COLOR is maya's documented deterministic-test
-    // override (see detect_color_level).
+    // 这些比较画 字节 跨调色板; a NO_COLOR 电话铃声的内脏
+    // CI ,代理贝壳,一个控制台,没有 VT )将使每个方案都相同。
+    // MAYA_COLOR 谓 maya 已经记录的定型 -test 覆盖( 见
+    // detect_color_level).
     ::unsetenv("NO_COLOR");
     ::setenv("MAYA_COLOR", "truecolor", 1);
     std::printf("=== theme_idle_async_parse_test ===\n\n");
@@ -152,15 +152,15 @@ int main() {
     check(body.size() >= 16 * 1024,
           "the body is large enough to take the async parse path");
 
-    // ── Ground truth: what each theme SHOULD look like, with the parse
-    // allowed to settle. A fresh widget per theme, built twice so any
-    // pending async result is adopted before we snapshot.
-    // Ground truth must come from the SYNC path, and must be sampled at the
-    // SAME build index we compare against. A widget's first build and its
-    // fixpoint legitimately differ in SGR bytes (later builds collapse
-    // committed blocks into cached segments that emit fewer escapes), so
-    // comparing a post-swap first build against a fixpoint would compare two
-    // different things.
+    // 真实基准：使用相同解析结果，得到各主题应有的外观。
+    // 允许和解。每个主题新建一个部件, 新建两次,
+    // 任何 待处理 同步结果在我们之前通过 快照.
+    // 事实必须来自 SYNC 路径,必须在 相同 构建索引,
+    // 我们比较。部件的第一个构建及其固定点在逻辑上是不同的。
+    // SGR 字节 (后来将已承诺的块建为缓存的块,
+    // 以释放较少的越狱),因此比较一个帖子
+    // -swap 首先用固定点来构建 将两个不同的
+    // 事物进行比较
     std::printf("ground truth (fresh widget, SYNC parse, FIRST build)\n");
     std::string want_dracula, want_gruv;
     {
@@ -178,34 +178,34 @@ int main() {
     std::printf("    dracula bytes=%zu  gruvbox bytes=%zu\n\n",
                 want_dracula.size(), want_gruv.size());
 
-    // ── The real gesture: ONE widget, already settled under Dracula, then
-    // the theme is swapped and the app renders ONCE. This is exactly what an
-    // idle theme switch gets — restyle_sealed_turns publishes the theme, the
-    // next frame re-feeds the widget, and there is no second frame coming
-    // because nothing on screen is animating.
+    // 真实操作：同一个组件已在 Dracula 下稳定，然后
+    // 主题被交换, 和 app 渲染 一次。 这正是闲置的主题开关得到的。
+    // —— restyle_sealed_turns 发布主题,
+    // 下一个 帧 re-feeds 部件, 也没有第二个 帧 来,
+    // 因为屏幕上没有任何东西是动画的。
     //
-    // The re-feed uses the SYNC path, which is the fix: restyle_sealed_turns
-    // now calls settle_message_md over the live tail before returning, so the
-    // re-feed has no async window for an unscheduled frame to hide in.
+    // 重头戏 -feed 使用该 SYNC 路径,即固定线:
+    // restyle_sealed_turns 现在 调用 settle_message_md
+    // 过现场 末尾 回来之前,所以 -feed 没有未排定的同步窗口 帧 躲起来
     std::printf("idle switch (one widget, one render after the swap)\n");
 
-    // A FRESH widget committed under Dracula, sampled at its first build so
-    // it is directly comparable to want_dracula.
+    // A FRESH 德古拉公司下制造的部件,在第一建筑时取样,
+    // 因此可以直接与 want_dracula.
     ui_prefs::publish_theme(*dracula);
     maya::StreamingMarkdown md;
     const std::string under_dracula = render_settled_sync(md, body);
     check(under_dracula == want_dracula,
           "the settled body matches the Dracula reference");
 
-    // THE SWAP. The bytes do NOT change — a theme switch never touches a
-    // settled message's text — so set_content no-ops, nothing is re-parsed,
-    // and every source-keyed dirty flag stays clear. The ONLY thing that
-    // moved is the palette. This is exactly the idle gesture.
+    // 该 SWAP。该词 字节 做吗 不 更改——主题切换从不触及已
+    // 解决的消息文本——所以 set_content 无 -ops ,
+    // 没有再 -parsed ,每个来源 -keyed 脏 标志 保持清醒,
+    // 我们得去 仅 移动的是调色板,这正是闲置的姿态
     //
-    // Re-feeding the identical bytes is what the app does on the frame after
+    // 调 -feeding 相同的数据 字节 应用是做什么的 帧 之后
     // invalidate_colours(); it is a no-op inside the widget, which is the
-    // whole point — the recolour has to come from the theme epoch, not from
-    // the feed.
+    // 整个观点——重彩必须来自主题时代,
+    // 而不是来自饲料.
     ui_prefs::publish_theme(*gruv);
     const std::string after_one_frame = render_settled_sync(md, body);
 
@@ -214,18 +214,18 @@ int main() {
     check(after_one_frame == want_gruv,
           "and it shows the NEW palette, not the outgoing one");
 
-    // ── Diagnosis. "Changed but not equal to ground truth" has two very
-    // different causes and they need separating:
+    // 诊断：内容虽已变化，却不同于真实基准，可能有两类
+    // 不同的原因,需要分开:
     //
-    //   (a) UNSCHEDULED — the async parse hasn't been adopted yet, so this
-    //       frame is a PARTIAL/previous tree. A second build() (the frame an
-    //       animation would have supplied for free) then matches.
+    //   (a) UNSCHEDULED - 自动自动 解析 还没有被收养 所以
+    //       这个 帧 是一个 PARTIAL/previous 源码树 秒后进行
+    //       build() (无) 帧 动画可以免费提供),然后匹配.
     //
-    //   (b) A benign harness difference — a reused widget legitimately
-    //       differs from a fresh one (fold state, prefix snapshot) even
-    //       though the palette is correct.
+    //   (b) 良性带状差异——再利用部件与新鲜部件有
+    //       合理差异(第2段) 归并 状态, 前缀 快照 ),
+    //       尽管调色板是正确的.
     //
-    // Drive extra build()s and see whether it converges on the ground truth.
+    // 驱动额外的build(),看看它是否在地面上合拢的真相.
     if (after_one_frame != want_gruv) {
         std::printf("\n  diagnosing the mismatch\n");
         auto first_diff = [](const std::string& a, const std::string& b) {
@@ -271,10 +271,10 @@ int main() {
                         "     them, so no number of frames can fix it.\n");
     }
 
-    // ── The REGRESSION guard: the same gesture on the ASYNC feed path, the
-    // one a settled message actually takes in agentty (turn.cpp routes
-    // settled bodies through set_content_async). Same expectation — the
-    // recolour must not depend on which parse path the body took.
+    // 回归保护：在异步输入路径执行相同操作，
+    // 一个解密的消息实际上收录 agentty (turn.cpp 已
+    // 定居的路线 正文 结束 set_content_async 同样
+    // 的期望——色调不得取决于哪一种 解析 路径 正文 被带走了
     std::printf("\nregression guard (async feed path)\n");
     {
         ui_prefs::publish_theme(*dracula);

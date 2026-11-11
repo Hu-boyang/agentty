@@ -1,9 +1,9 @@
-// md_cache_probe — per-frame cost of StreamingMarkdown::build under long
-// streaming shapes, verifying the memo layers hold (amortised O(1)/frame).
-// Streams each shape token-ish chunk by chunk with reveal pacing live, and
-// reports per-frame build+render_tree cost over the stream's life, split
-// into quartiles of stream progress (a flat profile = caches hold; a
-// growing profile = some O(N) path escaped the memos).
+// md_cache_probe ——按 -frame 费用 StreamingMarkdown::build
+// 长 流式传输 形状,核查 记忆缓存 层积(摊销的O(1)/ 帧).
+// 数据流 每个形状符号 -ish 逐块与 逐步显示 直播和汇报
+// -frame 建构+ render_tree 费用超过 数据流 生活,
+// 分为四重体 数据流 进展(统一概况=) 缓存 悬浮;
+// 正在增长的剖面 = 某些 O( N) 路径 逃出备忘录。
 #include <chrono>
 #include <ctime>     // clock_gettime, CLOCK_THREAD_CPUTIME_ID
 #include <cstdio>
@@ -23,18 +23,18 @@
 using namespace maya;
 using clk = std::chrono::steady_clock;
 
-namespace {  // fold: TU-local (bundled into agentty_standalone_tests)
+namespace {  // 归并: TU-local (捆绑成 agentty_standalone_tests)
 
-// Per-frame cost is measured in THREAD CPU TIME, not wall time. Wall time also
-// counts the time this thread spent descheduled, which on a loaded box grows
-// with however many other tests are running -- that turned a per-frame cost
-// ratio into a measure of machine load. CPU time only advances while this
-// thread is on-core. (It is not a complete fix on its own: memory-bandwidth
-// contention still inflates real CPU work, which is why the ctest entry is
-// also RUN_SERIAL and the budgets below carry headroom.)
+// 人数 -frame 成本按 THREAD CPU TIME 时间。
+// 线程 已排定时间,但日期 已加载 框会随其他许多测试的运行而
+// 增长 -- -- 测试转而为每次测试 -frame 成本与机器
+// 的比值 加载. CPU 时间仅在此时提前 线程 开始 -core .
+// (这本身并非完全固定: 内存-bandwidth 争议仍然
+// 充盈真实 CPU 工作,这就是为什么测试条目也是
+// RUN_SERIAL 下方的预算则包括会议室。 )
 //
-// CLOCK_THREAD_CPUTIME_ID is POSIX; elsewhere fall back to wall time, since a
-// fallback that still works beats one that doesn't compile.
+// CLOCK_THREAD_CPUTIME_ID 谓 POSIX ;
+// 其他地方则回到墙壁时间,因为 回退 仍然工作,比一个不工作 编译.
 [[nodiscard]] double cpu_now_us() noexcept {
 #if defined(CLOCK_THREAD_CPUTIME_ID)
     timespec ts{};
@@ -49,76 +49,76 @@ namespace {  // fold: TU-local (bundled into agentty_standalone_tests)
 static constexpr int kWidth = 100;
 static constexpr int kTermH = 40;
 
-// `budget` is the max q4/q1 growth this shape may show before it counts as an
-// escaped memo. It is PER SHAPE because the shapes do not all have a flat
-// honest profile: a growing quote-nested fence really does cost more per frame
-// as it grows, measuring ~2.9x on an idle box, while the list and paragraph
-// shapes sit at ~1.1-1.2x. The probe used one global 3.0x for everything,
-// which was wrong in both directions at once -- quote_fence_300 had 0.1x of
-// headroom and failed whenever the box was busy (read as flaky), while
-// paras_200 was allowed to nearly TRIPLE before anyone noticed.
+// `budget` 最大值为 q4/q1 生长这个形状在它算作逃跑之前
+// 记忆缓存。这是 PER SHAPE 因为形状并非都有一个平坦的
+// 诚实的描述: 越来越多的引文 -nested 栅栏真的要花更多钱 帧
+// 随着它的生长,在闲置的盒子上测量~2.9x,而列表和段落形状坐落在
+// ~1.1-1.2x. 探测器对每件事都使用一个全球3.0x,
+// 这一次双向错误—— quote_fence_300 拥有0.1x 头室,
+// 且当盒子忙碌时失败( 读作 flashy) ,
+// 而 paras_200 被允许接近 TRIPLE 在别人发现之前
 //
-// Calibrated by injecting a synthetic O(N) cost into the timed region:
-// a moderate leak lands at 3.6x on the flat shapes and a bad one at 5-6x, so
-// these budgets catch both while clearing the measured idle baseline (shown
-// per shape below) with room for a slow or loaded machine.
+// 将合成O(N)成本注入定时区校准:
+// 平面3.6x的中度漏泄,5-6x的坏漏,因此,
+// 这些预算既能捕捉到,又能清除测量的闲置基线(下方
+// 每个形状),并有缓冲或已加载机的空间。
 struct ShapeGen { const char* name; std::string body; double budget; };
 
 static std::vector<ShapeGen> shapes() {
     std::vector<ShapeGen> v;
-    { // long LOOSE list — blanks between every item (the new cohesive path)
+    { // 长 LOOSE 列表——每个项目之间的空白(新的凝聚路径)
         std::string b;
         for (int i = 0; i < 400; ++i) {
             b += "- loose item number " + std::to_string(i)
                + " with a bit of text\n\n";
         }
         b += "after paragraph\n";
-        v.push_back({"loose_list_400", std::move(b), 2.5});  // idle ~1.2x
+        v.push_back({"loose_list_400", std::move(b), 2.5});  // 闲~1.2x
     }
-    { // long TIGHT list — the chunker's home turf (regression check)
+    { // 长TIGHT列表——块头人家的地盘(退路检查)
         std::string b;
         for (int i = 0; i < 400; ++i)
             b += "- tight item number " + std::to_string(i)
                + " with a bit of text\n";
         b += "\nafter paragraph\n";
-        v.push_back({"tight_list_400", std::move(b), 2.5});  // idle ~1.2x
+        v.push_back({"tight_list_400", std::move(b), 2.5});  // 闲~1.2x
     }
-    { // long quote-nested code fence (new dequote parity scan runs on
-      // marker-only live lines)
+    { // 长引号-nested 代码栅栏( 新的 dequote 等值扫描运行在
+      // 标记-only 活线)
         std::string b = "> intro\n> ```\n";
         for (int i = 0; i < 300; ++i)
             b += "> quoted code line " + std::to_string(i) + "\n";
         b += "> ```\n\nafter\n";
-        // The one genuinely growing shape: the dequote parity scan re-runs on
-        // marker-only live lines, so per-frame cost rises with the fence.
-        v.push_back({"quote_fence_300", std::move(b), 4.0});  // idle ~2.9x
+        // 真正成长的形状: 脱引物等效扫描 -runs 标记
+        // -only 活线,所以 -frame 成本随着围栏而上升。
+        v.push_back({"quote_fence_300", std::move(b), 4.0});  // 闲~2.9x
     }
-    { // many paragraphs — commit path / frozen prefix
+    { // 许多段落 – 执行路径/ 冻结前缀
         std::string b;
         for (int i = 0; i < 200; ++i)
             b += "paragraph number " + std::to_string(i)
                + " has some words in it to wrap around maybe.\n\n";
-        v.push_back({"paras_200", std::move(b), 2.5});  // idle ~1.1x
+        v.push_back({"paras_200", std::move(b), 2.5});  // 闲置~1.1x
     }
-    { // long table
+    { // 长表格
         std::string b = "| Col A | Col B | Col C |\n|---|---|---|\n";
         for (int i = 0; i < 300; ++i)
             b += "| row " + std::to_string(i) + " | data | more |\n";
         b += "\nafter\n";
-        v.push_back({"table_300", std::move(b), 2.5});  // idle ~1.1x
+        v.push_back({"table_300", std::move(b), 2.5});  // 闲置~1.1x
     }
-    { // many link-ref definitions (new zero-row path)
+    { // 数量 链接-ref 定义(新零) -row 路径)
         std::string b = "See [a][1] and [b][2].\n\n";
         for (int i = 0; i < 200; ++i)
             b += "[" + std::to_string(i) + "]: https://example.com/"
                + std::to_string(i) + "\n";
         b += "\nafter\n";
-        v.push_back({"link_refs_200", std::move(b), 3.0});  // idle ~1.9-2.2x
+        v.push_back({"link_refs_200", std::move(b), 3.0});  // 闲~1.9-2.2x
     }
     return v;
 }
 
-}  // namespace (fold)
+}  // 名称空间( 归并)
 
 int main(int argc, char** argv) {
     const char* only = argc > 1 ? argv[1] : nullptr;
@@ -127,7 +127,7 @@ int main(int argc, char** argv) {
         if (only && std::strcmp(only, sh.name)) continue;
         StreamingMarkdown md;
         md.set_reveal_fx(true);
-        md.set_reveal_pacing(2000.0, 0.3);  // fast cursor: don't bottleneck on reveal
+        md.set_reveal_pacing(2000.0, 0.3);  // 快光标:不要在逐步显示上瓶颈
         md.set_live(true);
 
         StylePool pool;
@@ -135,7 +135,7 @@ int main(int argc, char** argv) {
 
         std::vector<double> frame_us;
         std::size_t fed = 0;
-        const std::size_t chunk = 24;   // ~token-sized
+        const std::size_t chunk = 24;   // ~ 键 -sized
         while (fed < sh.body.size()) {
             std::size_t n = std::min(chunk, sh.body.size() - fed);
             md.append(std::string_view{sh.body}.substr(fed, n));
@@ -152,13 +152,13 @@ int main(int argc, char** argv) {
             const double t1 = cpu_now_us();
             frame_us.push_back(t1 - t0);
         }
-        // Per-quartile MEDIAN, not mean. A mean is dragged up by sporadic
-        // scheduler-preemption spikes (see the multi-millisecond `worst`
-        // values) that have nothing to do with cache behaviour — under a
-        // loaded `ctest -j` those outliers can push a small-q1 / spiky-q4
-        // ratio over the escape threshold and flake the probe. The median
-        // tracks the TREND (an O(N) leak shifts the whole distribution) while
-        // rejecting isolated stalls, so it stays honest under contention.
+        // 人数 -quartile MEDIAN 而不是刻意的
+        // 偶尔会有人拖着一个小小的 -preemption
+        // 插值( 参见多 -millisecond `worst`
+        // 值)无关 缓存 行为——a 已加载 `ctest -j`
+        // 外面的人可以推小一点 -q1 ⁇ -q4 中位
+        // 数跟踪到 TREND (O(N)漏掉会改变整个分布)
+        // 同时拒绝孤立的摊位,因此它会一直诚实地争论.
         auto qmed = [&](std::size_t a, std::size_t b) {
             std::vector<double> w;
             for (std::size_t i = a; i < b && i < frame_us.size(); ++i)
@@ -171,10 +171,10 @@ int main(int argc, char** argv) {
         double q1 = qmed(0, N/4), q2 = qmed(N/4, N/2),
                q3 = qmed(N/2, 3*N/4), q4 = qmed(3*N/4, N);
         double worst = 0; for (double f : frame_us) if (f > worst) worst = f;
-        // growth ratio: last quartile vs first. Both conditions must hold:
-        // the median rejects contention outliers, and the 1ms floor keeps
-        // sub-millisecond jitter from tripping a benign ratio. The ceiling is
-        // this shape's own budget -- see ShapeGen.
+        // 增长比率:最后四分位数对第一。
+        // 中位数拒绝电源, 1ms 层保持子
+        // -millisecond 触发良性比。 上限是这个形状自己的预算。
+        // 见。 ShapeGen.
         double ratio = q1 > 0 ? q4 / q1 : 0.0;
         bool flag = q4 > 1000.0 && ratio > sh.budget;
         if (flag) bad = true;

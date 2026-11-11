@@ -1,18 +1,18 @@
-// Frame-per-key fidelity: does every arrow you press produce a frame that
-// SHOWS that arrow's result?
+// 帧-per-key 忠诚: 您所按的每支箭都产生 帧 说
+// SHOWS 箭头的结果?
 //
-// Reported symptom: "I keep pressing down, suddenly one key doesn't move the
-// row, then the next one moves twice." That is NOT a dropped key — a dropped
-// key could never later move two rows. The state is right; the intermediate
-// FRAME was never painted.
+// 报告症状:
+// 连续向下移动时，一次按键突然不动，下一次却移动两行。
+// 就是这样 不 丢弃的密钥 — 丢弃密钥以后永远不能移动两行。状态是正确的;
+// 中间键 FRAME 从来没有被画过。
 //
-// Mechanism (maya app.hpp): a fast terminal delivers several arrows in ONE
-// read(). The loop reduces each event, but only sets `needs_render = true`
-// and paints ONCE for the whole batch. So the row the user passed through is
-// computed and immediately overwritten before it ever reaches the terminal.
+// 机制( maya app.hpp : 一个快餐 终端 发送数
+// 个箭头 一个 read()。循环减少每个 事件 ,
+// 但只设置 `needs_render = true` 和油漆 一次。
+// 所以用户经过的行是计算出来的,并立即覆盖,然后才能到达 终端.
 //
-// This models the loop's batching exactly and counts DISTINCT rows the user
-// would actually see, vs keys pressed.
+// 这个模型是循环的批量 并计算了用户实际看到的
+// DISTINCT 行,vs按键。
 #include "agentty/runtime/model.hpp"
 #include "agentty/runtime/msg.hpp"
 #include "agentty/runtime/app/deps.hpp"
@@ -29,8 +29,8 @@ using namespace agentty;
 namespace pn = agentty::ui::panel;
 
 int main(int argc, char** argv) {
-    // How many arrows arrive in one read(). 1 = one key per frame (slow
-    // typing); >1 = key-repeat outrunning the frame rate.
+    // 箭射到一个 read() 1 = 每根钥匙1 帧 (慢打字);
+    // > 1 = 密钥 -repeat 运行中 帧 费率。
     const int batch  = argc > 1 ? std::atoi(argv[1]) : 3;
     const int total  = argc > 2 ? std::atoi(argv[2]) : 12;
 
@@ -65,16 +65,16 @@ int main(int argc, char** argv) {
     std::printf("keys arriving %d-per-read, %d keys total\n\n", batch, total);
     std::printf("  read#   keys         row AFTER paint   rows the user SAW\n");
 
-    // FIXED LOOP (maya app.hpp): a read is consumed only up to and
-    // including the first NAVIGATION key; the rest is pushed back and
-    // delivered next iteration, after this frame is painted. So a batch of
-    // arrows becomes one arrow per frame, while a paste (non-navigation)
-    // still drains in one go.
+    // 固定后的运行循环，见 maya app.hpp：
+    // 读数只消耗到并包括第一个读数 NAVIGATION 键;
+    // 其余的被推后并交付下一个迭代, 之后是此 帧。所以,
+    // 一整批箭头变成每支箭头。 帧 ,而粘贴(非) -navigation
+    // 一次还是排水
     const bool nav_breaks_batch = std::getenv("OLD_BATCHING") == nullptr;
 
-    std::vector<int> seen;          // one entry per PAINT, not per key
+    std::vector<int> seen;          // 每PAINT有一个条目,而不是每键
     int pressed = 0;
-    std::vector<int> deferred;      // arrows held over from the last read
+    std::vector<int> deferred;      // 上次读取时所持箭头
     for (int r = 0; pressed < total || !deferred.empty(); ++r) {
         int n = 0;
         if (!deferred.empty()) {
@@ -84,7 +84,7 @@ int main(int argc, char** argv) {
             n = std::min(batch, total - pressed);
             pressed += n;
         }
-        // Reduce events from this read, stopping after the first nav key.
+        // 将事件从此读取,在第一个导航键后停止.
         int applied = 0;
         for (int k = 0; k < n; ++k) {
             m = app::update(std::move(m), Msg{AppearanceThemeMove{+1}}).first;
@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
                 break;
             }
         }
-        // ...then paint ONCE for what was consumed.
+        // ...然后画画 一次 以所消耗的给养。
         seen.push_back(row());
         std::printf("  %-6d  %-11d  %-16d  %d\n", r + 1, applied, row(), row());
     }
@@ -108,7 +108,7 @@ int main(int argc, char** argv) {
                     total - seen.size());
         std::printf("    Felt as: a key that \"does nothing\", then the next "
                     "one \"moves twice\".\n");
-        // Name the skipped rows, which is exactly what the user watches jump.
+        // 指定跳过行的名称, 这正是用户所看跳过的。
         std::printf("    Visible sequence: ");
         for (std::size_t i = 0; i < seen.size(); ++i)
             std::printf("%d%s", seen[i], i + 1 < seen.size() ? " → " : "\n");

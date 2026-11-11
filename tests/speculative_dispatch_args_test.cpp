@@ -1,29 +1,29 @@
-// speculative_dispatch_args_test — a read-only tool is only dispatched early
-// when its arguments actually arrived.
+// speculative_dispatch_args_test - 读了 -only
+// 工具只有在其参数实际到达时才提前发出。
 //
-// ── WHY ──────────────────────────────────────────────────────────────────
+// ── 原因 ──────────────────────────────────────────────────────────────────
 //
-// StreamToolUseEnd dispatches read-only, permission-free tools immediately
-// instead of waiting for finalize_turn: a `read` can start while the model is
-// still typing the next sentence. The gate checked "args parsed clean" as
-// `!args.is_null()`, which a SALVAGED arg set also satisfies.
+// StreamToolUseEnd 发送已读 -only, 权限-free 工具,
+// 而不是等待, 立即 finalize_turn: a `read` 打开门,
+// 打开门 "args parsed clean" 以 `!args.is_null()` ,
+// 该 SALVAGED 参数集也满足了。
 //
-// salvage_args only refuses a cut that landed inside a string value. A cut
-// that lands outside one — right after `"symbol": "dispatch_stream",` —
-// parses into a tidy object that happens to be missing `path`. The normal
-// path handles that: guard_truncated_tool_args notices the missing
-// schema-required field, repairs what it can, and finalize_turn retries the
-// stream transparently. But guard_truncated_tool_args only ever sees a tool
-// that is still Pending, so dispatching here skipped the entire mechanism —
-// for exactly the read-only tools this path exists to accelerate.
+// salvage_args 切到一个字符串值内。切到一个字串值外的切到一个值后,
+// 就被切到一个数位值后。 `"symbol": "dispatch_stream",`
+// — 解析 变成一个恰巧缺失的整洁对象 `path`。通常路径处理如下:
+// guard_truncated_tool_args 通知失踪
+// 模式定义-required 田间,修理它能,和 finalize_turn
+// 重试 编号 数据流 透明,但是 guard_truncated_tool_args
+// 只看到一个工具 仍然 待处理 ,所以在这里发送跳过整个机制
+// —— 完全读作 -only 工具此路径存在以加速。
 //
-// Mined from 40 recent threads: 44 of 3323 `read` calls died as
-// "[invalid args] path required", 33 of them with args `{}`. To the model
-// that reads as its own mistake, so it re-emits the same call; the real
-// cause was the wire cutting mid-arguments.
+// 矿产于近代的40 线程:3323 `read` 调用中的44个死亡为
+// "[invalid args] path required",其中33个死亡时的标注
+// 为`{}`. 至于读作自己的错误的模型,它重新读作-emits,所以它也是相同的调用;
+// 真正的原因是传输切割的中-arguments.
 //
-// Pinned here: incomplete args leave the tool Pending for finalize_turn to
-// own, and complete args still get the fast path.
+// 固定在此: 工具未完成的参数 待处理 费用 finalize_turn
+// 以拥有,完成的参数仍然可以快速获取路径。
 #include <chrono>
 #include <string>
 #include <utility>
@@ -46,8 +46,8 @@ A::Model apply(A::Model m, A::msg::StreamMsg event) {
     return std::move(next);
 }
 
-// A model mid-stream, in the profile where a read needs no permission —
-// the configuration the speculative path is built for.
+// 中场模特儿 -stream ,在读数需要否的配置文件中
+// 权限 —— 推测路径的配置是为之而建的.
 A::Model streaming_model() {
     A::Model m;
     m.d.profile = A::Profile::Write;
@@ -60,7 +60,7 @@ A::Model streaming_model() {
     return m;
 }
 
-// Stream one `read` call whose argument bytes are exactly `json`.
+// 数据流 单曲 `read` 调用 谁的论点 字节 完全一样 `json`.
 A::Model stream_read_call(std::string json) {
     auto m = streaming_model();
     const A::ToolCallId id{"tc_spec_1"};
@@ -77,7 +77,7 @@ const A::ToolUse* only_call(const A::Model& m) {
     return nullptr;
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("speculative dispatch: complete args still take the fast path") {
     auto m = stream_read_call(R"({"path":"src/main.cpp","limit":40})");
@@ -89,9 +89,9 @@ TEST_CASE("speculative dispatch: complete args still take the fast path") {
 }
 
 TEST_CASE("speculative dispatch: args cut outside a string stay Pending") {
-    // The exact shape from the threads: display_description and symbol
-    // arrived, `path` did not, and the cut is outside a string so the
-    // salvage closes the object happily.
+    // 确切的形状从 线程: display_description
+    // 财务报告和已审计财务报表 符号 来了 `path` 切口在绳子
+    // 外 所以打捞物会很快乐地关闭物体
     auto m = stream_read_call(
         R"({"display_description":"Read dispatch_stream","symbol":"dispatch_stream",)");
     const auto* tc = only_call(m);
@@ -105,7 +105,7 @@ TEST_CASE("speculative dispatch: args cut outside a string stay Pending") {
 }
 
 TEST_CASE("speculative dispatch: empty args stay Pending") {
-    // 33 of the 44 mined failures had args `{}` — nothing arrived at all.
+    // 在44次地雷故障中,33次地雷故障有`{}`吨,但根本没有得到任何结果。
     auto m = stream_read_call("");
     const auto* tc = only_call(m);
     REQUIRE(tc != nullptr);
@@ -113,8 +113,8 @@ TEST_CASE("speculative dispatch: empty args stay Pending") {
 }
 
 TEST_CASE("speculative dispatch: a tool with no required args is unaffected") {
-    // git_status takes nothing, so `{}` is complete for it and the fast path
-    // must not be withheld.
+    // git_status 什么都不拿,所以你应该... `{}` 已经完全完成,
+    // 而且不能不走快速的路。
     auto m = streaming_model();
     const A::ToolCallId id{"tc_spec_1"};
     m = apply(std::move(m), A::StreamToolUseStart{id, A::ToolName{"git_status"}});

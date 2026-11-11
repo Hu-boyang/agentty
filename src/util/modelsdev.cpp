@@ -1,4 +1,4 @@
-// agentty::modelsdev — background snapshot of models.dev (see header).
+// agentty::modelsdev ——背景 快照 备注 models.dev (见A/C.5/61/L.48,第16段) 头文件).
 
 #include "agentty/util/modelsdev.hpp"
 #include "agentty/version.hpp"
@@ -15,9 +15,9 @@
 
 #include <simdjson.h>
 
-#include "agentty/util/user_root.hpp"    // user_cache_dir()
+#include "agentty/util/user_root.hpp"    // user_cache_dir( ) (中文( ) ).
 #include <limits>
-#include "agentty/domain/catalog.hpp"   // set_catalog_reasoning / set_catalog_effort_set
+#include "agentty/domain/catalog.hpp"   // set_catalog_reasoning / set_catalog_effort_set 数据
 #include "agentty/io/http.hpp"
 #include "agentty/io/shared_file.hpp"
 #include "agentty/util/dbglog.hpp"
@@ -32,10 +32,10 @@ namespace fs = std::filesystem;
 fs::path cache_path() { return util::user_cache_dir() / "modelsdev.json"; }
 
 constexpr auto kMaxAge = std::chrono::hours{24};
-constexpr std::size_t kMaxBody = 8ull * 1024 * 1024;   // api.json is ~2 MB
+constexpr std::size_t kMaxBody = 8ull * 1024 * 1024;   // api.json ~2 时 MB
 
-// Map a models.dev effort value name to our Effort bit; 0 = not in our
-// ladder (e.g. "ultra") — ignored, the nearest_effort clamp covers gaps.
+// 地图a models.dev 工作值为我们的工作位; 0 = 不在我们梯级( ) e.g.
+// "ultra" )——被忽略,无 nearest_effort 夹住缺口。
 std::uint8_t bit_of(std::string_view v) {
     using agentty::Effort;
     using agentty::effort_bit;
@@ -48,45 +48,45 @@ std::uint8_t bit_of(std::string_view v) {
     return 0;
 }
 
-// Register one model's declaration.
+// 登记一个模型的申报。
 //
-// KEYING IS THE WHOLE GAME here. models.dev model keys are only SOMETIMES
-// provider-prefixed ("mistral-medium-3-5" on requesty, "mistral/mistral-
-// medium-3.5" on nano-gpt, "mistralai/mistral-medium-3-5" on openrouter),
-// and agentty's capability registries use "provider/model" scoped keys. Two
-// bugs fell out of treating the raw key as already-scoped:
-//   • an unprefixed key from an AGGREGATOR (requesty's full low..max effort
-//     ladder for a model that is BINARY on Mistral's own platform) was
-//     recorded via the direct setter and matched agentty's bare-id fallback
-//     — the wrong ladder for the real provider;
-//   • a "mistral/..."-prefixed key from nano-gpt collided byte-for-byte
-//     with agentty's OWN "mistral/<model>" scope namespace — a third
-//     party's declaration masquerading as the Mistral-platform fact.
-// Now: the authoritative record is ALWAYS scoped under the models.dev
-// PROVIDER id ("mistral/mistral-medium-2604", "requesty/mistral-medium-
-// 3-5") — which for real platforms (mistral, openai, groq, cerebras…)
-// exactly matches agentty's endpoint-label scope, so the active provider's
-// scoped lookup hits the fact from ITS OWN models.dev entry and never an
-// aggregator's. Bare tails go ONLY through the merge-or-poison path:
-// cross-provider agreement keeps the fact, any disagreement poisons the
-// bare key to "no info" so resolution falls to the scoped fact or id
-// inference. (Your requesty-vs-openrouter disagreement on mistral-medium-
-// 3-5 now poisons the bare key, and id inference's effort_high_only
-// correctly yields the {off, high} ladder.)
+// KEYING IS 该 整个 GAME 给 models.dev 模式键只是 SOMETIMES
+// 提供者 -prefixed ("mistral-medium-3-5" 请求时,
+// "mistral/mistral- medium-3.5" 纳米时 -gpt,
+// "mistralai/mistral-medium-3-5" 和 开路器上。 agentty 能力注册表的使用
+// "provider/model" 范围化密钥。 已经处理原始密钥时有两个错误 -scoped:
+//   • 未加固定的密钥 AGGREGATOR (要求的全低 最大努力)
+//     用于模型的阶梯 BINARY 直接设置和
+//     匹配 agentty 赤裸裸的 ! -id 回
+//     退 真正的供应商走错梯子;
+//   • a "mistral/..."-prefixed 纳米键 -gpt 碰撞 字节-for-byte
+//     与 agentty's 自身 "mistral/<model>" 范围
+//     命名空间——第三方的假冒为米斯特拉尔的声明 -platform 事实。
+// 现在:权威记录是: 始终 列入 models.dev PROVIDER 编号(
+// "mistral/mistral-medium-2604",
+// "requesty/mistral-medium- 3-5" )——对于真实的平台(
+// mistral,openai,groq,cerebras...)来说,完全吻合. agentty
+// ' 终点 ' -label 范围,所以活动提供者的范围搜索从 ITS 自身 models.dev 进入,
+// 永远不要集合, 赤尾去 仅 通过合并 -or-poison 路径 :
+// 横 -provider 协议保留事实,任何分歧都会毒害 赤裸裸的钥匙
+// "no info" 故解脱归於范围之事实或id推论。
+// -vs-openrouter 对错误的分歧 -medium- 3 -5现在
+// 毒死赤色的钥匙, 和id推断的 effort_high_only
+// 正确输出 {off, high} 梯子。 )
 void register_model(CatalogBatch& out,
                     const std::string& dev_provider,
                     const std::string& dev_env0,
                     const std::string& dev_api,
                     const std::string& mid, simdjson::dom::element m) {
     bool reasons = false;
-    if (m["reasoning"].get_bool().get(reasons)) return;   // absent or not a bool
+    if (m["reasoning"].get_bool().get(reasons)) return;   // 缺席或缺席
 
-    // Effort enum: reasoning_options entries of type "effort" carry the
-    // exact value list. A reasoning model WITHOUT an effort option reasons
-    // natively with no control — declared reasoning true but effort set 0
-    // would hide the (harmless, display-only) toggle, so only record a set
-    // when values are actually named. An oddly typed entry is skipped: one
-    // bad field must not cost the rest of the document.
+    // 努力 枚举: reasoning_options
+    // 类型条目 "effort" 带有精确值列表。
+    // 一个推理模型 无需 努力选项本身没有控制——被宣布推理属实,
+    // 但努力设置 0将隐藏(无害,显示) -only) 切换 ,
+    // 所以只记录一个值被命名时的集合。 带类型的 条目被跳
+    // 过:一个差的字段不能花费文档的其余部分。
     int set = -1;
     bool has_toggle = false, has_none = false, has_effort = false;
     if (simdjson::dom::array ro; !m["reasoning_options"].get_array().get(ro)) {
@@ -106,20 +106,20 @@ void register_model(CatalogBatch& out,
             } else if (type == "toggle") {
                 has_toggle = true;
                 if (set >= 0) continue;
-                // Toggle-only reasoning (Kimi k2.5, some Qwen): on/off with
-                // no tiers. Model it as the binary {high} mask — the ladder
-                // renders off·high (an honest on/off switch) and any
-                // requested tier clamps to "on". An effort option in the
-                // same list wins (k3 declares BOTH toggle and effort).
+                // 切换-only 推理( Kimi k2.5, 某些昆文):
+                // on/off 且无阶梯. Model 成为了 二进制程序
+                // 面具——梯子 渲染 高级( 诚实) on/off
+                // 和任何要求的关卡 "on"。在同一列表中,
+                // 一个努力选项获胜(k3 宣告) 两者 切换 和努力,以图谋划。
                 set = static_cast<int>(
                     agentty::effort_bit(agentty::Effort::High));
             }
         }
     }
-    // How "off" is said for this model. An effort list with no "none" and
-    // no toggle means the model always reasons (o3, gpt-oss): its lowest
-    // tier is the floor. A reasoning model with no options at all is
-    // unknown, not "impossible".
+    // 怎样 "off" 的操作列表中,没有 "none" 且无 切换
+    // 表示模型总是原因(o3, gpt) : -oss : 其最低
+    // 层是下层。一个根本没有选项的推理模型是未知的,
+    // 而不是 "impossible".
     using agentty::ReasoningOff;
     const ReasoningOff off =
         !reasons    ? ReasoningOff::Omit
@@ -128,26 +128,26 @@ void register_model(CatalogBatch& out,
         : has_effort ? ReasoningOff::Impossible
                      : ReasoningOff::Unknown;
 
-    // The scope for these records: agentty's OWN provider id when the
-    // models.dev entry's identity resolves to a registry row (exact id →
-    // primary env var → api host, see capkey::resolve_dev_provider), else
-    // the inert "dev:<id>" namespace agentty's lookups can never collide
-    // with — unknown aggregators' facts are preserved but harmless.
+    // 这些记录的范围:agentty的OWN提供方id,
+    // 当models.dev条目的身份解决为注册表行时(确切的id ~ 主
+    // env var → API主机,见capkey::resolve_dev_provider),
+    // 否则,惰性的"dev:<id>"命名空间agentty的
+    // 搜索永远无法与——未知集合器的事实得到保存但无害.
     const std::string scope = capkey::dev_scope(dev_provider, dev_env0,
                                                 dev_api);
 
-    // Scoped records: under the full mid AND — for vendor-prefixed keys
-    // ("mistralai/mistral-medium-3-5") — under the tail, since agentty's
-    // scoped lookup uses the wire model id which may omit the vendor path.
-    // capkey normalisation inside the setters folds spelling variants.
-    // Context window, from `limit.context`. Same scoping as the facts
-    // above: the scoped record is authoritative, the shared bare key is
-    // merge-or-poison. Guarded on a positive integer — a null/absent/0
-    // limit is "not declared", and recording 0 would be indistinguishable
-    // from a declaration of nothing.
+    // 范围记录:全中 和 ——供供应商使用 -prefixed 键( E)
+    // "mistralai/mistral-medium-3-5" () ——在 末尾 ,
+    // 自此 agentty 范围化的搜索使用 传输 模式 ID , 它可能忽略了供应商路径。
+    // 设置中的卡顶正常化 归并 拼写 变体.
+    // 上下文窗口,从 `limit.context`。
+    // 与上述事实相同的范围界定:范围记录具有权威性,共享的赤色密钥是
+    // 合并 -or-poison 以正整数——a null/absent/0
+    // 限制为 "not declared" 并且记录0 将无法
+    // 区分 与一个无所事事的宣布。
     int dev_ctx = 0;
-    // Signed or unsigned integer, positive and in int range. A float, string
-    // or out-of-range value is "not declared".
+    // 已签名或未签名的整数、 正和英寸范围。浮点、 字符串或 出值 -of-range
+    // 值为 "not declared"。
     if (std::int64_t v = 0; !m["limit"]["context"].get_int64().get(v)) {
         if (v > 0 && v <= std::numeric_limits<int>::max())
             dev_ctx = static_cast<int>(v);
@@ -164,11 +164,11 @@ void register_model(CatalogBatch& out,
     if (dev_out > 0) out.set_max_output(scope + "/" + mid, dev_out);
     if (set >= 0)
         out.set_effort_set(scope + "/" + mid, static_cast<std::uint8_t>(set));
-    // CUSTOM-HOST seam: index the declaration under the entry's api ORIGIN
-    // as well, so a live localhost / custom-host catalog whose URL matches
-    // can claim the figure (the provider-scoped key above can never reach a
-    // custom host, whose provider id IS its endpoint spec). The provider-
-    // scoped write stays the primary channel for presets.
+    // CUSTOM-HOST 接口边界 : 将条目下的声明索引
+    // API ORIGIN 本地主播/风俗习惯 -host 目录
+    // 其 人 名 URL 匹配者可以要求图( 提供者)。
+    // -scoped 键上永远无法到达自定义主机,其提供者 ID IS。
+    // 提供方- 范围写入会保留预设的主通道。
     if (dev_ctx > 0 && !dev_api.empty())
         out.merge_endpoint_context_window(dev_api, mid, dev_ctx);
     const std::string tail = capkey::norm_tail(mid);
@@ -181,8 +181,8 @@ void register_model(CatalogBatch& out,
             out.set_effort_set(scope + "/" + tail, static_cast<std::uint8_t>(set));
     }
 
-    // Bare key: SHARED across every provider — merge-or-poison only
-    // (agree → keep, disagree → no-info; RULE 3 in capkey.hpp).
+    // 赤色密钥 : SHARED 在每个提供者之间合并 -or-poison 仅(同意)
+    // 保留 不同意 ) 否 -info; RULE 3 进 capkey.hpp).
     if (!tail.empty()) {
         out.merge_reasoning(tail, reasons);
         out.merge_reasoning_off(tail, off);
@@ -193,15 +193,15 @@ void register_model(CatalogBatch& out,
     }
 }
 
-// Parse a full api.json document into `batch`; returns models registered.
-// The caller publishes the batch once, so a reader never sees half a
-// document and the load is linear, not quadratic.
+// 解析 满额 api.json 文档进入 `batch` ; 已注册的返回模式。
+// 打电话者公布过一次,所以读者从不看到半个文件,
+// 而且 加载 是线性,不是四极。
 //
-// simdjson, not nlohmann: building the 5+ MB document as a std::map tree was
-// most of the remaining startup CPU. Every field is read by type and an
-// oddly typed one is skipped. nlohmann threw on those (a numeric option
-// "type" or provider "api") and the catch discarded the WHOLE document, so
-// one malformed upstream entry silently cost every model.
+// simdjson ,而不是nlohmann: 建造5+ MB 文档为
+// std::map 源码树 剩下的启动项目大部分都完成了 CPU。
+// 每个字段按类型和奇数读取 带类型的 跳过。 nlohmann 向这些上
+// 扔(一个数字选项) "type" 或提供者 "api" 和捕获 丢弃 整个 文档,
+// 所以一个错误 上游 进入时默默地花费了每个模型。
 int parse_document(std::string_view body, CatalogBatch& batch) {
     simdjson::dom::parser parser;
     const simdjson::padded_string padded{body};
@@ -214,8 +214,8 @@ int parse_document(std::string_view body, CatalogBatch& batch) {
     for (const auto provider : root) {
         simdjson::dom::object models;
         if (provider.value["models"].get_object().get(models)) continue;
-        // Identity anchors for capkey::dev_scope (see capkey.hpp): the
-        // entry's FIRST env var + api URL, empty when absent or not text.
+        // 身份锚 capkey::dev_scope (见A/C.5/61/L.48,第16段)
+        // capkey.hpp : 条目 首次 环境 var + API URL ,在文本缺失或未文本时为空。
         std::string env0;
         if (std::string_view s; !provider.value["env"].at(0).get_string().get(s)) env0 = s;
         std::string api;
@@ -244,7 +244,7 @@ bool cache_fresh() {
     return age < kMaxAge;
 }
 
-} // namespace
+} // 命名空间结束。
 
 int parse_into(std::string_view body, CatalogBatch& out) {
     return parse_document(body, out);
@@ -259,8 +259,8 @@ void load_cached() {
 }
 
 int refresh() {
-    // A fresh cache is already loaded (start_background_refresh loads it
-    // first); parsing the same 5 MB twice was pure waste.
+    // 新鲜的 缓存 已经 已加载 (start_background_refresh 加
+    // 载 首先是? 解析 5 与第5条相同 MB 两次都是纯粹的浪费。
     if (cache_fresh()) return 0;
     http::Request req;
     req.method = http::HttpMethod::Get;
@@ -277,61 +277,61 @@ int refresh() {
     tos.total   = std::chrono::milliseconds(60'000);
     auto resp = http::default_client(::agentty::IoAccess::grant()).send(req, tos);
     if (!resp || resp->status != 200 || resp->body.empty())
-        return 0;   // network down / moved: the cached load already stands
+        return 0;   // 网络下移/ 移动: 缓存的 加载 已经站立
     const int n = load_document(resp->body);
     if (n > 0) {
-        // A cache: atomic so a reader never sees half of it, no fsync.
+        // A 缓存 原子 所以读者从不看半个,没有Fsync.
         (void)persistence::write_atomic(::agentty::IoAccess::grant(), cache_path(), resp->body,
                                         {.durability = persistence::Durability::Atomic});
     }
     return n;
 }
 
-// ── Background refresh (same pattern as blob_gc.cpp) ────────────────
+// ── 背景刷新( 模式与 blob_gc.cpp 相同) ────────────────
 namespace {
-// This subsystem's OWN pool: join_background_refresh() promises ITS fetch is
-// done, and a shared pool cannot be joined one job at a time. See blob_gc.cpp
-// for the same reasoning — these two stay deliberately identical.
+// 这个子系统 自身 池: join_background_refresh
+// () 允 诺 ITS 获取完成, 共享 池 无法一次加入一个工作。
+// 见 blob_gc.cpp 两者故意保持相同。
 //
-// Replaces a mutex + condition variable + raw worker + stop flag whose
-// shutdown detached the worker whenever the fetch was still in flight, which
-// is precisely a network call left running against statics the CRT is
-// destroying. pool::shutdown asks it to stop, waits inside a bounded grace,
-// then abandons safely.
+// 替换 a 互斥量 +条件变量 + 生 工作线程 + 停止
+// 键 标志 关闭的电源 工作线程 每当接获还在飞行中,
+// 这恰恰是一个网络 调用 左转与静态相撞 CRT 正在毁灭。
+// pool::shutdown 要求它停止,等待在 无限的恩典,
+// 然后安全地放弃。
 maya::pool& refresh_pool() {
-    static maya::pool p{/*max_workers=*/1};   // one refresh, ever
+    static maya::pool p{/*max_workers=*/1};   // 一次刷新,永远
     return p;
 }
 constexpr auto kStartDelay = std::chrono::seconds(5);
-}  // namespace
+}  // 命名空间结束。
 
 void start_background_refresh(bool no_net) {
-    // Register the join the moment background work is about to exist, rather
-    // than relying on main() to know this subsystem is threaded. main()'s
-    // hand-written teardown list is the thing that misses one: settings_cache
-    // shipped with a join nobody called, and its worker sat joinable in a
-    // function-local static until the destructor terminated the process at
-    // exit.
+    // 注册加入时的背景工作即将存在,而不是依赖 main() 来知道
+    // 这个子系统是线性的。 main() 手的手,手的手的手 手的
+    // 双手 -written 拆掉的列表是漏掉的: settings_cache
+    // 和无人叫的合唱团一起被运走,还有它的 工作线程 正在
+    // 连接到函数中 -local 静态,直到销毁器退出时终止
+    // 进程。
     //
-    // refresh_pool() is a function-local static that lives to process exit, so
-    // the callback can never outlive its target and needs no cancel(). The
-    // whole start runs once per process.
+    // refresh_pool ()是函数 -local 静态,
+    // 它活在处理退出,所以 回调 永远不能超过目标 需要没有 cancel()。
+    // 整个开始每个过程一次。
     static std::once_flag once;
     maya::once(once, [no_net] {
         util::teardown::on_shutdown("modelsdev.refresh",
                                     [](const maya::unlocked& cap) { join_background_refresh(cap); });
 
-    // Isolated: refresh() is a network fetch, so it may never return and must
-    // not occupy a shared worker.
+    // 隔离 : refresh() 是一个网络获取,所以它可能永远不返回,
+    // 并且不能占用共享 工作线程.
     refresh_pool().post_isolated([](const maya::unlocked& cap, std::stop_token st, bool no_net) {
-        // A process that exits at once never dials at all. One cancellation
-        // channel — the token — instead of a second stop flag to notify.
+        // 一个程序,一个从不拨号的 取消 频道——
+        // 代号——而不是第二站 标志 通知。 通知。
         if (maya::delay_for(cap, st, kStartDelay)) return;
         try {
             load_cached();
-            // Re-check: the cache load is the cheap half, and shutdown may
-            // have been requested while it ran. No point starting a dial we
-            // are about to abandon.
+            // 调 -check : 数据 缓存 加载 是一个便宜的一半,
+            // 并且可能已经在运行时要求关闭。 没有开始拨号的点,
+            // 我们即将放弃。
             if (!no_net && !st.stop_requested()) {
                 try { (void)refresh(); } catch (...) {}
             }
@@ -343,7 +343,7 @@ void start_background_refresh(bool no_net) {
 }
 
 void join_background_refresh(const maya::unlocked& cap) noexcept {
-    (void)refresh_pool().shutdown(cap);   // requests stop, waits within the grace
+    (void)refresh_pool().shutdown(cap);   // 请求停止，在宽限内等待
 }
 
 } // namespace agentty::modelsdev

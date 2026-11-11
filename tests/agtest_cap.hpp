@@ -1,8 +1,8 @@
-// agtest::cap() — the suite's single lock-order capability root, split out of
-// agtest.hpp so STANDALONE tests (own int main / check(), folded into
-// agentty_standalone_tests) can use it without pulling in doctest and the
-// CHECK/check shims. Doctest tests keep including agtest.hpp, which includes
-// this. See agtest.hpp for the rules of use.
+// agtest::cap ()——套房单人 锁-order 能力根,从 agtest.hpp
+// 这么说吧 STANDALONE 测试( 原主 / 输入) check() ,
+// 折叠成 agentty_standalone_tests )可以不用拉进去就使用它
+// doctest 编辑 CHECK/check 测试测试继续包括 agtest.hpp ,
+// 包括这个。 agtest.hpp 用于规则。
 #ifndef AGENTTY_TESTS_AGTEST_CAP_HPP
 #define AGENTTY_TESTS_AGTEST_CAP_HPP
 

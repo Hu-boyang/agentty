@@ -1,8 +1,8 @@
-// plugin_edit.cpp — the plugin detail/add form panel (view).
+// plugin_edit.cpp ——插件 detail/add 窗体面板(视图)。
 //
-// Pure adapter, same shape as smart_mode.cpp: project the pane's form onto
-// maya::Panel via the shared form_config. Every chrome decision belongs to
-// the widget; this file only says which scroll slot and accent it uses.
+// 纯适配器,形状与 smart_mode.cpp : 投影 面板
+// '窗体在上方 maya::Panel 通过共享 form_config。
+// 每个铬决定都属于部件;此文件只说明它使用的滚动槽和重音。
 
 #include "panels_prologue.hpp"
 #include "agentty/runtime/view/form_panel.hpp"

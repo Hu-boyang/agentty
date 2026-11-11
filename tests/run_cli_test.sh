@@ -1,9 +1,9 @@
 #!/bin/sh
-# run_cli_test.sh: `agentty run` against the fake OpenAI server.
-# Checks what a script relies on: clean stdout, exit codes, --json, -o,
-# --max-turns, --timeout, and that Ctrl-C / SIGTERM stop the run and its
-# tool processes.
-#   usage: run_cli_test.sh <agentty>
+# run_cli_test.sh: `agentty run` 对抗假的 OpenAI 服务器。
+# 检查脚本依赖什么: 干净的 stdout , 退出代码, --json, -o,
+# --max-turns, --timeout ,该 Ctrl-C / SIGTERM
+# 停止运行及其工具进程。
+#   使用量:run_cli_test.shXXXX <agentty>
 set -u
 A="$1"
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -11,9 +11,9 @@ S=$(mktemp -d "${TMPDIR:-/tmp}/agentty_run_XXXXXX")
 python3 "$HERE/acp/fake_openai_server.py" 0 > "$S/port" 2>/dev/null </dev/null &
 SRV=$!
 trap 'kill $SRV 2>/dev/null; rm -rf "$S"' EXIT INT TERM
-# Up to 30s, not 3: a cold CI VM starting python under a parallel ctest can
-# take longer, and an empty port silently became "127.0.0.1:" -- every check
-# then failed with a misleading "not authenticated".
+# 30年代,不是3:一个冷的CIXXVM在平行的cest下开始的蟒蛇可以花更
+# 长的时间,一个空港静默地变成了"127.0.0.1:"——每一次检查之后都以
+# 误导的"not authenticated"失败.
 for _ in $(seq 1 150); do [ -s "$S/port" ] && break; sleep 0.2; done
 if [ ! -s "$S/port" ]; then echo "FAIL fake server did not start"; exit 1; fi
 
@@ -28,16 +28,16 @@ pass() { printf 'ok   %s\n' "$1"; }
 fail() { printf 'FAIL %s\n' "$1"; fails=$((fails+1)); }
 check() { if [ "$2" = "$3" ]; then pass "$1"; else fail "$1 (got '$2', want '$3')"; fi; }
 
-# plain answer: stdout is exactly the answer, exit 0
+# 简单回答: Stdout 正好就是答案, 退出 0
 out=$("$A" run "say hi" 2>"$S/err"); rc=$?
 check "plain: exit 0" "$rc" 0
 check "plain: stdout is only the answer" "$out" "hello from fake"
 
-# piped input with a prompt
+# 带有提示词的管道输入
 out=$(echo "some data" | "$A" run "summarize" 2>/dev/null); rc=$?
 check "pipe: exit 0" "$rc" 0
 
-# a tool call then an answer, with --json
+# 工具 调用 然后回答,与 --json
 out=$("$A" run --json "please write a file" 2>/dev/null); rc=$?
 check "json: exit 0" "$rc" 0
 j() { printf '%s' "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
@@ -48,13 +48,13 @@ check "json: tool_calls" "$(j 'd["tool_calls"]')" 1
 check "json: tokens summed per request" "$(j 'd["usage"]["input_tokens"], d["usage"]["output_tokens"]')" "20 10"
 check "json: model" "$(j 'bool(d["model"])')" True
 
-# -o writes the answer to a file, nothing on stdout
+# -o 将答案写到文件, 没有在 stdout 上
 out=$("$A" run -o "$S/answer.txt" "say hi" 2>/dev/null); rc=$?
 check "-o: exit 0" "$rc" 0
 check "-o: stdout empty" "$out" ""
 check "-o: file has the answer" "$(cat "$S/answer.txt" 2>/dev/null)" "hello from fake"
 
-# provider error: exit 3, message on stderr, nothing on stdout
+# 提供者错误: 3 出口, 消息在 stderr 上, 没有消息在 stdout 上
 out=$("$A" run "please fail" 2>"$S/err"); rc=$?
 check "provider error: exit 3" "$rc" 3
 check "provider error: stdout empty" "$out" ""
@@ -63,7 +63,7 @@ grep -q "provider_error: .*upstream exploded" "$S/err" && pass "provider error: 
 grep -q "Activity:" "$S/err" && fail "provider error: no internal activity dump" \
     || pass "provider error: no internal activity dump"
 
-# a small context window filling up says so (#85): exit 5, sizes on stderr
+# 一个小的上下文窗口填充后写着(# 85): 出口 5, 大小在 Stderr
 SMALL="$S/home_small"; mkdir -p "$SMALL"
 printf '{"provider":"127.0.0.1:%s","model_id":"small-ctx"}\n' "$(cat "$S/port")" > "$SMALL/settings.json"
 AGENTTY_HOME="$SMALL" "$A" run "CTXLEN go" >/dev/null 2>"$S/err"; rc=$?
@@ -77,26 +77,26 @@ grep -q "context_full: .*exceeds the available context size" "$S/err" \
 out=$(AGENTTY_HOME="$SMALL" "$A" run --json "CTXLEN go" 2>/dev/null)
 check "context: json window" "$(j 'd["usage"]["context_window"]')" 25000
 
-# --max-turns stops a run that never finishes: exit 1, status turn_limit
+# --max-turns 停止一个从未完成的运行: 退出 1, 状态 turn_limit
 out=$("$A" run --json --max-turns 3 "LOOP forever" 2>/dev/null); rc=$?
 check "max-turns: exit 1" "$rc" 1
 check "max-turns: status" "$(j 'd["status"]')" turn_limit
 check "max-turns: turns" "$(j 'd["turns"]')" 3
 
-# --timeout stops a long tool: exit 124, quickly
+# --timeout 停止一个长的工具: 124号出口, 快
 t0=$(date +%s)
 "$A" run --timeout 2 'CALL shell {"command":"sleep 30"}' >/dev/null 2>&1; rc=$?
 el=$(( $(date +%s) - t0 ))
 check "timeout: exit 124" "$rc" 124
 [ "$el" -lt 15 ] && pass "timeout: stopped in ${el}s" || fail "timeout: took ${el}s"
 
-# bad flag values are usage errors (exit 2) before any work
+# 坏的标志值是任何工作之前的用法错误( Exit 2)
 "$A" run --max-turns 0 "x" >/dev/null 2>&1; check "max-turns 0: exit 2" "$?" 2
 "$A" run --timeout 5x "x" >/dev/null 2>&1;  check "timeout 5x: exit 2" "$?" 2
 "$A" run --effort huge "x" >/dev/null 2>&1; check "effort huge: exit 2" "$?" 2
 "$A" run --resume ../etc "x" >/dev/null 2>&1; check "resume ../etc: exit 2" "$?" 2
 
-# --events jsonl streams reasoning and answer text, stdout stays the answer (#81)
+# --events 日语 数据流 推理和回答文本, stdout 保留答案 (# 81)
 out=$("$A" run --events jsonl "please think" 2>"$S/ev"); rc=$?
 check "events: exit 0" "$rc" 0
 check "events: stdout is only the answer" "$out" "thought done"
@@ -114,7 +114,7 @@ EOF
 check "events: reasoning line" "$(ev reasoning)" "let me think"
 check "events: text line" "$(ev text)" "thought done"
 
-# --save then --resume: the second run sees the first conversation
+# --save 那样 --resume : 第二波看第一波对话
 out=$("$A" run --save --json "first question" 2>/dev/null)
 tid=$(j 'd.get("thread_id", "")')
 [ -n "$tid" ] && pass "save: thread id in json" || fail "save: thread id in json"
@@ -125,15 +125,15 @@ out=$("$A" run --json --resume last "third" 2>/dev/null)
 check "resume last: same thread" "$(j 'd.get("thread_id")')" "$tid"
 "$A" run --resume 0123456789abcdef "x" >/dev/null 2>&1; check "resume missing: exit 4" "$?" 4
 
-# --read-only: a write the model asks for is refused, nothing written
+# --read-only: 拒绝模型要求的写作, 无任何文字
 rm -f out.txt
 out=$("$A" run --json --read-only "please write a file" 2>/dev/null)
 check "read-only: write refused" "$(j 'd["tool_errors"]')" 1
 [ ! -e out.txt ] && pass "read-only: no file written" || fail "read-only: no file written"
 
-# --no-network: a shell command can't reach the network. Needs claybin AND
-# a network namespace; a host without either must refuse instead (exit 2),
-# never run the command with network.
+# --no-network : shell 命令无法到达网络。
+# 需要 claybin 和 网络命名空间; 没有任何一种的宿主必须拒绝(
+# exit 2) , 绝不用网络运行命令。
 "$A" run --no-network 'CALL shell {"command":"curl -sS -m 4 -o /dev/null https://example.com 2>/dev/null; echo $? > net_rc.txt"}' >/dev/null 2>&1; rc=$?
 if [ "$rc" -eq 2 ]; then
     pass "no-network: refused (no claybin or no netns on this host)"
@@ -147,8 +147,8 @@ else
 fi
 "$A" run --sandbox off --no-network "x" >/dev/null 2>&1; check "no-network + sandbox off: exit 2" "$?" 2
 
-# A fork reopened in a new process can still read its parent's transcript,
-# which lives outside the workspace (#83). Other files there stay closed.
+# 在一个新进程中重新打开的叉子仍然可以读取其父母的笔录,
+# 它生活在工作区(#83)之外. 其他文件仍然关闭.
 TD="$AGENTTY_HOME/threads"; mkdir -p "$TD"
 printf '# Transcript: parent\nPARENT_MARKER\n' > "$TD/bbbbbbbbbbbbbbbb.transcript.md"
 printf 'secret\n' > "$TD/cccccccccccccccc.transcript.md"
@@ -172,8 +172,8 @@ grep '"tool":"read"' "$S/fk" | grep -q '"ok":true' && pass "fork: parent transcr
 grep '"tool":"read"' "$S/fk" | grep -q '"ok":false' && pass "fork: other transcripts stay closed" \
     || fail "fork: other transcripts stay closed ($(grep '"tool"' "$S/fk"))"
 
-# a signal mid-tool stops the run and kills the tool. python runs it so
-# SIGINT isn't pre-ignored the way sh does for background jobs.
+# 信号中间 -tool 停止运行并杀死工具。 SIGINT
+# 不是预 -ignored 和SH做背景工作的方式一样
 sig_case() {
     python3 - "$A" "$1" "$2" <<'EOF'
 import json, os, signal, subprocess, sys, time

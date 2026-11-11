@@ -1,10 +1,10 @@
-// modelsdev_parse_test — the models.dev loader must turn a document into the
-// exact same catalog facts whatever JSON parser it uses.
+// modelsdev_parse_test - 电话 models.dev 装入器必须将
+// 文档转换成完全相同的 目录 事实无论如何 JSON 解析器 用来
 //
-// A checked-in fixture covers every field shape the loader reads; a second
-// case runs over the real ~/.agentty cache when present and prints a
-// fingerprint of every fact, so a parser swap can be checked against the
-// full live document.
+// 检查 -in 固定覆盖装填器读取的每个字段; 第二个大小
+// 写贯穿真实 ~/.agentty 缓存 显示并打印
+// a 指纹 每一个事实,所以 解析器 互换可以与完整实时
+// 文档进行核对.
 
 #include "agtest.hpp"
 
@@ -23,8 +23,8 @@ using namespace agentty;
 
 namespace {
 
-// Every fact in a batch as sorted text lines. Order-independent, so two
-// parsers that walk the document differently compare equal.
+// 以按顺序排列的文本行排列的每个事实。 顺序 -independent ,
+// 所以两个 解析器 以不同的方式对文档进行对比。
 std::vector<std::string> facts_of(const CatalogBatch& b) {
     std::vector<std::string> out;
     for (const auto& [k, v] : b.reasoning.sets)   out.push_back("rs " + k + "=" + (v ? "1" : "0"));
@@ -96,17 +96,17 @@ constexpr const char* kFixture = R"({
   }
 })";
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("modelsdev parse: fixture yields the expected facts") {
     CatalogBatch b;
     const int n = modelsdev::parse_into(kFixture, b);
     const auto facts = facts_of(b);
-    // Every model entry is counted, oddly typed ones included.
+    // 每个模型条目都是计算,奇怪的是 带类型的 包括那些内容。
     CHECK(n == 14);
     const std::vector<std::string> want = {
-        // Recorded from the nlohmann loader up to the entry that made it
-        // throw (acme-weird-opts' numeric "type").
+        // 从nlohmann装货机录到投出的条目(Acme)
+        // -weird-opts ' 数字 "type").
         "cm acme-plain=32000",
         "cs dev:acme/acme-plain=32000",
         "em acme-both=4",
@@ -129,15 +129,15 @@ TEST_CASE("modelsdev parse: fixture yields the expected facts") {
         "rs dev:acme/acme-plain=0",
         "rs dev:acme/acme-toggle=1",
     };
-    // Everything the old loader produced must still be produced, unchanged.
+    // 旧装机生产的一切,必须仍然生产,不变.
     for (const auto& w : want)
         CHECK_MESSAGE(std::find(facts.begin(), facts.end(), w) != facts.end(), "missing: " << w);
 }
 
 TEST_CASE("modelsdev parse: one malformed entry doesn't cost the document") {
-    // nlohmann threw on a numeric option "type" (and on a numeric provider
-    // "api"), and the catch threw away every model. Now the bad field is
-    // skipped and the rest of the document still lands.
+    // nlohmann 投进了一个数字选项 "type" (和
+    // 数字提供者) "api" 发现的炸弹已经丢弃了所有模型,
+    // 现在,坏的田地被跳过,其他文件仍然在降落。
     CatalogBatch b;
     (void)modelsdev::parse_into(kFixture, b);
     const auto facts = facts_of(b);
@@ -145,11 +145,11 @@ TEST_CASE("modelsdev parse: one malformed entry doesn't cost the document") {
         return std::any_of(facts.begin(), facts.end(),
                            [&](const std::string& f) { return f.find(s) != std::string::npos; });
     };
-    CHECK(has("acme-weird-opts"));          // the entry with the bad option
-    CHECK(has("think-3-5"));                // models after it (keys are normalised)
-    CHECK(has("solo"));                     // later providers
-    CHECK(has("solo2"));                    // provider with a numeric api
-    CHECK(has("local-m"));                  // the last provider
+    CHECK(has("acme-weird-opts"));          // 带有错误选项的条目
+    CHECK(has("think-3-5"));                // 之后的模型( 键已正常)
+    CHECK(has("solo"));                     // 后期提供者
+    CHECK(has("solo2"));                    // 提供方为数字API
+    CHECK(has("local-m"));                  // 最后一个提供者
 }
 
 TEST_CASE("modelsdev parse: how each model turns reasoning off") {
@@ -175,7 +175,7 @@ TEST_CASE("modelsdev parse: how each model turns reasoning off") {
     CHECK(kind("toggle")  == int(R::Toggle));
     CHECK(kind("always")  == int(R::Impossible));
     CHECK(kind("both")    == int(R::Toggle));
-    CHECK(kind("bare")    == -1);   // unknown: not recorded
+    CHECK(kind("bare")    == -1);   // 未知:未记录
     CHECK(kind("plain")   == int(R::Omit));
 }
 
@@ -186,11 +186,11 @@ TEST_CASE("reasoning off: picker never offers off on a model that can't stop") {
     caps.reasoning_off = static_cast<std::uint8_t>(ReasoningOff::Impossible);
     const auto ladder = available_efforts(caps);
     CHECK(std::find(ladder.begin(), ladder.end(), Effort::None) == ladder.end());
-    // A stored off clamps up to the floor, on screen and on the wire.
+    // 夹子放在地板上 屏幕上 传输.
     CHECK(clamp_effort(Effort::None, caps) == Effort::Low);
     CHECK(effort_wire_for(Effort::None, caps) == "low");
 
-    // A model that CAN stop keeps off.
+    // 一个模型 CAN 别吵了
     caps.reasoning_off = static_cast<std::uint8_t>(ReasoningOff::Toggle);
     const auto l2 = available_efforts(caps);
     CHECK(std::find(l2.begin(), l2.end(), Effort::None) != l2.end());
@@ -201,7 +201,7 @@ TEST_CASE("modelsdev parse: the real cache gives the same facts") {
     const char* home = std::getenv("HOME");
     if (!home) return;
     std::ifstream in(std::string{home} + "/.agentty/cache/modelsdev.json", std::ios::binary);
-    if (!in) return;   // no cache on this machine: nothing to compare
+    if (!in) return;   // 此机上没有缓存:无可比较
     std::ostringstream ss;
     ss << in.rdbuf();
     CatalogBatch b;
@@ -209,9 +209,9 @@ TEST_CASE("modelsdev parse: the real cache gives the same facts") {
     const auto facts = facts_of(b);
     MESSAGE("models=" << n << " facts=" << facts.size() << " fnv=" << fnv(facts));
     CHECK(n > 0);
-    // Fingerprint of the nlohmann loader's output on the cache file it was
-    // recorded against. A refreshed cache changes it, so this only checks
-    // when the file is that exact one (by size).
+    // 指纹 的输出, 缓存 文档被录入到此选项。
+    // 缓存 更改它, 所以只有文件是准确的(
+    // 按大小) 时才会检查。
     if (ss.str().size() == 5623041) {
         CHECK(n == 8814);
         CHECK(facts.size() == 65355);

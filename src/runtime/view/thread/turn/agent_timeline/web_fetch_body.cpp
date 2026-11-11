@@ -1,7 +1,7 @@
-// tool_body_preview — `web_fetch` tool body.
+// tool_body_preview — `web_fetch` 工具 正文.
 //
-// Json (pretty-printed key/value). Only a DONE web_fetch produces a body;
-// otherwise returns false to fall through to the shared Failure fallback.
+// JSON (非常漂亮,非常漂亮, -printed key/value。
+// 仅限 a DONE web_fetch 生成一个 正文 ; 否则返回错误, 以陷入共同的失败 回退.
 
 #include "tool_body_common.hpp"
 
@@ -16,14 +16,14 @@ bool web_fetch_body(const ToolUse& tc, maya::ToolBodyPreview::Config& out) {
     if (!tc.is_done()) return false;
     const std::string_view body = card_output(tc);
     if (!body.empty()) {
-        // A page reads from the top (title, lead paragraph); its tail is
-        // footer chrome. JSON stays as JSON.
+        // 页面从顶部(标题,引文段落); 末尾 脚的铬。
+        // JSON 保留为 JSON.
         const auto first = body.find_first_not_of(" \n\t");
         const bool json = first != std::string_view::npos
                        && (body[first] == '{' || body[first] == '[');
         out.kind = json ? Kind::Json : Kind::CodeBlock;
         out.text = clean_output(body);
-        // Blank lines between paragraphs cost a row each in a 5-row preview.
+        // 段落之间的空行每行花费5-row预览一行.
         if (!json) {
             std::string dense;
             dense.reserve(out.text.size());

@@ -1,15 +1,15 @@
-// agentty::provider::ollama — native /api/chat transport for a local Ollama
-// server. See transport.hpp for the rationale. Modelled on zed-industries/zed
-// crates/ollama/src/ollama.rs: NDJSON stream, structured message.tool_calls,
-// object-form tool arguments, keep_alive + options.num_predict.
+// agentty::provider::ollama —本地Ollama服务器的本机/api/chat 传输层。
+// 有关基本原理，请参阅 transport.hpp。以 zed-industries/zed
+// crates/ollama/src/ollama.rs 为模型：NDJSON 数据流、结构化 message.tool_calls、
+// object-form 工具参数、keep_alive + options.num_predict。
 //
-// We prefer Ollama's structured tool_calls channel, but weak local models
-// (qwen2.5-coder, codellama, etc.) routinely leak tool calls as bare JSON in
-// `content` instead. So content is held-then-classified at the START of a
-// response: if it parses as a tool-call object/array (or ```json / <tool_call>
-// wrapper) naming an advertised tool, we salvage it into a structured call;
-// otherwise it flushes as ordinary prose. Once any structured tool_calls frame
-// arrives, salvage is disabled (the model can drive the real channel).
+// 我们更喜欢Ollama的结构化tool_calls通道，但弱本地模型（qwen2.5
+// -coder、codellama等）通常会将工具调用泄漏为`content`中的裸
+// JSON。因此，内容在 START 处保存为 -then-classified
+// 响应：如果能解析为工具调用对象或数组，或带 ```json / <tool_call>
+// 包装器)命名广告工具，我们将其打捞成结构化的调用；
+// 否则它就会像普通散文一样泛滥。一旦任何结构化的 tool_calls
+// 帧 到达，抢救将被禁用（模型可以驱动真实通道）。
 
 #include "agentty/provider/ollama/transport.hpp"
 #include "agentty/domain/reasoning_off.hpp"
@@ -38,7 +38,7 @@
 #include "agentty/provider/openai/transport.hpp"   // local_model_action_rules (#91)
 #include "agentty/provider/wire_supersede.hpp"
 #include "agentty/runtime/composer_attachment.hpp"
-#include "agentty/tool/util/fs_helpers.hpp"   // util::workspace_root/project_root — AGENTS.md anchor + walk start
+#include "agentty/tool/util/fs_helpers.hpp"   // util::workspace_root/project_root — AGENTS.md锚定+步行开始
 #include "agentty/util/base64.hpp"
 #include "agentty/util/dbglog.hpp"
 
@@ -49,12 +49,12 @@ using auth::AuthHeader;
 
 namespace {
 
-// ── UTF-8 scrub ─────────────────────────────────────────────────────────────
-// A tool output or pasted blob can carry invalid UTF-8; nlohmann's dump()
-// throws on it. Replace every malformed byte with U+FFFD so the request
-// builds instead of the turn dying with a json type_error. Shared strict
-// implementation (rejects overlong encodings + surrogates) — see
-// wire::scrub_utf8.
+// ── UTF-8 洗涤剂 ─────────────────────────────────────────────────────────────
+// 工具输出或粘贴的斑点可以携带无效的UTF-8； nlohmann 的
+// dump() 扔在上面。将每个格式错误的 字节 替换为 U+FFFD，
+// 这样请求就会生成，而不是回合因 JSON type_error 而终止。
+// 共享严格实现（拒绝超长编码+代理）——参见
+// wire::scrub_utf8。
 using wire::scrub_utf8;
 
 http::Headers build_request_headers(const AuthHeader& auth) {
@@ -62,9 +62,9 @@ http::Headers build_request_headers(const AuthHeader& auth) {
     h.push_back({"accept", "application/json"});
     h.push_back({"content-type", "application/json"});
     h.push_back({"user-agent", ::agentty::user_agent()});
-    // Ollama needs no auth by default, but a remote / proxied instance may
-    // sit behind a bearer key — emit it the same way the OpenAI family does
-    // (auth::bearer_token is the single source of truth for extraction).
+    // Ollama默认不需要认证，但是远程/代理实例可以位于不记名密钥后面
+    // ——以与OpenAI系列相同的方式发出它（
+    // auth::bearer_token是用于提取的单一事实来源）。
     if (std::string tok = auth::bearer_token(auth); !tok.empty())
         h.push_back({"authorization", "Bearer " + tok});
     return h;
@@ -74,108 +74,108 @@ bool is_assistant_with_results(const Message& m) {
     return wire::is_assistant_with_results(m);
 }
 
-// ── Stream state ─────────────────────────────────────────────────────────────
+// ── 数据流 状态 ─────────────────────────────────────────────────────────────
 struct StreamCtx {
     EventSink   sink;
-    // Mirrors req.show_reasoning — gates whether swallowed <think>…</think>
-    // text is surfaced as StreamThinkingDelta (visible reasoning) or reduced
-    // to a StreamHeartbeat (liveness only; no hidden capture bloating the
-    // message + session file). The native `thinking` field is already gated
-    // request-side (`think:true` only sent when show_reasoning). Defaults
-    // true so the test harnesses keep capture semantics.
+    // 镜像req.show_reasoning —门是否吞下<think>…
+    // </think>文本被表面化为StreamThinkingDelta (
+    // 可见推理）或简化为StreamHeartbeat (仅活性；
+    // 没有隐藏捕获使消息+会话文件膨胀）。本机`thinking`字段已被门控
+    // 请求-side（`think:true`仅在show_reasoning
+    // 时发送）。默认为 true，因此测试工具保持捕获语义。
     bool        show_reasoning = true;
-    // NDJSON line framing (buffer + read cursor + compaction) lives in the
-    // shared wire::LineFramer — see include/agentty/provider/wire.hpp. Ollama
-    // uses a larger compaction threshold than the SSE default because its
-    // native frames (whole message objects) run bigger than SSE deltas.
+    // NDJSON 行框架（缓冲区 + 读取游标 + 压缩）位于共享
+    // wire::LineFramer 中 — 请参阅 include/agentty/provider/wire.hpp.
+    // Ollama 使用比 SSE 默认值更大的压缩阈值，
+    // 因为其本机 帧（整个消息对象）运行得比 SSE 增量更大。
     wire::LineFramer framer{256 * 1024};
-    int         tool_seq = 0; // uniquifies synthesised tool-call ids
+    int         tool_seq = 0; // 唯一化合成工具-call id
     StopReason  stop_reason = StopReason::Unspecified;
     bool        terminated  = false;
 
-    // ── Leaked-tool-call salvage (weak local models) ────────────────────
-    // Content frames are held while the response COULD still be a bare
-    // tool-call JSON. Once we decide it's prose we flush + stop holding;
-    // once a structured tool_calls frame arrives salvage is disabled.
-    std::string text_hold;                 // buffered content under suspicion
-    bool        holding         = true;    // still buffering potential tool JSON
-    bool        salvage_eligible = true;   // can still be a tool call (start)
+    // ── 漏损的-tool-call 救助(当地型号微弱) ────────────────────
+    // 内容帧被保留，而响应COULD仍然是裸工具-call JSON。
+    // 一旦我们决定这是散文，我们就冲洗 + 停止持有；
+    // 一旦结构化的 tool_calls 帧 到达，打捞就会被禁用。
+    std::string text_hold;                 // 可疑的缓冲内容
+    bool        holding         = true;    // 仍在缓冲潜在工具JSON
+    bool        salvage_eligible = true;   // 仍可工具调用（启动）
     bool        any_text_flushed = false;
     bool        any_structured_tool = false;
-    int         salvage_seq     = 0;       // uniquifies salvaged call ids
-    std::vector<std::string> known_tools;  // tool names we may salvage to
+    int         salvage_seq     = 0;       // 统一回收的 调用 id
+    std::vector<std::string> known_tools;  // 我们可以挽救的工具名称
     bool allow_remember_salvage = false;
     bool allow_forget_salvage = false;
     bool allow_wipe_salvage = false;
-    std::string full_content;              // every content byte (rescue scan)
+    std::string full_content;              // 每条内容字节（救援扫描）
 
-    // JSON-protocol mode (agent-zero style, very weak models). No native
-    // tools array was sent; the WHOLE response is expected to be one
-    // `{"thoughts":[...],"tool_name":"...","tool_args":{...}}` object (or
-    // plain prose for a chat-only turn). Enables the forgiving first-`{`..
-    // last-`}` extraction in the terminal salvage so leading/trailing
-    // narration around the object doesn't defeat the tool call.
+    // JSON-protocol模式（代理-zero风格，非常弱的模式）。
+    // 没有发送本机工具数组； 整个 响应预计是一个
+    // `{"thoughts":[...],"tool_name":"...","tool_args":{...}}`
+    // 对象（或用于聊天 -only 回合的简单散文）。启用宽恕第一-`{`..
+    // 终端回收中的最后`}`提取，
+    // 因此对象周围的leading/trailing叙述不会击败工具调用。
     bool        json_protocol   = false;
 
-    // ── Reasoning-model <think> stripping ───────────────────────────────
-    // Reasoning models (deepseek-r1, qwen3, …) that are NOT driven through
-    // Ollama's native `thinking` field dump their chain-of-thought into
-    // `content` wrapped in <think>…</think>. We must NOT emit that as user-
-    // visible prose, and a leading <think> block would otherwise defeat the
-    // could_be_tool_json hold (it doesn't start with `{`) and flush the
-    // reasoning as text ahead of the real tool call. While `in_think` we
-    // swallow content until the closing </think>, then resume normal
-    // hold/classify on whatever follows.
+    // ── 理由说明 -model <think> 剥离 ───────────────────────────────
+    // 通过 Ollama 的本机 `thinking` 字段驱动 不 的推理模型（
+    // deepseek-r1、qwen3、…）将它们的 chain-of-thought
+    // 转储到包裹在 <think>…</think> 中的 `content` 中。
+    // 我们必须将 不 作为用户可见的散文发出，否则前导 <think> 块将击败
+    // could_be_tool_json 保留（它不以 `{` 开头），
+    // 并将推理作为文本刷新在真实工具 调用 之前。在 `in_think` 期间，
+    // 我们吞咽内容直到 </think> 结束，然后在接下来的任何内容中
+    // 恢复正常的 hold/classify。
     bool        in_think        = false;
-    bool        think_seen      = false;  // ever entered a think block this turn
-    // Partial-tag hold: a <think>/</think> tag can split across NDJSON
-    // frames ("<thi" + "nk>"). filter_think holds back a chunk-final byte
-    // run that is a proper prefix of a tag and re-prepends it to the next
-    // chunk; flushed as literal content at `done` if the tag never completes.
+    bool        think_seen      = false;  // 本回合曾进入思考区块
+    // 部分-tag保留：<think>/</think>标签可以跨NDJSON
+    // 帧 ("<thi" + "nk>")分割。 filter_think 阻止
+    // chunk-final 字节 运行，该运行是标签的正确前缀，
+    // 并将其重新-prepends 到下一个块；如果标签从未完成，则在 `done` 处刷新为文字内容。
     std::string think_carry;
 
-    // ── Progressive `response` streaming (JSON-protocol chat replies) ───
-    // In json_protocol mode a plain chat reply arrives as a grammar-forced
-    // object {"tool_name":"response","tool_args":{"text":"…"}} streamed
-    // char-by-char. The old path held the WHOLE object and emitted the text
-    // in one StreamTextDelta at `done` — so the body appeared and settled in
-    // a single frame, giving maya's reveal_fx nothing to animate (no
-    // typewriter) and forcing a one-frame freeze handoff (the duplicated
-    // body). Instead we detect tool_name=="response" mid-hold, find the
-    // value string of the reply field, and stream its DECODED characters
-    // incrementally as the wire delivers them — exactly like a native text
-    // stream. resp_active gates the path; resp_scan_pos is how far into
-    // text_hold we've scanned for the value-string opening; resp_in_value
-    // means we're inside the string and resp_value_pos is the index of the
-    // next undecoded byte; resp_esc tracks a pending backslash escape.
-    bool        resp_active   = false;  // confirmed tool_name=="response"
-    bool        resp_done     = false;  // streamed through the closing quote
-    bool        resp_in_value = false;  // cursor is inside the value string
-    bool        resp_esc      = false;  // last byte was an unconsumed '\\'
-    std::size_t resp_scan_pos = 0;      // scan cursor while locating value
-    std::size_t resp_value_pos = 0;     // next byte to decode inside value
-    std::string resp_emitted;           // decoded text already streamed
+    // ── 渐进式 `response` 流式传输 (JSON-protocol 聊天回复) ───
+    // 在json_protocol模式下，普通聊天回复作为语法-forced对象{
+    // "tool_name":"response","tool_args":{
+    // "text":"…"}}流式char-by-char到达。旧路径持有 整个 对象，
+    // 并在 `done` 处发出一个 StreamTextDelta 中的文本 -
+    // 因此 正文 出现并定居在单个 帧 中，使 maya 的 reveal_fx
+    // 没有任何动画（没有打字机），并强制 one-frame 冻结切换（重复的
+    // 正文）。相反，我们检测 tool_name=="response"
+    // mid-hold，找到回复字段的值字符串，并且 数据流 的 DECODED
+    // 字符随着 传输 的传递而递增——就像本机文本 数据流 一样。
+    // resp_active 控制路径； resp_scan_pos 是我们在
+    // text_hold 中扫描值 -string 开口的距离；
+    // resp_in_value 表示我们在字符串内部，resp_value_pos 是
+    // 下一个未解码的 字节 的索引； resp_esc 跟踪 待处理 反斜杠转义。
+    bool        resp_active   = false;  // 确认tool_name=="response"
+    bool        resp_done     = false;  // 流式传输收盘报价
+    bool        resp_in_value = false;  // 光标位于值字符串内部
+    bool        resp_esc      = false;  // 最后的字节是未消耗的'\\'
+    std::size_t resp_scan_pos = 0;      // 定位值时扫描光标
+    std::size_t resp_value_pos = 0;     // 接下来字节要解码里面的值
+    std::string resp_emitted;           // 解码文本已经流式传输
 
 };
 
-// ── Salvage helpers (ported from openai/transport.cpp) ──────────────────
+// ── 救护人员(从openai/transport.cpp起) ──────────────────
 
-// Arg-key repair for weak local models. They routinely emit the RIGHT tool
-// with the WRONG argument key — `bash` with {"cmd":"ls"} instead of
-// {"command":"ls"}, `read` with {"file":"x"} instead of {"path":"x"},
-// `grep` with {"query":"foo"} instead of {"pattern":"foo"}. The tool then
-// sees no required arg, errors, and the weak model loops re-emitting the same
-// broken call. We remap a small set of well-known aliases to their canonical
-// key PER TOOL — but ONLY when the canonical key is absent and the alias is
-// present, so a model that got it right is never touched. Conservative: a
-// tool not in the table is left exactly as-is.
+// Arg-key修复弱局部模型。他们通常会使用 WRONG 参数键发出 RIGHT
+// 工具 - `bash` 使用 {"cmd":"ls"} 而不是 {
+// "command":"ls"}，`read` 使用 {"file":
+// "x"} 而不是 {"path":"x"}，`grep` 使用 {"query":
+// "foo"} 而不是{"pattern":"foo"}。然后，该工具发现没有必需的参数、
+// 错误，并且弱模型循环 re-emitting 相同的损坏的 调用。
+// 我们将一小组well-known别名重新映射到它们的规范键PER TOOL
+// - 但是当规范键不存在并且别名存在时，会映射到ONLY，因此永远不会触及正确的模型。
+// 保守：表中没有的工具保留为 -is。
 void repair_arg_keys(const std::string& tool, json& args) {
     if (!args.is_object()) return;
-    // (canonical, {aliases...}) per tool. First alias found wins.
+    // （规范，{别名...}）每个工具。第一个找到的别名获胜。
     struct Alias { const char* canon; std::vector<const char*> from; };
     auto remap = [&](const std::vector<Alias>& table) {
         for (const auto& a : table) {
-            if (args.contains(a.canon)) continue;          // already correct
+            if (args.contains(a.canon)) continue;          // 已经正确
             for (const char* f : a.from) {
                 if (args.contains(f)) {
                     args[a.canon] = args[f];
@@ -185,10 +185,10 @@ void repair_arg_keys(const std::string& tool, json& args) {
             }
         }
     };
-    // `bash` is kept as a LEGACY ALIAS for `shell`: the tool is registered as
-    // `shell`, but the name `bash` is so overwhelmingly common in model
-    // training data that a weak local model will emit it — accept it here so
-    // its args still get canonicalised (and dispatch resolves it downstream).
+    // `bash` 对于 `shell` 保留为 LEGACY
+    // ALIAS：该工具注册为 `shell`，但名称 `bash`
+    // 在模型训练数据中非常常见，弱本地模型会发出它 - 在这里接受它，
+    // 这样它的参数仍然会被规范化（分派 将其解析为 下游）。
     if (tool == "shell" || tool == "bash" || tool == "diagnostics") {
         remap({{"command", {"cmd", "shell", "script", "run", "cmdline"}}});
     } else if (tool == "read" || tool == "list_dir" || tool == "find_definition") {
@@ -216,13 +216,13 @@ void repair_arg_keys(const std::string& tool, json& args) {
     }
 }
 
-// Could `s` be the START of a leaked tool-call? Only meaningful at the start
-// of a response (salvage_eligible). Shared classifier — see
-// wire::could_be_tool_json (single source of truth; was duplicated here and in
-// the openai transport).
+// `s`有可能是泄露工具-call的START吗？仅在响应开始时有意义 (
+// salvage_eligible)。共享分类器 — 请参阅
+// wire::could_be_tool_json（单一事实来源；在此处和 openai
+// 传输层 中重复）。
 using wire::could_be_tool_json;
 
-// Strip <tool_call>…</tool_call> and ```json…``` wrappers + surrounding ws.
+// 剥离 <tool_call>…</tool_call> 和 ```json…``` 包裹以及周围空白。
 [[nodiscard]] std::string_view strip_tool_call_wrappers(std::string_view sv) noexcept {
     auto ltrim = [](std::string_view& s) {
         while (!s.empty() && (s.front()==' '||s.front()=='\t'
@@ -241,15 +241,15 @@ using wire::could_be_tool_json;
     }
     if (sv.starts_with("```")) {
         sv.remove_prefix(3);
-        // Skip an optional language tag on the fence line (json, sh, bash,
-        // tool_code, …) up to the first newline. Weak models wrap a leaked
-        // tool call in whatever fence they feel like.
+        // 跳过栅栏线上的可选语言标签（JSON、sh、bash、
+        // tool_code、……）直到第一个换行符。弱模型将泄露的
+        // 工具 调用 包裹在他们想要的任何围栏中。
         if (auto nl = sv.find('\n'); nl != std::string_view::npos) {
             std::string_view first = sv.substr(0, nl);
             bool word = !first.empty();
             for (char c : first)
                 if (!((c>='a'&&c<='z')||(c>='A'&&c<='Z')||c=='_'||c=='-')) { word=false; break; }
-            if (word) sv.remove_prefix(nl + 1);   // drop the lang tag line
+            if (word) sv.remove_prefix(nl + 1);   // 删除 lang 标记行
         } else if (sv.starts_with("json")) {
             sv.remove_prefix(4);
         }
@@ -261,8 +261,8 @@ using wire::could_be_tool_json;
     return sv;
 }
 
-// Held buffer opens like a tool-call object but doesn't parse (wire cut off),
-// or is a wrapper-only remnant / empty `{}` — drop it rather than show garbage.
+// 举行的缓冲区像工具-call对象一样打开，但不解析(传输被切断)，
+// 或者是包装器-only残余物/空`{}`——丢弃它而不是显示垃圾。
 [[nodiscard]] bool hold_is_truncated_tool_json(std::string_view sv) noexcept {
     std::string_view raw = sv;
     sv = strip_tool_call_wrappers(sv);
@@ -274,7 +274,7 @@ using wire::could_be_tool_json;
     catch (...) { return true; }
 }
 
-// Complete tool-call-shaped object naming an UNADVERTISED tool — drop it.
+// 命名 UNADVERTISED 工具的完整 tool-call-shaped 对象 — 将其删除。
 [[nodiscard]] bool hold_is_unknown_tool_call(
         std::string_view sv, const std::vector<std::string>& known) noexcept {
     if (known.empty()) return false;
@@ -296,28 +296,28 @@ using wire::could_be_tool_json;
         return false;
     if (!j.contains("arguments") && !j.contains("parameters")
             && !j.contains("tool_args") && !j.contains("args")) return false;
-    // Strip any `tool:action` suffix before the known-tool check.
+    // 在已知的-tool检查之前去除任何`tool:action`后缀。
     if (auto colon = name.find(':'); colon != std::string::npos)
         name = name.substr(0, colon);
-    // The `response` pseudo-tool is the JSON-protocol chat escape hatch — it
-    // is NOT in known_tools (we never advertise it) but its payload is the
-    // user-visible reply, so it must NEVER be dropped here. rescue_json_protocol
-    // unwraps its text into prose; report it as "not an unknown tool call".
+    // `response`伪-tool是JSON-protocol聊天逃生舱口——它是
+    // known_tools中的NOT（我们从不宣传它），但它的载荷是用户-visible回复，
+    // 因此必须将NEVER放在这里。 rescue_json_protocol 将其文本
+    // 展开为散文；将其报告为 "not an unknown tool call"。
     if (name == "response") return false;
     for (const auto& t : known) if (t == name) return false;
     return true;
 }
 
-// Emit one salvaged tool call from a JSON object. Returns true if consumed
-// (emitted OR deliberately swallowed as a never-salvage footgun tool).
+// 从 JSON 对象发出一个回收工具 调用。如果被消耗则返回 true（
+// 发射 OR 故意作为 never-salvage 足枪工具被吞下）。
 //
-// Accepts every shape weak models produce for a tool request:
-//   • native-ish:   {"name":"bash","arguments":{...}}  (or "function")
-//   • agent-zero:   {"tool_name":"bash","tool_args":{...}}
-//   • loose:        {"tool":"bash","args":{...}}
-//   • action suffix:{"tool_name":"x:run",...} → args.action="run"
-// This mirrors agent-zero's normalize_tool_request: the model only has to
-// emit SOME recognisable {name, args} object, not the exact native schema.
+// 接受弱模型为工具请求产生的每个形状：
+//   ·native-ish:{"name":"bash","arguments":{...}}(或"function")
+//   ·代理-zero:{"tool_name":"bash","tool_args":{...}}
+//   ·松散：{"tool":"bash"，"args":{...}}
+//   ·动作后缀：{"tool_name":"x:run"，...}→args.action="run"
+// 这镜像了agent-zero的normalize_tool_request：模型
+// 仅必须发出SOME可识别的{name，args}对象，而不是确切的本机模式定义。
 [[nodiscard]] bool emit_salvaged_tool(StreamCtx& ctx, std::string_view sv) {
     json j;
     try { j = json::parse(sv); } catch (...) { return false; }
@@ -334,8 +334,8 @@ using wire::could_be_tool_json;
     else
         return false;
 
-    // `tool_name` may carry a `tool:action` suffix (agent-zero method dispatch).
-    // Split it off; the action becomes an arg the tool reads.
+    // `tool_name`可以携带`tool:action`后缀（代理-zero方法分派)。
+    // 将其拆分；该操作成为工具读取的参数。
     std::string action_suffix;
     if (auto colon = name.find(':'); colon != std::string::npos
             && colon > 0 && colon + 1 < name.size()) {
@@ -343,10 +343,10 @@ using wire::could_be_tool_json;
         name = name.substr(0, colon);
     }
 
-    // Legacy alias: the tool is registered as `shell`, but `bash` is so
-    // common in model training data that weak local models emit it. If the
-    // model said `bash` and `shell` is advertised, canonicalise the name so
-    // the salvaged call targets the real tool (and downstream sees `shell`).
+    // 遗留别名：该工具被注册为`shell`，但`bash`在
+    // 模型训练数据中如此常见，以至于弱本地模型会发出它。
+    // 如果广告中的模型说 `bash` 和 `shell`，请规范化名称，
+    // 以便回收的 调用 瞄准真正的工具（下游 看到 `shell`）。
     if (name == "bash") {
         for (const auto& t : ctx.known_tools)
             if (t == "shell") { name = "shell"; break; }
@@ -355,15 +355,15 @@ using wire::could_be_tool_json;
     bool known = false;
     for (const auto& t : ctx.known_tools) if (t == name) { known = true; break; }
     if (!known) return false;
-    // Memory JSON is safe to salvage only for the exact operation the latest
-    // user explicitly requested. This preserves the unsolicited-mutation guard
-    // while making remember/forget work on models without native tool calls.
+    // 内存 JSON仅对于最新用户明确请求的确切操作是安全的。
+    // 这保留了主动提供的 -mutation 保护，
+    // 同时使 remember/forget 在没有本机工具 调用 的模型上工作。
     if (name == "remember" && !ctx.allow_remember_salvage) return true;
     if (name == "forget" && !ctx.allow_forget_salvage) return true;
     if (name == "wipe_memory" && !ctx.allow_wipe_salvage) return true;
     if (name == "skill") return true;
 
-    // Arguments under any of the accepted keys; default to {}.
+    // 任何已接受键下的参数；默认为 {}。
     json args_obj = json::object();
     bool have_args = false;
     auto take_args = [&](const char* key) {
@@ -386,9 +386,9 @@ using wire::could_be_tool_json;
     if (!action_suffix.empty() && args_obj.is_object()
             && !args_obj.contains("action"))
         args_obj["action"] = action_suffix;
-    // Repair common wrong arg keys (cmd→command, file→path, query→pattern, …)
-    // before the tool sees them — the #1 weak-model loop cause after a leaked
-    // call is finally salvaged but names its one required arg wrong.
+    // 在工具看到它们之前修复常见的错误参数键（cmd→命令、文件→路径、
+    // 查询→模式……）——在泄漏的调用最终被挽救后导致#1weak
+    // -model循环原因，但将其所需的参数命名为错误。
     repair_arg_keys(name, args_obj);
     std::string args = args_obj.is_object() || args_obj.is_array()
         ? args_obj.dump() : "{}";
@@ -401,7 +401,7 @@ using wire::could_be_tool_json;
     return true;
 }
 
-// Emit salvaged calls from a JSON array [{...},{...}]. Returns true if any.
+// 从 JSON 数组 [{...}，{...}] 发出回收的 调用。如果有则返回 true。
 [[nodiscard]] bool emit_salvaged_tool_array(StreamCtx& ctx, std::string_view sv) {
     json arr;
     try { arr = json::parse(sv); } catch (...) { return false; }
@@ -412,8 +412,8 @@ using wire::could_be_tool_json;
     return any;
 }
 
-// Try to salvage the held content as a tool call (object or array, after
-// stripping wrappers). Returns true if a call was emitted/consumed.
+// 尝试将所保存的内容作为工具调用（对象或数组，在剥离包装器之后）进行抢救。
+// 如果 调用 是 emitted/consumed.，则返回 true
 [[nodiscard]] bool try_salvage_hold(StreamCtx& ctx) {
     std::string_view inner = strip_tool_call_wrappers(ctx.text_hold);
     if (inner.empty()) return false;
@@ -422,8 +422,8 @@ using wire::could_be_tool_json;
     return false;
 }
 
-// Flush held content as prose (dropping leaked/garbage tool JSON) and stop
-// holding. Called once we decide the hold is not a salvageable tool call.
+// 将保持的内容刷新为散文（丢弃leaked/garbage工具JSON)
+// 并停止保持。一旦我们确定该保留不是可挽救的工具，就会调用 调用。
 void flush_text_hold(StreamCtx& ctx) {
     ctx.holding = false;
     if (ctx.text_hold.empty()) return;
@@ -439,9 +439,9 @@ void flush_text_hold(StreamCtx& ctx) {
                 std::string_view{ctx.text_hold}.substr(0, 200));
         ctx.text_hold.clear(); return;
     }
-    // Whitespace-only hold is not a real reply — leave it for the
-    // never-blank-turn net to render an explicit `(empty response)` rather
-    // than emitting a blank-looking text delta.
+    // Whitespace-only 保留不是真正的回复——将其留给 never
+    // -blank-turn 网络到 渲染 一个显式的 `(empty response)`，
+    // 而不是发出一个空白-looking 文本增量。
     if (ctx.text_hold.find_first_not_of(" \t\r\n") == std::string::npos) {
         ctx.text_hold.clear(); return;
     }
@@ -450,15 +450,15 @@ void flush_text_hold(StreamCtx& ctx) {
     ctx.text_hold.clear();
 }
 
-// Last-resort: a weak model narrated prose AND buried a leaked tool call in a
-// fenced ```…``` block mid-response (so it was never held at the start). At
-// terminal close, if NOTHING was salvaged or structured, scan full_content for
-// the FIRST fenced block whose body is an advertised tool-call object and
-// salvage it. Conservative: only fires when no other call happened, only on
-// fenced blocks, only for advertised tools. Returns true if a call fired.
+// Last-resort:弱模型叙述散文AND将泄露工具调用埋藏在
+// 回复中途出现的 ```…``` 围栏块，因此此前未在开头暂存。此时
+// 终端关闭，如果NOTHING被抢救或结构化，
+// 则扫描full_content以查找其正文是广告工具
+// -call对象的FIRST围栏块并抢救它。保守：仅在没有其他 调用 发生时触发，
+// 仅在围栏块上，仅针对广告工具。如果 调用 被触发，则返回 true。
 bool rescue_tool_from_prose(StreamCtx& ctx) {
     if (ctx.any_structured_tool) return false;
-    if (ctx.stop_reason == StopReason::ToolUse) return false;  // already salvaged
+    if (ctx.stop_reason == StopReason::ToolUse) return false;  // 已打捞
     std::string_view sv{ctx.full_content};
     std::size_t pos = 0;
     while ((pos = sv.find("```", pos)) != std::string_view::npos) {
@@ -467,7 +467,7 @@ bool rescue_tool_from_prose(StreamCtx& ctx) {
         std::size_t close = sv.find("```", open_end + 1);
         if (close == std::string_view::npos) break;
         std::string_view body = sv.substr(open_end + 1, close - open_end - 1);
-        // trim
+        // 修剪
         while (!body.empty() && (body.front()==' '||body.front()=='\t'
                ||body.front()=='\n'||body.front()=='\r')) body.remove_prefix(1);
         while (!body.empty() && (body.back()==' '||body.back()=='\t'
@@ -483,13 +483,13 @@ bool rescue_tool_from_prose(StreamCtx& ctx) {
     return false;
 }
 
-// Find the first BALANCED top-level JSON object substring in `sv`, honouring
-// string literals + escapes (so a `}` inside a quoted value doesn't close the
-// object early). Returns the [first '{' .. matching '}'] span, or empty if no
-// balanced object exists. This is agent-zero's extract_json_root_string: weak
-// models in JSON-protocol mode wrap their `{tool_name,tool_args}` object in
-// stray narration ("Sure! {"tool_name":...}  Let me know!"); pulling the
-// balanced object out makes the call survive that noise.
+// 在 `sv` 中查找第一个 BALANCED top-level JSON 对象子字符串，
+// 遵循字符串文字 + 转义（因此引用值内的 `}` 不会提前关闭对象）。返回[第一个
+// '{' .. 匹配 '}'] 范围，如果不存在平衡对象则返回空。这是agent
+// -zero的extract_json_root_string：JSON
+// -protocol模式下的弱模型将他们的`{tool_name,tool_args}`
+// 对象包装在杂散叙述中（"Sure! {"tool_name":...}  Let me know!"）；
+// 将平衡物体拉出可使 调用 免受噪音影响。
 [[nodiscard]] std::string_view extract_first_json_object(std::string_view sv) noexcept {
     std::size_t start = sv.find('{');
     if (start == std::string_view::npos) return {};
@@ -509,15 +509,15 @@ bool rescue_tool_from_prose(StreamCtx& ctx) {
             if (--depth == 0) return sv.substr(start, i - start + 1);
         }
     }
-    return {};  // never balanced (wire cut mid-object)
+    return {};  // 从未平衡（传输 削减中期-object）
 }
 
-// JSON-protocol terminal rescue (very weak models, agent-zero style). The
-// whole response was meant to be ONE {thoughts, tool_name, tool_args} object.
-// Pull the first balanced object out of full_content and try to emit it as a
-// tool call. If it carries a `thoughts`/`headline` field but no usable tool,
-// surface those as prose so the user still sees the model's reasoning. Returns
-// true if a tool call fired.
+// JSON-protocol 终端救援（极弱型号，特工-zero款式）。
+// 整个响应应该是 一个 {thoughts, tool_name, tool_args} 对象。
+// 将第一个平衡物体从full_content中拉出并尝试将其作为工具调用发射。
+// 如果它带有 `thoughts`/`headline` 字段但没有可用的工具，
+// 请将其显示为散文，以便用户仍然可以看到模型的推理。如果工具 调用 被触发，
+// 则返回 true。
 bool rescue_json_protocol(StreamCtx& ctx) {
     if (!ctx.json_protocol) return false;
     if (ctx.any_structured_tool) return false;
@@ -528,9 +528,9 @@ bool rescue_json_protocol(StreamCtx& ctx) {
     try { j = json::parse(obj); } catch (...) { return false; }
     if (!j.is_object()) return false;
 
-    // Plain-chat escape hatch: tool_name=="response" means the model chose to
-    // talk, not act. Unwrap its text out of tool_args and stream it as prose.
-    // (Grammar-forced JSON would otherwise dump a raw object at the user.)
+    // Plain-chat逃生舱口：tool_name=="response"意味着
+    // 模型选择说话，而不是行动。将 tool_args 和 数据流 中的文本展开为散文。
+    // (Grammar-forced JSON否则会向用户转储原始对象。)
     auto name_of = [&](const char* k) -> std::string {
         return (j.contains(k) && j[k].is_string()) ? j[k].get<std::string>()
                                                    : std::string{};
@@ -551,17 +551,17 @@ bool rescue_json_protocol(StreamCtx& ctx) {
                 }
             }
         }
-        // Fall back to top-level keys some models use instead of nesting.
+        // 回退到顶部-level键，某些型号使用而不是嵌套。
         if (text.empty()) {
             for (const char* k : {"response", "content", "message", "answer"}) {
                 if (j.contains(k) && j[k].is_string()) { text = j[k].get<std::string>(); break; }
             }
         }
-        // Last resort: the model chose `response` but left text empty and put
-        // its actual words in `thoughts` (common with grammar-forced output
-        // on tiny models). Surface the thoughts as prose — the user must see
-        // SOMETHING, never a blank turn (Aider's discipline: never drop a
-        // non-empty model reply).
+        // 最后的手段：模型选择`response`，但将文本留空，
+        // 并将其实际单词放入`thoughts`（与小型模型上的语法
+        // -forced输出常见）。将想法表达为散文——用户必须看到 SOMETHING，
+        // 而不是空白（Aider 的纪律：永远不要放弃非
+        // -empty 模型回复）。
         if (text.empty() && j.contains("thoughts")) {
             const auto& th = j["thoughts"];
             if (th.is_array()) {
@@ -579,42 +579,42 @@ bool rescue_json_protocol(StreamCtx& ctx) {
             ctx.any_text_flushed = true;
             ctx.stop_reason = StopReason::EndTurn;
         }
-        // Consume the held buffer either way: the object was the whole reply,
-        // so it must NOT also be flushed as raw-JSON prose by the caller.
+        // 无论哪种方式都消耗所持有的缓冲区：该对象是整个回复，
+        // 因此它也必须由调用者将NOT刷新为原始-JSON散文。
         ctx.text_hold.clear();
         ctx.holding = false;
-        return false;  // not a tool call; let terminal flush proceed
+        return false;  // 不是工具调用;让 终端 继续冲洗
     }
 
-    // A tool request? emit it.
+    // 工具请求？发射它。
     const bool has_tool = !tname.empty();
     if (has_tool && emit_salvaged_tool(ctx, obj)) return true;
     return false;
 }
 
-// Surface swallowed reasoning text: visible StreamThinkingDelta when the
-// user shows reasoning, otherwise a liveness-only StreamHeartbeat (no hidden
-// capture — see StreamCtx::show_reasoning).
+// 表面吞噬推理文本：当用户展示推理时可见StreamThinkingDelta，
+// 否则为活跃性-only StreamHeartbeat（无隐藏捕获——参见
+// StreamCtx::show_reasoning）。
 void emit_reasoning(StreamCtx& ctx, const std::string& text) {
     if (text.empty()) return;
     if (ctx.show_reasoning) ctx.sink(StreamThinkingDelta{text, {}});
     else                    ctx.sink(StreamHeartbeat{});
 }
 
-// Final safety net — NEVER let an assistant turn render blank (Aider's
-// `if not received_content` discipline). Called at every terminal path after
-// salvage/flush. If the turn produced NO text and NO tool call, surface
-// whatever the model actually sent so the user always sees a reply:
-//   • a JSON-protocol object → its `response`/`text`/`thoughts` payload,
-//     stripped of the protocol scaffolding (extract_first_json_object +
-//     the same field walk rescue uses);
-//   • otherwise the raw captured content, verbatim;
-//   • if even that is empty, a clear `(empty response)` marker (Aider's
-//     exact placeholder) so the turn isn't a silent void.
+// 最终安全网-NEVER让助手将渲染变成空白（助手的
+// `if not received_content`纪律）。在 salvage/flush.
+// 之后的每个 终端 路径上调用如果轮流产生 NO 文本和 NO 工具 调用，
+// 则显示模型实际发送的任何内容，以便用户始终看到回复：
+//   ·JSON-protocol对象→其`response`/`text`/`thoughts` 载荷，
+//     剥离协议脚手架（extract_first_json_object
+//     +同野外行走救援用途）；
+//   ·否则原始捕获的内容，逐字；
+//   ·如果即使是空的，则清晰的`(empty response)`标记（Aider的
+//     精确的占位符），因此回合不是无声的空虚。
 void flush_unhandled_content(StreamCtx& ctx) {
-    // A partial <think>-tag hold that never completed is literal content —
-    // fold it back before the salvage/flush decisions below. (The done-frame
-    // path flushes it eagerly; this covers a wire cut before `done`.)
+    // 从未完成的部分<think>-tag保留是文字内容——
+    // 归并它返回到下面的salvage/flush决定之前。 （done-frame
+    // 路径急切地刷新它；这覆盖了 `done` 之前的 传输 切割。）
     if (!ctx.think_carry.empty()) {
         std::string tail = std::move(ctx.think_carry);
         ctx.think_carry.clear();
@@ -627,7 +627,7 @@ void flush_unhandled_content(StreamCtx& ctx) {
     if (ctx.stop_reason == StopReason::ToolUse) return;
 
     auto emit = [&](std::string s) {
-        // Trim leading/trailing whitespace so a lone newline doesn't count.
+        // 修剪 leading/trailing 空白，这样单独的换行符就不算数。
         std::size_t a = 0, b = s.size();
         while (a < b && (s[a]==' '||s[a]=='\t'||s[a]=='\n'||s[a]=='\r')) ++a;
         while (b > a && (s[b-1]==' '||s[b-1]=='\t'||s[b-1]=='\n'||s[b-1]=='\r')) --b;
@@ -640,8 +640,8 @@ void flush_unhandled_content(StreamCtx& ctx) {
         return true;
     };
 
-    // Try to pull a human reply out of a JSON-protocol object first so the
-    // user sees the words, not the {tool_name:response,...} scaffolding.
+    // 首先尝试从 JSON-protocol 对象中提取人工回复，以便用户看到文字，
+    // 而不是 {tool_name:response,...} 脚手架。
     std::string_view obj = extract_first_json_object(ctx.full_content);
     if (!obj.empty()) {
         json j;
@@ -672,11 +672,11 @@ void flush_unhandled_content(StreamCtx& ctx) {
         }
     }
 
-    // No JSON payload (or it was empty) — show the raw content verbatim,
-    // UNLESS it's a tool-call-shaped object that was deliberately swallowed
-    // (a footgun tool like `remember`, an unadvertised tool, or truncated
-    // tool JSON). Surfacing that raw would leak `{"name":"remember",…}` at
-    // the user — exactly the garbage the salvage path exists to hide.
+    // 没有JSON 载荷（或者它是空的）——逐字显示原始内容，
+    // UNLESS是被故意吞下的工具-call-shaped对象（像
+    // `remember`这样的枪式工具、未广告的工具或被截断的
+    // 工具JSON）。暴露原始数据会向用户泄漏
+    // `{"name":"remember",…}`——这正是回收路径要隐藏的垃圾。
     std::string_view rc{ctx.full_content};
     const bool rc_blank = rc.find_first_not_of(" \t\r\n") == std::string_view::npos;
     const bool swallowed_tool_json =
@@ -685,28 +685,28 @@ void flush_unhandled_content(StreamCtx& ctx) {
                       could_be_tool_json(rc));
     if (!swallowed_tool_json && emit(ctx.full_content)) return;
 
-    // Deliberately-swallowed tool JSON: the turn has no user-facing text by
-    // design — stay silent, don't show a placeholder.
+    // Deliberately-swallowed工具JSON：该轮次设计没有
+    // user-facing文本——保持沉默，不显示占位符。
     if (swallowed_tool_json) return;
 
-    // Genuinely nothing came back. Mirror Aider's placeholder so the turn is
-    // never a silent blank.
+    // 事实上什么也没返回。 Mirror Aider 的占位符让转弯永远
+    // 不会是一片寂静的空白。
     ctx.sink(StreamTextDelta{"(empty response)"});
     ctx.any_text_flushed = true;
     if (ctx.stop_reason != StopReason::ToolUse)
         ctx.stop_reason = StopReason::EndTurn;
 }
 
-// Filter reasoning-model <think>…</think> out of a streamed content chunk,
-// tracking open/close state across frames in ctx. Returns only the visible
-// (non-think) text. The native `thinking` field is the clean path; this is the
-// fallback for models that inline their CoT into `content`. We also accept
-// <thinking>…</thinking> (some templates use the long form).
+// 从流式内容块中过滤推理-model <think>…</think>，
+// 跟踪ctx中跨帧的open/close状态。仅返回可见（非​​-think）文本。
+// 本机 `thinking` 字段是干净路径；这是 回退，适用于将 CoT
+// 内联到 `content` 的型号。我们还接受 <thinking>
+// …</thinking>（某些模板使用长格式）。
 [[nodiscard]] std::string filter_think(StreamCtx& ctx, std::string_view chunk) {
-    // Re-prepend any held-back partial tag from the previous chunk — tags
-    // split across token-sized NDJSON frames ("<thi" + "nk>") and a plain
-    // per-chunk find() would leak the fragment as visible prose (or swallow
-    // the answer, on a split close tag).
+    // Re-prepend来自前一个块的任何hold-back部分标签——
+    // 标签跨token-sized NDJSON 帧 ("<thi" +
+    // "nk>")分割，并且普通的per-chunk find()会将片段泄漏为
+    // 可见散文(或在分割关闭标签上吞下答案)。
     std::string joined;
     std::string_view s = chunk;
     if (!ctx.think_carry.empty()) {
@@ -717,15 +717,15 @@ void flush_unhandled_content(StreamCtx& ctx) {
     }
     std::string out;
     out.reserve(s.size());
-    // Reasoning swallowed from inside <think>…</think> this chunk — surfaced
-    // via StreamThinkingDelta (the SAME unified event the native `thinking`
-    // field and every other provider use) instead of being discarded, so
-    // inline-CoT local models render reasoning in the shared block too.
+    // 推理从 <think>…</think> 这个块内部被吞噬——通过
+    // StreamThinkingDelta 浮出水面（相同 统一了 事件
+    // 本机 `thinking` 字段和所有其他提供程序使用）而不是被丢弃，
+    // 因此 inline-CoT 本地模型 渲染 推理也在共享块中。
     std::string reasoning;
-    // Longest chunk-final suffix that is a PROPER prefix of an open/close
-    // tag — held back into think_carry instead of emitted. npos = none.
+    // 最长的块-final后缀是open/close标签的PROPER前缀—
+    // —被保留到think_carry中而不是发出。 npos = 无。
     auto partial_tag_at = [](std::string_view text, bool closing) {
-        const std::size_t max_tag = closing ? 11 : 10;  // </thinking> / <thinking>
+        const std::size_t max_tag = closing ? 11 : 10;  // </thinking>/<thinking>
         const std::size_t lo = text.size() > max_tag ? text.size() - max_tag + 1 : 0;
         for (std::size_t p = lo; p < text.size(); ++p) {
             if (text[p] != '<') continue;
@@ -743,15 +743,15 @@ void flush_unhandled_content(StreamCtx& ctx) {
     std::size_t i = 0;
     while (i < s.size()) {
         if (ctx.in_think) {
-            // Look for a closing tag.
+            // 寻找结束标签。
             std::size_t close = s.find("</think>", i);
             std::size_t close2 = s.find("</thinking>", i);
             std::size_t c = std::min(close, close2);
             if (c == std::string_view::npos) {
-                // Still inside think — the remainder is reasoning, minus a
-                // possible partial close tag held for the next chunk.
+                // 仍然在思考——剩下的就是推理，
+                // 减去为下一个块保留的可能的部分结束标签。
                 std::string_view rem = s.substr(i);
-                if (auto p = partial_tag_at(rem, /*closing=*/true);
+                if (auto p = partial_tag_at(rem, /*关闭=*/true);
                     p != std::string_view::npos) {
                     ctx.think_carry.assign(rem.substr(p));
                     rem = rem.substr(0, p);
@@ -768,10 +768,10 @@ void flush_unhandled_content(StreamCtx& ctx) {
             std::size_t open2 = s.find("<thinking>", i);
             std::size_t o = std::min(open, open2);
             if (o == std::string_view::npos) {
-                // No open tag — the remainder is prose, minus a possible
-                // partial open tag held for the next chunk.
+                // 无开放标签——剩余部分是散文，
+                // 减去为下一个块保留的可能的部分开放标签。
                 std::string_view rem = s.substr(i);
-                if (auto p = partial_tag_at(rem, /*closing=*/false);
+                if (auto p = partial_tag_at(rem, /*关闭=*/false);
                     p != std::string_view::npos) {
                     ctx.think_carry.assign(rem.substr(p));
                     rem = rem.substr(0, p);
@@ -789,71 +789,71 @@ void flush_unhandled_content(StreamCtx& ctx) {
     return out;
 }
 
-// Progressive `response` streaming for JSON-protocol chat replies. While the
-// hold buffer accumulates a grammar-forced {"tool_name":"response",
-// "tool_args":{"text":"…"}} object char-by-char, this decodes and emits the
-// reply text INCREMENTALLY so maya's reveal_fx animates it like a normal text
-// stream — instead of the old behaviour (hold the whole object, emit one giant
-// StreamTextDelta at `done`, which gave the typewriter nothing to animate and
-// forced a one-frame freeze handoff that duplicated the body in scrollback).
+// JSON-protocol聊天回复的渐进`response` 流式传输。当保持 缓冲区
+// 累积语法-forced {"tool_name":"response",
+// "tool_args":{"text":"…"}}对象 char-by-char 时，
+// 它会解码并发出回复文本 INCREMENTALLY，因此 maya 的 reveal_fx
+// 会像普通文本 数据流 一样对其进行动画处理 - 而不是旧的行为（保持整个对象，
+// 在 `done` 处发出一个巨大的 StreamTextDelta，这使得打字机没有任何动画效果，
+// 并强制执行 one-frame 冻结切换，从而在 回滚缓冲区 中复制了 正文）。
 //
-// State machine over ctx.text_hold (which only grows):
-//   1. Not yet active: scan for `"tool_name"` : `"response"`. Until we SEE the
-//      tool_name value we can't commit — the model might be emitting a real
-//      tool call. If we positively see a non-"response" tool_name, give up
-//      (return false forever) and let the normal salvage path handle it.
-//   2. Active: locate the reply field's opening quote (text|response|content|
-//      message|answer), then stream decoded characters of that string value
-//      until its closing (unescaped) quote, emitting StreamTextDelta per chunk.
+// ctx.text_hold 上的状态机（仅增长）：
+//   1.尚未激活：扫描`"tool_name"`:`"response"`。直到我们SEE
+//      我们无法提交 tool_name 值 — 该模型可能会发出真实的工具 调用。
+//      如果我们确实看到非 "response" tool_name，
+//      则放弃（永远返回 false）并让正常的抢救路径处理它。
+//   2.活动：定位回复字段的开头引用（文本|响应|内容|
+//      message|answer)，然后 数据流 解码该字符串值的字符，
+//      直到其结束（未转义）引用，每个块发出 StreamTextDelta。
 //
-// Returns true once it has taken ownership of the response (active), so the
-// caller stops feeding text_hold to could_be_tool_json / flush. Conservative:
-// emits nothing until the value string actually opens, and stops cleanly at
-// the closing quote (trailing object bytes `"}}` are ignored).
+// 一旦获取了响应的所有权（活动的），则返回真，
+// 因此调用者停止将text_hold馈送至could_be_tool_json/刷新。保守：
+// 在值字符串实际打开之前不发出任何信号，并在结束引号处
+// 干净地停止（忽略尾随对象 字节 `"}}`）。
 bool try_progressive_response(StreamCtx& ctx) {
     if (ctx.resp_done) return true;
     std::string_view hold{ctx.text_hold};
 
-    // ── Phase 1: confirm tool_name == "response" ───────────────────
+    // ── 第一阶段:确认 tool_name == "response" ───────────────────
     if (!ctx.resp_active) {
-        // Find the tool_name key. Accept "tool_name" / "tool" / "name".
-        // On success, resp_scan_pos is set just past the tool_name VALUE so
-        // Phase 2's reply-key search never trips over the literal
-        // "response" that appears as the tool_name value itself.
+        // 找到tool_name键。接受 "tool_name" / "tool" / "name"。
+        // 成功时，resp_scan_pos被设置为刚好经过tool_name 值，
+        // 因此阶段2的回复-key搜索绝不会越过作为tool_name值本身出现的文字
+        // "response"。
         auto find_key_val = [&](std::string_view key) -> int {
-            // returns: 1 == response, 0 == other tool (abort), -1 == unknown yet
+            // 返回：1==响应，0==其他工具（中止），-1==未知
             std::size_t k = hold.find(key);
             if (k == std::string_view::npos) return -1;
             std::size_t p = k + key.size();
-            // skip ws + ':' + ws
+            // 跳过ws+':'+ws
             while (p < hold.size() && (hold[p]==' '||hold[p]=='\t'
                    ||hold[p]=='\n'||hold[p]=='\r')) ++p;
             if (p >= hold.size()) return -1;
-            if (hold[p] != ':') return -1;   // not the key:value we want
+            if (hold[p] != ':') return -1;   // 不是我们想要的key:value
             ++p;
             while (p < hold.size() && (hold[p]==' '||hold[p]=='\t'
                    ||hold[p]=='\n'||hold[p]=='\r')) ++p;
             if (p >= hold.size()) return -1;
-            if (hold[p] != '"') return -1;   // value string not open yet
+            if (hold[p] != '"') return -1;   // 值串尚未打开
             std::size_t vs = p + 1;
             std::size_t ve = hold.find('"', vs);
-            if (ve == std::string_view::npos) return -1;  // value incomplete
+            if (ve == std::string_view::npos) return -1;  // 值不完整
             std::string_view val = hold.substr(vs, ve - vs);
-            ctx.resp_scan_pos = ve + 1;  // just past the closing value quote
+            ctx.resp_scan_pos = ve + 1;  // 刚刚过去的收盘价报价
             return val == "response" ? 1 : 0;
         };
         int r = find_key_val("\"tool_name\"");
         if (r == -1) r = find_key_val("\"tool\"");
         if (r == -1) r = find_key_val("\"name\"");
-        if (r == 0)  { ctx.resp_done = true; return false; }  // real tool call
-        if (r != 1)  return false;                            // undecided
+        if (r == 0)  { ctx.resp_done = true; return false; }  // 真实工具调用
+        if (r != 1)  return false;                            // 未定
         ctx.resp_active = true;
     }
 
-    // ── Phase 2: locate the reply value string's opening quote ──────────
-    // Search only AFTER the tool_name value (resp_scan_pos) so the literal
-    // "response" / "name" that is the tool_name value isn't mistaken for the
-    // reply key.
+    // ── 阶段2: 定位回复值字符串的开口引号 ──────────
+    // 仅搜索AFTER和tool_name值(resp_scan_pos)，
+    // 因此作为tool_name值的文字"response"/"name"不会被误
+    // 认为是回复键。
     if (!ctx.resp_in_value) {
         std::string_view tail = ctx.resp_scan_pos < hold.size()
             ? hold.substr(ctx.resp_scan_pos) : std::string_view{};
@@ -869,21 +869,21 @@ bool try_progressive_response(StreamCtx& ctx) {
             ++p;
             while (p < tail.size() && (tail[p]==' '||tail[p]=='\t'
                    ||tail[p]=='\n'||tail[p]=='\r')) ++p;
-            if (p >= tail.size() || tail[p] != '"') continue;  // not open yet
+            if (p >= tail.size() || tail[p] != '"') continue;  // 尚未开放
             if (k < best) {
                 best = k;
                 ctx.resp_value_pos = ctx.resp_scan_pos + p + 1;
             }
         }
-        if (best == std::string_view::npos) return true;  // active, value pending
+        if (best == std::string_view::npos) return true;  // 有效，值待处理
         ctx.resp_in_value = true;
     }
 
-    // ── Phase 3: decode + emit newly-arrived value bytes ────────────────
-    // Walk from resp_value_pos honouring JSON string escapes; stop at the
-    // first unescaped closing quote. Buffer decoded output and emit it in
-    // one StreamTextDelta per call (per wire frame) so the reveal cursor
-    // advances smoothly.
+    // ── 阶段3:解码+新发射 -arrived 价值 字节 ────────────────
+    // 从 resp_value_pos 开始，尊重 JSON 字符串转义；
+    // 停在第一个未转义的收盘报价处。 缓冲区 解码输出并在每个 调用（每个
+    // 传输 帧）一个 StreamTextDelta 中发出它，
+    // 因此 逐步显示 光标平滑前进。
     std::string out;
     std::size_t i = ctx.resp_value_pos;
     bool closed = false;
@@ -901,13 +901,13 @@ bool try_progressive_response(StreamCtx& ctx) {
                 case '\\': out += '\\'; break;
                 case '"':  out += '"';  break;
                 case 'u': {
-                    // \uXXXX — need 4 more hex digits available. If not all
-                    // here yet, leave resp_esc set and stop; resume next frame
-                    // once the digits arrive. Cursor stays just past the 'u'.
+                    // \uXXXX — 需要另外 4 个可用的十六进制数字。
+                    // 如果还没有全部完成，请保留 resp_esc 设置并停止；
+                    // 一旦数字到达，就恢复下一个 帧。光标停留在 'u' 上方。
                     if (i + 4 >= hold.size()) {
                         ctx.resp_esc = true;
-                        ctx.resp_value_pos = i;  // re-read 'u' (and digits) next frame
-                        // We were mid-escape: i points AT 'u'. Persist and bail.
+                        ctx.resp_value_pos = i;  // re-read 'u' (和数字)下一个 帧
+                        // 我们在-escape中期：i点AT 'u'。坚持并保释。
                         goto done_decode;
                     }
                     auto hexval = [](char h) -> int {
@@ -920,9 +920,9 @@ bool try_progressive_response(StreamCtx& ctx) {
                         h2=hexval(hold[i+3]),h3=hexval(hold[i+4]);
                     if (h0<0||h1<0||h2<0||h3<0) { out += 'u'; break; }
                     unsigned cp = (h0<<12)|(h1<<8)|(h2<<4)|h3;
-                    // Encode BMP code point as UTF-8 (surrogate pairs are
-                    // rare in chat replies; lone surrogates pass through as
-                    // replacement-ish bytes, harmless for display).
+                    // 将BMP代码点编码为UTF-8(代理对
+                    // 在聊天回复中很少见；单独的代理通过作为
+                    // 替换-ish 字节，对于显示无害)。
                     if (cp < 0x80) out += static_cast<char>(cp);
                     else if (cp < 0x800) {
                         out += static_cast<char>(0xC0 | (cp >> 6));
@@ -941,8 +941,8 @@ bool try_progressive_response(StreamCtx& ctx) {
             continue;
         }
         if (c == '\\') {
-            // Escape lead. If it's the LAST byte we have, stop here keeping the
-            // cursor AT the backslash so the escape completes next frame.
+            // 逃生引线。如果是 最后 字节，请在此处停止，
+            // 将光标 AT 保留为反斜杠，以便转义完成下一个 帧。
             if (i + 1 >= hold.size()) { ctx.resp_value_pos = i; goto done_decode; }
             ctx.resp_esc = true;
             ++i;
@@ -952,7 +952,7 @@ bool try_progressive_response(StreamCtx& ctx) {
         out += c;
         ++i;
     }
-    // Cursor sits past the last fully-decoded byte (or the closing quote).
+    // 光标位于最后一个完全-decoded 字节（或收盘价）之后。
     ctx.resp_value_pos = i;
 done_decode:
     if (!out.empty()) {
@@ -970,22 +970,22 @@ done_decode:
     return true;
 }
 
-// Handle one native `message` object from an NDJSON frame.
+// 处理来自 NDJSON 帧 的一个本机 `message` 对象。
 void handle_message(StreamCtx& ctx, const json& message) {
-    // Native reasoning: Ollama routes the model's chain-of-thought into a
-    // structured `thinking` field (streamed like content) when we send
-    // think:true. Emit it as StreamThinkingDelta — the SAME unified event the
-    // Anthropic (thinking_delta), OpenAI-compat (reasoning_content), and
-    // ChatGPT/Codex (reasoning_summary) transports emit — so local reasoning
-    // renders in the same block as every other provider. No signature on this
-    // wire. Doubles as a liveness heartbeat during a long reasoning pause.
+    // 本机推理：当我们发送 think:true 时，Ollama 将模型的 chain
+    // -of-thought 路由到结构化的 `thinking` 字段（流式内容）。
+    // 将其发出为 StreamThinkingDelta — 相同 统一 事件、
+    // Anthropic (thinking_delta)、OpenAI-compat
+    // (reasoning_content) 和 ChatGPT/Codex (
+    // reasoning_summary) 传输层 发出 — 因此本地推理 渲染 与所有
+    // 其他提供者位于同一块中。此 传输 上没有签名。在长时间推理暂停期间兼作活跃心跳。
     if (auto it = message.find("thinking");
         it != message.end() && it->is_string()) {
         const auto& think = it->get_ref<const std::string&>();
         emit_reasoning(ctx, think);
     }
-    // Structured tool calls. Ollama returns them fully-formed in one frame
-    // (not streamed char-by-char), so emit Start+Delta+End back to back.
+    // 结构化工具调用。 Ollama 在一个 帧 中完全返回它们-formed（不是流式
+    // 传输的 char-by-char），因此连续发出 Start+Delta+End。
     if (message.contains("tool_calls") && message["tool_calls"].is_array()
         && !message["tool_calls"].empty()) {
         int idx = 0;
@@ -1009,9 +1009,9 @@ void handle_message(StreamCtx& ctx, const json& message) {
                 call_id = "call_ollama_" + std::to_string(ctx.tool_seq++)
                         + "_" + std::to_string(idx);
             ++idx;
-            // Repair common wrong arg keys even on the NATIVE channel — a weak
-            // model that earned the structured path can still name `command`
-            // as `cmd` etc. Only remaps when the canonical key is absent.
+            // 即使在 NATIVE 通道上也修复常见的错误参数键 —
+            // 获得结构化路径的弱模型仍然可以将 `command`
+            // 命名为 `cmd` 等。仅在规范键不存在时才重新映射。
             if (!args.empty() && args != "{}") {
                 try {
                     json aj = json::parse(args);
@@ -1019,36 +1019,36 @@ void handle_message(StreamCtx& ctx, const json& message) {
                         repair_arg_keys(name, aj);
                         args = aj.dump();
                     }
-                } catch (...) { /* leave args as-is on parse failure */ }
+                } catch (...) { /* 在 解析 失败时将参数保留为 -is */ }
             }
             ctx.sink(StreamToolUseStart{ToolCallId{call_id}, ToolName{name}});
             ctx.sink(StreamToolUseDelta{ToolCallId{call_id}, args});
             ctx.sink(StreamToolUseEnd{ToolCallId{call_id}});
             ctx.stop_reason = StopReason::ToolUse;
             ctx.any_structured_tool = true;
-            ctx.salvage_eligible    = false;  // model drives the real channel
+            ctx.salvage_eligible    = false;  // 模型驱动真实渠道
         }
-        // A real structured call arrived — any held content is genuine prose
-        // that preceded it; flush it now.
+        // 真正结构化的调用到来——任何持有的内容都是在它之前
+        // 的真实散文；现在冲洗它。
         if (ctx.holding) flush_text_hold(ctx);
     }
 
-    // Assistant prose. Held-and-classified while salvage is still eligible so
-    // a leaked tool-call JSON can be recovered instead of dumped as text.
+    // 助理散文。保留-and-classified，而抢救仍然符合条件，
+    // 因此可以恢复泄漏的工具-call JSON，而不是转储为文本。
     if (message.contains("content") && message["content"].is_string()) {
         const auto& raw = message["content"].get_ref<const std::string&>();
         if (raw.empty()) return;
-        // Strip any inline <think>…</think> reasoning (deepseek-r1, qwen3 when
-        // not driven through the native `thinking` field) before it reaches
-        // the hold/classify path or the user. Ollama's native `thinking` field
-        // (message.thinking) is handled separately and never enters content.
+        // 在到达 hold/classify 路径或用户之前，剥离任何内联 <think>
+        // …</think> 推理（deepseek-r1、qwen3，
+        // 当未通过本机 `thinking` 字段驱动时）。 Ollama 的本机
+        // `thinking` 字段（message.thinking）单独处理，从不输入内容。
         std::string s = filter_think(ctx, raw);
-        if (s.empty()) return;  // entire chunk was inside a think block
+        if (s.empty()) return;  // 整个块都在思考块内
         ctx.full_content += s;
-        // Progressive `response` already streamed + closed this turn's reply:
-        // any further content frames are just the object's trailing structure
-        // (`"}}` / pretty-print whitespace). Swallow them — emitting them as
-        // text would tack ` }` onto the reply (the trailing-brace leak).
+        // Progressive `response` 已经直播+关闭了本回合的回复：
+        // 任何进一步的内容帧只是对象的尾部结构(`"}}`/pretty
+        // -print空白)。吞掉它们——将它们作为文本发送，
+        // 将 ` }` 附加到回复上（尾随 -brace 泄漏）。
         if (ctx.resp_active && ctx.resp_done) return;
         if (!ctx.holding) {
             ctx.sink(StreamTextDelta{s});
@@ -1056,17 +1056,17 @@ void handle_message(StreamCtx& ctx, const json& message) {
             return;
         }
         ctx.text_hold += s;
-        // JSON-protocol chat reply? Stream the `response` text incrementally
-        // as it arrives so reveal_fx animates it (and the freeze handoff is
-        // gradual, not a single-frame dump that duplicates the body). Once
-        // this takes ownership it owns the rest of the hold; bail out so the
-        // bytes aren't ALSO classified/flushed as prose below.
+        // JSON-protocol聊天回复？ 数据流 和 `response`
+        // 文本在到达时递增，因此 reveal_fx 会对其进行动画处理（并且冻结
+        // 切换是渐进的，而不是重复 正文 的单个 -frame 转储）。
+        // 一旦取得 所有权，它就拥有剩余的所有权；保释出来，这样 字节 就不会像下面的
+        // 散文那样 ALSO classified/flushed 了。
         if (ctx.json_protocol && !ctx.any_structured_tool) {
             if (try_progressive_response(ctx)) return;
         }
-        // Still could be a tool call? keep holding until `done` decides.
+        // 还可能是工具调用吗？继续持有，直到 `done` 做出决定。
         if (ctx.salvage_eligible && could_be_tool_json(ctx.text_hold)) return;
-        // Decided it's prose — release the buffer and stream the rest live.
+        // 决定它是散文——发布 缓冲区 和 数据流 其余部分。
         flush_text_hold(ctx);
     }
 }
@@ -1087,9 +1087,9 @@ void dispatch_line(StreamCtx& ctx, std::string_view line) {
         handle_message(ctx, j["message"]);
 
     if (j.value("done", false)) {
-        // Flush any held-back partial <think>-tag bytes — the tag never
-        // completed, so they are literal content: reasoning if we're still
-        // inside a think block, otherwise prose.
+        // 刷新任何持有的-back部分<think>-tag
+        // 字节——标签从未完成，因此它们是文字内容：如果我们
+        // 仍在思考块内则推理，否则散文。
         if (!ctx.think_carry.empty()) {
             std::string tail = std::move(ctx.think_carry);
             ctx.think_carry.clear();
@@ -1102,15 +1102,15 @@ void dispatch_line(StreamCtx& ctx, std::string_view line) {
                 ctx.any_text_flushed = true;
             }
         }
-        // If the progressive-response streamer already took ownership of this
-        // turn's reply (json_protocol chat reply streamed incrementally), the
-        // text is already emitted. Don't let rescue_json_protocol re-emit it
-        // (that double-streamed the body — the duplication bug). If the value
-        // string never closed (wire cut mid-reply), flush whatever decoded
-        // bytes are pending and finish.
+        // 如果渐进式-response流媒体已经获取了本轮回复的所有权（
+        // json_protocol聊天回复增量地流式传输），则文本已经被发出。
+        // 不要让 rescue_json_protocol re-emit
+        // 它（即 -streamed 和 正文 的两倍 — 重复错误）。
+        // 如果值字符串从未关闭（传输 切到 -reply 中间），则刷新解码后
+        // 的 字节 和 待处理 并完成。
         if (ctx.resp_active) {
             if (!ctx.resp_done) {
-                // Drain any remaining decodable bytes (no closing quote seen).
+                // 排出任何剩余的可解码字节（未看到结束报价）。
                 try_progressive_response(ctx);
                 ctx.resp_done = true;
                 ctx.holding   = false;
@@ -1122,28 +1122,28 @@ void dispatch_line(StreamCtx& ctx, std::string_view line) {
             flush_unhandled_content(ctx);
             return;
         }
-        // JSON-protocol (very weak models): the ENTIRE reply is meant to be
-        // one {thoughts, tool_name, tool_args} object. Try to pull a tool
-        // call out of the full content FIRST (before flushing the hold as
-        // prose) so leading narration like "Sure, I'll do that:" doesn't
-        // get emitted ahead of — and visually compete with — the action.
+        // JSON-protocol (非常弱的模型）：ENTIRE回复
+        // 意味着是一个{想法，tool_name，tool_args}对象。
+        // 尝试从完整内容 首次 中提取工具 调用（在将其作为散文冲刷之前），
+        // 这样像 "Sure, I'll do that:" 这样
+        // 的主导旁白就不会在动作之前发出，并且在视觉上与动作竞争。
         bool jp_fired = false;
         if (ctx.json_protocol) {
             jp_fired = rescue_json_protocol(ctx);
             if (jp_fired) { ctx.text_hold.clear(); ctx.holding = false; }
         }
-        // Final decision on any still-held content: try to salvage it as a
-        // leaked tool call, else flush as prose (dropping garbage JSON).
+        // 对任何 still-held 内容的最终决定：尝试将其作为泄露的
+        // 工具 调用 进行抢救，否则作为散文刷新（丢弃垃圾 JSON）。
         if (!jp_fired && ctx.holding && !ctx.text_hold.empty()) {
             if (!try_salvage_hold(ctx)) flush_text_hold(ctx);
             else { ctx.text_hold.clear(); ctx.holding = false; }
         } else if (ctx.holding) {
             ctx.holding = false;
         }
-        // Mid-prose buried tool call (narration + ```fenced``` JSON).
+        // 正文中间埋藏的工具调用，包括叙述文字与 ```fenced``` JSON。
         rescue_tool_from_prose(ctx);
-        // Never-blank-turn net: if nothing was emitted, surface the model's
-        // content (or an explicit `(empty response)`).
+        // Never-blank-turn网络：如果没有发出任何内容，则显示模型的内容
+        // （或显式的`(empty response)`）。
         flush_unhandled_content(ctx);
         if (auto su = usage::from_ollama(j)) ctx.sink(*su);
         auto reason = j.value("done_reason", std::string{"stop"});
@@ -1159,11 +1159,11 @@ void feed_ndjson(StreamCtx& ctx, const char* data, std::size_t len) {
     });
 }
 
-// ── CLAUDE.md memory tiers (user-authored, concise) ─────────────────────────
-// AGENTS.md (AAIF standard, project-scoped) is prepended via
-// wire::agents_md_block so the standardized public project guidance appears
-// BEFORE the personal CLAUDE.md tiers — same ordering the Anthropic prompt
-// uses. Empty/missing AGENTS.md elides the block.
+// ── CLAUDE.md 内存 等级( 用户) -authored ,简洁) ─────────────────────────
+// AGENTS.md (AAIF标准，项目-scoped)通过
+// wire::agents_md_block前置，因此标准化公共项目指南出现在个人
+// CLAUDE.md层的BEFORE中——与Anthropic 提示词使用的排序相同。
+// Empty/missing AGENTS.md 删除该块。
 std::string memory_blocks() {
     return wire::agents_md_block(
                "Project guidance following the open AGENTS.md standard "
@@ -1178,52 +1178,52 @@ std::string memory_blocks() {
                "persistent context for THIS workspace and user.");
 }
 
-} // namespace
+} // 命名空间结束。
 
-// ── Messages array (native shape) ───────────────────────────────────────────
-// Ollama wants tool arguments as a JSON OBJECT (not a serialized string) and
-// tool results as role:"tool" with `tool_name`.
+// ── 信件阵列( 内在形状) ───────────────────────────────────────────
+// Ollama想要工具参数作为JSON OBJECT(不是序列化字符串)并且工具
+// 结果作为角色："tool"和`tool_name`。
 //
-// `json_protocol`: when true the model was NEVER shown a native `tools` array
-// — it was taught (json_protocol_addendum) to emit a `{tool_name,tool_args}`
-// JSON object and "wait for its result in the next message." Feeding the
-// history back in the NATIVE shape (assistant.tool_calls[] + role:"tool")
-// breaks that contract: a tiny model that only knows the prose-JSON protocol
-// has no idea what a role:"tool" message is, so on a multi-step task it loses
-// the thread, re-issues the call it already ran, or hallucinates a result.
-// In JSON-protocol mode we therefore render the round-trip in the model's OWN
-// taught vocabulary: the assistant turn becomes the literal
-// {thoughts?,tool_name,tool_args} object it emitted, and the result comes back
-// as a plain USER message ("TOOL RESULT (name): …"). The loop now closes in
-// exactly the shape the system prompt promised.
+// `json_protocol`：当 true 时，模型 绝不 显示了一个本机 `tools`
+// 数组 - 它被教导（json_protocol_addendum）发出
+// `{tool_name,tool_args}` JSON 对象和
+// "wait for its result in the next message." 以
+// NATIVE 形状（assistant.tool_calls[] + 角色："tool"）反馈历史记录
+// 打破了这个契约：一个只知道散文-JSON的小模型协议不知道角色："tool" 消息是什么，
+// 因此在 multi-step 任务中它会丢失 线程，重新 -issues 它已经运行的 调用，或者产生幻觉结果。
+// 在 JSON-protocol 模式中，我们因此将 渲染 模型的 自身 教授
+// 词汇中的 round-trip：助手转弯变成它发出的字面{想法？，
+// tool_name，tool_args}对象，并且结果作为简单的 USER
+// 消息（"TOOL RESULT (name): …"）返回。现在，
+// 循环完全按照系统 提示词 所承诺的形状闭合。
 json build_messages(const std::vector<Message>& msgs, bool json_protocol) {
     json arr = json::array();
-    // Recency ranks for the shared age-tiered wire budget (0 = newest tool
-    // result). Stale successful dumps fade to a tight head+tail so a big read
-    // from many calls ago stops replaying in full — doubly valuable here,
-    // where local models have the SMALLEST context windows. Both the
-    // JSON-protocol "TOOL RESULT (name):" user turn and the native role:"tool"
-    // turn share the same counter. See wire::cap_tool_result_aged.
+    // 共享age-tiered 传输预算的新近度排名（0=最新工具结果）。
+    // 过期 成功的转储逐渐变得紧张+末尾，因此从许多 调用 之前读取的大量内容
+    // 停止完整重播 - 这里具有双重价值，其中本地模型具有 SMALLEST
+    // 上下文窗口。 JSON-protocol "TOOL RESULT (name):"
+    // 用户轮次和本机角色："tool" 轮次共享相同的计数器。
+    // 参见 wire::cap_tool_result_aged。
     int total_tool_results = 0;
     for (const auto& m : msgs)
         if (is_assistant_with_results(m))
             total_tool_results += static_cast<int>(m.tool_calls.size());
     int tool_results_emitted = 0;
     const auto superseded = wire::superseded_read_ids(msgs);
-    // Per-side image ceiling for THIS request (see wire::wire_image_count):
-    // the many-image rule counts blocks across the whole request, so the cap
-    // is derived once here rather than per message.
+    // THIS请求的Per-side图像上限(参见wire::wire_image_count)：
+    // Many-image规则对整个请求中的块进行计数，
+    // 因此上限在这里导出一次而不是针对每个消息导出。
     const unsigned max_side = util::wire_max_side(wire::wire_image_count(msgs));
     for (const auto& m : msgs) {
         const bool has_text  = !m.text.empty();
         const bool has_tools = is_assistant_with_results(m);
         const bool has_images = wire::has_wire_message_image(m, max_side);
 
-        // ── JSON-protocol round-trip: assistant tool call rendered as the
-        //    model's own {tool_name,tool_args} object, result as a user turn.
+        // JSON 协议往返：助手工具调用渲染为
+        //    模型自身的{tool_name，tool_args}对象，作为用户转动的结果。
         if (json_protocol && has_tools) {
-            // Prose the assistant emitted alongside the call (rare in JP mode,
-            // but keep it so reasoning isn't lost).
+            // 助手与 调用 一起发出的散文（在 JP 模式中很少见，
+            // 但保留它，这样推理就不会丢失）。
             if (has_text) {
                 arr.push_back({{"role", "assistant"},
                                {"content", scrub_utf8(m.text)}});
@@ -1234,10 +1234,10 @@ json build_messages(const std::vector<Message>& msgs, bool json_protocol) {
                 json obj;
                 obj["tool_name"] = tc.name.value;
                 obj["tool_args"] = tc.args.is_null() ? json::object() : tc.args;
-                // Echo the call back as the assistant's prose-JSON reply.
+                // 回显调用作为助理的散文-JSON回复。
                 arr.push_back({{"role", "assistant"},
                                {"content", scrub_utf8(obj.dump())}});
-                // Result as a USER turn the model was taught to read next.
+                // 结果作为USER轮，模型被教导接下来读取。
                 std::string out = tc.output();
                 bool is_error = !tc.is_terminal() || tc.is_failed() || tc.is_rejected();
                 if (out.empty()) {
@@ -1252,7 +1252,7 @@ json build_messages(const std::vector<Message>& msgs, bool json_protocol) {
                 arr.push_back({{"role", "user"},
                                {"content", scrub_utf8(body)}});
             }
-            continue;   // handled this message fully
+            continue;   // 已完全处理该消息
         }
 
         if (has_text || has_images || has_tools) {
@@ -1302,10 +1302,10 @@ json build_messages(const std::vector<Message>& msgs, bool json_protocol) {
                     {"tool_name", tc.name.value},
                     {"content", scrub_utf8(out)},
                 };
-                // Vision tool_result: ollama's /api/chat accepts an `images`
-                // array on ANY message, including a tool result. Same SSOT
-                // selector as the other dialects; the base64 array shape is
-                // ollama-specific.
+                // 愿景tool_result:ollama的/api/chat接受关于ANY消息的
+                // `images`阵列，包括工具结果。与其他方言相同的
+                // SSOT 选择器； base64 阵列形状为 ollama
+                // -specific。
                 json tool_imgs = json::array();
                 for (const auto* imgp : wire::wire_tool_result_images(tc, max_side))
                     tool_imgs.push_back(imgp->base64());
@@ -1319,16 +1319,16 @@ json build_messages(const std::vector<Message>& msgs, bool json_protocol) {
 
 namespace {
 json build_tools(const std::vector<provider::ToolSpec>& tools) {
-    // SSOT: shared with the OpenAI-compat transport — see wire::openai_chat_tools.
+    // SSOT:与OpenAI-compat 传输层共享——参见wire::openai_chat_tools。
     return wire::openai_chat_tools(tools);
 }
 
-// JSON-protocol addendum (agent-zero style) for very weak models. Appended to
-// the system prompt INSTEAD of sending a native `tools` array. Inlines the
-// tool catalog (name + description + parameter names) and pins the exact
-// single-object response format the extractor parses. Kept terse — tiny
-// models drown in long schemas, so we give names + a one-line param hint, not
-// the full JSON Schema.
+// JSON-protocol附录(agent-zero样式)用于非常弱的模型。
+// 附加到发送本机 `tools` 数组的系统 提示词 INSTEAD。
+// 内联工具 目录（名称 + 描述 + 参数名称）并将确切的 single
+// -object 响应格式固定到提取器 解析。保持简洁 - 小模型淹没
+// 在长模式定义中，所以我们给出名称+一个one-line参数提示，而不是完整的
+// JSON 模式定义。
 std::string json_protocol_addendum(const std::vector<provider::ToolSpec>& tools) {
     std::string s;
     s += "\n\n## How to act (IMPORTANT — read carefully)\n";
@@ -1365,13 +1365,13 @@ std::string json_protocol_addendum(const std::vector<provider::ToolSpec>& tools)
     for (const auto& t : tools) {
         s += "- " + t.name;
         if (!t.description.empty()) {
-            // First sentence / first line of the description keeps it short.
+            // 描述的第一句/第一行保持简短。
             std::string d = t.description;
             if (auto nl = d.find('\n'); nl != std::string::npos) d = d.substr(0, nl);
             if (d.size() > 160) d = d.substr(0, 160);
             s += ": " + d;
         }
-        // Parameter name hints from the JSON Schema's `properties`.
+        // 参数名称提示来自JSON、模式定义、`properties`。
         if (t.input_schema.is_object() && t.input_schema.contains("properties")
                 && t.input_schema["properties"].is_object()) {
             std::string params;
@@ -1387,12 +1387,12 @@ std::string json_protocol_addendum(const std::vector<provider::ToolSpec>& tools)
     return s;
 }
 
-// Grammar-constrained decoding schema (Ollama `format` field). Ollama compiles
-// a JSON Schema into a GBNF grammar and masks every non-conforming next-token
-// during sampling, forcing the model to emit a parseable object matching this
-// shape regardless of size. tool_name is an ENUM of the advertised tools plus
-// a "response" pseudo-tool (plain-chat escape hatch: the model puts its prose
-// in tool_args.text, which rescue_json_protocol unwraps into a text delta).
+// 语法-constrained解码模式定义 (Ollama `format`字段)。
+// Ollama 编译 a JSON 模式定义 转换为 GBNF 语法，并在采样期间屏蔽每
+// 个非 -conforming next-token，强制模型发出与此形状匹配的可解析对象，
+// 无论大小如何。 tool_name 是广告工具的 ENUM 加上 "response"
+// 伪 -tool（plain-chat 逃生舱口：模型将其散文放在 tool_args.text 中，
+// rescue_json_protocol 将其展开为文本增量）。
 json json_protocol_schema(const std::vector<provider::ToolSpec>& tools) {
     json tool_names = json::array();
     for (const auto& t : tools) tool_names.push_back(t.name);
@@ -1420,24 +1420,24 @@ json json_protocol_schema(const std::vector<provider::ToolSpec>& tools) {
     schema["required"]   = json::array({"tool_name", "tool_args"});
     return schema;
 }
-} // namespace
+} // 命名空间结束。
 
-// Build the Ollama `options` object: num_ctx, num_predict, and sampling. This
-// is the single highest-leverage robustness lever for local models. Exposed
-// (non-anonymous) so a unit test can assert the chosen values without a
-// network round-trip. Reads AGENTTY_OLLAMA_NUM_CTX / _NUM_PREDICT overrides.
+// 构建Ollama `options`对象：num_ctx、num_predict，并采样。
+// 这是本地型号中最高的 -leverage 鲁棒性杠杆。暴露（non-anonymous），
+// 因此 单元测试 可以在没有网络 round-trip 的情况下断言所选值。
+// 读取 AGENTTY_OLLAMA_NUM_CTX / _NUM_PREDICT 覆盖。
 int effective_num_ctx(int advertised) noexcept {
-    // The ONE place the served window is decided. build_options() below
-    // calls this for the wire, and the runtime calls it for the gauge, so
-    // the two cannot drift — which they did, by a factor of four.
-    constexpr int kAgentCtxFloor   = 8192;    // unknown-window default
-    constexpr int kAgentCtxCeiling = 32768;   // don't OOM a local KV cache
+    // 确定服务窗口的ONE处。 build_options()
+    // 低于 调用（用于 传输），而 运行时 调用（用于仪表），
+    // 因此两者不能漂移 - 他们确实做到了，漂移了四倍。
+    constexpr int kAgentCtxFloor   = 8192;    // 未知-window 默认
+    constexpr int kAgentCtxCeiling = 32768;   // 不要OOM本地KV 缓存
 
-    // The power-user escape hatch outranks everything: someone who set this
-    // knows their machine better than a ceiling we picked. Honoured here
-    // rather than only in build_options, or the gauge would ignore it and
-    // reintroduce the same divergence for exactly the users who cared
-    // enough to configure it.
+    // power-user逃生舱口超越一切：设置此的人比
+    // 我们选择的天花板更了解他们的机器。在这里受到尊敬，
+    // 而不仅仅是在 build_options 中，
+    // 否则仪表会忽略它，并为那些足够关心配置它的用户
+    // 重新引入相同的差异。
     if (const char* v = std::getenv("AGENTTY_OLLAMA_NUM_CTX")) {
         char* end = nullptr;
         const long n = std::strtol(v, &end, 10);
@@ -1461,40 +1461,40 @@ json build_options(const Request& req) {
         return 0;
     };
 
-    // ── num_ctx (context window) ── THE critical option for agents ───────────
+    // ── num_ctx (文本窗口) \\\\fn微软雅黑\\\fs18\b1\bord1\shad1\3cH2F2F2}翻译: 该 对代理人的关键选项 ───────────
     //
-    // Ollama's default num_ctx is a tiny 2048 (4096 on newer builds),
-    // INDEPENDENT of the model's real window. Since agentty never set it, every
-    // request silently truncated to that floor — after a few tool round-trips
-    // the system prompt + tool catalog + early conversation scroll off the
-    // front and the model "forgets" its tools/instructions mid-session. This is
-    // the #1 cause of weak-model agent failure on Ollama.
+    // Ollama 的默认 num_ctx 是模型真实窗口的微小 2048（
+    // 较新版本为 4096）、INDEPENDENT。由于 agentty 从未设置过它，
+    // 所以每个请求都默默地被截断到该层 - 经过几轮工具 -trips 后，
+    // 系统 提示词 + 工具 目录 + 早期对话从前面滚动，模型 "forgets"
+    // 及其 tools/instructions mid-session。
+    // 这是导致 Ollama 上的weak-model 代理失败的第一大原因。
     //
-    // Precedence:
-    //   1. AGENTTY_OLLAMA_NUM_CTX env override (power-user escape hatch).
-    //   2. The model's real context window probed from /api/show model_info
-    //      (req.context_window), clamped to a sane agent ceiling so we don't
-    //      try to allocate a 128k-token KV cache on a laptop and OOM the
-    //      Ollama server (which would fail the whole request).
-    //   3. A safe agent-sized default (8192) when the window is unknown — 4x
-    //      Ollama's floor, enough to hold the prompt + a few tool turns,
-    //      small enough to load on modest hardware.
+    // 优先级：
+    //   1.AGENTTY_OLLAMA_NUM_CTX环境覆盖（power-user逃生舱口）。
+    //   2、从/api/show model_info探测模型的真实上下文窗口
+    //      (req.context_window)，固定到理智的代理上限，
+    //      因此我们不会尝试在笔记本电脑上分配 128k-token KV 缓存
+    //      和 OOM Ollama 服务器（这将使整个请求失败）。
+    //   3.当窗口未知时，安全代理-sized默认(8192) — 4x
+    //      Ollama的底板足以容纳提示词+一些工具转动，
+    //      在适度的硬件上足够小至加载。
     //
-    // All three now live in effective_num_ctx(), because the context GAUGE
-    // needs the same answer: it used to score the unclamped window while
-    // the wire sent the clamped one, so the bar read a quarter of true
-    // usage on a 131k local model.
+    // 所有三个现在都位于 effective_num_ctx() 中，
+    // 因为上下文 GAUGE 需要相同的答案：它用于对未夹紧的窗口进行评分，
+    // 而 传输 发送夹紧的窗口，因此条形图读取 131k 本地模型
+    // 上真实使用情况的四分之一。
     const int num_ctx = effective_num_ctx(req.context_window);
 
-    // ── num_predict (max output tokens) ────────────────────────────────
+    // ── num_predict(最大输出符) ────────────────────────────────
     //
-    // Ollama's default is a low ~128 which truncates real answers. But blindly
-    // sending the hosted-model cap (16384) is also wrong locally: num_predict
-    // tokens are reserved OUT OF num_ctx, so a 16k num_predict on an 8k window
-    // leaves almost no room for the prompt. Cap num_predict at half the context
-    // window so the prompt always has room, with a floor of 2048 (enough for a
-    // substantial answer or a tool call's args) and honour an explicit
-    // override / the request's own max_tokens as the upper bound.
+    // Ollama的默认值是低的〜128，其截断了真实答案。但盲目发送
+    // Hosted-model 上限（16384）在本地也是错误的：
+    // num_predict 代币被保留为 OUT OF num_ctx，
+    // 因此 8k 窗口上的 16k num_predict 几乎没有留给 提示词 的空间。
+    // 将 num_predict 限制在上下文窗口的一半处，以便 提示词 始终有空间，
+    // 下限为 2048（足以用于实质性答案或工具 调用 的参数），
+    // 并遵循显式覆盖/请求自己的 max_tokens 作为上限。
     int num_predict = env_int("AGENTTY_OLLAMA_NUM_PREDICT");
     if (num_predict <= 0) {
         num_predict = req.max_tokens > 0 ? req.max_tokens : 4096;
@@ -1507,14 +1507,14 @@ json build_options(const Request& req) {
     opts["num_ctx"]     = num_ctx;
     opts["num_predict"] = num_predict;
 
-    // ── Sampling ── deterministic-leaning for tool-calling reliability ───────
+    // ── 抽样 确定性 -leaning 工具的 -calling 可靠性 ───────
     //
-    // Weak models emit far more parseable tool calls at low temperature — high
-    // temperature is what makes a 7B model improvise a malformed `{"tool":...}`
-    // or wander into prose mid-call. A low (not zero) temperature keeps a
-    // little diversity for chat while sharply reducing tool-JSON corruption.
-    // Only set when the model is on the weak/json-protocol path; capable models
-    // keep their Modelfile defaults. Override via AGENTTY_OLLAMA_TEMPERATURE.
+    // 弱模型在低温下发出更多可解析的工具调用——高温使得7B
+    // 模型即兴创作出畸形的`{"tool":...}`或徘徊
+    // 在散文中期-call中。较低（非零）温度可以保持
+    // 聊天的多样性，同时大幅减少 tool-JSON 损坏。
+    // 仅当模型位于weak/json-protocol路径时设置；有能力的模型保留其模型
+    // 文件默认值。通过 AGENTTY_OLLAMA_TEMPERATURE 覆盖。
     if (req.json_protocol) {
         opts["temperature"] = 0.2;
         opts["top_p"]       = 0.9;
@@ -1583,7 +1583,7 @@ std::string system_prompt() {
            "answer from what it returns. Do NOT guess from memory when the "
            "answer should come from their documents.\n\n";
 
-    // Shared with the OpenAI-compat local prompt (one source, #91).
+    // 与 OpenAI-compat 本地 提示词 共享（来源之一，#91）。
     out += openai::local_model_action_rules();
 
     out += "OUTPUT\n"
@@ -1620,54 +1620,54 @@ void set_memory_salvage_intent(StreamCtx& ctx, const Request& req) {
         || has("forget everything") || has("clean slate");
 }
 
-// ── Streaming entry point ────────────────────────────────────────────────────
+// ── 流式传输 切入点 ────────────────────────────────────────────────────
 provider::StreamResult run_stream_sync(Request req, EventSink sink, http::CancelTokenPtr cancel) {
     StreamCtx ctx;
     ctx.sink = std::move(sink);
     ctx.show_reasoning = req.show_reasoning;
     set_memory_salvage_intent(ctx, req);
-    // Salvage may only synthesise calls to tools we actually advertised.
+    // Salvage可能仅将调用合成为我们实际宣传的工具。
     ctx.known_tools.reserve(req.tools.size());
     for (const auto& t : req.tools) ctx.known_tools.push_back(t.name);
     ctx.json_protocol = req.json_protocol && !req.tools.empty();
-    // No tools advertised → nothing to salvage to; treat all content as prose.
+    // 没有广告宣传工具 → 没有任何可挽救的东西；将所有内容视为散文。
     if (req.tools.empty()) { ctx.holding = false; ctx.salvage_eligible = false; }
-    // JSON-protocol: the whole reply is one tool-request object, so always
-    // hold + stay salvage-eligible (no native channel will arrive).
+    // JSON-protocol：整个回复是一个工具-request对象，
+    // 所以始终按住+停留抢救-eligible（没有原生通道到达）。
     if (ctx.json_protocol) { ctx.holding = true; ctx.salvage_eligible = true; }
 
-    // ── Build /api/chat body ────────────────────────────────────────────────
+    // ── 建 构 /api/chat 正文 ────────────────────────────────────────────────
     json body;
     body["model"]  = req.model;
     body["stream"] = true;
-    // Keep the model resident between turns so the next prompt is instant.
+    // 使模型在回合之间保持驻留，以便下一个提示词是即时的。
     body["keep_alive"] = "10m";
     body["options"] = build_options(req);
 
-    // Native reasoning: ask Ollama to route the model's chain-of-thought into
-    // the structured `message.thinking` field (instead of inline
-    // <think>…</think> in content) when the user opted into visible reasoning
-    // (^R) AND we're not in JSON-protocol mode (weak models can't reason and
-    // the grammar would fight the think field). Ollama ignores `think` on
-    // models that don't support it, so this is safe to send broadly. The
-    // stream handler emits message.thinking as StreamThinkingDelta — the SAME
-    // unified event every other provider uses — so local reasoning renders in
-    // the same block. Off by default keeps the dead-air-free wire unchanged.
-    // Native thinking. Ollama's `think` accepts a BOOLEAN or a graded level
-    // ("low"|"medium"|"high", newer builds also "max"); GPT-OSS in
-    // particular REQUIRES a level to tune trace length. Map the model-
-    // agnostic effort tier onto it so local reasoning models honour the
-    // picker's ladder exactly like hosted ones:
-    //   effort set  → think:"<level>"  (minimal folds to low — ollama
-    //                 rejects "minimal"; xhigh/max fold to "high" since
-    //                 "max" is not yet universal — see ollama#15831)
-    //   effort off  → think:true only when the user shows reasoning
-    //                 (visible thinking without a tier), else omitted.
-    // Ollama ignores `think` on models that can't reason, so sending it
-    // broadly is safe. Gated off in JSON-protocol mode (weak models; the
-    // grammar would fight the think field). The stream handler emits
-    // message.thinking as StreamThinkingDelta — the SAME unified event
-    // every other provider uses.
+    // 本机推理：问Ollama为模型链布线-of-thought进入结构化的
+    // `message.thinking`字段（而不是内联
+    // <think>…</think>在内容中）当用户选择可见推理（^R)
+    // AND我们不在JSON-protocol模式（弱模型无法推理，
+    // 语法会与思维领域发生冲突）。Ollama忽略`think`在不
+    // 支持它的型号上，因此可以安全地广泛发送。流处理程序发出
+    // message.thinking as StreamThinkingDelta
+    // - 这SAME每个其他提供者都使用统一事件 - 因此本地推理在
+    // 同一个块中呈现。默认关闭保持死亡状态-air-free线不变。
+    // 原生思维。 Ollama 的 `think` 接受 BOOLEAN 或
+    // 分级级别（"low"|"medium"|"high"，
+    // 较新的版本还有 "max"）； GPT-OSS 特别是 REQUIRES
+    // 是调整迹线长度的级别。将与模型无关的工作层映射到其上，以便本地推理
+    // 模型像托管模型一样遵循 选择面板 的阶梯：
+    //   努力设置 → think:"<level>" (最小 归并 到低 —
+    //                 ollama 拒绝 "minimal"；xhigh/max
+    //                 归并 到 "high"，因为 "max" 尚未通用 —
+    //   参见 ollama#15831) 努力关闭 → think:true
+    //                 仅当用户显示推理时（没有层级的可见思维），否则省略。
+    // Ollama 在无法推理的模型上忽略 `think`，因此广泛发送它是安全的。
+    // 以 JSON-protocol 模式关闭（弱模型；语法会与思维领域作斗争）。
+    // 数据流 处理函数 将 message.thinking 发出为
+    // StreamThinkingDelta — 每个其他提供商都
+    // 使用 相同 统一的 事件。
     if (!ctx.json_protocol) {
         if (!req.effort.empty()) {
             std::string level = req.effort;
@@ -1679,16 +1679,16 @@ provider::StreamResult run_stream_sync(Request req, EventSink sink, http::Cancel
         } else if ((req.no_reasoning || req.quick)
                    && req.reasoning_off
                           != static_cast<std::uint8_t>(::agentty::ReasoningOff::Impossible)) {
-            // Off is an instruction, not an omission: thinking models
-            // (qwen3, deepseek) think when `think` is absent.
+            // Off是指令，而不是遗漏：思维模型(qwen3、
+            // deepseek)在`think`不存在时进行思考。
             body["think"] = false;
         }
     }
 
     json messages = json::array();
     std::string sys = req.system_prompt;
-    // JSON-protocol: append the tool catalog + single-object response spec to
-    // the system prompt, and do NOT send a native `tools` array below.
+    // JSON-protocol:将工具目录+single-object响应规范附加到系统提示词，
+    // 并且NOT发送下面的本机`tools`数组。
     if (ctx.json_protocol)
         sys += json_protocol_addendum(req.tools);
     if (!sys.empty())
@@ -1698,17 +1698,17 @@ provider::StreamResult run_stream_sync(Request req, EventSink sink, http::Cancel
         messages.push_back(std::move(m));
     body["messages"] = std::move(messages);
 
-    // Native tools array ONLY when not in JSON-protocol mode. Weak models get
-    // the inline catalog instead (the native schema confuses them).
+    // 当不处于 JSON-protocol 模式时，本机工具阵列 仅。
+    // 弱模型会得到内联 目录（原生 模式定义 会让它们感到困惑）。
     if (!req.tools.empty() && !ctx.json_protocol)
         body["tools"] = build_tools(req.tools);
 
-    // Grammar-constrained decoding for weak models: a JSON Schema in `format`
-    // makes Ollama compile a GBNF grammar and mask every non-conforming
-    // next-token while sampling — the reply is FORCED into a parseable
-    // {thoughts, tool_name, tool_args} object regardless of model size. The
-    // salvage/rescue path below stays as a backstop for a truncated stream
-    // (Ollama constrains per-token but does not validate the full response).
+    // 弱模型的语法-constrained解码：`format`中的JSON 模式
+    // 定义使Ollama 编译成为GBNF语法，并在采样时屏蔽每个非
+    // -conforming next-token——无论模型大小如何，
+    // 回复都是FORCED到可解析的{thoughts，tool_name，
+    // tool_args}对象。下面的 salvage/rescue 路径保留作为
+    // 截断的 数据流 的后备（Ollama 约束 per-token 但不验证完整响应）。
     if (ctx.json_protocol)
         body["format"] = json_protocol_schema(req.tools);
 
@@ -1722,7 +1722,7 @@ provider::StreamResult run_stream_sync(Request req, EventSink sink, http::Cancel
         return provider::StreamResult::failed("request build failed: invalid UTF-8");
     }
 
-    // ── HTTP request ─────────────────────────────────────────────────────────
+    // ── HTTP 请求 ─────────────────────────────────────────────────────────
     http::Request hreq;
     hreq.method    = http::HttpMethod::Post;
     hreq.host      = req.endpoint.host;
@@ -1736,9 +1736,9 @@ provider::StreamResult run_stream_sync(Request req, EventSink sink, http::Cancel
     hreq.headers = build_request_headers(req.auth);
     hreq.body    = std::move(body_str);
 
-    // Shared scaffold: status/Retry-After capture, heartbeats, buffered-wait
-    // (previously MISSING here — buffered sends showed as dead air), wire
-    // dump, capped error body. Only the NDJSON feed is ours.
+    // 共享脚手架：status/Retry-After捕获、心跳、
+    // 缓冲-wait（这里之前是MISSING——缓冲发送显示为死气沉沉）、
+    // 传输转储、上限错误正文。只有 NDJSON 饲料是我们的。
     provider::StreamScaffold sc;
     sc.dialect = "ollama-native";
     sc.sink    = ctx.sink;
@@ -1748,28 +1748,28 @@ provider::StreamResult run_stream_sync(Request req, EventSink sink, http::Cancel
     };
     http::StreamHandler handler = sc.handler();
 
-    // Standard ladder with the two local-server deviations: idle=120 s (local
-    // generation is slow between tokens) and total=0/unbounded (a big model
-    // can legitimately stream for longer than any hosted cap).
+    // 具有两个local-server偏差的标准梯：idle=120s
+    // （令牌之间本地生成缓慢）和total=0/unbounded
+    // （大模型可以合法地数据流比任何托管上限更长）。
     http::Timeouts tos = provider::local_stream_timeouts(
         std::chrono::milliseconds(120'000));
 
-    // Keep a copy of the cancel token: moved into the stream call, but
-    // finish_stream needs it to distinguish a user cancel from a transport
-    // error at the post-loop.
+    // 保留取消令牌的副本：移动到数据流 调用中，
+    // 但是finish_stream需要它来区分用户取消和post
+    // -loop处的传输层错误。
     http::CancelTokenPtr cancel_for_end = cancel;
     auto result = http::default_client(::agentty::IoAccess::grant()).stream(hreq, std::move(handler),
                                                 tos, std::move(cancel));
 
-    // Uniform end-of-turn pair via the scaffold — this transport previously
-    // logged NOTHING at stream end (drift vs every sibling).
+    // 经由脚手架的统一的末端-of-turn对——该传输层先前在数据流
+    // 末端记录了NOTHING(与每个同级相比的漂移)。
     sc.log_result(bool(result),
                   result ? std::string_view{} : result.error().render());
 
-    // Whole post-loop through the SHARED epilogue: one terminal event, correct
-    // precedence, identical to every other provider. before_finish (success
-    // only) does Ollama's terminal salvage/flush — the stream may end without a
-    // `done` frame (wire cut) while content is still held, so drain/rescue it.
+    // 整个帖子-loop到SHARED尾声：一个终端 事件，正确的优先级，
+    // 与每个其他提供者相同。 before_finish（仅成功）执行 Ollama
+    // 的 终端 salvage/flush — 数据流 可能会在没有 `done`
+    // 帧（传输 剪切）的情况下结束，而内容仍然保留，因此 drain/rescue。
     return provider::finish_stream({
         .terminated  = ctx.terminated,
         .sink        = ctx.sink,
@@ -1801,8 +1801,8 @@ provider::StreamResult run_stream_sync(Request req, EventSink sink, http::Cancel
             return msg;
         },
         .before_finish = [&ctx]() {
-            // Progressive-response already owned the turn — just drain any
-            // pending decoded bytes; never re-run rescue (would duplicate).
+            // Progressive-response已经拥有回合——只需耗
+            // 尽任何待处理解码的字节；永远不会 re-run 救援（会重复）。
             if (ctx.resp_active) {
                 if (!ctx.resp_done) {
                     try_progressive_response(ctx);
@@ -1844,7 +1844,7 @@ std::vector<Msg> parse_ndjson_for_test(std::string_view ndjson_bytes,
     if (ctx.known_tools.empty()) { ctx.holding = false; ctx.salvage_eligible = false; }
     if (ctx.json_protocol) { ctx.holding = true; ctx.salvage_eligible = true; }
     feed_ndjson(ctx, ndjson_bytes.data(), ndjson_bytes.size());
-    // Mirror run_stream_sync's terminal flush so tests see the live sequence.
+    // 镜像run_stream_sync的终端齐平，以便测试看到实时序列。
     if (!ctx.terminated) {
         if (ctx.resp_active) {
             if (!ctx.resp_done) {

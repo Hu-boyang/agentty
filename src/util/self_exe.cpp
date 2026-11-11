@@ -1,4 +1,4 @@
-// util/self_exe.cpp — see the header.
+// util/self_exe.cpp - 看见了 头文件.
 
 #include "agentty/util/self_exe.hpp"
 

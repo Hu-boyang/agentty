@@ -1,29 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// race_harness_test.cpp — the THREAD-SANITIZER lane.
+// race_harness_test.cpp - 电话 THREAD-SANITIZER 车道。
 //
-// Why this file exists: CI runs ASan + UBSan, which between them catch
-// use-after-free, leaks, and UB — but NOT data races. Every concurrency bug
-// this codebase has actually shipped was invisible to that pair:
+// 此文件为何存在 : CI 运行 ASan + UBSan,
+// 二者之间可捕获使用 -after-free ,漏泄,和 UB - 但是,我说,
+// 不 数据 竞态。每个货币错误 代码库 实际运出 的对子看不见 :
 //
-//   • maya's BackgroundQueue destroyed by one of its own workers (a
-//     shared_ptr cycle through the task payload) → self-join → abort.
-//   • settings_cache's worker left joinable in a function-local static →
-//     ~std::thread → terminate at exit.
-//   • the `@` picker spawning a thread per keystroke, N of them racing to
-//     publish into one git-status map, last writer winning arbitrarily.
+//   • maya的BackgroundQueue被自己的工作线程(a)摧毁
+//     shared_ptr 任务周期 载荷 ——自我 -join —— 中止。
+//   • settings_cache's 工作线程 函数中左侧可合并 -local 静态 □
+//     ~std::thread 出口时终止。
+//   • 国家 `@` 选择面板 产卵a 线程 每按键,N级赛车
+//     发布为一 git-status 地图, 最后一个作者任意获胜。
 //
-// The first two were found by hand-written probes and the third by reading.
-// That is not a process. This file is the process: it drives each shared
-// seam from many threads at once so TSan can see the interleavings, and it
-// is registered under the `sanitizer` label so CI runs it.
+// 前两枚由手-written探测器发现,第三枚通过读取.
+// 这不是一个进程。 此文件是进程: 它将每个共享的 接口边界 一次
+// 驱动于许多 线程 , 这样 TSan 可以看到离合, 它被注册在
+// `sanitizer` 标签下, 这样 CI 运行它。
 //
-// These cases are deliberately SHAPED like the bugs above — publish/consume
-// races, teardown-with-backlog, concurrent readers of a snapshot being
-// republished — rather than being generic smoke tests.
+// 这些案件是故意的 SHAPED 就像上面的虫子一样...
+// publish/consume 竞态 ,拆卸 -with-backlog ,
+// 同时读取器 快照 而不是作为一般的烟雾测试。
 
 #include "agentty/util/snapshot.hpp"
-#include "agentty/domain/catalog.hpp"   // the real catalog registries (header-only)
+#include "agentty/domain/catalog.hpp"   // 真实 目录 注册表( 头文件-only)
 #include "agtest_cap.hpp"
 #include "agentty/util/teardown.hpp"
 
@@ -51,28 +51,28 @@ void check(bool ok, const char* what) {
     if (!ok) { std::printf("FAIL: %s\n", what); ++failures; }
 }
 
-// Threads that all start at once see far more interleavings than threads
-// that trickle in, so every case below rendezvouses on a barrier first.
+// 线程 这一切从头开始 看到的离别远多于
+// 线程 每一个下方的病例先在屏障上汇合
 constexpr int kThreads = 8;
 constexpr int kIters   = 2000;
 
-// ── 1. AtomicSnapshot: readers vs. a republishing writer ─────────────────
+// ── 1. AtomicSnapshot:读者与重排作家 ─────────────────
 //
-// THE use-after-free shape. list_workspace_symbols() used to hand out a
+// 该 使用情况 -after-free 形状。 list_workspace_symbols () 用来发放
 // const-ref to a buffer whose owning shared_ptr had already died; readers
-// then walked freed memory while a background walk republished.
+// 然后,我走了出来, 内存 而在背景行走中重新发表。
 //
-// Note this drives AtomicSnapshot, not a bare Snapshot. A bare Snapshot has
-// shared_ptr semantics — copying the HANDLE while another thread assigns to
-// that same handle is a plain data race on the pointer, which TSan correctly
-// reports (that is how this distinction was found). AtomicSnapshot is the
-// type for a producer/consumer slot, and it is what the caches use.
+// 注意此驱动器 AtomicSnapshot ,没有赤裸的 快照。
+// 赤裸裸的 快照 已经 shared_ptr 语义学——复制 HANDLE
+// 时另一个 线程 指定到同一控件是一个纯数据 竞态 指针上,TSan正确报告
+// (这就是如何找到这种区别)。 AtomicSnapshot 是一个
+// producer/consumer 插槽,这是什么 缓存 使用时使用。
 void snapshot_publish_race() {
     agentty::util::AtomicSnapshot<std::vector<std::string>> shared;
     std::atomic<bool> stop{false};
     std::atomic<long> reads{0};
 
-    // Producer: republish continuously.
+    // 制片人:不断重排.
     std::thread producer([&] {
         for (int gen = 0; !stop.load(std::memory_order_relaxed); ++gen) {
             std::vector<std::string> v;
@@ -83,19 +83,19 @@ void snapshot_publish_race() {
         }
     });
 
-    // Readers: take a handle, then walk it. The walk must stay valid for the
-    // whole traversal even though the producer is swapping underneath.
+    // 读者:拿把把手,然后走。即使制片人正在
+    // 下面换牌,走的必须对整个曲面有效。
     std::barrier sync(kThreads);
     std::vector<std::thread> readers;
     for (int t = 0; t < kThreads; ++t) {
         readers.emplace_back([&] {
             sync.arrive_and_wait();
             for (int i = 0; i < kIters; ++i) {
-                const auto local = shared.load();   // one atomic refcount bump
+                const auto local = shared.load();   // 一个原子重计的突起
                 std::size_t n = 0;
                 for (const auto& s : local) n += s.size();
-                // Either unpublished (empty) or a complete generation —
-                // never a half-swapped buffer.
+                // 要么没有出版(空),要么整整一代人——从来没有半个
+                // -swapped 缓冲区.
                 check(local.empty() || local.size() == 64,
                       "snapshot reader saw a torn buffer");
                 reads.fetch_add(static_cast<long>(n != 0), std::memory_order_relaxed);
@@ -108,11 +108,11 @@ void snapshot_publish_race() {
     std::printf("  snapshot publish/consume: %ld non-empty reads\n", reads.load());
 }
 
-// ── 2. Snapshot: the handle outlives every republish ─────────────────────
+// ── 2. 快照:每一次重排时,手柄都会超过寿命 ─────────────────────
 //
-// Directly the bug: hold a reader handle, let the producer swap many times,
-// and assert the ORIGINAL contents are still intact and readable. Under the
-// old const-ref contract this is a read of freed memory.
+// 直接检查错误:握一个读取手柄,让制作人多次互换,
+// 并断言 ORIGINAL 内容仍然完整且可读。 在旧的 Cont
+// 下 -ref 合约,这是解脱的读物 内存.
 void snapshot_handle_outlives_producer() {
     auto held = make_snapshot(std::vector<std::string>{"alpha", "beta", "gamma"});
 
@@ -129,13 +129,13 @@ void snapshot_handle_outlives_producer() {
     check(held[2] == "gamma",      "held snapshot corrupted (2)");
 }
 
-// ── 3. teardown registry: concurrent registration + drain ────────────────
+// ── 3. 拆卸注册表:同时登记+排水量 ────────────────
 //
-// The registry is written from whichever thread first starts a subsystem's
-// worker and drained from main()'s scope guard, so registration races the
-// drain by construction.
+// 电话 注册表 由任意一个 线程 首先启动子系统
+// 工作线程 并排出从 main() 瞄准镜,
+// 所以注册 竞态 建筑排水
 void teardown_registration_race() {
-    teardown::run(agtest::cap());                       // clean slate
+    teardown::run(agtest::cap());                       // 清理列表
 
     std::atomic<int> fired{0};
     std::barrier sync(kThreads);
@@ -146,36 +146,36 @@ void teardown_registration_race() {
             for (int i = 0; i < 200; ++i) {
                 const auto tok = teardown::on_shutdown(
                     "racer", [&](const maya::unlocked&) { fired.fetch_add(1, std::memory_order_relaxed); });
-                // Half withdraw, half leave it for the drain — exercises the
-                // cancel/run interleaving that a scoped registrant hits.
+                // 一半退缩,一半退缩 排水 cancel/run
+                // 将这段话与范围化的登记员的点击进行交叉。
                 if (i % 2 == 0) teardown::cancel(tok);
             }
         });
     }
-    // Drain concurrently with the registrations above.
+    // 与上述登记同时排水。
     for (int i = 0; i < 50; ++i) {
         teardown::run(agtest::cap());
         std::this_thread::yield();
     }
     for (auto& t : ts) t.join();
-    teardown::run(agtest::cap());                       // final drain
+    teardown::run(agtest::cap());                       // 最后排水量
 
     check(teardown::pending() == 0, "teardown registry not drained");
     std::printf("  teardown registry: %d actions fired\n", fired.load());
 }
 
-// ── 4. Write-behind save queue: enqueue races drain races stop ───────────
+// ── 4. Write-behind 保存 队列: 队列 竞态 排水量 竞态 停止( E) ───────────
 //
-// The shape of persistence::AsyncWriter and settings_cache's worker: a
-// coalescing map guarded by a mutex, a condvar-driven drain thread, and a
-// stop that must not drop the last write. This is where the settings_cache
-// abort lived (a worker left joinable in a static), so the invariants worth
-// pinning are: every distinct key eventually lands, a newer value for a key
-// supersedes an older queued one, and stop drains rather than truncates.
+// persistence::AsyncWriter和settings_cache的工作线程的形状:
+// 由互斥量守护的合力图,condvar-driven排水量线程,
+// 以及不得丢掉最后的写法的停站。 settings_cache
+// 的流产是在那里生活的(一个工作线程留下了静态的连接),
+// 所以值得倾注的不变量是:每个不同的钥匙最终会落地,
+// 一个钥匙的更新值取代一个排队的旧钥匙,停止排水量而不是截流。
 //
-// Modelled here rather than driven through persistence.cpp directly because
-// the real one writes to disk; the concurrency is in this structure, not in
-// the fsync.
+// 此处建模而不是直接通过persistence.cpp驱动,
+// 因为真者会向磁盘写;货币在这个结构中,
+// 而不是在fsync中.
 void write_behind_queue_race() {
     struct Writer {
         std::mutex                                 mu;
@@ -189,9 +189,9 @@ void write_behind_queue_race() {
         void enqueue(std::string id, int v) {
             {
                 std::lock_guard lk(mu);
-                // Newer snapshot supersedes an older one still queued for the
-                // same id — the coalescing the real writer relies on to bound
-                // the queue under a burst.
+                // 更新的快照取代了一个仍在为同一id排队的
+                // 老的 ID —— 连接真实的编剧依赖于在
+                // 爆破下将队列绑定.
                 pending.insert_or_assign(std::move(id), v);
                 if (!worker.joinable()) worker = std::thread([this] { run(); });
             }
@@ -215,8 +215,8 @@ void write_behind_queue_race() {
                 {
                     std::unique_lock lk(mu);
                     cv.wait(lk, [this] { return !pending.empty() || stopping; });
-                    // Drain-then-stop: keep popping even once stopping is set,
-                    // so the final snapshot always lands.
+                    // 排水沟 -then-stop : 继续弹出,
+                    // 即使停止了,所以最后 快照 总是降落。
                     if (pending.empty()) {
                         if (stopping) return;
                         continue;
@@ -226,7 +226,7 @@ void write_behind_queue_race() {
                     val = it->second;
                     pending.erase(it);
                 }
-                // Outside the lock, like the real fsync.
+                // 外面的 锁 就像真正的FSync一样
                 std::lock_guard wl(written_mu);
                 written[key] = val;
             }
@@ -246,9 +246,9 @@ void write_behind_queue_race() {
     for (auto& p : producers) p.join();
     w.flush_and_stop();
 
-    // Every producer's LAST value must have landed: coalescing may drop
-    // intermediate states (that is the point) but never the newest one, and
-    // stop must not truncate the queue.
+    // 每个生产商的LAST值必须已经着陆: 聚合
+    // 可能降中状态(即点), 但永远不要降中状态,
+    // 停止则不能截断队列。
     std::lock_guard wl(w.written_mu);
     check(w.written.size() == static_cast<std::size_t>(kThreads),
           "write-behind dropped an entire key");
@@ -260,16 +260,16 @@ void write_behind_queue_race() {
     std::printf("  write-behind queue: %zu keys landed\n", w.written.size());
 }
 
-// ── 5. Connection pool: concurrent acquire/release ─────────────────────
+// ── 5. 连接 池 : 同时进行 acquire/release ─────────────────────
 //
-// http::Pool's shape: a map of endpoint → stack of idle connections, with
-// acquire() popping (and discarding stale entries) while release() pushes and
-// evicts past a cap. Every request thread touches it, so the invariant that
-// matters is ownership: a connection is held by EXACTLY ONE party at a time.
-// A double-hand-out would mean two requests writing one socket.
+// http::Pool '形状: 端点地图 ~ 堆叠闲置连接,
+// 与 acquire() 弹出(和丢弃) 过期 条目)
+// release() 逐个要求,逐个逐个逐一个 线程 摸着它,
+// 所以 不变量 关键是 所有权 : 连接由 恰好 一个 一次开派对
+// 双-hand-out将意味着两个请求写一个套接字。
 //
-// Modelled on the real structure (unique_ptr entries, per-endpoint stacks,
-// eviction at a cap) because the real one needs a live TLS endpoint to dial.
+// 以实际结构为模型( unique_ptr 条目,按 -endpoint 堆叠,
+// 拆迁在盖子上) 因为真正的人需要活 TLS 端点拨号.
 void connection_pool_race() {
     constexpr std::size_t kPoolCap = 16;
     struct Conn { int id; std::atomic<bool> in_use{false}; };
@@ -302,7 +302,7 @@ void connection_pool_race() {
     std::atomic<int> double_use{0};
     std::atomic<long> acquires{0};
 
-    // Seed a few endpoints.
+    // 种子数端.
     for (int i = 0; i < 32; ++i)
         pool.release(std::make_unique<Conn>(i));
 
@@ -314,8 +314,8 @@ void connection_pool_race() {
             for (int i = 0; i < kIters; ++i) {
                 const int ep = (t + i) % 4;
                 if (auto c = pool.acquire(ep)) {
-                    // If the pool ever handed the same connection to two
-                    // threads, this flag is already set.
+                    // 如果 池 曾经将同样的连接 给两个 线
+                    // 程 这个 标志 已经设置。
                     if (c->in_use.exchange(true, std::memory_order_acq_rel))
                         double_use.fetch_add(1, std::memory_order_relaxed);
                     acquires.fetch_add(1, std::memory_order_relaxed);
@@ -334,14 +334,14 @@ void connection_pool_race() {
                 acquires.load(), double_use.load());
 }
 
-} // namespace
+} // 命名空间结束。
 
-// ── 6. Catalog: bulk commits racing readers and single setters ────────────
+// ── 6. 目录:散装装赛车阅读器和单装装置 ────────────
 //
-// The REAL registries (catalog.hpp is header-only). A models.dev-sized batch
-// commits while readers resolve on the render path and a live-catalog thread
-// writes single facts. Every published fact must be readable whole, the
-// batch must land all-or-nothing for a reader, and no write may be lost.
+// 电话 真实 注册表( catalog.hpp 谓 头文件-only).
+// A models.dev-sized 批量执行,而阅读器则在 渲染 路径和
+// 活 -catalog 线程 写出单一的事实。每个公布的事实必须完整可读,
+// 批量必须全部着陆。 -or-nothing 读者不会忘记任何文字。
 namespace {
 void catalog_batch_race() {
     using namespace agentty;
@@ -358,8 +358,8 @@ void catalog_batch_race() {
                 b.set_reasoning(id, true);
                 b.set_context_window(id, 1000 + i);
             }
-            // A sentinel in the same batch: if a reader sees it, it must
-            // also see every other fact of the batch.
+            // 同一批中的哨兵:如果读者看到,
+            // 它也必须看到该批中其他每一个事实.
             b.set_reasoning("racebatch/sentinel", true);
             b.commit();
         }
@@ -391,7 +391,7 @@ void catalog_batch_race() {
     check(catalog_reasoning_for("m49", "racesingle") != -1, "single-setter fact lost");
     std::printf("  %ld reads, %ld torn\n", reads.load(), torn.load());
 }
-} // namespace
+} // 命名空间结束。
 
 int main() {
     std::printf("=== race_harness_test (run me under TSan) ===\n");

@@ -13,42 +13,42 @@ compile_commands.json
 .env
 credentials.json
 
-# Per-project agent memory — personal scratchpad written by the
-# `remember` tool, gitignored on principle (use a checked-in AGENTTY.md
-# / CLAUDE.md for team-shared project context instead).
+# 每个项目的代理记忆属于个人笔记，由 remember 工具写入，不纳入版本控制。
+# 团队共享的项目上下文应使用已提交的 AGENTTY.md
+# 或 CLAUDE.md。
 .agentty/
 
-# Cross-client agent skills/commands the runtime reads from <cwd>/.agents/
-# — a local per-workspace convention, not a shipped project asset.
+# 运行时从 <cwd>/.agents/ 读取跨客户端的代理技能和命令。
+# 这些内容属于工作区本地约定，不作为项目资源发布。
 .agents/
 
-# Local dotfiles dump (not part of moha)
+# 本地配置文件副本，不属于项目。
 dotfiles/
 Testing/
 
-# RAG on-disk index cache (rebuilt from the docs tree; never committed)
+# RAG 磁盘索引缓存，可从文档树重建，不提交。
 .agentty_rag_cache.bin
 
-# Local scratchpad — repro/diag sources, build artifacts (.exe/.obj), logs
+# 本地临时资料，包括复现或诊断源码、构建产物和日志。
 scratch/
 AGENTTY_ASSISTANT_USAGE.md
 
-# Local binaries built or copied into the workspace.
+# 在工作区本地构建或复制的二进制程序。
 *.exe
 /agentty
 
-# Personal files that live in this workspace but are NOT part of the
-# project — must never be committed (a stage_all once swept resume/ into
-# a public commit; the ignore makes that structurally impossible).
+# 位于此工作区但不属于项目的个人文件，不得提交。
+# 曾有 stage_all 将 resume/ 一并加入公开提交，
+# 因此通过忽略规则防止此类误操作。
 hand/
 resume/
 
 __pycache__/
 
-# ThreadLog writes a sibling `<name>.ofs` offset cache for any thread file it
-# opens, including the checked-in bench fixture. It is a regenerable cache, not
-# truth (see include/agentty/io/thread_log.hpp), so never commit it.
+# ThreadLog 为打开的会话文件生成同目录的 <name>.ofs 偏移缓存，
+# 包括已提交的基准测试夹具。缓存可以重建，不是权威数据，
+# 详见 include/agentty/io/thread_log.hpp，因此不提交。
 tests/fixtures/*.ofs
 
-# local python venv for tests/acp schema checks
+# 用于 tests/acp 模式校验的本地 Python 虚拟环境。
 .venv-acp

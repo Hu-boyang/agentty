@@ -21,17 +21,17 @@ std::vector<std::string> split_lines(const std::string& s) {
     return out;
 }
 
-// LCS-based diff, good enough for hunking.
+// LCS-based diff，足够好。
 struct Edit { enum K { Keep, Del, Ins } k; int a_idx, b_idx; };
 
-// Worst-case DP table cap. Beyond this many cells the full O(N*M) table is
-// both too slow and too memory-hungry, so the middle region falls back to a
-// block replacement (delete-all-then-insert-all). The hunk still reconstructs
-// `after` exactly; it just isn't minimal. 6M cells ~= 24MB of int, ~ms-scale.
+// 最差-case DP桌帽。除了这么多 存储单元 之外，完整的 O(N*M)
+// 表既太慢又太 内存-hungry，因此中间区域回退到块替换（删除
+// -all-then-insert-all）。 差异块仍然准确地重建了`after`；
+// 它只是不是最小的。 6M 存储单元 ~= 24MB 整数，~ms-scale。
 constexpr std::size_t kCellCap = 6'000'000;
 
-// LCS edits for the interned ranges a[a0,a1) vs b[b0,b1), appended to `out`
-// in forward order. `ai`/`bi` are line ids (cheap int compares).
+// LCS对保留范围a[a0，a1)与b[b0，b1)的编辑，按正向顺序附加到`out`。
+// `ai`/`bi` 是线路 ID（便宜的整数比较）。
 void lcs_middle(const std::vector<int>& ai, const std::vector<int>& bi,
                 int a0, int a1, int b0, int b1, std::vector<Edit>& out) {
     int nn = a1 - a0, mm = b1 - b0;
@@ -79,7 +79,7 @@ std::vector<Edit> compute_edits(const std::vector<std::string>& a,
                                 const std::vector<std::string>& b) {
     int n = (int)a.size(), m = (int)b.size();
 
-    // Intern lines to ints so the DP and trims compare ids, not std::strings.
+    // 实习生行到整数，因此DP和修剪比较ID，而不是std::strings。
     std::unordered_map<std::string_view, int> ids;
     ids.reserve((std::size_t)(n + m) * 2);
     std::vector<int> ai(n), bi(m);
@@ -98,23 +98,23 @@ std::vector<Edit> compute_edits(const std::vector<std::string>& a,
     std::vector<Edit> edits;
     edits.reserve((std::size_t)(n + m));
 
-    // Common prefix: definitely in the LCS, emit as Keep and skip the DP.
+    // 公共前缀：肯定在LCS中，作为Keep发出并跳过DP。
     int p = 0;
     while (p < n && p < m && ai[p] == bi[p]) {
         edits.push_back({Edit::Keep, p, p});
         ++p;
     }
-    // Common suffix: shrink both ends inward (also in the LCS).
+    // 常见后缀：两端向内收缩（也出现在LCS中）。
     int sa = n, sb = m;
     while (sa > p && sb > p && ai[sa - 1] == bi[sb - 1]) { --sa; --sb; }
 
-    // Diff only the divergent middle, then re-attach the trimmed suffix.
+    // 仅diff中间发散的部分，然后re-attach修剪后的后缀。
     lcs_middle(ai, bi, p, sa, p, sb, edits);
     for (int k = 0; sa + k < n; ++k)
         edits.push_back({Edit::Keep, sa + k, sb + k});
     return edits;
 }
-} // namespace
+} // 命名空间结束。
 
 FileChange compute(const std::string& path,
                    const std::string& before,
@@ -158,13 +158,13 @@ FileChange compute(const std::string& path,
         int old_start = -1, new_start = -1;
         int old_len = 0, new_len = 0;
         std::ostringstream patch;
-        // Emit deletions before insertions within each contiguous change run
-        // (git convention). The LCS backtrace can group inserts ahead of
-        // deletes; rendered through a two-column diff gutter that ordering
-        // makes the old/new line numbers read out of sequence (new line 2
-        // appearing above old line 2). Buffer each run and flush "-" before
-        // "+" on the next context line so both gutter columns stay monotonic
-        // and the changed lines line up.
+        // 在每次连续更改运行中插入之前发出删除（git约定）。
+        // LCS 回溯可以将插入分组在删除之前；通过 Two
+        // -column diff 装订线渲染，
+        // 排序会使 old/new 行号不按顺序读取（新行 2
+        // 出现在旧行 2 上方）。 缓冲区 每次运行并在下一个上下文
+        // 行的 "+" 之前刷新 "-"，以便两个装订线列保持 单调
+        // 递增的 并且更改的行对齐。
         std::string del_buf, ins_buf;
         auto flush_run = [&] {
             if (!del_buf.empty()) patch << del_buf;
@@ -220,8 +220,8 @@ std::string render_unified(const FileChange& c) {
 }
 
 std::string apply_accepted(const FileChange& c) {
-    // If all hunks accepted -> return new_contents. Otherwise rebuild by
-    // iterating hunks and choosing which side to emit.
+    // 如果所有差异块都被接受->返回new_contents。
+    // 否则通过迭代 差异块 并选择要发射的一侧来重建。
     bool all_accepted = !c.hunks.empty() &&
         std::all_of(c.hunks.begin(), c.hunks.end(),
                     [](const Hunk& h){ return h.status == Hunk::Status::Accepted; });
@@ -230,7 +230,7 @@ std::string apply_accepted(const FileChange& c) {
         [](const Hunk& h){ return h.status != Hunk::Status::Accepted; });
     if (none_accepted) return c.original_contents;
 
-    // Partial acceptance: reconstruct from original, applying only accepted hunks.
+    // 部分接受：根据原始内容重建，仅适用已接受的差异块。
     auto orig_lines = split_lines(c.original_contents);
     std::vector<std::string> out;
     size_t orig_cursor = 0;

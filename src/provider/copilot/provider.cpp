@@ -1,11 +1,11 @@
-// provider.cpp — GitHub Copilot provider (thin wrapper over the openai transport).
+// provider.cpp — GitHub Copilot 提供商（openai 传输层 上的薄包装器）。
 //
-// See provider.hpp. Copilot speaks the OpenAI-Chat wire, so each turn is:
-//   1. fresh_token()  → a valid proxy token + the per-account inference host.
-//   2. build the Endpoint (host from endpoints.api + the editor headers).
-//   3. lower provider::Request → openai::Request, stamp the token as auth.
-//   4. delegate to openai::run_stream_sync.
-// On a 401 (proxy token revoked early) we invalidate + refresh once and retry.
+// 参见provider.hpp。副驾驶说的是 OpenAI-Chat 传输，所以每个回合是：
+//   1.fresh_token()→有效代理令牌+per-account推理主机。
+//   2.构建Endpoint(主机来自endpoints.api+编辑器头文件)。
+//   3、下provider::Request→openai::Request，将token标记为auth。
+//   4.委托给openai::run_stream_sync。
+// 在401 (代理令牌提前撤销）上，我们无效+刷新一次和重试。
 
 #include "agentty/provider/copilot/provider.hpp"
 #include "agentty/domain/bundled_catalog.hpp"
@@ -31,14 +31,14 @@
 namespace agentty::provider::copilot {
 namespace {
 
-// Split "https://host[:port]" → (host, port, tls). Copilot always uses https.
+// 分割"https://host[:port]"→(主机、端口、tls)。 Copilot 始终使用 https。
 struct HostPort { std::string host; std::uint16_t port = 443; bool tls = true; };
 HostPort parse_api_base(const std::string& base) {
     HostPort hp;
     std::string_view s = base;
     if (s.rfind("https://", 0) == 0) { s.remove_prefix(8); hp.tls = true; }
     else if (s.rfind("http://", 0) == 0) { s.remove_prefix(7); hp.tls = false; hp.port = 80; }
-    // strip any trailing path
+    // 剥离任何尾随路径
     if (auto slash = s.find('/'); slash != std::string_view::npos) s = s.substr(0, slash);
     if (auto colon = s.find(':'); colon != std::string_view::npos) {
         hp.host = std::string{s.substr(0, colon)};
@@ -51,7 +51,7 @@ HostPort parse_api_base(const std::string& base) {
     return hp;
 }
 
-// The editor-identification header block Copilot requires on every request.
+// editor-identification 头文件 阻止 Copilot 对每个请求的要求。
 std::vector<std::pair<std::string, std::string>> copilot_headers() {
     return {
         {"copilot-integration-id", "vscode-chat"},
@@ -63,11 +63,11 @@ std::vector<std::pair<std::string, std::string>> copilot_headers() {
 }
 
 using Models = std::vector<ModelInfo>;
-// A fetch that started before invalidate_model_cache() must not store its
-// now-stale list over it; GenCache drops that store.
+// 在 invalidate_model_cache()之前开始的获取不得将其 now
+// -stale 列表存储在其上； GenCache 放弃该商店。
 util::GenCache<Models>& models_cache() { static util::GenCache<Models> c; return c; }
 
-} // namespace
+} // 命名空间结束。
 
 provider::openai::Endpoint CopilotProvider::make_endpoint(const std::string& api_base) {
     auto hp = parse_api_base(api_base);
@@ -83,50 +83,50 @@ provider::openai::Endpoint CopilotProvider::make_endpoint(const std::string& api
 }
 
 namespace {
-// The synthetic "Auto" model id agentty exposes in the picker. Selecting it
-// lets GitHub's server route each turn to the best model the account may use.
+// 合成的"Auto"模型id agentty在选择面板中公开。
+// 选择它可以让 GitHub 的服务器将每个回合路由到帐户可能使用的最佳模型。
 constexpr const char* kAutoId = "copilot-auto";
 
-// gpt-4o-family base models run on every plan via a DIRECT chat request — they
-// must NOT be forced through the Auto session (which doesn't list them).
+// gpt-4o-family 基本模型通过 DIRECT 聊天请求在每
+// 个计划上运行 — 它们必须通过自动会话（未列出它们）强制不执行。
 bool is_base_direct(const std::string& id) {
     return id == "gpt-4o" || id == "gpt-4.1" || id == "gpt-4o-mini"
         || id == "gpt-4o-copilot" || id == "gpt-4.1-mini"
         || id.rfind("gpt-4o-mini", 0) == 0;
 }
 
-// Some Auto models only speak /responses (mai-code-*), which agentty's
-// OpenAI-Chat transport can't drive. Prefer a chat-completions model.
+// 某些汽车模型仅说话/响应（mai-code-*)，agentty的OpenAI
+// -Chat 传输层无法驾驶。更喜欢 chat-completions 型号。
 //
-// NOTE this is now only used to pick a CHAT-dialect fallback. Since the
-// Responses site below exists, a mai-code-* pick is no longer a dead end:
-// dialect_for() routes it to /responses instead of skipping it.
+// NOTE这个现在只能用来挑选CHAT-dialect 回退。
+// 由于存在下面的响应站点，mai-code-* 选择不再是死胡同：
+// dialect_for()将其路由到/responses而不是跳过它。
 bool auto_chat_compatible(const std::string& id) {
     return id.rfind("mai-code", 0) != 0;
 }
 
-// ── Which dialect does THIS model speak? ────────────────────────────
+// ── THIS模式会讲哪一种方言?. ────────────────────────────
 //
-// Copilot is the first provider that is genuinely MIXED: the same account,
-// over the same host, serves some models on /chat/completions and others on
-// /responses. Measured against api.individual.githubcopilot.com with an Auto
-// session (see the probe notes in the commit):
+// Copilot 是第一个真正的 MIXED 提供者：同一帐户，在同一主机上，
+// 在 /chat/completions 上提供一些模型，在 /responses 上
+// 提供其他模型。使用自动会话针对 api.individual.githubcopilot.com
+// 进行测量（请参阅提交中的探测注释）：
 //
-//   gpt-5-mini          both  — /responses returns REAL reasoning summaries
-//                             (SSE response.reasoning_summary_text.delta)
-//   mai-code-1.1-flash  /responses ONLY (400 unsupported_api_for_model on chat)
-//   claude-*, gpt-4.1   /chat/completions ONLY (400 on /responses)
+//   gpt-5-mini 两者 — /responses 返回 真实 推理摘要 (SSE
+//                             response.reasoning_summary_text.delta)
+//   mai-code-1.1-flash /responses 仅 (聊天上 400 unsupported_api_for_model)
+//   claude-*, gpt-4.1 /chat/completions 仅 (/responses 上 400)
 //
-// Two hard rules, both measured: the `copilot-session-token` from an Auto
-// session is REQUIRED (without it even gpt-5-mini 400s model_not_supported),
-// and only models the session lists in available_models[] are accepted.
+// 两个硬性规则，均测量：来自自动会话的 `copilot-session-token` 是
+// REQUIRED (甚至没有 gpt-5-mini 400s model_not_supported)，
+// 并且仅接受 available_models[] 中列出的会话的模型。
 //
-// So Responses is used when we hold an Auto session that blesses the model.
-// Everything else keeps the Chat path — no guessing, no hardcoded allowlist
-// beyond what the SERVER told us it can route.
+// 因此，当我们举行支持模型的自动会话时，使用响应。
+// 其他一切都保持聊天路径——无需猜测，除了 SERVER 告诉我们它
+// 可以路由的内容外，没有硬编码 允许清单。
 //
-// The Chat/Responses enum itself now lives in provider/dialect.hpp — it was
-// duplicated here back when Copilot was the only mixed-dialect host.
+// Chat/Responses 枚举本身现在位于provider/dialect.hpp中
+// ——当Copilot是唯一的混合-dialect主机时，它被复制到这里。
 
 [[nodiscard]] bool session_lists_model(const AutoSession& as,
                                        const std::string& model) {
@@ -136,35 +136,35 @@ bool auto_chat_compatible(const std::string& id) {
 }
 
 
-// Which concrete model will the Auto session stream?
+// Auto会话数据流的具体型号是什么？
 //
-// ONE implementation, used by BOTH dialect paths — the Responses fork must
-// resolve the same slug the chat path would, or a user switching between
-// them would silently get different models.
+// ONE实现，由BOTH方言路径使用——响应分支必须
+// 解析与聊天路径相同的slug，否则在它们之间切换的
+// 用户将默默地获得不同的模型。
 //
-// A CONCRETE request is honoured or it FAILS. It is never quietly swapped for
-// another model: a user (or a Smart Mode role slot) that pinned `gpt-5.6-luna`
-// and silently got `gpt-5.3-codex` gets wrong latency, wrong cost, wrong
-// capabilities — and, when the substitute is Responses-only but the chat path
-// was taken, an outright 400. Substitution is only correct when the user asked
-// us to choose, i.e. for the synthetic Auto entry.
+// CONCRETE请求被接受或者是FAILS。它永远不会悄悄地交换为另
+// 一个模型：固定 `gpt-5.6-luna` 并默默地获得
+// `gpt-5.3-codex` 的用户（或智能模式角色槽）会得到错误的延迟、
+// 错误的成本、错误的功能 - 并且，当替代品是 Responses-only
+// 但聊天路径被采用时，会出现彻底的 400。只有当用户要求我们选择 i.e 时，
+// 替代才是正确的。用于合成自动输入。
 //
-// Returns "" when a concrete request cannot be served; the caller turns that
-// into a clear error naming the model.
+// 当无法服务具体请求时，返回""；调用者将其转变为
+// 命名模型的明显错误。
 [[nodiscard]] std::string pick_auto_model(const AutoSession& as,
                                           const std::string& requested) {
     if (requested != kAutoId) {
         for (const auto& m : as.available_models)
             if (m == requested) return requested;
-        return {};   // pinned but unavailable — say so, don't reroute
+        return {};   // 已固定但不可用 — 这么说，不要重新路由
     }
-    // Auto: the user delegated the choice. Prefer the server's own pick, then
-    // any chat-capable model, then whatever is on offer.
+    // 自动：用户委托选择。更喜欢服务器自己选择，然后是任何 chat
+    // -capable 模型，然后是提供的任何内容。
     //
-    // The emptiness check matters: auto_chat_compatible("") is true (an empty
-    // string doesn't start with "mai-code"), so a session that returned no
-    // selected_model would otherwise resolve to the EMPTY model slug and
-    // stream a request with no model at all.
+    // 空性检查很重要：auto_chat_compatible("")
+    // 为真（空字符串不以"mai-code"开头），
+    // 因此不返回selected_model的会话否则将解析为EMPTY
+    // 模型段和数据流根本没有模型的请求。
     if (!as.selected_model.empty() && auto_chat_compatible(as.selected_model))
         return as.selected_model;
     for (const auto& m : as.available_models)
@@ -173,17 +173,17 @@ bool auto_chat_compatible(const std::string& id) {
                                        : as.available_models.front();
 }
 
-// ── The Copilot Responses site ──────────────────────────────────
+// ── 副驾驶反应网站 ──────────────────────────────────
 //
-// Copilot's /responses needs credentials that are resolved ONCE per turn
-// (proxy token + Auto session, both refreshable). stream() resolves them and
-// hands the built Target straight to the codec.
+// 副驾驶的/响应需要每回合解析ONCE的凭据（代理令牌
+// +自动会话，两者均可刷新）。 stream() 解决
+// 它们并将构建的目标直接交给编解码器。
 struct ResponsesTurn {
-    std::string host;          // inference host for this session
-    std::string token;         // proxy token (Bearer)
-    std::string session_token; // copilot-session-token — REQUIRED, measured
-    std::string model;         // server-blessed slug
-    std::string initiator = "user";   // x-initiator: "user" or "agent"
+    std::string host;          // 本场推理主持人
+    std::string token;         // 代理令牌(Bearer)
+    std::string session_token; // 副驾驶-session-token —REQUIRED，测量
+    std::string model;         // 服务器-blessed 蛞蝓
+    std::string initiator = "user";   // x-initiator:"user"或"agent"
 };
 
 std::expected<provider::responses::Target, std::string>
@@ -201,19 +201,19 @@ copilot_target(const ResponsesTurn& t) {
         {"authorization", "Bearer " + t.token},
         {"content-type", "application/json"},
         {"accept", "text/event-stream"},
-        // The Auto-session token is what unlocks /responses at all: without
-        // it every model — including gpt-5-mini — 400s model_not_supported.
+        // Auto-session令牌是解锁/响应的根本：没有它，每个模型——包括
+        // gpt-5-mini——400s model_not_supported。
         {"copilot-session-token", t.session_token},
         {"x-github-api-version", client_api_version()},
-        // Only user turns count as premium requests; tool rounds are the agent's.
+        // 只有用户轮次才算作高级请求；工具轮是特工的。
         {"x-initiator", t.initiator},
     };
     for (auto& h : copilot_headers()) target.headers.push_back({h.first, h.second});
     return target;
 }
 
-// The Site's own authorize has no turn context; stream() never routes
-// through it (it passes copilot_target's result instead).
+// 本站自身授权无转弯上下文； stream() 永远不会通过它（
+// 而是传递 copilot_target 的结果）。
 std::expected<provider::responses::Target, std::string>
 copilot_authorize(const maya::unlocked&, provider::Request&) {
     return std::unexpected(std::string{
@@ -222,10 +222,10 @@ copilot_authorize(const maya::unlocked&, provider::Request&) {
 }
 
 void copilot_decorate_body(nlohmann::json& body, const provider::Request&) {
-    // Copilot is stateful server-side for Responses; unlike the Codex
-    // backend we do NOT send store:false or ask for encrypted reasoning
-    // (it rejects the include). `summary: auto` — already set by the shared
-    // builder — is what makes the reasoning text actually come back.
+    // Copilot 是用于响应的有状态服务器-side；
+    // 与 Codex 后端不同，我们不执行 发送 store:false
+    // 或要求加密推理（它拒绝包含）。 `summary: auto`
+    // — 已由共享构建器设置 — 是使推理文本实际返回的原因。
     body.erase("store");
     body.erase("include");
 }
@@ -257,8 +257,8 @@ const provider::responses::Site kCopilotSite{
     .explain_http_error = &copilot_explain_http_error,
 };
 
-// An auto Endpoint carries the session token + CAPI api-version so the server
-// accepts models that a free/limited plan can only reach via Auto.
+// 自动端点携带会话令牌+CAPI API-version，
+// 因此服务器接受free/limited计划只能通过自动到达的模型。
 provider::openai::Endpoint make_auto_endpoint(const std::string& api_base,
                                               const std::string& session_token) {
     auto hp = parse_api_base(api_base);
@@ -274,7 +274,7 @@ provider::openai::Endpoint make_auto_endpoint(const std::string& api_base,
     ep.extra_headers.push_back({"copilot-session-token", session_token});
     return ep;
 }
-} // namespace
+} // 命名空间结束。
 
 provider::StreamResult CopilotProvider::stream(const maya::unlocked& cap,
                                                provider::Request req,
@@ -292,17 +292,17 @@ provider::StreamResult CopilotProvider::stream(const maya::unlocked& cap,
     }
 
     const std::string requested = req.model;
-    // Route through Auto when the picked model is the synthetic Auto entry, or
-    // a premium model the account can only reach via a session. Base gpt-4o
-    // family models run DIRECT (they're not in the Auto set), and models we've
-    // confirmed work directly also skip Auto.
+    // 当所选择的模型是合成自动条目或者账户只能通过会话到达的
+    // 高级模型时，通过自动进行路由。基础 gpt-4o
+    // 系列型号运行 DIRECT（它们不在自动设置中），
+    // 我们直接确认工作的型号也会跳过自动。
     //
-    // ALSO route through Auto when the model would prefer the Responses
-    // dialect. The Auto session's `copilot-session-token` is the credential
-    // /responses REQUIRES (measured: without it even gpt-5-mini 400s
-    // model_not_supported), so a gpt-5 model that already works on the chat
-    // path would otherwise never get a session — and never show reasoning.
-    // Responses-only models (mai-code-*) need it for the same reason.
+    // 当模型更喜欢响应方言时，ALSO通过自动路由。自动会话的
+    // `copilot-session-token` 是 凭据 /响应
+    // REQUIRES（测量：甚至没有 gpt-5-mini 400s
+    // model_not_supported），因此已经在聊天路径上工作
+    // 的 gpt-5 模型将永远不会获得会话 - 并且永远不会显示推理。
+    // Responses-only模型(mai-code-*)出于同样的原因需要它。
     const bool wants_auto = (requested == kAutoId)
         || (!is_base_direct(requested) && !is_supported_model(cap, requested))
         || prefers_responses_dialect(requested);
@@ -311,37 +311,37 @@ provider::StreamResult CopilotProvider::stream(const maya::unlocked& cap,
     if (wants_auto) as = auto_session(cap);
 
     auto run = [&](const CopilotToken& t) -> provider::StreamResult {
-        // ── Responses fork ─────────────────────────────────────────
-        // MUST come before lower_shared(), which MOVES model/messages/tools
-        // out of `req` into the chat-shaped request. Forking after it would
-        // hand the Responses codec a gutted Request — empty input[], empty
-        // instructions — which Copilot rejects with `One of "input" … must
-        // be provided`. (It did, until this was measured.)
+        // ── 回复叉 ─────────────────────────────────────────
+        // MUST在lower_shared()之前出现，其中MOVES
+        // model/messages/tools从`req`出来进入chat-shaped请求。
+        // 分叉后，它将向响应编解码器传递一个已删除的请求 - 空输入[]，空指令 -
+        // Copilot 会以 `One of "input" … must be provided`
+        // 拒绝该请求。 （确实如此，直到测量为止。）
         //
-        // The Auto session is exactly the credential /responses requires,
-        // and it tells us which models the server will route. When the pick
-        // is one of them, prefer the Responses dialect: it is the ONLY way
-        // Copilot returns reasoning TEXT (measured — gpt-5-mini streams
-        // response.reasoning_summary_text.delta there and nothing on
-        // /chat/completions), and it is the only path at all for the
-        // Responses-only models (mai-code-*) we used to skip entirely.
+        // 自动会话正是 凭据/responses 所要求的，它告诉我们服务器将
+        // 路由哪些模型。当选择其中之一时，更喜欢 Responses 方言：这是
+        // Copilot 返回推理 TEXT 的 仅 方式（测量 — gpt-
+        // 5-mini 数据流 response.reasoning_summary_text.delta，
+        // /chat/completions 上没有任何内容），
+        // 并且它是我们过去完全跳过的 Responses
+        // -only 模型 (mai-code-*) 的唯一路径。
         //
-        // Chat stays the default for everything else, so Claude / GPT-4.1
-        // turns are byte-identical to before this fork existed.
+        // 聊天对于其他一切都保持默认，因此 Claude/GPT-4.1
+        // 回合是 字节-identical 到此分叉存在之前。
         if (as && as->valid()) {
             const std::string picked = pick_auto_model(*as, requested);
-            // A concrete pin the Auto session doesn't list is NOT an error and
-            // NOT a cue to swap models: the account may be entitled to it on
-            // the DIRECT chat endpoint. That's exactly how the official VS Code
-            // client streams e.g. Claude Opus — a concretely-picked model goes
-            // straight to /chat/completions with the proxy token, never through
-            // /models/session routing. So when `picked` is empty for a concrete
-            // pin we simply fall through: the chat block below leaves `picked`
-            // empty ⇒ make_endpoint (direct, no session token) and streams the
-            // exact model requested. If the account isn't entitled the server
-            // answers model_not_supported, learned + surfaced below — the same
-            // failure the official client would show. (Smart Mode role pins are
-            // honoured verbatim here, never silently substituted.)
+            // 自动会话未列出的具体引脚不是 错误和 不 交换模型的提示：
+            // 帐户可能有权在 DIRECT 聊天端点上使用它。
+            // 这正是官方 VS 代码客户端 数据流 e.g 的方式。
+            // Claude Opus — 具体的 -picked 模型使用
+            // 代理令牌直接到达 /chat/completions，
+            // 而不是通过 /models/session 路由。因此，
+            // 当 `picked` 对于具体 pin 为空时，我们就会失败：
+            // 下面的聊天块使 `picked` 为空 ⇒ make_endpoint（直接，
+            // 无会话令牌）和 数据流 正是所请求的模型。如果该帐户没有被授权，
+            // 服务器会回答 model_not_supported，
+            // 如下所示 - 与官方客户端将显示的失败相同。 （智能模式
+            // 角色引脚在这里逐字保留，绝不会默默地替换。）
             const bool responses_capable =
                 !picked.empty() && session_lists_model(*as, picked)
                 && prefers_responses_dialect(picked);
@@ -353,7 +353,7 @@ provider::StreamResult CopilotProvider::stream(const maya::unlocked& cap,
                     .model         = picked,
                     .initiator     = provider::openai::initiator_for(req.messages),
                 };
-                provider::Request rr = req;   // still INTACT here
+                provider::Request rr = req;   // 这里还是INTACT
                 rr.model = picked;
                 return provider::responses::stream(kCopilotSite, copilot_target(rt),
                                                    std::move(rr), sink);
@@ -366,14 +366,14 @@ provider::StreamResult CopilotProvider::stream(const maya::unlocked& cap,
         oreq.session_key    = req.session_key;
         oreq.affinity_key   = req.affinity();
         if (as && as->valid()) {
-            // Same resolver the Responses fork used — one implementation. A
-            // concrete pin is already proven available above (that path
-            // returns early), so `picked` here is either the pin itself or
-            // Auto's own choice. No substitution is possible, hence no notice.
+            // 响应分支使用相同的解析器——一种实现。
+            // 上面已经证明了具体的引脚可用（该路径提前返回），
+            // 因此这里的 `picked` 要么是引脚本身，
+            // 要么是 Auto 自己的选择。无法替代，因此不另行通知。
             const std::string picked = pick_auto_model(*as, requested);
             if (picked.empty()) {
-                // Auto had nothing to offer at all — fall back to the direct
-                // endpoint rather than streaming an empty model slug.
+                // Auto 根本没有什么可提供的——回退到直接
+                // 端点而不是 流式传输 一个空的模型段。
                 oreq.endpoint = make_endpoint(t.endpoint_api);
             } else {
                 oreq.model    = picked;
@@ -387,24 +387,24 @@ provider::StreamResult CopilotProvider::stream(const maya::unlocked& cap,
     };
 
     auto result = run(*tok);
-    // Proxy token revoked mid-life → refresh + retry once.
+    // 代理令牌被撤销mid-life→刷新+重试一次。
     if (!result.ok() && (result.http_status == 401 || result.http_status == 403)) {
         invalidate_cached_token();
         if (auto fresh = fresh_token(cap)) result = run(*fresh);
     }
-    // Auto session expired/stale → refresh it + retry once.
+    // 自动会话expired/stale→刷新+重试一次。
     if (!result.ok() && wants_auto && result.http_status == 400) {
         invalidate_auto_session(cap);
         as = auto_session(cap);
         if (as) result = run(*tok);
     }
-    // LEARN direct model support (only meaningful for a directly-requested
-    // model, not the auto pseudo-id).
+    // LEARN直接模型支持（仅对直接-requested模型有意义，
+    // 对自动伪-id没有意义）。
     if (requested != kAutoId) {
-        // Did this turn stream through the Auto session, or go direct? The
-        // session serves a model only when it lists it; anything else (a
-        // concrete pin the session omits, or no session at all) was streamed
-        // direct against /chat/completions.
+        // 这是通过自动会话转数据流，还是直接转？会话仅在列出
+        // 模型时才提供模型；其他任何内容（会话省略的具体引脚，
+        // 或者根本没有会话）直接针对 /chat/completions.
+        // 进行流式传输
         const bool via_session =
             as && as->valid() && session_lists_model(*as, requested);
         if (result.http_status == 400 && result.error
@@ -412,23 +412,23 @@ provider::StreamResult CopilotProvider::stream(const maya::unlocked& cap,
             note_unsupported_model(cap, requested);
             invalidate_model_cache();
         } else if (result.ok() && !via_session) {
-            // A DIRECT stream succeeded — either an already-direct model, or a
-            // pin the Auto session doesn't list that the account is entitled to
-            // directly (the VS Code path). Remember it so the next turn skips
-            // the Auto probe and streams direct immediately. Persisted to disk,
-            // so it survives restarts. Models that need the session (gpt-5
-            // reasoning via /responses) keep wants_auto set through
-            // prefers_responses_dialect, so this never strands them on chat.
+            // DIRECT 数据流成功——要么是已经-direct的模型，
+            // 要么是自动会话未列出帐户有权直接访问的固定（VS代码路径）。
+            // 记住这一点，以便下一回合跳过自动探测并立即直接 数据流。
+            // 保留到磁盘，因此它可以在重新启动后继续存在。需要会话（通过 /
+            // responses 进行 gpt-5 推理）的模型通过
+            // prefers_responses_dialect 保持
+            // wants_auto 设置，因此这永远不会让他们陷入聊天困境。
             note_supported_model(cap, requested);
         }
     }
     return result;
 }
 
-// ── Model listing ────────────────────────────────────────────────────────────
+// ── Model 列名 ────────────────────────────────────────────────────────────
 static std::vector<ModelInfo> bundled_models() {
-    // Single bundled catalog; the live catalog (list_models) supersedes it the
-    // moment the account can be reached.
+    // 单捆目录；一旦可以联系到帐户，实时 目录 (
+    // list_models) 就会取代它。
     return catalog::bundled("copilot");
 }
 
@@ -438,20 +438,20 @@ std::vector<ModelInfo> list_models(Io io, const maya::unlocked& cap) {
     const std::uint64_t gen = models_cache().gen();
     auto tok = fresh_token(cap);
     if (!tok || !tok->chat_enabled) {
-        // The "no models / only stale models" report: the live catalog was
-        // never fetched. Name the reason — no CAPI token vs an account with
-        // chat disabled (org policy) — so a shared log distinguishes a
-        // sign-in problem from an entitlement problem.
+        // 没有模型，或只剩过期模型。
+        // 报告：从未获取实时目录。说出原因 - 没有 CAPI
+        // 令牌与禁用聊天的帐户（组织策略） - 因此共享日志可以
+        // 区分 Sign-in 问题和权利问题。
         AGT_LOG(Auth, Warn, "copilot.models.fallback",
                 "reason={} -> bundled catalog",
                 !tok ? "no_capi_token" : "chat_disabled");
         return bundled_models();
     }
 
-    // Fetch /models directly so we can read Copilot's rich per-model metadata
-    // (policy.state, capabilities, model_picker_category) that the generic
-    // OpenAI parser discards. This is what lets us surface the models the
-    // account can ACTUALLY use on top.
+    // 直接获取 /models，以便我们可以读取通用 OpenAI 解析器 丢弃的
+    // Copilot 丰富的 per-model 元数据（policy.state、
+    // 功能、model_picker_category）。这就是让我们展示帐户可以在
+    // 上面使用 ACTUALLY 的模型。
     std::string host = tok->endpoint_api;
     if (host.rfind("https://", 0) == 0) host = host.substr(8);
     if (auto slash = host.find('/'); slash != std::string::npos) host = host.substr(0, slash);
@@ -479,25 +479,25 @@ std::vector<ModelInfo> list_models(Io io, const maya::unlocked& cap) {
         return bundled_models();
     }
 
-    // AUTHORITATIVE entitlement: does this account's billing tier include the
-    // premium model families at all? On Copilot Free (premium_available=false)
-    // only the base gpt-4o-family models run — every premium model 400s. We
-    // fetch this once and HIDE the models the account can't use.
+    // AUTHORITATIVE权利：该账户的计费层是否包括高级型号系列？
+    // 在 Copilot Free (premium_available=false) 上，
+    // 仅运行基本 gpt-4o-family 型号 - 每个高级型号 400s。
+    // 我们获取一次该帐户无法使用的模型和 HIDE。
     const Entitlement ent = account_entitlement(cap);
     const bool hide_premium = ent.known && !ent.premium_available;
 
-    // AUTO session: the per-account set of models reachable via server-side
-    // routing (the ONLY way a free/limited plan runs premium models). These
-    // become first-class usable entries even though a DIRECT request 400s.
+    // AUTO会话：可通过服务器-side路由到达的每-account模型集（
+    // free/limited计划运行高级模型的ONLY方式）。
+    // 即使 DIRECT 请求 400 秒，这些也会成为第一个 -class 可用条目。
     auto as = auto_session(cap);
     std::set<std::string> auto_ok;
     if (as) for (auto& m : as->available_models)
-        if (auto_chat_compatible(m)) auto_ok.insert(m);   // skip /responses-only
+        if (auto_chat_compatible(m)) auto_ok.insert(m);   // 跳过/responses-only
 
-    // A model is PREMIUM (needs the premium_interactions quota) when it's not
-    // in the base free-tier line. Base = the current-gen gpt-4o / gpt-4.1
-    // models GitHub documents as included on every plan (incl. Copilot Free).
-    // A `policy` block on these is just terms-acceptance, not a premium gate.
+    // 当模型不在基本 free-tier 行中时，它是 PREMIUM (需要
+    // premium_interactions 配额)。基础 = 每个计划中包含的当前 -gen
+    // gpt-4o / gpt-4.1 型号 GitHub 文档（包括 Copilot Free）。
+    // 这些上的`policy`块只是术语-acceptance，而不是高级门。
     auto is_base_family = [](const std::string& id) {
         return id == "gpt-4o" || id == "gpt-4.1" || id == "gpt-4o-mini"
             || id == "gpt-4o-copilot" || id == "gpt-4.1-mini"
@@ -513,8 +513,8 @@ std::vector<ModelInfo> list_models(Io io, const maya::unlocked& cap) {
             std::string id = m.value("id", "");
             if (id.empty()) continue;
             const auto& caps = m.value("capabilities", nlohmann::json::object());
-            if (caps.value("type", "") != "chat") continue;   // skip embeddings/search
-            // Skip Copilot's internal routing aliases — not user-facing models.
+            if (caps.value("type", "") != "chat") continue;   // 跳过embeddings/search
+            // 跳过 Copilot 的内部路由别名 — 不是 user-facing 型号。
             if (id.find("-picker") != std::string::npos
                 || id.find("-secondary") != std::string::npos
                 || id.find("-tertiary") != std::string::npos
@@ -522,8 +522,8 @@ std::vector<ModelInfo> list_models(Io io, const maya::unlocked& cap) {
                 || id.rfind("copilot-search", 0) == 0
                 || id.rfind("trajectory-", 0) == 0
                 || id.rfind("oswe-", 0) == 0) continue;
-            // Skip pinned dated snapshots (gpt-4o-2024-11-20, gpt-4-0613, …):
-            // the canonical id (gpt-4o, gpt-4) already appears.
+            // 跳过固定日期 快照 (gpt-4o-2024-11-20、gpt-4-0613、…)：
+            // 规范id (gpt-4o，gpt-4)已经出现。
             {
                 auto is_date_tail = [&](std::size_t pos) {
                     if (pos == std::string::npos) return false;
@@ -545,20 +545,20 @@ std::vector<ModelInfo> list_models(Io io, const maya::unlocked& cap) {
             }
 
             const bool has_policy   = m.contains("policy") && m["policy"].is_object();
-            const bool base         = is_base_family(id);   // policy = terms, not premium
+            const bool base         = is_base_family(id);   // 保单=条款，而非保费
             const bool learned_bad  = is_unsupported_model(cap, id);
             const bool learned_good = is_supported_model(cap, id);
-            const bool auto_usable  = auto_ok.count(id) > 0;   // reachable via Auto
+            const bool auto_usable  = auto_ok.count(id) > 0;   // 可通过自动到达
 
-            // A model is premium (draws the premium quota) unless it's a base
-            // family model. Confirmed-good overrides (we've actually run it).
+            // 模型是溢价的（抽取溢价配额），除非它是基本系列模型。
+            // 已确认-good覆盖（我们实际上已经运行了它）。
             const bool premium = !base && !learned_good && !auto_usable;
 
-            // FILTER: hide models this account can't run.
-            //   • anything we've confirmed 400s (learned_bad) — always hide,
-            //     UNLESS it's reachable via the Auto session.
-            //   • premium models when the plan has no premium entitlement AND
-            //     they're not in the Auto set.
+            // FILTER:隐藏该帐户无法运行的模型。
+            //   •我们已确认的任何内容 400s (learned_bad) — 始终隐藏，
+            //     UNLESS可通过自动会话到达。
+            //   ·当计划没有保费权利时的保费型号AND
+            //     它们不在自动集中。
             if (learned_bad && !auto_usable) continue;
             if (hide_premium && premium) continue;
 
@@ -567,35 +567,35 @@ std::vector<ModelInfo> list_models(Io io, const maya::unlocked& cap) {
             info.display_name = m.value("name", id)
                               + std::string{auto_usable && !base ? " (auto)" : ""};
             info.provider     = "copilot";
-            // ★ the models we're CONFIDENT the account can use: base family,
-            // confirmed-good, Auto-reachable, or (premium plan) any premium.
+            // ★我们的账户可以使用CONFIDENT的车型：base family、confirmed-good、
+            // Auto-reachable、或者（premium plan）任何premium。
             info.favorite     = base || learned_good || auto_usable
                               || (!hide_premium && !has_policy);
             if (caps.contains("limits"))
                 info.context_window =
                     caps["limits"].value("max_context_window_tokens", 200000);
             if (caps.contains("supports")) {
-                // Only an EXPLICIT tool_calls:false withholds tools. A row that
-                // omits the key is UNKNOWN, not unsupported — and unknown
-                // must send tools, because the failure is silent in the
-                // other direction: the turn runs, the model just never sees
-                // a tool and answers "I can't read files". GitHub has
-                // shipped rows with a `supports` object that lists only
-                // streaming/vision, and `.value("tool_calls", true)` was
-                // guessing on every one of them.
+                // 仅EXPLICIT tool_calls:false保留工具。
+                // 省略密钥的一行是 UNKNOWN，并非不受支持 - 并且
+                // 未知必须发送工具，因为失败在另一个方向上是无声的：转弯运行，
+                // 模型只是从未看到工具并回答 "I can't read files"。
+                // GitHub 已发送带有 `supports` 对象的行，
+                // 该对象仅列出 streaming/vision，
+                // 而 `.value("tool_calls", true)`
+                // 正在猜测其中的每一个。
                 const auto& sup = caps["supports"];
                 if (sup.contains("tool_calls") && sup["tool_calls"].is_boolean())
                     info.supports_tools = sup["tool_calls"].get<bool>();
-                // else: leave nullopt — unknown, tools are advertised.
+                // else:保留nullopt-未知，工具已被广告。
 
-                // Same tri-state for images. GitHub's rows carry `vision`
-                // in this object (the comment above notes rows that list
-                // ONLY streaming/vision), so this is a real declaration
-                // rather than an inference — which is the only kind worth
-                // acting on. Absent stays nullopt: unknown SENDS, because
-                // a vision model whose images we stripped is
-                // indistinguishable from one that saw them and was
-                // unhelpful.
+                // 图像的相同 tri-state。 GitHub 的
+                // 行在此对象中携带 `vision`（上面的注释
+                // 指出了列出 仅 streaming/vision
+                // 的行），因此这是一个真正的声明而不是推论 - 这是
+                // 唯一值得采取行动的类型。缺席保持 nullopt：
+                // 未知 SENDS，因为我们剥离其图像
+                // 的视觉模型与看到它们的视觉模型无法区分并且
+                // 没有帮助。
                 if (sup.contains("vision") && sup["vision"].is_boolean())
                     info.supports_vision = sup["vision"].get<bool>();
             }
@@ -603,15 +603,15 @@ std::vector<ModelInfo> list_models(Io io, const maya::unlocked& cap) {
             const std::string cat = m.value("model_picker_category", "");
             int cat_w = cat == "powerful" ? 0 : cat == "versatile" ? 1
                       : cat == "lightweight" ? 2 : 3;
-            // Confirmed-good / base first, then Auto-reachable, then the rest.
+            // 首先确认-good/base，然后是Auto-reachable，然后是其余的。
             int tier = (learned_good || base) ? 0 : auto_usable ? 10 : 100;
             rows.push_back({std::move(info), tier + cat_w});
         }
     } catch (...) { return bundled_models(); }
 
-    // Prepend the synthetic "Auto" model — the top pick. Selecting it lets the
-    // server route each turn to the best model the account may use (the same
-    // "Auto" VS Code offers). Only shown when a session is actually available.
+    // 预先考虑合成"Auto"模型——首选。选择它可以让服务
+    // 器将每次路由路由到帐户可能使用的最佳模型（与 "Auto"
+    // VS 代码提供的相同）。仅在会话实际可用时显示。
     if (as && as->valid()) {
         ModelInfo autom;
         autom.id           = ModelId{kAutoId};
@@ -620,7 +620,7 @@ std::vector<ModelInfo> list_models(Io io, const maya::unlocked& cap) {
         autom.favorite     = true;
         autom.context_window = 200000;
         autom.supports_tools = true;
-        rows.insert(rows.begin(), {std::move(autom), -1});   // rank -1 = very top
+        rows.insert(rows.begin(), {std::move(autom), -1});   // 排名-1=非常顶级
     }
 
     if (rows.empty()) return bundled_models();
@@ -639,31 +639,31 @@ std::vector<ModelInfo> list_models(Io io, const maya::unlocked& cap) {
 }
 
 std::string default_model(Io io, const maya::unlocked& cap) {
-    // Prefer a base-allowlist model that works on every Copilot tier, so a
-    // fresh sign-in never lands on a model that 400s on the first turn.
+    // 优选适用于每个副驾驶层的基本-allowlist模型，
+    // 因此新的标志-in永远不会落在第一回合就400秒的模型上。
     for (const char* id : {"gpt-4o", "gpt-4.1", "gpt-4o-mini"})
         if (!is_unsupported_model(cap, id)) return id;
     auto ms = list_models(io, cap);
     return ms.empty() ? std::string{"gpt-4o"} : ms.front().id.value;
 }
 
-// ── Dialect selection (public; see provider.hpp for the measured table) ──
+// ── 隔膜选择(公开;测量的表格见provider.hpp) ──
 bool prefers_responses_dialect(const std::string& model) {
-    // Copilot no longer owns this answer. It was the FIRST mixed-dialect host,
-    // so the table lived here — but "which dialect does this model speak" is
-    // a question about OpenAI-family models generally, and keeping a private
-    // copy meant the registry row said OpenAIChat while this function quietly
-    // routed gpt-5* elsewhere. That is the same drift the mislabelled `openai`
-    // row shipped, just hidden in a function instead of a field.
+    // 副驾驶不再拥有该答案。它是 首次 混合 -dialect 主机，
+    // 所以表住在这里 - 但 "which dialect does this model speak"
+    // 一般是关于 OpenAI-family 型号的问题，
+    // 保留私有副本意味着 注册表 行表示 OpenAIChat，
+    // 而此函数悄悄地将 gpt-5* 路由到其他地方。这与错误标记的
+    // `openai` 行所带来的漂移相同，只是隐藏在函数而不是字段中。
     //
-    // The shared predicate knows the model families; what remains genuinely
-    // Copilot-specific is the families its chat endpoint rejects, OR-ed on top.
+    // 共享谓词知道模型系列；真正剩下的 Copilot
+    // -specific 是其聊天端点拒绝的家庭，OR-ed 位于顶部。
     if (chat_dialect_unsupported(model)) return true;
     return dialect_for("copilot", model) == Dialect::Responses;
 }
 
 bool chat_dialect_unsupported(const std::string& model) {
-    // Known by family: mai-code-* has never accepted /chat/completions.
+    // 家人知晓：mai-code-*从未接受/chat/completions.
     return !auto_chat_compatible(model);
 }
 

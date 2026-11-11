@@ -1,7 +1,7 @@
-// mention.cpp — the @-file palette.
+// mention.cpp ——这个 @ -file 调色板。
 //
-// Pure adapter: builds maya::Panel::Config from Model state; the widget
-// owns every chrome decision. Shared scaffolding: panels_prologue.hpp.
+// 纯适配器: 构建 maya::Panel::Config 发件人 Model 状态;
+// 部件拥有每个铬决定。 共享脚手架 : panels_prologue.hpp.
 
 #include "panels_prologue.hpp"
 
@@ -11,9 +11,9 @@ Element mention_panel(const Model& m) {
     auto* o = m.ui.panel.get<pn::Mention>();
     if (!o) return nothing();
 
-    // One memoised filter pass shared with the reducer — reading it here
-    // also tops up a cold-opened snapshot, so a picker that was arrowed
-    // rather than typed into still fills in as the index lands.
+    // 与您共享一张纪念过滤器的通过 状态更新函数 读到这里,
+    // 也感冒了 -opened 快照 ,所以一个 选择面板
+    // 箭头不是箭头 带类型的 继续填充作为指数着陆。
     const auto& matches = o->picker.filtered();
     const auto& files   = o->picker.entries();
 
@@ -25,18 +25,18 @@ Element mention_panel(const Model& m) {
     cfg.scroll     = &m.ui.mention_palette_scroll;
     cfg.selected   = matches.empty() ? -1 : o->picker.index();
 
-    // "@" is the trigger character, so the header continues what was typed
-    // in the composer. The noun says what the ORDER is rather than what the
-    // list contains — changed files sort first, which is the one thing worth
-    // knowing before you start typing.
+    // "@" 是一个触发字符,所以 头文件 继续原样
+    // 带类型的 词里写着什么 ORDER 而不是列表
+    // 中包含的 —— 更改文件排序, 这是在开始打字
+    // 之前值得知道的事情。
     cfg.header.push_back(
         filter_header(o->picker.query(), "(changed files first)", info, "@ "));
     cfg.header.push_back(sep);
 
     if (files.empty()) {
-        // Distinguish "still indexing" from "genuinely empty" — the walk
-        // runs on a background thread; if it hasn't landed the picker
-        // opened with an empty snapshot. source_ready() tells them apart.
+        // 区分 "still indexing" 发件人 "genuinely empty"
+        // ——走行走行走在背景上 线程 如果它没有降落 选择面板 以
+        // 空打开 快照. source_ready () 告诉他们分开。
         cfg.prebuilt.push_back(text(
             o->picker.source_ready()
                 ? "  workspace empty (or no readable files)"
@@ -50,9 +50,9 @@ Element mention_panel(const Model& m) {
             const auto& path = files[matches[static_cast<std::size_t>(i)]];
             auto [name, dir] = split_name_dir(path);
             Panel::Item row;
-            // Git-status badge — the working-set signal, colour-coded so the
-            // file you're editing is unmistakable at a glance. Padded to a
-            // fixed width so leading text aligns across rows.
+            // Git-status 徽章——工作区 -set 信号,
+            // 颜色 -coded 因此您正在编辑的文件可以一目了然。
+            // 添加到固定宽度, 从而引导文本在行间对齐。
             if (auto tag = file_git_tag(path); tag != GitTag::None) {
                 auto label = git_tag_label(tag);
                 row.badge = "● " + std::string{label};
@@ -64,9 +64,9 @@ Element mention_panel(const Model& m) {
             }
             row.leading        = std::string{name};
             row.leading_style  = fg_of(fg);
-            // Light up the matched characters of the filename so the fuzzy
-            // rank is legible (re-score the name in-view against the query;
-            // the workspace scorer ranks but doesn't return positions).
+            // 点亮文件名中匹配的字符, 模糊的级别可以辨别(
+            // re -score 名称在 -view 与查询相对;
+            // 工作区 计分员排名但不返回位置).
             if (!o->picker.query().empty()) {
                 auto fm = fuzzy::score(name, o->picker.query());
                 if (fm.matched()) { row.highlight = std::move(fm.positions);
@@ -78,8 +78,8 @@ Element mention_panel(const Model& m) {
         }
     }
 
-    // Position indicator: still useful as a textual N/total anchor even
-    // though the scrollbar shows the same thing visually.
+    // 位置指示器:尽管滚动条显示的视线相同,
+    // 但作为文本N/total主锚仍然有用.
     if (static_cast<int>(matches.size()) > kViewportH) {
         cfg.footer.push_back(text(
             "  " + std::to_string(o->picker.index() + 1) + "/"
@@ -87,9 +87,9 @@ Element mention_panel(const Model& m) {
             fg_dim(muted)));
     }
 
-    // Enter/Esc/arrows all work here (on_mention_palette) but were never
-    // advertised, so the only way to learn them was to guess. Same grammar
-    // as the command palette.
+    // Enter/Esc/arrows 全部在这里工作( E)
+    // on_mention_palette ),但从未被广告宣传,所以唯一学他们的方法就是猜测,
+    // 语法与命令调色板相同.
     cfg.footer.push_back(key_hints({
         {"\xe2\x86\x91\xe2\x86\x93", "move", 5},   // ↑↓
         {"Enter", matches.empty() ? "" : "insert", 6},

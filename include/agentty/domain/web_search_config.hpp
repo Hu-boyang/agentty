@@ -1,43 +1,43 @@
 #pragma once
-// agentty::web_search_cfg — the user's policy for the `web_search` tool.
+// agentty::web_search_cfg-`web_search`工具的用户策略。
 //
-// ── What the host decides ────────────────────────────────────────────────
+// ── 东道主决定什么 ────────────────────────────────────────────────
 //
-// web_search is implemented in mcp-cpp (third_party/mcp-cpp/src/tools/web.cpp):
-// the catalogue of services, each one's request and reply format, the HTML
-// parsers and the dedup all live in that library, a separate repository.
-// agentty owns the CHOICES and hands them over at three seams:
+// web_search在mcp-cpp (third_party/mcp-cpp/src/tools/web.cpp)中实现：
+// 服务目录、每个服务的请求和回复格式、HTML、
+// 解析器和重复数据删除都存在于库、单独的仓库中。
+// agentty拥有CHOICES并在三点接口边界移交它们：
 //
-//   * advertisement — tools::plan decides what goes on the wire
-//   * dispatch      — the bridge's execute closure rewrites the call's args
-//                     (count, exclusions)
-//   * the plan      — tools::web_search_plan turns the slots, language and per-
-//                     service dials below into the WebSearchPlan mcp-cpp follows,
-//                     read afresh on every search
+//   *广告-tools::plan决定传输上发生什么
+//   * 分派 — 桥的执行闭包重写了 调用 的参数
+//                     (计数、排除)
+//   *计划-tools::web_search_plan转动槽位、语言和per-
+//                     服务拨打下面的 WebSearchPlan 后面是 mcp-cpp，
+//                     每次搜索时请重新阅读
 //
-// API keys are not part of this type. They are secrets, so they live in
-// tool/web_search_secret.hpp (keystore, else a sealed file) and are joined to the
-// plan only when it is built; nothing here can carry one into settings.json.
+// API键不是该类型的一部分。它们是秘密的，因此它们存在于
+// tool/web_search_secret.hpp（密钥库，否则是密封文件）中，
+// 并且仅在构建计划时才加入到计划中；这里没有任何东西可以带人进入settings.json。
 //
-// ── Why the arguments are rewritten, not the results filtered ────────────
+// ── 为什么这些论点被改写,而不是结果被过滤 ────────────
 //
-// Filtering results after the fact would need the parsed hits, which only
-// mcp-cpp has. Rewriting the request needs nothing but the args, and the
-// engine then never returns a blocked domain, so there is nothing to filter —
-// and it fills the freed slots with other results, which post-filtering could
-// not do.
+// 事后过滤结果需要解析的命中，只有mcp-cpp有。
+// 重写请求只需要参数，引擎就永远不会返回被阻止的域，
+// 因此没有什么可以过滤的——并且它用其他结果填充释放的槽，
+// 这是 post-filtering 无法做到
+// 的。
 //
-// What is and is not known about `-site:` support: DuckDuckGo documents it;
-// Brave honours it (checked live: a query that returns ten pinterest.com hits
-// returns none with `-site:pinterest.com`; Brave's own docs spell the operator
-// `NOT site:`). Services with a native domain filter (Tavily, Firecrawl, Exa,
-// Perplexity) receive the list as a request field instead, which mcp-cpp does
-// by lifting the `-site:` tokens back out of the query (at most 20; any more
-// stay in the query).
+// 关于`-site:`支持已知和未知的内容：DuckDuckGo记录了它；
+// Brave 尊重它（实时检查：返回 10 个 pinterest.com 命中的
+// 查询不会返回任何 `-site:pinterest.com`；Brave 自己的
+// 文档拼写运算符 `NOT site:`）。具有本机域过滤器（Tavily、
+// Firecrawl、Exa、Perplexity）的服务将列表作为请求字段接收，
+// mcp-cpp 通过将 `-site:` 令牌从查询中取出（最多 20 个；
+// 更多保留在查询中）来实现。
 //
-// Pure: no IO, no globals. The tool layer installs a value of this type
-// (tool/web_search_policy.hpp); the runtime persists it through the settings
-// registry like every other knob.
+// 纯粹：没有IO，没有全局变量。工具层安装一个该类型的值（
+// tool/web_search_policy.hpp）； 运行时 像其他旋
+// 钮一样通过设置 注册表 保持它。
 
 #include <cstdint>
 #include <map>
@@ -49,27 +49,27 @@
 
 namespace agentty::web_search_cfg {
 
-// Bounds the registry clamps to, and the tool layer re-clamps to. Named here
-// so the table row and the clamp can never disagree.
+// 将注册表夹具限制到，并且将工具层re-clamps限制到。
+// 此处命名是为了使表行和夹具永远不会不一致。
 //
-// What a search can actually RETURN is capped per service: mcp-cpp asks the
-// service that answers for one result page and clamps the count to that
-// service's documented maximum (WebSearchService::max_count: 10 for Serply, 20
-// for Brave, Tavily, Serper and Perplexity, 30 for DuckDuckGo, 100 for Firecrawl
-// and Exa). So a
-// ceiling above a service's cap is accepted and clamped correctly, but yields
-// no more than that service gives. The ceiling is a limit, not a promise.
+// 搜索实际上可以对每个服务的RETURN进行上限：mcp
+// -cpp询问回答一个结果页的服务并将计数限制到该服务记录的最大值(
+// WebSearchService::max_count:对于Serply为10，
+// 对于Brave、Tavily、Serper和Perplexity为20，
+// 对于DuckDuckGo为30，
+// 对于Firecrawl和Exa为100)。因此，高于服务上限的上限被接受并正确限制，
+// 但产生的收益不会超过该服务提供的值。上限是一个限制，而不是一个承诺。
 inline constexpr int kCountMin       = 1;
 inline constexpr int kCountMax       = 20;
-inline constexpr int kCountDefault   = 10;   // == mcp-cpp's own default
+inline constexpr int kCountDefault   = 10;   // ==mcp-cpp自己的默认值
 inline constexpr int kMaxCountMin    = 1;
 inline constexpr int kMaxCountMax    = 50;
 inline constexpr int kMaxCountDefault = 20;
 
-// The services a slot can name: the ids of mcp-cpp's catalogue, in menu order
-// (Free first, then API key). Spelled out here because the registry needs the
-// list at compile time and the catalogue is a runtime value; a test fails if
-// the two ever disagree. Primary cannot be empty; the other two can.
+// 槽可以命名的服务：mcp-cpp的目录的id，
+// 按菜单顺序（首先是免费，然后是API键）。这里拼写出来是
+// 因为注册表需要编译时间的列表，而目录是运行时的值；
+// 如果两者不一致，测试就会失败。主不能为空；另外两个可以。
 inline constexpr std::string_view kServiceIds =
     "brave-free|ddg-free|tavily-free|firecrawl-free|"
     "brave-api|tavily-api|firecrawl-api|exa-api|serper-api|serply-api|"
@@ -78,99 +78,99 @@ inline constexpr std::string_view kOptionalServiceIds =
     "none|brave-free|ddg-free|tavily-free|firecrawl-free|"
     "brave-api|tavily-api|firecrawl-api|exa-api|serper-api|serply-api|"
     "perplexity-api";
-// ISO 639-1, the languages the keyed services document support for.
+// ISO 639-1，键控服务文档支持的语言。
 inline constexpr std::string_view kLanguages =
     "auto|en|de|fr|es|it|pt|nl|sv|da|fi|pl|cs|ru|uk|tr|ja|ko|zh|ar|he|hi";
 
-// The web_search switch. `Auto` is how agentty behaved before this pane
-// existed: the tool is advertised and the MODEL decides how many results to
-// ask for (mcp-cpp's own default of 10 when it does not say). Nothing on the
-// host — turn count, Smart Mode effort — feeds that number.
-// `On` additionally applies the count the user set, as a default and as a
-// ceiling. `Off` takes the tool off the wire and refuses calls to it.
-// Exclusions apply in Auto and On alike.
+// web_search开关。 `Auto` 是 agentty 在
+// 面板 存在之前的行为方式：该工具被宣传，MODEL 决定要请求多少
+// 结果（mcp-cpp 自己的默认值是 10，当它没有说明时）。
+// 主机上的任何东西（回合计数、智能模式工作）都无法满足这个数字。
+// `On`另外应用用户设置的计数作为默认值和上限。
+// `Off` 从 传输 上取下工具，并拒绝 调用 使用它。
+// 排除同样适用于“自动”和“开启”。
 enum class Mode : std::uint8_t { Auto, On, Off };
 
 struct Config {
-    // Stored as the row's text ("auto" | "on" | "off"), so the registry's
-    // Enum type can hold it; mode() is the typed view every reader uses.
+    // 存储为行的文本("auto" | "on" | "off")，因此注册表的
+    // 枚举类型可以容纳它； mode() 是每个读者都使用的 带类型的 视图。
     std::string mode_text = "auto";
 
-    // Results when the model does not ask for a number. Only applied in On.
+    // 当模型不要求数字时的结果。仅适用于 On。
     int count = kCountDefault;
 
-    // Ceiling on what the model may ask for. Only applied in On. Also catches
-    // the degenerate requests (0, negative) that would return no results.
+    // 模型可能要求的上限。仅适用于 On。
+    // 还捕获不会返回任何结果的退化请求（0，负数）。
     int max_count = kMaxCountDefault;
 
-    // Domains never to return, space- or comma-separated as typed
-    // ("pinterest.com, w3schools.com"). Kept as the user's text, not a parsed
-    // list, so the pane shows exactly what was typed and settings.json stays
-    // hand-editable; exclude_list() is the parsed view.
+    // 域永远不会返回，空格或逗号-separated为带类型的 (
+    // "pinterest.com, w3schools.com")。保留为用户的文本，而不是解析的列表，
+    // 因此 面板 准确地显示了 带类型的 的内容，而 settings.json 则保留在
+    // -editable 中； exclude_list() 是解析后的视图。
     std::string exclude_sites;
 
-    // Which services web_search tries, in order: the first to answer wins.
-    // Stored as the catalogue's service id ("brave-free", "exa-api"); the
-    // catalogue itself lives in mcp-cpp (mcp/tools/web_search.hpp), so this
-    // domain type holds only the ids. "none" leaves a slot empty (Primary
-    // cannot be: a search with no service cannot run). The defaults need no
-    // account, card or key.
+    // web_search尝试哪些服务，顺序为：第一个回答者获胜。
+    // 存储为目录的服务id("brave-free"，"exa-api")；
+    // 目录本身位于 mcp-cpp (mcp/tools/web_search.hpp)，
+    // 因此此域类型仅包含 ID。 "none" 将插槽
+    // 留空（主要不能是：无法运行没有服务的搜索）。默认不需要账户、
+    // 卡或钥匙。
     std::string primary   = "brave-free";
     std::string secondary = "ddg-free";
     std::string fallback  = "tavily-free";
 
-    // ISO 639-1 code sent to the services that take one, or "auto" for each
-    // service's own default. Services that cannot take a language ignore it.
+    // ISO 639-1 代码发送给各服务取一，或者"auto"
+    // 为每个服务自己的默认值。无法接受某种语言的服务会忽略它。
     std::string language = "auto";
 
-    // Per-SERVICE extra settings (freshness, region, ...), keyed
-    // "<service-id>.<dial-id>" -> value id, or the typed text for a free-text
-    // dial (a Brave Goggle URL). Per service rather than per slot
-    // so choosing Exa for Fallback after trying it as Primary keeps what was
-    // set. Only non-default values are stored. Values are not checked here:
-    // mcp-cpp sends a value only if it passes web_search_dial_value_ok.
+    // Per-SERVICE额外设置(新鲜度、区域……)、
+    // 键控"<service-id>.<dial-id>"->值ID、
+    // 或用于free-text表盘(Brave Goggle URL)
+    // 的带类型的文本。每个服务而不是每个插槽，因此在尝试将其作为主要保留后选择
+    // Exa 为 回退 保留设置。仅存储非 -default 值。此处不检查值：
+    // mcp-cpp仅当其通过web_search_dial_value_ok时才发送值。
     std::map<std::string, std::string> dials;
 
     [[nodiscard]] bool operator==(const Config&) const = default;
 };
 
-// What a stored dial entry must look like: key "<service>.<dial>" and a value,
-// both printable, the key short and the value within kMaxDialValueBytes.
-// Applied on load AND on save, so a hand-edited
-// settings.json cannot hold what the pane could not produce, and junk keys
-// cannot crowd real ones out of the cap.
+// 存储的拨号条目必须是这样的：键"<service>.<dial>"和值，
+// 两者都是可打印的，键短和kMaxDialValueBytes内的值。
+// 应用在保存上的加载 AND上，
+// 因此-edited settings.json不能握住面板不能产生的东西，
+// 并且垃圾钥匙不能将真正的钥匙从盖子中挤出。
 inline constexpr std::size_t kMaxDials = 64;
-// Room for the longest free-text dial mcp-cpp declares: a 2048-byte Goggle URL.
+// 房间最长的空闲-text拨盘mcp-cpp声明：一个2048-byte护目镜URL。
 inline constexpr std::size_t kMaxDialValueBytes = 2048;
 [[nodiscard]] bool dial_entry_ok(std::string_view key, std::string_view value) noexcept;
 
-// The typed view of Config::mode_text. Anything unrecognised reads as Auto —
-// the registry only ever writes the three words, and a hand-edited typo must
-// not switch the tool off or on by accident.
+// Config::mode_text的带类型的视图。任何无法识别的内容
+// 都会读取为“自动”——注册表 只会写入这三个单词，而 hand-edited
+// 拼写错误不得意外关闭或打开工具。
 [[nodiscard]] Mode mode(const Config& c);
 
-// The parsed, normalised exclusion list: lower-cased, scheme / "www." /
-// path / port stripped, empties and duplicates dropped, anything that is not
-// a plausible host refused. Order preserved, so the rewritten query is
-// stable for a given setting (and therefore cache-friendly upstream).
+// 解析的、规范化的排除列表：lower-cased、
+// 方案/"www."/路径/端口被剥离、清空和重复项被丢弃、
+// 任何不是合理主机的被拒绝。顺序已保留，因此重写的查询对于
+// 给定设置是稳定的（因此 缓存-friendly 上游）。
 [[nodiscard]] std::vector<std::string> exclude_list(std::string_view text);
 
-// The effective result count for a request: the model's own `count` when it
-// gave a usable integer, the default otherwise, always clamped to
-// [1, max_count].
+// 请求的有效结果计数：当模型给出可用整数时，模型自己的`count`，
+// 否则默认，总是钳位到[1，
+// max_count]。
 [[nodiscard]] int effective_count(const Config& c, const nlohmann::json& args);
 
-// Append `-site:<domain>` for every excluded domain the query does not
-// already exclude itself. An operator the model wrote is left alone, so a
-// query is never given the same exclusion twice.
+// 为查询尚未排除自身的每个排除域附加`-site:<domain>`。
+// 模型编写的运算符是单独保留的，
+// 因此查询永远不会两次给出相同的排除。
 [[nodiscard]] std::string apply_exclusions(std::string query,
                                            const std::vector<std::string>& sites);
 
-// The whole request rewrite the dispatch seam applies. In On: count resolved
-// and clamped. In Auto: the model's count passes through unchanged, exactly
-// as before the pane existed. Both: exclusions appended. Arguments it does
-// not own pass through untouched (display_description, and anything a future
-// mcp-cpp adds). Off is refused by the caller before this runs.
+// 整个请求重写分派适用于接口边界。开启时：计数已解析并固定。
+// 在自动模式下：模型的计数保持不变，与 面板 存在之前完全相同。
+// 两者：附加排除项。它不拥有原样传递的参数（
+// display_description，以及未来 mcp-cpp
+// 添加的任何内容）。在此运行之前，调用者会拒绝关闭。
 [[nodiscard]] nlohmann::json rewrite_args(const Config& c, nlohmann::json args);
 
 } // namespace agentty::web_search_cfg

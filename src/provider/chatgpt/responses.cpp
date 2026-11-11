@@ -1,21 +1,21 @@
-// agentty::provider::chatgpt — the ChatGPT/Codex **host** for the shared
-// Responses-API codec.
+// agentty::provider::chatgpt —共享 Responses-API 编解码器的
+// ChatGPT/Codex **主机**。
 //
-// The dialect machinery (conversation → input[], tools[], the SSE state
-// machine) used to live here; it was extracted to
-// src/provider/responses/codec.cpp once we measured that GitHub Copilot
-// speaks the exact same wire. What remains is precisely what is TRUE OF
-// CHATGPT AND NOTHING ELSE:
+// 方言机制（对话→输入[]、工具[]、SSE状态机）曾经居住在这里；
+// 一旦我们测量到 GitHub 副驾驶说的是完全
+// 相同的 传输，它就会被提取到 src/provider/responses/codec.cpp。
+// 剩下的正是 TRUE OF CHATGPT 和
+// 无内容 ELSE：
 //
-//   • the endpoint            chatgpt.com/backend-api/codex/responses
-//   • ChatGPT OAuth creds     (auto-refreshing) + chatgpt-account-id
-//   • the prompt-cache session id derived from the thread id
-//   • `store:false` + include[reasoning.encrypted_content]
-//   • Codex-flavoured HTTP error prose ("run `agentty login`…")
-//   • the live /models catalog for this account
+//   • 端点 chatgpt.com/backend-api/codex/responses
+//   • ChatGPT OAuth 信用 (auto-refreshing) + chatgpt-account-id
+//   ·从 线程 ID 派生的 提示词-cache 会话 ID
+//   • `store:false` + 包括[reasoning.encrypted_content]
+//   · Codex-flavoured HTTP 错误散文 ("run `agentty login`…")
+//   • 此帐户的实时 /models 目录
 //
-// Everything else is shared. Adding a Responses backend is a Site row like
-// the one at the bottom of this file — not a second copy of the codec.
+// 其他一切都是共享的。添加响应后端是一个站点行，
+// 类似于此文件底部的行，而不是编解码器的第二个副本。
 #include "agentty/provider/chatgpt/responses.hpp"
 #include "agentty/provider/responses/responses.hpp"
 
@@ -41,10 +41,10 @@ namespace agentty::provider::chatgpt {
 namespace {
 using json = nlohmann::json;
 
-// UTF-8 scrub — a pasted blob / tool output can carry invalid UTF-8 that
-// nlohmann::dump() would throw on. Replace malformed bytes with U+FFFD.
-// (Local copy: the codec keeps its own for the body it builds; this one is
-// only used by the error formatter below.)
+// UTF-8 擦洗 — 粘贴的斑点/工具输出可以携带无效的内容UTF-8那个nlohmann::
+// dump() 会抛出。用 U+ 替换格式错误的字节FFFD.
+// （本地副本：编解码器为其构建的 正文 保留自己的副本；
+// 该副本仅由下面的错误格式化程序使用。）
 std::string scrub_utf8(std::string_view in) {
     std::string out;
     out.reserve(in.size());
@@ -99,8 +99,8 @@ std::string format_http_error(int status, std::string_view body) {
         util::dbglog("chatgpt.http_error.decode", e.what());
     } catch (...) {}
 
-    // Some edge responses retain SSE framing even on an HTTP error. Decode
-    // their `data: {...}` payload instead of showing the raw frame.
+    // 一些边缘响应即使出现HTTP错误也保留SSE帧。
+    // 解码其 `data: {...}` 载荷，而不是显示原始 帧。
     if (!decoded) {
         std::size_t pos = 0;
         while (pos < body.size()) {
@@ -139,8 +139,8 @@ std::string format_http_error(int status, std::string_view body) {
 std::string new_uuid_v4() {
     static thread_local std::mt19937_64 rng{std::random_device{}()};
     std::uint64_t a = rng(), b = rng();
-    a = (a & 0xFFFFFFFFFFFF0FFFULL) | 0x0000000000004000ULL;   // version 4
-    b = (b & 0x3FFFFFFFFFFFFFFFULL) | 0x8000000000000000ULL;   // variant 1
+    a = (a & 0xFFFFFFFFFFFF0FFFULL) | 0x0000000000004000ULL;   // 版本4
+    b = (b & 0x3FFFFFFFFFFFFFFFULL) | 0x8000000000000000ULL;   // 变体 1
     char buf[37];
     std::snprintf(buf, sizeof(buf),
         "%08x-%04x-%04x-%04x-%012llx",
@@ -152,22 +152,22 @@ std::string new_uuid_v4() {
     return std::string{buf};
 }
 
-// Stable per-conversation session id for the Responses backend.
+// 响应后端的稳定的 per-conversation 会话 ID。
 //
-// The Codex backend keys prompt caching on this header, so successive turns
-// of the SAME conversation that carry the SAME id hit the cached prefix
-// (system instructions + tool schemas + prior turns), while a fresh id every
-// turn forces a full re-encode — exactly what a random uuid-per-request did,
-// silently defeating caching on every hosted ChatGPT turn. codex-rs keeps one
-// id for the whole session; we do the same by deriving a deterministic v4-
-// shaped uuid from the caller's stable session_key (the thread id). When no
-// session_key is supplied (no durable conversation identity) we fall back to a
-// random id — correctness first, caching only when we can be stable.
+// Codex后端密钥提示词在该头文件上缓存，因此携带SAME id的
+// SAME对话的连续轮次命中了缓存的前缀（系统指令+工具模式定义
+// +先前的轮次），而每轮新的id都会强制执行完整的re-encode
+// ——这正是随机uuid-per-request所做的，默默地击败了
+// 缓存每次主持 ChatGPT 回合。 codex-rs 为整个会话
+// 保留一个 id；我们通过从调用者的稳定 session_key（线
+// 程 id）派生确定性 v4 形 uuid 来执行相同的操作。
+// 当没有提供 session_key 时（没有持久的对话身份），
+// 我们会回退到一个随机 ID——正确性第一，只有当我们能够稳定时才进行缓存。
 std::string session_id_for(std::string_view session_key) {
     if (session_key.empty()) return new_uuid_v4();
-    // FNV-1a over the key → 128 bits, then formatted as a v4 uuid so the
-    // backend accepts it. Deterministic: same conversation → same id every
-    // turn → cache continuity.
+    // FNV-1a在密钥→128位上，然后格式化为v4
+    // uuid以便后端接受它。确定性：相同的对话→每次都相同
+    // 的id→缓存连续性。
     auto fnv = [](std::string_view s, std::uint64_t seed) {
         std::uint64_t h = seed;
         for (unsigned char c : s) { h ^= c; h *= 0x00000100000001B3ULL; }
@@ -175,8 +175,8 @@ std::string session_id_for(std::string_view session_key) {
     };
     std::uint64_t a = fnv(session_key, 0xcbf29ce484222325ULL);
     std::uint64_t b = fnv(session_key, 0x84222325cbf29ce4ULL);
-    a = (a & 0xFFFFFFFFFFFF0FFFULL) | 0x0000000000004000ULL;   // version 4
-    b = (b & 0x3FFFFFFFFFFFFFFFULL) | 0x8000000000000000ULL;   // variant 1
+    a = (a & 0xFFFFFFFFFFFF0FFFULL) | 0x0000000000004000ULL;   // 版本4
+    b = (b & 0x3FFFFFFFFFFFFFFFULL) | 0x8000000000000000ULL;   // 变体 1
     char buf[37];
     std::snprintf(buf, sizeof(buf),
         "%08x-%04x-%04x-%04x-%012llx",
@@ -188,17 +188,17 @@ std::string session_id_for(std::string_view session_key) {
     return std::string{buf};
 }
 
-// ── The ChatGPT Site ──────────────────────────────────────────────────────
+// ── 电话 ChatGPT 站点 ──────────────────────────────────────────────────────
 
 std::expected<responses::Target, std::string>
 chatgpt_authorize(const maya::unlocked& cap, provider::Request& req) {
-    auto creds = codex_fresh_credentials(cap);   // auto-refreshes if stale
+    auto creds = codex_fresh_credentials(cap);   // auto-refreshes 如果 过期
     if (!creds || creds->access_token.empty())
         return std::unexpected(
             std::string{"not signed in to ChatGPT \xe2\x80\x94 run `agentty login` and "
                         "choose ChatGPT, or use --provider with an API key"});
-    // The refresh failed for good (expired / reused / revoked): sending the
-    // dead token would only come back as a confusing 401.
+    // 刷新永久失败（过期/重用/撤销）：发送死令牌只会
+    // 以令人困惑的 401 的形式返回。
     if (const auto why = refresh_failure_message(codex_last_refresh_failure());
         !why.empty() && creds->expired())
         return std::unexpected(std::string{"401 "} + std::string{why});
@@ -207,9 +207,9 @@ chatgpt_authorize(const maya::unlocked& cap, provider::Request& req) {
     t.host = "chatgpt.com";
     t.port = 443;
     t.path = "/backend-api/codex/responses";
-    // codex-rs sends the conversation id three ways: `session_id` (legacy),
-    // `session-id` + `thread-id`, and `x-client-request-id`. The backend keys
-    // routing and prompt-cache stickiness on them, so send the same set.
+    // codex-rs以三种方式发送会话id:`session_id`(传统)、
+    // `session-id`+`thread-id`和`x-client-request-id`。
+    // 后端按键路由和提示词-cache粘性在它们上，所以发送相同的设置。
     const std::string sid = session_id_for(req.session_key);
     t.headers = {
         {"authorization",     "Bearer " + creds->access_token},
@@ -225,28 +225,28 @@ chatgpt_authorize(const maya::unlocked& cap, provider::Request& req) {
     };
     if (!creds->account_id.empty())
         t.headers.push_back({"chatgpt-account-id", creds->account_id});
-    // The hosted Codex backend's default slug when the caller didn't pin one.
+    // 当调用者未固定后端时托管的Codex后端的默认段。
     t.model = (req.model.empty() || req.model == "chatgpt-default")
                   ? "gpt-5-codex" : req.model;
     return t;
 }
 
 void chatgpt_decorate_body(json& body, const provider::Request& req) {
-    // The Codex backend runs stateless: we replay the whole conversation each
-    // turn, so nothing should be stored server-side.
+    // Codex后端运行无状态：我们每轮重放整个对话，
+    // 因此服务器-side不应该存储任何内容。
     body["store"] = false;
-    // Same stable key codex-rs derives from the session, so turns of one
-    // conversation hit the same prompt cache.
+    // 相同的稳定密钥代码x-rs从会话中导出，
+    // 因此一个对话轮流击中相同的提示词缓存。
     if (!req.session_key.empty()) body["prompt_cache_key"] = session_id_for(req.session_key);
-    // Ask the backend to return each reasoning item's encrypted_content so we
-    // can replay it in input[] next turn. Under store:false this is the ONLY
-    // way to carry chain-of-thought across tool rounds — without it a
-    // reasoning model re-derives its plan from scratch each round (worse
-    // answers, wasted tokens). Mirrors codex-rs.
+    // Ask后端返回每个推理项的encrypted_content这样
+    // 我们就可以在下一轮的 input[] 中重播它。下商店：假这是
+    // ONLY携带链条的方式-of-thought跨工具轮次 -
+    // 没有它推理模型重新-derives每轮都从头开始制定计划（更糟糕的答案，
+    // 浪费代币）。镜子法典-rs.
     body["include"] = json::array({"reasoning.encrypted_content"});
 }
 
-// A 401 on a token that looked valid: refresh it now and resend once.
+// 看起来有效的令牌上的 401：立即刷新并重新发送一次。
 std::expected<responses::Target, std::string>
 chatgpt_reauthorize(const maya::unlocked& cap, provider::Request& req,
                     const responses::Target& rejected) {
@@ -270,18 +270,18 @@ const responses::Site kChatGptSite{
     .reauthorize        = &chatgpt_reauthorize,
 };
 
-} // namespace
+} // 命名空间结束。
 
 bool responses_available() {
-    // Called by the provider-picker VIEW once per rendered frame. The naive
-    // path (read codex_credentials.json → unseal → JSON parse) costs disk +
-    // AES work per frame while the picker is open. Cache the boolean keyed
-    // on the file's (mtime, size): a stat is ~1µs and invalidates correctly
-    // on sign-in, sign-out, and cross-process refreshes alike.
+    // 每个呈现的帧由提供者-picker VIEW调用一次。当 选择面板 打开时，
+    // 幼稚路径（读取 codex_credentials.json → 解封 →
+    // JSON 解析）会花费磁盘 + 每个 帧 的 AES 工作量。 缓存 文件的
+    // 布尔值（mtime、大小）：统计数据约为 1μs，并且在 sign-in、
+    // sign-out 和 cross-process 刷新时正确无效。
     namespace fs = std::filesystem;
     struct Cache {
         bool           ok = false;
-        std::int64_t   mtime = 0;   // file_time_type ticks: a Sendable key
+        std::int64_t   mtime = 0;   // file_time_type 刻度：可发送键
         std::uintmax_t size = static_cast<std::uintmax_t>(-1);
     };
     static maya::snapshot<Cache> cache;
@@ -289,20 +289,20 @@ bool responses_available() {
     const auto p = codex_credentials_path();
     const std::int64_t mtime = fs::last_write_time(p, ec).time_since_epoch().count();
     const auto size  = ec ? 0 : fs::file_size(p, ec);
-    if (ec) {   // missing/unreadable → signed out; remember that cheaply
+    if (ec) {   // missing/unreadable→已注销；记得便宜
         cache.store(Cache{});
         return false;
     }
     if (auto hit = cache.load(); hit->mtime == mtime && hit->size == size)
         return hit->ok;
-    // Changed: unseal + parse, then publish.
+    // 修改：解封+解析，然后发布。
     auto c = load_codex_credentials();
     const bool ok = c && !c->access_token.empty();
     cache.store(Cache{ok, mtime, size});
     return ok;
 }
 
-// ── Live model catalog ────────────────────────────────────────────────────
+// ── 实况模式目录 ────────────────────────────────────────────────────
 std::vector<CatalogModel> fetch_models(Io io, const maya::unlocked& cap) {
     auto creds = codex_fresh_credentials(cap);
     if (!creds || creds->access_token.empty()) return {};
@@ -326,9 +326,9 @@ std::vector<CatalogModel> fetch_models(Io io, const maya::unlocked& cap) {
     http::Timeouts tos;
     tos.connect = std::chrono::milliseconds(8'000);
     tos.total   = std::chrono::milliseconds(15'000);
-    // The catalog is a small JSON list (~a few KB). Cap hard so a misbehaving
-    // proxy / replay loop can't stream us into OOM on a routine picker probe
-    // (parity with Anthropic's list_models).
+    // 目录是一个小的JSON列表（〜一些KB)。严格限制，以便行为不当的代理/重放循环无法在例行
+    // 选择面板 探测上将 数据流 进入 OOM（与 Anthropic 的
+    // list_models 奇偶校验）。
     hr.max_body_bytes = 1ull * 1024 * 1024;
 
     auto result = http::default_client(io).send(hr, tos);
@@ -340,10 +340,10 @@ std::vector<CatalogModel> fetch_models(Io io, const maya::unlocked& cap) {
         const auto& arr = j.contains("models") ? j["models"] : j;
         if (!arr.is_array()) return {};
         for (const auto& m : arr) {
-            // The catalog carries internal models the picker must not show
-            // (e.g. `codex-auto-review`, visibility="hide"). Mirror codex-rs:
-            // only surface models the account is meant to select. Anything not
-            // explicitly listed as visible is dropped.
+            // 目录携带选择面板不得显示的内部模型(e.g.
+            // `codex-auto-review`，可见性＝"hide")。镜像代码x-rs：
+            // 仅帐户打算选择的表面模型。
+            // 任何未明确列为可见的内容都会被删除。
             const std::string vis = m.value("visibility", std::string{"list"});
             if (vis == "hide" || vis == "hidden") continue;
             CatalogModel cm;
@@ -366,17 +366,17 @@ provider::StreamResult stream_responses(const maya::unlocked& cap,
     return responses::stream(cap, kChatGptSite, std::move(req), std::move(sink));
 }
 
-// ── Test seams ────────────────────────────────────────────────────────────
-// These keep their historical ChatGPT-flavoured behaviour: build_body_for_test
-// returns the body AS SENT (neutral codec body + this host's decorations), so
-// the existing expectations about store/include still hold.
+// ── 测试接口边界 ────────────────────────────────────────────────────────────
+// 这些保持其历史ChatGPT-flavoured行为：build_body_for_test
+// 返回正文 AS SENT(中性编解码器正文+该主机的装饰)，
+// 因此关于store/include的现有期望仍然成立。
 nlohmann::json build_body_for_test(const provider::Request& req) {
     provider::Request r = req;
-    // Build FOR this site, exactly as stream() does. The seam claims to
-    // return the body as sent, so it has to pass the same site id —
-    // otherwise encrypted-reasoning replay is gated off here and on
-    // nowhere else, and the test would be asserting a body no request
-    // ever produces.
+    // 建立 FOR 这个网站，就像 stream() 所做的那样。
+    // 接口边界 声称返回发送时的 正文，因此它必须传递相同的站
+    // 点 ID — 否则加密的 -reasoning 重播将在此处关闭，
+    // 而不会在其他地方关闭，并且测试将断言 正文 不会
+    // 产生任何请求。
     json body = responses::build_body(r, kChatGptSite.id);
     if (r.model.empty() || r.model == "chatgpt-default")
         body["model"] = "gpt-5-codex";

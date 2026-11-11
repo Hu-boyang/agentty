@@ -1,8 +1,8 @@
-// slash_menu.cpp — the composer's `/` menu (see docs/design/SLASH_MENU.md).
+// slash_menu.cpp - 作曲家的 - 编曲家的 `/` 菜单(参见 docs/design/SLASH_MENU.md).
 //
-// Pure view of the Model: slash::menu_rows decides what shows, this only
-// draws it, as a maya::CompletionMenu sitting directly on top of the
-// composer. The typed text never leaves the composer.
+// 纯视图 Model: slash::menu_rows 决定什么显示,
+// 这只画它,作为一个 maya::CompletionMenu 直接
+// 坐在作曲家的顶部 带类型的 文本永远不要离开作曲家。
 
 #include "agentty/runtime/view/slash_menu.hpp"
 
@@ -39,7 +39,7 @@ namespace {
     return "";
 }
 
-// One line, cut to fit: descriptions come from user files.
+// 一行,切合:描述来自用户文件.
 [[nodiscard]] std::string one_line(std::string s, std::size_t cap) {
     for (char& c : s)
         if (c == '\n' || c == '\r' || c == '\t') c = ' ';
@@ -52,7 +52,7 @@ namespace {
     return s;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 bool slash_menu_open(const Model& m) {
     const auto cat = slash::catalog_of(m);
@@ -64,10 +64,10 @@ maya::Element slash_menu(const Model& m) {
     const auto rows = slash::menu_rows(m, cat);
     if (rows.empty()) return maya::Element{};
 
-    // Fit above the composer. Below the menu sit the composer (4 rows of
-    // chrome + its text), the status bar (3) and the layout padding (2);
-    // the menu's own border + "more" line take 3, the hint 2 more. On a
-    // short terminal the hint goes first, then rows, down to 3 rows.
+    // 适合作曲者之上。菜单下方坐着作曲者(4行铬+其文本)、
+    // 状态栏(3)和版面垫(2);菜单本身的边框
+    // + "more" 线条 3, 提示 2。
+    // 在短线上 终端 提示先行,然后排成三行。
     const int term_rows = maya::have_render_context() ? maya::available_height() : 40;
     const int composer_rows = 4 + std::max(1, static_cast<int>(
         std::ranges::count(m.ui.composer.text, '\n')) + 1);
@@ -86,15 +86,15 @@ maya::Element slash_menu(const Model& m) {
         maya::CompletionMenu::Item it;
         it.kind  = kind_glyph(e.kind);
         it.label = "/" + e.name;
-        // Offsets into the name, shifted past the '/'.
+        // 偏移到名字中, 转过 '/'。
         for (int h : r.hits) it.match.push_back(h + 1);
         std::string detail = one_line(e.description, 48);
         if (!detail.empty()) detail += "  ";
         detail += kind_tag(e.kind);
         it.detail = std::move(detail);
-        // The help line under the list, for the selected row: its usage
-        // when it takes arguments, else its full description. Every row
-        // has one, so arrowing never changes the menu's height.
+        // 列表下的帮助行,用于所选行:它当使用参数
+        // 时的用法,否则其描述完整。每行都有一条,
+        // 所以箭头永远不会改变菜单的高度。
         if (show_hint) {
             if (!e.hint.empty())             it.doc = "/" + e.name + " " + one_line(e.hint, 60);
             else if (!e.description.empty()) it.doc = one_line(e.description, 90);

@@ -1,4 +1,4 @@
-// web_search_config.cpp — web_search policy: pure request rewriting.
+// web_search_config.cpp — web_search策略：纯请求重写。
 
 #include "agentty/domain/web_search_config.hpp"
 
@@ -18,10 +18,10 @@ namespace {
     return out;
 }
 
-// A host label set: ASCII letters, digits, '-' and '.', at least one dot,
-// no empty label, no label that starts or ends with '-'. Non-ASCII is refused
-// rather than guessed at — a punycode spelling ("xn--…") works, a raw IDN
-// would go to the engine as bytes it may or may not fold the same way.
+// 主机标签集：ASCII字母、数字、'-'和'.
+// '、至少一个点、无空标签、无以'-'开头或结尾的标签。 Non-ASCII 被
+// 拒绝而不是猜测 - punycode 拼写（"xn--…"）有效，
+// 原始 IDN 将作为 字节 进入引擎，它可能会或可能不会以同样的方式 归并。
 [[nodiscard]] bool plausible_host(std::string_view h) {
     if (h.empty() || h.size() > 253) return false;
     if (h.find('.') == std::string_view::npos) return false;
@@ -43,13 +43,13 @@ namespace {
     return true;
 }
 
-// "https://www.Example.com:8080/path?q" → "example.com". Everything a user
-// might paste from an address bar reduces to the bare host the `site:`
-// operator wants.
+// "https://www.Example.com:8080/path?q"→
+// "example.com"。用户可能从地址栏粘贴的所有内容都会简化为 `site:`
+// 操作员想要的裸主机。
 [[nodiscard]] std::string normalise(std::string_view raw) {
     std::string s = lower(raw);
     if (auto p = s.find("://"); p != std::string::npos) s.erase(0, p + 3);
-    // A leading "-site:" / "site:" typed out of habit.
+    // 出于习惯，领先"-site:"/"site:" 带类型的。
     for (std::string_view pfx : {"-site:", "site:"})
         if (s.starts_with(pfx)) { s.erase(0, pfx.size()); break; }
     if (auto p = s.find_first_of("/?#"); p != std::string::npos) s.resize(p);
@@ -60,7 +60,7 @@ namespace {
     return s;
 }
 
-} // namespace
+} // 命名空间结束。
 
 Mode mode(const Config& c) {
     if (c.mode_text == "on")  return Mode::On;
@@ -95,11 +95,11 @@ int effective_count(const Config& c, const nlohmann::json& args) {
     int n = std::clamp(c.count, kCountMin, hi);
     if (args.is_object()) {
         if (auto it = args.find("count"); it != args.end()) {
-            // Models send numbers as integers, floats and strings alike; take
-            // any of them, and fall back to the default for anything else
-            // (bool, null, object, "lots", "7abc") rather than letting a
-            // malformed value reach mcp-cpp. Never throws: an unsigned value
-            // past INT64_MAX or a huge float clamps instead.
+            // 模型以整数、浮点数和字符串等形式发送数字；采取其中任何一个，
+            // 并回退到其他任何值的默认值（bool、null、
+            // object、"lots"、"7abc"），而不是让格式
+            // 错误的值达到 mcp-cpp。永远不会抛出：超过
+            // INT64_MAX 的无符号值或一个巨大的浮点钳位。
             if (it->is_number_unsigned()) {
                 const auto v = it->get<unsigned long long>();
                 n = v > static_cast<unsigned long long>(hi)
@@ -117,8 +117,8 @@ int effective_count(const Config& c, const nlohmann::json& args) {
                 try {
                     std::size_t used = 0;
                     const long long v = std::stoll(s, &used);
-                    // The whole string must be the number (surrounding
-                    // spaces aside): "7abc" is not 7.
+                    // 整个字符串必须是数字（周围的空格
+                    // 除外）："7abc"不是7。
                     bool clean = true;
                     for (std::size_t i = used; i < s.size(); ++i)
                         if (!std::isspace(static_cast<unsigned char>(s[i]))) clean = false;
@@ -134,8 +134,8 @@ int effective_count(const Config& c, const nlohmann::json& args) {
 std::string apply_exclusions(std::string query,
                              const std::vector<std::string>& sites) {
     if (sites.empty()) return query;
-    // Tokens the query already carries, lower-cased, so an exclusion the
-    // model wrote itself is not appended a second time.
+    // 查询已携带标记，lower-cased，
+    // 因此模型自身编写的排除不会被第二次附加。
     std::vector<std::string> have;
     {
         const std::string q = lower(query);
@@ -159,9 +159,9 @@ std::string apply_exclusions(std::string query,
 }
 
 nlohmann::json rewrite_args(const Config& c, nlohmann::json args) {
-    if (!args.is_object()) return args;   // mcp-cpp reports the shape error
-    // Auto leaves the count to the model, as before the pane existed. Only On
-    // resolves and clamps it.
+    if (!args.is_object()) return args;   // mcp-cpp报告形状错误
+    // Auto 将计数留给模型，如 面板 存在之前一样。
+    // 只有“开”才能解决并限制它。
     if (mode(c) == Mode::On)
         args["count"] = effective_count(c, args);
     if (auto it = args.find("query"); it != args.end() && it->is_string()) {

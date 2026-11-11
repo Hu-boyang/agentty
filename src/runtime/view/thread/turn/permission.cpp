@@ -7,8 +7,8 @@ namespace agentty::ui {
 
 namespace {
 
-// What the user is being asked to let happen. The chip already names the
-// tool, so this says what it will do, as a question.
+// 用户被要求让什么发生。 标签 已经命名了工具,
+// 所以它会做什么, 是一个问题。
 std::string verb_for(const std::string& n) {
     if (n == "bash" || n == "shell" || n == "diagnostics" || n == "test"
         || n == "process_start")
@@ -28,9 +28,9 @@ std::string verb_for(const std::string& n) {
     return "allow this?";
 }
 
-// Short `key  value` lines for tools without a dedicated shape, so a
-// prompt never shows a wall of JSON. Long values are cut; nested values
-// are dumped compactly.
+// 短数 `key  value` 用于没有专用形状的工具的行,
+// 所以 提示词 永远看不到墙壁 JSON。 长值被切;
+// 嵌套值被紧凑地倾斜。
 std::string args_lines(const nlohmann::json& args) {
     std::string out;
     for (auto it = args.begin(); it != args.end(); ++it) {
@@ -45,7 +45,7 @@ std::string args_lines(const nlohmann::json& args) {
     return out;
 }
 
-} // namespace
+} // 命名空间结束。
 
 maya::Permission::Config inline_permission_config(const PendingPermission& pp,
                                                   const ToolUse& tc) {
@@ -63,9 +63,9 @@ maya::Permission::Config inline_permission_config(const PendingPermission& pp,
                || n == "process_start") {
         cfg.lang = "sh";
         desc = tc.args.value("command", "");
-        // `command` is not the whole of what runs. `cd` moves it, and `env`
-        // can hand the child LD_PRELOAD / BASH_ENV / GIT_SSH_COMMAND, so the
-        // prompt has to show everything that decides what executes.
+        // `command` 并不是一切的运行。 `cd` 移动它,和 `env`
+        // 能够把孩子交给 LD_PRELOAD / BASH_ENV / GIT_SSH_COMMAND ,
+        // 所以,请 提示词 一定要显示一切决定执行的事物.
         std::string extra;
         if (const auto cd = pick_arg(tc.args, {"cd", "cwd", "directory"}); !cd.empty())
             extra += "in " + cd;
@@ -83,8 +83,8 @@ maya::Permission::Config inline_permission_config(const PendingPermission& pp,
         if (!extra.empty()) desc += "\n# " + extra;
     } else if (n == "read" || n == "edit" || n == "write" || n == "list_dir"
                || n == "apply_patch" || n == "remove") {
-        // Alias-aware: write's canonical key is `file_path`, and models
-        // routinely pick filepath/filename for the others.
+        // 别名 -aware : 写出条条形键 `file_path` ,
+        // 并定期选择模型 filepath/filename 给其他人的
         desc = pick_arg(tc.args, {"path", "file_path", "filepath", "filename"});
     } else if (n == "move") {
         desc = pick_arg(tc.args, {"source"}) + "  \xe2\x86\x92  "
@@ -102,9 +102,9 @@ maya::Permission::Config inline_permission_config(const PendingPermission& pp,
     }
 
     cfg.description = desc.empty() ? pp.reason : desc;
-    // A commit message or heredoc can run long; keep the prompt compact and
-    // say how much is hidden. Shell commands are kept whole: every byte of
-    // what runs is part of the decision.
+    // 承诺消息或异端文件可以运行较长; 保留 提示词
+    // 压缩并说隐藏了多少。 贝壳命令被完整保存: 每 字
+    // 节 运行是决定的一部分。
     if (cfg.lang != "sh") {
         constexpr int kMax = 6;
         int lines = 0;

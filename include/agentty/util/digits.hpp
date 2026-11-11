@@ -1,8 +1,8 @@
-// agentty/util/digits.hpp — append one decimal digit without overflowing.
+// agentty/util/digits.hpp——附加一位十进制数字而不溢出。
 //
-// Numbers we parse out of text (tool output, diff headers, git numstat,
-// version strings, model ids) come from outside. `v = v * 10 + d` on a long
-// digit run overflows a signed int, which is UB. Saturate instead.
+// 我们从文本中获取的数字解析（工具输出、差异头文件、git numstat、
+// 版本字符串、模型ID）来自外部。长数字运行中的 `v = v * 10 + d`
+// 溢出有符号整数，即 UB。取而代之的是饱和。
 #pragma once
 
 #include <limits>

@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// mcp_connection_race_test.cpp — dropping an mcp::Connection while its
-// reader is inside a server callback.
+// mcp_connection_race_test.cpp - 丢掉一个 mcp::Connection
+// 当读取器在服务器内时 回调.
 //
-// The reader's handlers hold a strong ref to the connection's Live while they
-// run. If the Connection went away then, the reader ended up with the last
-// ref, and ~Peer shut down its own pool from the reader: jaal aborts. A fake
-// server on an in-memory channel sends notifications/message, and the log
-// callback stalls while the test destroys the Connection.
+// 读者的 处理函数 运行时请在连接的Live上保持强烈的反读。
+// 如果连接随后消失,读者最后会得到最后的反读,然后~ 对端
+// 关闭自己的 池 读者: jaal 中止。 在一个 英寸
+// -memory 频道发送 notifications/message
+// 日志 回调 测试破坏连接时设置了选项。
 //
-// Run under: -DAGENTTY_SANITIZE_ALL=thread (fine without too).
+// 运行在 : -DAGENTTY_SANITIZE_ALL=thread( 无问题 ) 下。
 
 #include "agentty/mcp/connection.hpp"
 #include "agentty/rpc/peer.hpp"
@@ -37,7 +37,7 @@ void fail(const char* what) {
 std::atomic<bool> g_in_callback{false};
 std::atomic<bool> g_dropping{false};
 
-// The fake server: answers server/discover and tools/list, nothing else.
+// 假服务器:回答server/discover和tools/list,别无其他.
 agentty::rpc::Dispatch server_dispatch() {
     agentty::rpc::Dispatch d;
     d.on_call = [](const maya::unlocked&, const jsonrpc::Call& c) -> jsonrpc::Maybe<std::string> {
@@ -54,8 +54,8 @@ agentty::rpc::Dispatch server_dispatch() {
     return d;
 }
 
-// One round: connect, have the server log, drop the Connection while the
-// reader is still inside on_log. Before the fix this aborted.
+// 一轮: 连接、 拥有服务器日志、 将连接在读取器仍在
+// on_log 内时放下。 在修复之前, 中止。
 bool drop_during_callback(int round) {
     auto [client_end, server_end] = agentty::rpc::channel_pair();
     agentty::rpc::Peer server(std::move(server_end), server_dispatch(), "fake-server");
@@ -66,8 +66,8 @@ bool drop_during_callback(int round) {
     cfg.handshake_timeout = 5s;
     cfg.on_log = [](const m::LoggingMessageParams&) {
         g_in_callback = true;
-        // Hold the reader here until the owner has started dropping the
-        // Connection, then a bit longer so the drop overlaps the callback.
+        // 将读取器停在这里,直到所有者开始放弃连接,
+        // 然后再多一点,这样投放会与回调重叠.
         while (!g_dropping) std::this_thread::sleep_for(1ms);
         std::this_thread::sleep_for(50ms);
     };
@@ -88,13 +88,13 @@ bool drop_during_callback(int round) {
     if (!g_in_callback) { fail("the log notification never reached on_log"); return false; }
 
     g_dropping = true;
-    conn.reset();   // the reader is still inside on_log
+    conn.reset();   // 读者仍在on_log
     server.stop(agtest::cap());
     return true;
 }
 
-// A call queued behind a stuck call on the same server must give up when
-// its stop fires. Before, the queue wait ignored the stop and hung.
+// A 调用 排队于卡后 调用 在同一服务器上,
+// 当停止起火时必须放弃。在等待之前,队列会忽略停止并挂起。
 std::atomic<bool> g_release{false};
 std::atomic<bool> g_in_call{false};
 
@@ -142,7 +142,7 @@ void queued_call_cancels() {
         second_r = conn->execute(req);
         second_done = true;
     });
-    std::this_thread::sleep_for(50ms);   // let it queue behind the first
+    std::this_thread::sleep_for(50ms);   // 让它排在第一个后面
     stop.request_stop();
     const auto by = std::chrono::steady_clock::now() + 2s;
     while (!second_done && std::chrono::steady_clock::now() < by)
@@ -157,7 +157,7 @@ void queued_call_cancels() {
     server.stop(agtest::cap());
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 int main() {
     std::printf("--- mcp connection: dropped while its reader runs a callback ---\n");

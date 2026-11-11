@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-# Offline reranker A/B on dumped search_code pools.
-#   AGENTTY_RAG_DUMP_POOL=pool.jsonl agentty rag-eval cases.json
-#   python3 tests/rag_eval/rerank_ab.py cases.json pool.jsonl http://127.0.0.1:8090 [top_n] [v]
-# Prints hit@1 / hit@8 / MRR for the current order, the reranker alone, and the
-# reranker with code_rerank's priors, blended with the current score. Needs a
-# server with a cohere-style /v1/rerank (llama-server --reranking, TEI, ...).
-# A trailing `v` prints each query's reranker top 3.
+# 离线调整 A/B 弃置时 search_code 游泳池 游泳池里有游泳池 泳池里有泳池
+#   AGENTTY_RAG_DUMP_POOL=pool.jsonl agentty 抹布(
+#   擦抹布 ) -eval cases.json 蟒蛇3 tests/rag_eval/rerank_ab.py cases.json
+# pool.jsonl http://127.0.0.1:8090 [top_n [v] 打印点击@1/点击@8/ MRR
+# 单对当前顺序, 重新排序, 和重新排序 code_rerank 的前科, 与当前分数混合。 需要带有串联的服务器
+# -style /v1/rerank (马拉马) -server --reranking, TEI, ...).
+# 排名第二的`v`打印了每个查询的排名前3。
 #
-# bge-reranker-v2-m3 (Q8, llama-server) on the qwen3-embedding pools: alone it
-# ranks headers/tests/docs first (hit@1 .65 -> .38 main, .80 -> .25 held-out);
-# with the priors it lifts hit@8 to 1.0 / .95 but hit@1 doesn't beat the
-# current order. Not wired in.
+# 千兆赫( B) -reranker-v2-m3 (Q8 ,拉玛 -server )在qwen3上,
+# (" ⁇ ") -embedding 池:单靠它排队 headers/tests/docs 第一次(点击@1.65
+# - > 38主机,80 - > 25次) -out ); 前面的它会将命中数升到@8到1.0 /.95,
+# 但命中数@1不会击败当前命令。没有传输输入。
 import json, sys, urllib.request
 
 cases = {c["q"]: set(c["gold"]) for c in json.load(open(sys.argv[1]))}
@@ -51,8 +51,8 @@ def metrics(ranked_by_q):
     return f"hit@1 {h1/n:.3f}  hit@8 {h8/n:.3f}  MRR {mrr/n:.3f}"
 
 def role_weight(path, q):
-    # Mirrors code_rerank's role prior: tests/docs/build files count less
-    # unless the question asks for them, headers slightly less.
+    # 镜像 code_rerank 角色前置 : tests/docs/build
+    # 文档数少,除非问题问到它们, 头文件 略少一点。
     p, ql = path.lower(), q.lower()
     if ("/test" in p or p.startswith("test")) and "test" not in ql: return 0.55
     if (p.endswith(".md") or p.startswith("docs/")) and not any(w in ql for w in ("doc", "readme", "guide")): return 0.55
@@ -75,7 +75,7 @@ for q, c in pools.items():
     c = c[:top_n]
     pools[q] = c
     base[q] = [x["score"] for x in c]
-    # Same text the model sees: path first, so it knows which file it is.
+    # 模型看到的同样文字:路径先,所以它知道它是什么文件.
     rr[q] = rerank(q, [f'{x["path"]}\n{x["text"][:2000]}' for x in c])
 
 print(f"{len(pools)} queries, top {top_n}")

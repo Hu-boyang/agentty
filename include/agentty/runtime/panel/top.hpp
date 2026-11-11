@@ -1,21 +1,21 @@
 #pragma once
-// agentty::ui::panel — THE routing function for panel priority.
+// agentty::ui::panel —该 用于面板优先级的路由功能。
 //
-// The overlay state itself lives in ONE variant slot (m.ui.panel — see
-// overlay_state.hpp): opening is assignment, exclusivity is structural.
-// This header answers the one remaining question the slot cannot answer
-// alone: WHO OWNS THE KEYBOARD when the slot's overlay coexists with the
-// three deliberate non-members —
+// 覆盖面板状态本身存在于ONE 变体槽(m.ui.panel-参见
+// overlay_state.hpp)中：开放是指派，排他性是结构性的。
+// 这个 头文件 回答了插槽无法单独回答的一个剩余问题：WHO
+// OWNS 该 KEYBOARD，当插槽的 覆盖面板 与三个故意的非
+// -members 共存时 —
 //
-//   login       (its own state machine; auth gates everything)
-//   permission  (domain state raised mid-turn by the stream reducer)
-//   todo        (an ambient pane that stays open UNDER the slot)
+//   登录（它自己的状态机；验证控制一切）权限（域状态由
+//   数据流 状态更新函数 提升到 -turn 中）待办事项
+//   （在 UNDER 插槽中保持打开状态的环境 面板）
 //
-// top(m) composes those four sources in canonical priority order.
-// subscribe.cpp routes keys to top(m); view.cpp renders top(m). Same
-// function ⇒ keys and pixels cannot diverge. Both consumers are
-// exhaustive switches on Kind, so a new overlay without arms is a
-// -Wswitch warning, not a silent dead key or an invisible modal.
+// top(m)按照规范的优先级顺序组成这四个源。
+// subscribe.cpp将键路由至顶部(m)； view.cpp
+// 渲染 顶部（米）。相同的功能 ⇒ 键和像素不能分开。
+// 两个消费者都对 Kind 进行了详尽的开关，因此没有武器的新 覆盖面板
+// 是 -Wswitch 警告，而不是无声的死钥匙或隐形的 弹出面板。
 
 #include "agentty/runtime/model.hpp"
 #include "agentty/runtime/login.hpp"
@@ -23,12 +23,12 @@
 
 namespace agentty::ui::panel {
 
-// The active (topmost) overlay, in canonical priority order:
-//   1. login       — owns the whole keyboard until auth completes.
-//   2. permission  — a blocked tool's y/n must be answerable over anything.
-//   3. the slot    — whatever exclusive panel is open (at most one, by
-//                    construction).
-//   4. todo        — ambient; lowest priority, most keys fall through.
+// 活动的（最上面的）覆盖面板，按照规范的优先级顺序：
+//   1.登录——拥有整个键盘直到认证完成。
+//   2.权限——被阻止的工具的y/n必须对任何事情负责。
+//   3.插槽——任意打开的专用面板（最多一个，由
+//                    施工）。
+//   4.todo——环境；优先级最低，大多数键都会失败。
 [[nodiscard]] inline Kind top(const Model& m) noexcept {
     if (login::is_open(m.ui.login))         return Kind::Login;
     if (m.d.pending_permission.has_value()) return Kind::Permission;

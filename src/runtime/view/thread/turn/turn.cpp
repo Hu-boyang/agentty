@@ -16,17 +16,17 @@
 
 #include <maya/widget/agent_timeline.hpp>
 #include <maya/widget/markdown.hpp>
-#include <maya/widget/thinking.hpp>  // reasoning/thinking block
-#include <maya/widget/reasoning.hpp>  // ReasoningStream (streaming reasoning block)
-#include "agentty/domain/ui_live.hpp"  // motion / thinking / prose-width prefs
-#include <maya/core/render_context.hpp> // available_height (resize-shrink detect)
-#include <maya/core/anim_clock.hpp>     // maya::anim_now_ms (deterministic under a test clock)
+#include <maya/widget/thinking.hpp>  // reasoning/thinking 块
+#include <maya/widget/reasoning.hpp>  // ReasoningStream (流式传输 推理块).
+#include "agentty/domain/ui_live.hpp"  // 运动/思考/ 表达式-width预览
+#include <maya/core/render_context.hpp> // available_height (调整规模) -shrink 探测)
+#include <maya/core/anim_clock.hpp>     // maya::anim_now_ms( 测试钟下的决定)
 #include <maya/render/cache_id.hpp>
-#include <maya/render/renderer.hpp> // build_layout_tree / layout::compute
-#include <maya/layout/yoga.hpp>     // maya::layout::compute / LayoutNode
+#include <maya/render/renderer.hpp> // build_layout_tree / layout::compute 数据
+#include <maya/layout/yoga.hpp>     // maya::layout::compute / LayoutNode 数据
 #include <maya/platform/io.hpp>
 #include <maya/style/theme.hpp>
-#include <maya/core/motion.hpp>   // anim::keep_animating — frame requests
+#include <maya/core/motion.hpp>   // anim::keep_animating — 帧 请求
 
 #include "agentty/domain/catalog.hpp"
 #include "agentty/domain/model_name.hpp"
@@ -44,71 +44,71 @@ namespace agentty::ui {
 
 namespace {
 
-// ── Cached markdown render. The ONE Element-returning helper kept in
-//    agentty — strictly because cross-frame cache state lives in the
-//    StreamingMarkdown widget instance, which we keep alive across
-//    frames so its block cache survives.
+// 缓存的 Markdown 渲染。此处唯一保留的 Element 返回辅助函数。
+//    agentty - 严格地说,因为十字架 -frame 缓存 国家
+//    生活在 StreamingMarkdown 部件实例,
+//    我们一直保持到整个 帧 所以它块 缓存 活下来了
 //
-//    Single rendering path: the StreamingMarkdown widget is used for
-//    live AND settled messages. The widget's pre-finish output (prefix
-//    ComponentElement + tail Element wrapped in vstack.gap(1)) has a
-//    slightly different total height than the one-shot maya::markdown()
-//    parser's output (flat blocks under the same vstack wrapper but no
-//    ComponentElement seam). Swapping between them at StreamFinished
-//    shifted the canvas by ~3 rows, which propagated through the per-row
-//    diff and left the composer at a different terminal row — visible
-//    as "composer pulled down + duplicate composer above it on the
-//    first keypress."
+//    单身 渲染 路径: StreamingMarkdown 部件用于 live
+//    和 已解析信件。 部件的预置 -finish 输出( 前缀)
+//    ComponentElement + 末尾 包在其中的元素 vstack.gap
+//    (1) 总高度与总高度略有不同 -shot maya::markdown()
+//    解析器 输出( 同一 vstack 包装下有平面块,
+//    但无) ComponentElement 接口边界。。 之间撕裂,
+//    在 StreamFinished 以~3行移动画布,通过每行画布传播 -row 迪夫,
+//    把作曲家留在别的地方 终端 行——可见于
+//    第一次按键时输入框被向下推，上方出现重复输入框。
 //
-//    Staying on the streaming widget keeps the height stable across the
-//    streaming → idle transition. set_content with byte-identical bytes
-//    is an internal no-op; build() returns cached_build_ when nothing
-//    has dirtied, so the per-frame cost is the same as the finalized
-//    path. The tail re-parses on each frame for finalized messages too,
-//    but that's a single inline parse on the last few bytes — cheap.
-// Which body of a message a StreamingMarkdown slot renders. The ANSWER
-// path (default) streams msg.text + streaming_text + pending_stream through
-// the message's own cache slot. The REASONING path streams
-// msg.reasoning_display_text() through a SEPARATE, sibling cache slot
-// (MessageId suffixed with "#r") so reasoning gets the identical smooth
-// reveal + settle machinery as normal text — it streams like normal text,
-// caches like normal text, and stays fully rendered after settle (never
-// folds). The two slots are independent widgets so the answer body and the
-// reasoning block don't fight over one reveal cursor.
+//
+//    继续守着 流式传输 部件保持高度稳定 流式传输 ——闲置过渡.
+//    set_content 与 字节-identical 字节 内部是否 -op;
+//    build() 返回时 cached_build_ 当无物污秽的时候,
+//    -frame 成本与最终路径相同。 末尾 内容 -parses
+//    在每个 帧 也给最后的留言,但这是单内线 解析 上几个 字节 -
+//    便宜的 - 便宜点 - 便宜一点 - 便宜些 - lowe.
+// 哪个 正文 发文日期 a StreamingMarkdown 插槽 渲染。
+// 该词 ANSWER 路径( 默认) 数据流 msg.text +
+// streaming_text + pending_stream
+// 透过信息本身 缓存 插槽。 REASONING 路径 数据流
+// msg.reasoning_display_text (a) 通过 SEPARATE ,
+// 兄弟们 缓存 插槽( N) MessageId 后缀为 "#r" )所以推理得到
+// 相同的平滑 逐步显示 + 以普通文本形式结算机械—— 它 数据流 就像普通的
+// 文字一样, 缓存 象普通文字一样,在和解后完全保留。 归并。两个槽是独立的部件,
+// 所以答案 正文 推理界不会因为一个而争吵 逐步显示 光标。
 enum class MdView : std::uint8_t { Answer, Reasoning };
 
-// MessageId of the cache slot for `view` on message `mid`. Answer uses the
-// message id verbatim; Reasoning appends "#r" so it lives in its own slot
-// (dropped alongside the answer slot at freeze — see frozen.cpp).
+// MessageId 会 议 日 程 和 议 程 缓存 时间档 `view` 信件
+// 中 `mid`。回答使用电子邮件 id 逐字记录; 理由附件 "#r" 因此它
+// 生活在自己的槽中(冻结时与解答槽一起掉落——见 frozen.cpp).
 inline MessageId md_slot_id(const MessageId& mid, MdView view) {
     return view == MdView::Reasoning ? MessageId{mid.value + "#r"} : mid;
 }
 
-// Apply the prose-width cap to a built body.
+// 应用流言 -width 盖到已建 正文.
 //
-// A reading measure: long lines are measurably harder to read because the
-// eye loses its place on the return sweep, and a maximised terminal is 200+
-// columns. 0 means no cap, which is why this is a Number and not a Choice —
-// the useful values are a continuum.
+// 一个读量:长行读取难度可观,因为眼睛在回程扫荡
+// 中失去位置,一个最大值的终端是200+列.
+// 0表示没有封顶,这就是为什么这是数字而不是选择——
+// 有用的值是一个连续体.
 //
-// Applied as a MAX, never a fixed width: a narrow terminal keeps every
-// column it has. And only to the BODY — tool panels, diffs and tables are
-// structured output whose columns mean something, so squeezing them to a
-// prose measure would be actively worse.
+// 用作 MAX ,从不设固定宽度:狭宽 终端 保持
+// 每根柱子,只有到 BODY ——工具板,
+// diffs和表格是结构化输出,其列意味着什么,因此,
+// 挤压它们以利其传播,会非常糟糕.
 [[nodiscard]] maya::Element prose_capped(maya::Element body) {
     using namespace maya::dsl;
     const int cap = agentty::ui_prefs::current().prose_width;
     if (cap <= 0) return body;
-    // Constrain the column the markdown lays out into, and let a trailing
-    // flexible cell absorb the remainder. Left-aligned rather than centred:
-    // the rail, the glyph and every turn above start at the left margin,
-    // and prose that floats away from them reads as a different column of
-    // the page.
+    // 限制柱子 标记的设置, 让一条后路灵活 存储
+    // 单元 左转 -aligned 而不是以中心为中心:
+    // 铁路, 格律和上面的每一转角 都从左边开始,
+    // 和流传在他们的脚本读作不同的栏目 在页
+    // 面。
     //
-    // `width` is a CEILING in practice because the row is inside an
-    // auto-width chain (Conversation → Turn → body): a terminal narrower
-    // than the cap gives the flex row less than `cap` to divide, and the
-    // fixed cell shrinks with it rather than overflowing.
+    // `width` 是一个 CEILING 练习中,
+    // 因为行在自动内 -width 链(结) ~ 转 ~
+    // 正文): a 终端 宽度小于顶部的弹性行 `cap` 和固定的,
+    // 存储单元 以它为缩水,而不以它为溢水。
     return h(v(std::move(body)) | width(cap), v() | grow_<1>).build();
 }
 
@@ -116,28 +116,28 @@ maya::Element cached_markdown_for(const Message& msg, const Model& m,
                                   MdView view = MdView::Answer) {
     const MessageId slot_id = md_slot_id(msg.id, view);
     const bool reasoning_view = view == MdView::Reasoning;
-    // Lifecycle-aware cache access (see cache.hpp's partition rationale).
-    // A message's md slot holds LOAD-BEARING animation state — the
-    // StreamingMarkdown reveal widget + defer bookkeeping — exactly while
-    // it is still moving: live wire bytes arriving, OR the widget itself
-    // still animating (live / finalize ramp / cursor gliding / async
-    // parse). Evicting the slot in that window destroys the reveal
-    // mid-glide and stalls the typewriter, so it must be PINNED (kept out
-    // of any evictable set entirely). Once fully drained the slot is a
-    // pure render memo that stages settled until freeze drops it.
+    // 生命周期 -aware 缓存 访问(见 cache.hpp 分区理由).
+    // 消息的磁盘槽 LOAD-BEARING 动画状态—
+    // — StreamingMarkdown 逐步显示 部件
+    // + 推迟记账—— 确切地说, 仍在移动: 已启动 传输
+    // 字节 到达 OR 部件本身仍然在动画中( 使用/
+    // 最终确定斜坡/ 光标滑翔/ 自动同步) 解析。
+    // 打开窗口的插槽会破坏 逐步显示 中点 -glide 拖住打字机,
+    // 所以一定是 PINNED 完全排空后,
+    // 槽就纯净了 渲染 记忆缓存 阶段都结束了,直到冻结下来。
     //
-    // We can't read the widget's post-update animation state before we
-    // access the slot, so pin on either signal available up front: live
-    // wire bytes on the message, or an existing widget that reports
-    // itself still animating from last frame. A message that has neither
-    // is settled and staged (dropped at freeze). The predicate is
-    // deliberately the same shape as turn.cpp's `subturn_stably_keyable`
-    // negation — liveness has ONE definition in this view.
-    // Reasoning is "live" while the stream is running AND this message hasn't
-    // produced output yet (no answer prose, no tool calls, text block open) —
-    // once it acts (tool_calls) or answers, no more reasoning bytes arrive, so
-    // the reveal must finish and the header flip to "Reasoned". Mirrors
-    // reasoning_slot's `active`.
+    // 我们看不出来部件的帖子 -update 动画
+    // 状态在我们进入槽前,所以在前面的信号上标注:
+    // 直播 传输 字节 ,或一个自上一个图像中报告
+    // 本身的已有部件 帧。既未确定又未显示(在冻结时滴
+    // 入)的信息。上游的形状与 turn.cpp's
+    // `subturn_stably_keyable`
+    // 否定——活泼有 一个 定义。
+    // 理由是"live",而数据流运行AND,此消息尚未产生输出(没有回答的旁白,
+    // 没有工具调用,文本块打开)——一旦它采取行动(tool_calls)或回答,
+    // 字节就不再出现推理,所以逐步显示必须完成,头文件翻转为"Reasoned".
+    // Mirrers reasoning_slot的
+    // `active`.
     const bool reasoning_produced_output =
         !msg.text.empty() || !msg.streaming_text.empty()
         || !msg.tool_calls.empty() || msg.text_block_closed;
@@ -147,12 +147,12 @@ maya::Element cached_markdown_for(const Message& msg, const Model& m,
         ? (!msg.streaming_text.empty() || !msg.pending_stream.empty()
            || reasoning_active)
         : (!msg.streaming_text.empty() || !msg.pending_stream.empty());
-    const auto& probe = m.ui.view_cache; // const peek, no touch/reorder
+    const auto& probe = m.ui.view_cache; // 偷看,没有touch/reorder
     const bool widget_animating = [&] {
-        // is_pinned is a cheap const lookup; if the slot is already
-        // pinned from last frame we keep pinning until it drains (checked
-        // post-update below via the same accessor). If it's settled or
-        // absent we only pin when the message carries live bytes.
+        // is_pinned 是一个廉价的凸轮检索;
+        // 如果插槽已经从上一个套位被固定 帧 一直坚持到
+        // 水流干涸为止 -update 如果它解决了或者
+        // 缺席了 我们只有在信息携带时才被扣 字节.
         return probe.is_pinned(m.d.current.id, slot_id);
     }();
     const bool want_pin = has_live_bytes || widget_animating;
@@ -165,166 +165,166 @@ maya::Element cached_markdown_for(const Message& msg, const Model& m,
     if (!cache.streaming) {
         cache.streaming = std::make_shared<maya::StreamingMarkdown>();
         fresh_widget = true;
-        // Reveal pacing for the rate-smoothed bounded-lag cursor (maya
-        // RateCursor). The cursor reveals at backlog / drain_secs, so it
-        // TRACKS the model's own speed with a fixed time lag, and low-passes
-        // that rate so a chunky wire slides in instead of teleporting. Args:
-        //   • floor_cps = the MINIMUM reveal speed. A trickle still types out
-        //     at >= this so a slow/local model doesn't inch in one char at a
-        //     time. It is NOT a ceiling — a fast model reveals FASTER, at its
-        //     own delivery rate (the cursor tracks the wire), so the reveal
-        //     never falls permanently behind and dumps at settle. 90 cp/s is
-        //     a brisk readable minimum.
-        //   • drain_secs = the target LAG: how far behind the live edge the
-        //     cursor rides, in seconds. rate = backlog / drain_secs holds the
-        //     reveal ~drain_secs behind the wire at the wire's own speed.
+        // 逐步显示 距离 -smoothed 绑定 -lag 光标(maya
+        // RateCursor) 光标显示在 / drain_secs 积压时,
+        // 所以它 TRACKS 的自有速度有固定的时间滞后, 而 低 -passes
+        // 的 速度是 宽度 传输 的滑动, 而不是 传送。 参数 :
+        //   • floor_cps = = 数据 MINIMUM 逐步显示 速度,还有小滴在排出
+        //     硂 slow/local 模型一次不在一个字符中英寸。
+        //     不 上限——快速模型显示 FASTER ,
+        //     以自己的交付率(光标跟踪 传输 ),所以,
+        //     逐步显示 永远不要落下 和垃圾堆在定居。
+        //     cp/s 是一个可读最小值。
+        //   • drain_secs = 目标 LAG : 活的边缘后面有多远
+        //     光标的乘数, 以秒计. rate = 积压 / drain_secs 拿着
+        //     逐步显示 ~drain_secs 后面的 传输 现场 传输 自己的速度。
         //
-        // Retuned to 45 cps / 0.40 s (was 90 / 0.15). Real models stream in
-        // BURSTS with idle gaps (profiled: ~57% of frames had the cursor
-        // frozen AT the edge under 90/0.15 — it drained each fat delta then
-        // sat idle until the next, a visible stop-and-go). A lower floor +
-        // larger lag keeps a continuous buffer so the cursor GLIDES through
-        // the idle gaps instead of freezing (same profile: <1% idle frames at
-        // 45/0.40). The old rationale for a TINY lag was that the tool-
-        // boundary hard-snapped the whole backlog to the edge (a paste), so
-        // less lag meant a smaller paste. That is obsolete: the tool boundary
-        // now uses snap_reveal_to_edge(glide_ms=150) \u2014 a bounded VISIBLE
-        // glide, not a paste \u2014 so a larger steady-state backlog is drained
-        // smoothly there too, and scrollback safety is preserved by the
-        // glide landing within ~150 ms (scrollback_oracle_test green).
+        // 重排为45 cps / 040 s(为90 / 0.15).
+        // real models. 数据流 输入 BURSTS 空闲
+        // 空隙( 已显示: ~ 57%) 帧 光标被冻结 AT 边缘在
+        // 90/0.15 水分排尽了每个肥大三角洲 然后闲坐到下一个站
+        // 可见的停站 -and-go ) 低层+较大滞后保持连续 缓冲区 因此,
+        // 光标 GLIDES 透過空闲的空隙而不是冻结( 相同的配置 :
+        // < 1% 闲置) 帧 时间 45/0.40 . 一种做法的
+        // 旧理由 TINY 时差是工具的硬边界 -snapped ,
+        // 以 线条表示的。 snap_reveal_to_edge(
+        // glide_ms =150)\u2014 a 界限 可见 滑翔,
+        // 不是贴面,2014年,这样比较稳定 -state 积压的也顺利地排尽了,
+        // 而且 回滚缓冲区 滑翔机在150米以内着陆,以保持安全(
+        // scrollback_oracle_test 绿色).
         cache.streaming->set_reveal_pacing(/*floor_cps=*/45.0,
                                            /*lead_secs=*/0.40);
-        // Adaptive floor: auto-tune the reveal speed to the wire's observed
-        // rate (clamped 25..180 cps) so the glide is smooth across models of
-        // very different throughput without a hand-picked constant — a slow
-        // local model won't freeze (cursor outrunning the wire) and a fast
-        // hosted one won't lag. 45/0.40 above is the cold-start seed until
-        // the estimate warms up; drain_secs (the lag buffer) still applies.
-        cache.streaming->set_reveal_adaptive(true, /*min*/25.0, /*max*/180.0);
+        // 适应性地板:自动 -tune 编号 逐步显示 速度到 传输 观测
+        // 到的速率(clammped 25.180 cps) 所以滑翔机平滑
+        // 地跨过 不同模式的吞吐量,没有手 -picked 恒定 — 慢的
+        // 本地模型不会冻结( 运行时的曲线超过 传输 快速的主持人不会落后
+        // 45/0.40 上面是寒冷的,我说, -start 种子,
+        // 直到估计值变暖; drain_secs (滞后) 缓冲区 )仍然适用。
+        cache.streaming->set_reveal_adaptive(true, /*分钟*/25.0, /*最大数*/180.0);
 
-        // REASONING is paced for SPEED while keeping the animated slide.
-        // Providers deliver reasoning as a summary that often lands in one/two
-        // big deltas at the end of the thinking window, so the cursor sees a
-        // large backlog at once. The reveal engine has NO cruise-speed cap:
-        // it moves at backlog/drain_secs clamped to [min,max], and the
-        // animation quality (fast scramble/ghost SLIDE, never a paste) comes
-        // from the rate_tau low-pass — which is INDEPENDENT of the speed band.
-        // So we lift the CEILING well above the answer path (reasoning is
-        // bulk, skimmable content the user reads faster than prose) and keep
-        // the floor brisk so short reasoning types promptly.
+        // REASONING 已按进度 SPEED ,同时保留动画幻灯片。
+        // 提供商将推理作为摘要,常常在以下地点登陆: one/two
+        // 思维窗口末端的大三角洲,所以光标会同时看到大量积压。
+        // 逐步显示 引擎有 NO 巡航 -speed 顶点 :
+        // 移动在 backlog/drain_secs 紧紧地按[min,
+        // max]和动画质量(快速) scramble/ghost SLIDE 永远不要贴上 由
+        // 来自 rate_tau 低级 -pass - 也就是说, INDEPENDENT 速度带。
+        // 所以我们将CEILING提升到答案路径之上(解释
+        // 是批量的,用户读得比流言快的可淡化的内容),
+        // 并迅速保持地板的brisk如此短的推理类型.
         //
-        // The LAG matches the answer path (0.40), and that is a fix: it was
-        // 0.28, justified as "hold a tight-ish lag so the cursor tracks the
-        // wire and never hoards a backlog to dump at the reasoning->answer
-        // settle". That is the same argument the answer path above tried at
-        // 0.15 and retired, with a profile: a tight lag leaves no buffer, so
-        // the cursor drains each fat delta and then sits IDLE at the edge
-        // until the next one (57% of frames frozen at 90/0.15, <1% at
-        // 45/0.40). Reasoning arrives in BIGGER, sparser bursts than prose,
-        // so a short buffer bites harder there, not less — which is the
-        // reported "slow and bursty" reasoning: a sprint, then a stall.
+        // 电话 LAG 匹配答案路径(0.40),这是固定的:0.28,
+        // 理由是
+        // 保持较小显示延迟，让光标追上传输进度，避免在推理转回答时一次性倾倒积压文字。
+        // 这是上面的答案路径在0.15时尝试并退休的同样论点,
+        // 其特征是: 紧滞的滞后导致没有 缓冲区 ,所以光标排水 每
+        // 个肥三角洲 然后坐 IDLE 57%的边缘 帧 冻结时间:
+        // 90/0.15 , < 1% 时 45/0.40
+        // ) 原因出现 BIGGER 流言比流言蜚语少,
+        // 所以短 缓冲区 咬得更紧,而不是更少——这是所报告的
+        // "slow and bursty" 推理:冲刺,然后是摊位.
         //
-        // The dump it was guarding against is bounded elsewhere now: the
-        // tool boundary drains through snap_reveal_to_edge(150), and the
-        // reasoning->answer seam through the request_finalize(220) armed
-        // below -- both bounded VISIBLE glides rather than a paste. (That
-        // seam ramp is new: this comment previously claimed the seam already
-        // drained through request_finalize(160), which was the ANSWER path's
-        // mechanism. Nothing bounded the reasoning side at all.)
+        // 它所保护的垃圾场 已经是其他的界限了:工具边界从这里穿过
+        // snap_reveal_to_edge (150) 和推理-
+        // > 答案 接口边界 通过 request_finalize (
+        // 220) 武装在以下 -- -- 两者都受约束 可见 滑翔而不是贴面。
+        // (那个) 接口边界 斜坡为新 : 此注释先前声称 接口边界 已经
+        // 排尽 request_finalize (160) 原为
+        // ANSWER 路径的机制。 没有任何东西可以限制推理。 )
         //
-        // 0.55, not 0.40, and the half-step is the point. On the reasoning
-        // fixture (reveal_stream_gate_reasoning), measured over the lag
-        // window: 0.40 leaves the cursor idle AT the edge on 2.9% of live
-        // frames, 0.55 on 1.6%, 0.70 on 0.9% -- and the end-of-reasoning
-        // drain stretches 1.9s / 2.5s / 3.0s in step. Stalls are what the
-        // user sees mid-stream and the drain is what they see at the seam,
-        // so this sits at the knee rather than at either end. Bigger lag
-        // also means a smoother glide (max 11 -> 9 bytes revealed per
-        // frame), because the rate is backlog/lag.
+        // 0.55,不是0.40,还有一半 -step 关键所在。在推理定律上
+        // ( reveal_stream_gate_reasoning ),
+        // 在滞后窗口上测量:0.40 使光标闲置 AT 2.9%的活体边缘 帧
+        // 0.55对1.6%,0.70对0.9% -- -- 和结束
+        // -of-reasoning 排水管的拉伸为1.9s / 2.5s /
+        // 3.0s。 Stalls 是用户看到的中点。 -stream 排水沟
+        // 就是他们在 接口边界 ,因此这个位置坐落在膝盖上,而不是两端。
+        // 较大的后退也意味着滑翔滑翔(最大11 - > 9) 字节 显示( )
+        // 帧 ),因为利率是 backlog/lag.
         if (reasoning_view) {
             cache.streaming->set_reveal_pacing(/*floor_cps=*/60.0,
                                                /*lead_secs=*/0.55);
-            cache.streaming->set_reveal_adaptive(true, /*min*/45.0,
-                                                 /*max*/280.0);
+            cache.streaming->set_reveal_adaptive(true, /*分钟*/45.0,
+                                                 /*最大数*/280.0);
         }
     }
 
-    // Reveal on/off is POLICY — derived from the terminal and the env —
-    // unlike the pacing seeds above, which never change. Applied at
-    // construction and re-applied only when the ANSWER changes, so a
-    // caller that deliberately overrode the flag on an existing widget
-    // (tests pre-seed reveal_fx=false to measure settled height) keeps its
-    // override, while a real policy change (exporting AGENTTY_REVEAL) still
-    // takes effect for the next message's widget.
+    // 逐步显示 on/off 谓 POLICY ——来源于 终端
+    // 和圆圈——不同于上面的间隔种子,它们从未改变。
+    // -applied 只有在 ANSWER 改变,
+    // 所以一个呼叫者 故意推翻 标志 已存在的部件( 测试前)
+    // -seed reveal_fx = 假以测量已定居高度)保持其超度,
+    // 而真正的政策变化(出口) AGENTTY_REVEAL 仍然
+    // 需要我们 副作用 用于下一个消息的部件。
     //
-    // DEFAULT: ON EVERYWHERE, tmux included. Both halves of the reveal
-    // rewrite the live tail's rows every animation frame and are
-    // viewport-blind (the widget can't see the scroll position, so it can
-    // only safely touch the bottom row). Under tmux those rewrites used to
-    // desync from the mux grid and GHOST — text overlapping the rows above,
-    // words split mid-token — which is why the default was terminal-derived
-    // (0ebcf5f9). The tail-rewrite path has since been made viewport-safe,
-    // so the multiplexer no longer earns a degraded default: one behaviour
-    // everywhere beats a split-brain one that silently differs by terminal.
-    // If a given tmux/terminal combination still ghosts, `AGENTTY_REVEAL=0`
-    // turns it off without a rebuild.
+    // DEFAULT: ON EVERYWHERE 中,
+    // tmux 包含。 逐步显示 重写现场 末尾 每一动画的
+    // 行 帧 并且现在 可视区域-blind (部件无法看到滚动位置,
+    // 所以只能安全触摸下行)。在 tmux 下,这些重写用于从 mux
+    // 网格中解析的文字和 GHOST ——文字重叠上行,字句在中段分拆.
+    // -token ——这就是为什么默认是 终端-derived
+    // (0ebcf5f9), 缩写为: 末尾-rewrite 路径
+    // 已经实现 可视区域-safe ,所以多轴器不再获得退化的默认
+    // 值: 各地的行为都比分 -brain 一种沉默的区别 终端.
+    // 如果一个给定 tmux/terminal 组合还是鬼魂,
+    // `AGENTTY_REVEAL=0` 关掉它,不用重建
     //
-    // Env always wins, in both directions:
-    //   • AGENTTY_REVEAL            — master (off ⇒ no reveal at all)
-    //   • AGENTTY_REVEAL_TYPEWRITER — the progressive clip
-    //   • AGENTTY_REVEAL_DECORATE   — the scramble/gradient/caret overlay
-    // Each accepts 0/false/off/no = off; anything else = on; unset =
-    // the default.
+    // 信封总是赢,双向:
+    //   • AGENTTY_REVEAL ——主人(off QQ) 否 ——主主 ——主 ——主人 ——主 主 ——主——主 : 逐步显示 完全没有)
+    //   • AGENTTY_REVEAL_TYPEWRITER——渐进式剪辑
+    //   • AGENTTY_REVEAL_DECORATE - 电话 scramble/gradient/caret 覆盖面板
+    // 每一个接受0/false/off/no=关闭;其他任何=开启;
+    // 未设置=默认值.
     {
-        // The default no longer varies by terminal: no tmux probe, and no
-        // AGENTTY_UNDER_TEST special case either — the suite was only
-        // reading that to pin down a terminal-derived default, and there
-        // isn't one any more. A test that wants the reveal OFF still
-        // pre-seeds the flag on its own widget (midrun_wire_test), which
-        // this never clobbers.
-        // Read once at launch into m.env (env.cpp).
+        // 默认不再因 终端 : 没有 tmux 探测器,
+        // 没有 AGENTTY_UNDER_TEST 特例都一样
+        // 套房只读到这个 来给一个 终端-derived 默认,
+        // 没有了,测试要 逐步显示 OFF 仍在预 -seeds
+        // 编号 标志 自行部件( N) midrun_wire_test
+        // 从来没有被打过
+        // 发射时读到一次 m.env (env.cpp).
         const bool master     = m.env.reveal;
-        // The MOTION pref gates both layers, under the env flags. Reduced
-        // keeps the progressive clip — text walking in is information about
-        // progress — and drops the decorative glyph churn, which is not.
-        // Off stops both: a typewriter reveal is genuinely unpleasant with a
-        // vestibular disorder, so this is an accessibility switch before it
-        // is a preference, and it must actually reach the widget.
+        // 电话 MOTION 双层门,在洞下 标志 .
+        // 减少保留进步的剪辑——文字走进是关于进步的信息
+        // ——并放下装饰性的格莱弗圆珠,而这个不是.
+        // 关闭两个:一个打字机逐步显示 与前部障碍
+        // 是真正不愉快的,所以这是在它成为首选之前
+        // 的无障碍开关,它必须实际到达部件.
         const bool want_fx    = master && agentty::ui_prefs::animations_on();
         const bool want_deco  = master && agentty::ui_prefs::reveal_decoration_on();
-        // Written for each NEWLY CONSTRUCTED widget — not per frame, so a
-        // caller that deliberately overrode the flag on an existing widget
-        // (midrun_wire_test pre-seeds reveal_fx=false to measure settled
-        // height) keeps its override; and not once per process, so every
-        // message's widget gets the policy rather than only the first.
+        // 为每个都写 NEWLY CONSTRUCTED 部件——不按 帧
+        // 故意推翻 标志 有关现有部件的( ) midrun_wire_test
+        // 预览 -seeds reveal_fx =false to
+        // imprision settle high)保持它的覆盖;
+        // 而不是每个进程一次,所以每个消息的部件都得到策略而不是仅仅第一个.
         //
-        // ... EXCEPT when the pref itself changed, which is the one case a
-        // live setting must beat that rule: a user who turns motion off
-        // mid-stream is telling us to stop NOW, not on the next message.
+        // ... EXCEPT 当预览本身改变时, 即一个实例,
+        // 一个现场设置必须击败规则: 关闭中途运动的用户
+        // -stream 就是要我们停下来 当前 ,而不是在下一个消息。
         //
-        // Compared against what THIS widget was configured with
-        // (cache.applied_motion), not a latch shared by every caller. This
-        // function runs several times per frame -- the reasoning "#r" lane,
-        // the answer lane, one per sub-turn -- so a compare-and-reset latch
-        // is consumed by whichever widget it reaches first and every later
-        // widget that frame reads "unchanged". Toggling motion mid-stream
-        // then applied to the reasoning block and left the answer animating:
-        // the same "only the first widget gets the policy" failure the
-        // paragraph above exists to prevent.
+        // 比较什么 此 部件配置为 (M)
+        // cache.applied_motion ),
+        // 而不是每个呼叫者共享的批量。此函数运行于每个调用者若干次 帧
+        // - 推理 "#r" 车道,答题车道,每个车道1 -turn
+        // - 来个比较 -and-reset 锁链由它先到达的部件和
+        // 后来到达的部件所消耗 帧 读取 "unchanged"
+        // 中间移动 -stream 然后应用到推理块,并留下了答案动画:
+        // 以上段落的同样"only the first widget gets the policy"
+        // 未能防止。
         //
-        // Per-widget also needs no frame semantics, which a global
-        // changed-this-frame flag does: that flag is sticky for anything
-        // which does not publish every frame, so it leaks across tests and
-        // across a panel-only frame. "What I have differs from what is in
-        // force" is the real condition and carries no such hazard.
+        // 人数 -widget 也不需要,请不要 帧 语义,
+        // 一个全局变化的语义 -this-frame 标志 是否为: 标志
+        // 粘度是任何不发布任何 帧 ,所以它会通过测试和面板泄漏 -only 帧.
+        // 当前拥有的状态与实际生效的状态不同。
+        // 真实状况,没有这种危险。
         const int motion_now = static_cast<int>(agentty::ui_prefs::current().motion);
-        // >= 0 guard: -1 means "this widget's policy was never set by us".
-        // `fresh_widget` already covers the widget WE just created, so the
-        // only other way to reach here unstamped is a widget seeded from
-        // outside (a test building a slot directly to measure a settled
-        // height). Treating unstamped as stale would overwrite a deliberate
-        // setup, so a change means a KNOWN level that differs -- not an
-        // absent one.
+        // -0 警卫: -1 表示"this widget's policy was never set by us".
+        // `fresh_widget`已经覆盖了刚刚创建的WE,
+        // 所以唯一能够到达这里的另一种方法是从外部(一个测试楼,
+        // 一个槽直接用来测量一个固定高度)种子的部件。
+        // 将未标记的过期 处理为将覆盖一个有意设置,所以一个变化
+        // 意味着一个KNOWN 级别是不同的 — — 不是
+        // 一个缺席的。
         const bool motion_changed =
             cache.applied_motion >= 0 && cache.applied_motion != motion_now;
 
@@ -333,61 +333,61 @@ maya::Element cached_markdown_for(const Message& msg, const Model& m,
                 want_fx && m.env.reveal_typewriter);
             cache.streaming->set_reveal_decorate(
                 want_deco && m.env.reveal_decorate);
-            // Stamp what we just configured, so the next frame re-applies
-            // only on a real move. Unconditional inside the branch: a fresh
-            // widget has applied_motion = -1 and must record its level too,
-            // or it would re-apply on every frame for the life of the turn.
+            // 印上我们刚刚配置的图章,所以下一个 帧 内容
+            // -applies 仅用于真正的动作。在分支内无条件: 新的
+            // 部件有 applied_motion = -1 并且必须记录其水平,
+            // 否则将重新 -apply 时值 帧 转弯的一生。
             cache.applied_motion = motion_now;
         }
     }
 
-    // Pick the source bytes for THIS frame. The reveal cursor must see
-    // EVERY byte that has arrived from the wire so it can pace them
-    // smoothly on its own wall clock; if it only saw `streaming_text`,
-    // the visible text could advance only when meta.cpp's Tick handler
-    // drips pending_stream → streaming_text (33 ms sync / 100 ms non-
-    // sync / more over SSH). Between ticks each text delta still forces
-    // a render (fps=0), but streaming_text wouldn't have grown, so the
-    // reveal had nothing new to show — the text sat STUCK until the next
-    // tick dripped a chunk, then JUMPED. That is the "md gets stuck then
-    // bursts" stutter, and it is structural: deltas feed pending_stream,
-    // the drip feeds streaming_text only on Tick, the view read only
-    // streaming_text. Reading text + streaming_text + pending_stream
-    // makes the wall-clock reveal cursor the SINGLE display pacer over
-    // all arrived bytes, so visible output advances continuously at
-    // kRevealCharsPerSec independent of the tick cadence. (meta.cpp's
-    // drip still runs — it moves bytes into streaming_text where the
-    // settle path commits them — but it no longer controls what the
-    // user SEES.)
+    // 选择源头 字节 费用 此 帧。该词 逐步显示 光标必须看到 每个 字节 已经
+    // 从 传输 以便它依自己的墙钟而顺利地节奏。 `streaming_text` ,
+    // 可见文本只能当 meta.cpp 选中值 处理函数 滴滴声
+    // pending_stream → streaming_text (33 ms
+    // 同步 / 100 ms 非同步 / 更多 ) SSH。在勾选之间,
+    // 每个文本三角洲仍然强制要求a 渲染 (FPS =0),但将" ⁇ "( ⁇ ),
+    // " ⁇ "," ⁇ ( ⁇ )",
+    // "" ⁇
+    // ". streaming_text 就不会长大了 所以... 逐步显示 没有任何新内容可以显示——文本坐落 STUCK 直到下一个滴滴一个块,然后 JUMPED。这就是 "
+    // md gets stuck then bursts" 结巴,它的结构:三角洲饲料
+    // pending_stream ,滴入的种子, 滴入的信号 streaming_text
+    // 仅限 Tick , 视图只读 streaming_text。阅读文本 +
+    // streaming_text + pending_stream 造墙
+    // -clock 逐步显示 光标 唯一 显示所有到达的缓冲器 字节 ,因此可见输出在
+    // kRevealCharsPerSec 独立于勾选卡登斯(credence).
+    // (中文(简体) ). meta.cpp 滴滴还在流 流着 字节 输入
+    // streaming_text 解决路径会让他们承担责任的,但不再控制用户
+    // SEES.)
     //
-    //   • settled: msg.text holds the final body, streaming_text +
-    //     pending_stream empty.
-    //   • mid-sub-turn-2: msg.text holds the PRIOR sub-turn's settled
-    //     body; streaming_text + pending_stream hold the in-flight
-    //     follow-up bytes. Feed all so the live tail keeps growing.
-    //   • sub-turn-1 streaming: msg.text empty, streaming_text +
-    //     pending_stream grow.
-    // The joined buffer is cached on MessageMdCache so the string_view
-    // we hand to set_content_async stays valid across the call.
+    //   • 解决: msg.text 举行最后的 正文, streaming_text +
+    //     pending_stream 空无所着.
+    //   • 中点 -sub-turn-2: msg.text 拿着 PRIOR 子目录 -turn 已经解决
+    //     正文; streaming_text + pending_stream 坚持
+    //     住 -flight 随其后 -up 字节 供养一切,让活人 末尾 不断增长.
+    //   • -turn-1 流式传输:msg.text空,streaming_text +
+    //     pending_stream 增长。
+    // 加入的队伍 缓冲区 缓存于 MessageMdCache 所以,
+    // 我们 string_view 我们交给 set_content_async 在整个 调用.
     //
-    // Size-based no-op fast-path. Reveal_fx animates at 60 fps; bytes
-    // arrive at 10-30 / s, so >90% of frames produce no source-size
-    // change. Without this guard we re-concat msg.text + streaming_text
-    // + pending_stream (O(N) alloc+memcpy) AND set_content_async memcmps
-    // the result (O(N) memcmp) every frame for the in-flight turn. For
-    // a 50 KB sub-turn-2 body that's ~100 KB of memory bandwidth per
-    // frame just to discover nothing changed. Compare the three sizes
-    // instead: if none grew, the source bytes are byte-identical and we
-    // can skip straight to build().
-    // In REASONING mode the body is a single growing string
-    // (reasoning_display_text): no text/streaming/pending triple-buffer.
-    // Stash it in the persistent combined_source buffer (NOT a local) so
-    // set_content_async's string_view stays valid across frames, and diff
-    // on its size like the answer path.
+    // 大小 -based 无 -op 快速( T) -path. Reveal_fx
+    // 60岁动画 FPS; 字节 达到 10-30 / s,所以 > 90% 帧
+    // 没有源代码 -size 换衣服,没有这名警卫,我们就 -concat msg.text
+    // + streaming_text + pending_stream (O(N) 偶
+    // 联+微量) 和 set_content_async 将结果( O( N) 中)
+    // 乘以每 帧 用于 -flight 转身,50元 KB 子目录 -turn-2
+    // 正文 ~100 ~ ~ = = $100 = ~ $ KB 备注 内存 每带宽
+    // 帧 来比较三个大小: 如果没有增长, 来源 字节 已经 字节-identical
+    // 直接跳到这里 build().
+    // 内 REASONING 模式 正文 是一个单一的生长字符串( Q)
+    // reasoning_display_text : 没有 text/streaming/pending 3 个 -buffer.
+    // 把它塞进 持久化 combined_source 缓冲区 (不 当地),
+    // 因此, set_content_async's string_view 横跨有效 帧 ,
+    // 并按其大小显示,如答案路径。
     if (reasoning_view) {
-        // Reasoning body is the raw reasoning text (the ReasoningStream chrome
-        // supplies the ┃ rail + dim). Stash it in the persistent buffer so
-        // set_content_async's string_view stays valid across frames.
+        // 理由说明 正文 是原始推理文本( 简写为 ReasoningStream
+        // 铬供应 + 暗的铁路。 持久化 缓冲区 这么说吧
+        // set_content_async's string_view 横跨有效 帧.
         std::string_view rsrc = msg.reasoning_display_text();
         if (rsrc != cache.combined_source)
             cache.combined_source.assign(rsrc);
@@ -402,16 +402,16 @@ maya::Element cached_markdown_for(const Message& msg, const Model& m,
     const std::string* source_ptr =
         reasoning_view ? &cache.combined_source : &msg.text;
     const bool has_live = reasoning_view
-      ? false // reasoning has one buffer; source_ptr already points at it
+      ? false // 推理有一个 缓冲区; source_ptr 已经指向它
       : (!msg.streaming_text.empty() || !msg.pending_stream.empty());
     if (has_live) {
         if (msg.text.empty() && msg.pending_stream.empty()) {
-            // Streaming-text only, nothing buffered — reference it
-            // directly, no copy.
+            // 流式传输-text 仅此而已,没有缓冲——直接引用,
+            // 没有副本.
             source_ptr = &msg.streaming_text;
         } else if (sizes_unchanged && !cache.combined_source.empty()) {
-            // Sizes match what we already concatenated last frame; the
-            // backing buffer is still valid. Reuse it; no copy.
+            // 大小与我们上次的配置一致 帧 ;
+            // 支持 缓冲区。 重新使用; 没有复制。
             source_ptr = &cache.combined_source;
         } else {
             cache.combined_source.clear();
@@ -426,212 +426,212 @@ maya::Element cached_markdown_for(const Message& msg, const Model& m,
     }
     const std::string& source = *source_ptr;
 
-    // Remember the component sizes for next frame's no-op check.
+    // 记住下一个组件大小 帧 才不是,我说 -op 检查。
     cache.last_text_size      = reasoning_view ? source.size() : msg.text.size();
     cache.last_streaming_size = msg.streaming_text.size();
     cache.last_pending_size   = msg.pending_stream.size();
 
-    // A reasoning slot settles when the stream stops OR its answer body has
-    // begun (bytes will no longer arrive on the reasoning channel). The
-    // answer slot settles the classic way.
+    // 推理槽在 数据流 停止( E) OR 其
+    // 答案 正文 已经开始( 4) 字节
+    // 答案槽会解决经典的方法。
     const bool settled = reasoning_view
       ? (!reasoning_active && !source.empty())
       : (!msg.text.empty()
          && msg.streaming_text.empty()
          && msg.pending_stream.empty());
     if (!reasoning_view && settled && !cache.combined_source.empty()) {
-        // Reclaim the scratch buffer the moment streaming_text
-        // drains — next freeze takes the snapshot off msg.text.
-        // (Reasoning keeps its snapshot HERE, so it is exempt.)
+        // 重拾刮伤 缓冲区 此时此刻 streaming_text
+        // 下个冰冻会让 快照 关 msg.text.
+        // (重音保持其 快照 此处 ,所以它可以免责. )
         std::string{}.swap(cache.combined_source);
     }
 
-    // Fast-path: fully settled message whose reveal has completed.
-    // Skip all per-frame work (typewriter advance, set_content,
-    // finish, live-mode checks) and return the cached element tree
-    // directly. This is the dominant case on long sessions — N
-    // visible turns × every frame would otherwise pay constant
-    // overhead for each one.
+    // 快点 -path : 完全解答的信息 逐步显示 已经完成。
+    // 跳过全部每 -frame 工作(打字机预发,
+    // set_content ,结束,直播 -mode
+    // 检查)并返回缓存元素 源码树 直接。
+    // 这是长会话中的主要案例——N可见转折×× 帧 否则,
+    // 将支付每一笔固定间接费用。
     if (settled
         && cache.last_settled_size == source.size()
         && cache.revealed_size    == source.size()) {
         auto built = cache.streaming->build();
-        // Lifecycle down-migration: this message is fully drained (no
-        // live bytes, reveal complete). If its slot is still PINNED from
-        // its streaming days, hand it back to the LRU now — it is a pure
-        // render memo from here on, and leaving it pinned would leak a
-        // permanent (uncapped) entry per settled turn. `build` is a value
-        // (not a reference into the slot), so the migrate that follows
-        // can safely move the Entry. Idempotent: no-op once settled.
+        // 生命周期下降 -migration : 此信息已完全排
+        // 空( 无直播)。 字节, 逐步显示 如果它的槽仍然在
+        // PINNED 从其 流式传输 几天,把它还给 LRU 现在,
+        // 它是一个纯洁的 渲染 记忆缓存 从这里开始,
+        // 留下它会泄露一个永久的(未封顶)进入 每一个固定的转弯。
+        // `build` 是值(不是输入槽的引用),所以下面的迁移
+        // 可以安全移动条目。 幂等 : 无 -op 曾经安顿下来的
         if (want_pin)
             (void)m.ui.view_cache.message_md(m.d.current.id, slot_id);
-        // Reasoning has its own rail and its own measure; the cap is a
-        // READING measure for answer prose.
+        // 理性有其自己的铁路和自己的衡量标准;
+        // 上限是回答的READING度量.
         return reasoning_view ? built : prose_capped(std::move(built));
     }
 
-    // ── Reveal: feed ALL arrived bytes, every frame ──
+    // ── 逐步显示 : 种子 全部 抵达 字节 ,每个 帧 ──
     //
-    // There is NO host-side typewriter cursor. The display pacer is
-    // maya's reveal_fx (scramble→resolve + gradient trail + caret on the
-    // live edge), which animates the trailing run of the text we feed.
-    // The host's only job is to keep handing the widget the full set of
-    // bytes that have arrived from the wire and to keep the animation
-    // frame armed while the stream is live.
+    // Τ NO 东道主 -side 键入光标。
+    // 显示缓冲器是 maya's reveal_fx (斜拉-
+    // 折叠+梯度小径+) 光标 以我们所喂的文字的尾声为动画。
+    // 主持人的唯一工作是继续将传输运来的字
+    // 节的全套部件交给部件,并在数据流直播
+    // 时保留动画帧的武装.
     //
-    // Why no second cursor: a host pacing clock that withholds bytes and
-    // releases them at a fixed char/sec is a SECOND clock beating against
-    // (a) the wire-arrival clock and (b) the render-wake cadence. Any
-    // beat between them is visible as stutter — and if the host clock
-    // ever stops advancing (a render skipped, the wake cadence dropped to
-    // the 100 ms Tick) the text sits STUCK mid-reveal until an unrelated
-    // event flips the frame. Feeding the raw arrived bytes removes that
-    // clock entirely: visible text == arrived text, always. Chunky
-    // deltas (a multi-KB code block in one delta) appear at once, but
-    // reveal_fx animates their trailing edge so the seam still reads as a
-    // live stream, the same approach Zed / Claude Code use.
+    // 为什么没有第二个光标:一个拒绝的显示器间距时钟 字节 然后,
+    // 他们就被放逐到一个固定的、 char/sec 是一个 第二
+    // 时钟对(a) 传输-arrival 时钟和(b) 渲染
+    // -wake 节拍。它们之间的任何拍子都明显为结巴,
+    // 如果主机钟停止前进(a) 渲染 跳过,醒悟的卡登斯 掉到100
+    // 毫秒滴滴滴滴。。 STUCK 中点 -reveal 直至无关
+    // 者 事件 翻转 帧。喂养生灵 字节 完全删除该时钟:可见文本
+    // === 已到达文本。 Chunky deltas(一个
+    // 多 -KB 代码块在一个三角洲)一次出现,
+    // 但 reveal_fx 动画他们的后边 所以 接口边界 仍然读作活的
+    // 数据流 ,同样的方法Zed / Claude 密码使用.
     //
-    // revealed_size is kept == source.size() so the settled fast-path and
-    // the freeze snapshot (which read revealed_size) see a fully-revealed
-    // message and never freeze a partial body.
+    // revealed_size被保留 = source.size(),
+    // 所以已结算的快-path和冻结的快照(读作revealed_size)看到一个完全
+    // -revealed的信息,从不冻结一个部分的正文.
     cache.revealed_size = source.size();
     const std::string_view feed_source = source;
 
-    // Settled-message fast path. Once a message has settled
-    // (msg.text is final, streaming_text empty) the source bytes are
-    // immutable for the rest of the session. set_content's equal-
-    // content check still costs O(source.size()) memcmp every frame;
-    // on a long thread with many visible turns that adds up. Skip
-    // the call entirely once we've fed the final bytes through once.
+    // 已解决 -message 快速路径。一旦消息得到解析
+    // ( Q) msg.text 最终, streaming_text
+    // 空的)来源 字节 已经 不可变 其余时间。
+    // set_content 平等内容检查仍然花费 O( O)
+    // source.size () 中度计数 帧 长的 线程 带有许多
+    // 可见的转折,加起来。 调用 完全一旦我们吃饱了最后的 字节 穿过一次
     //
-    // Gate is (size + settled-once flag) only. No reducer rewrites
-    // an Assistant's msg.text in place after StreamFinished moves
-    // streaming_text → text; later edits replace the Message
-    // wholesale (new MessageId, new cache slot). Hashing the bytes
-    // every frame to guard against a same-length in-place rewrite
-    // that doesn't exist cost O(text) per visible settled turn per
-    // frame — the dominant per-frame cost on long sessions.
+    // 门为(大小+已确定) -once 标志 仅此而已。 状态更新函数
+    // 重写助理 msg.text 之后的设置 StreamFinished
+    // 移动 streaming_text + 文本;
+    // 后编辑替换信件批发( 新) MessageId 新建 缓存 打开插槽。
+    // 字节 每隔一段时间 帧 来防范同样的攻击 -length
+    // 输入 -place 重写不存在的 O( 文本) 每可见的已
+    // 结算转折 帧 ——占支配地位者 -frame 长会费用。
     const bool already_settled_into_cache =
         settled
         && cache.last_settled_size == source.size()
         && cache.revealed_size == source.size();
 
-    // Optional per-frame timer for the streaming-markdown widget: logs
-    // set_content+finish+build() cost for each non-fast-path call.
-    // Isolates the in-flight widget cost from the (separately-profiled)
-    // timeline render. One line per call; skips the settled fast-path.
-    // Frame-build cost + reveal pacing. AGENTTY_LOG=perf=trace surfaces it:
-    // trace, not debug, because this fires on every streaming frame.
+    // 可选人数 -frame 时间 流式传输-markdown 部件:日志 set_content
+    // +完成键+ build() 每一非缔约方的费用 -fast-path 调用.
+    // 隔离在 -flight 部件成本从( 单独) 中 -profiled
+    // () 时间表 渲染。每行1行 调用 ; 跳过已定居的快速 -path.
+    // 帧-build 费用+ 逐步显示 节奏 AGENTTY_LOG 追踪表面:
+    // 追踪,而不是调试,因为这火点在每一个 流式传输 帧.
     const auto prof_t0 = ::agentty::logx::enabled(
                              ::agentty::logx::Channel::Perf,
                              ::agentty::logx::Level::Trace)
-                       ? std::chrono::steady_clock::now()   // stopwatch: perf log only
+                       ? std::chrono::steady_clock::now()   // stopwatch: 仅限perf日志
                        : std::chrono::steady_clock::time_point{};
 
     if (!already_settled_into_cache) {
-        // Skip set_content_async entirely on a sizes-unchanged frame.
-        // The widget already saw these exact bytes last frame; its
-        // internal source_ matches feed_source by length and prefix.
-        // set_content_async's own no-op fast-path would memcmp
-        // O(N) bytes to discover this; the size check here is O(1).
-        // Still emit the call when sizes match but the widget is
-        // currently parsing async (it needs the poll to adopt the
-        // result) OR when this is the first feed (combined_source
-        // empty above means we took the direct ref path).
+        // 跳过 set_content_async 完全按尺寸 -unchanged 帧.
+        // 部件上一个帧已经看到这些精确的字节;
+        // 其内部来源_按长度和前缀与feed_source匹配.
+        // set_content_async 自己没有 -op 快速( T)
+        // -path 将中度O( N) 字节 以发现此值; 这里的大小检查是 O(1)。
+        // 仍然发泄 调用 当大小匹配但部件为当前 解析
+        // async(需要通过民意测验才能通过结果) OR 当
+        // 这是第一个种子时( Q) combined_source
+        // 上面空的意味着我们走的是直接的回路。
         const bool skip_set_content =
             sizes_unchanged
             && cache.streaming->source().size() == feed_source.size()
             && !cache.streaming->is_parsing();
         if (!skip_set_content) {
-            // Path split by liveness:
+            // 路径以活性分隔 :
             //
-            //   LIVE WIRE (!settled): always feed the sync
-            //   set_content. The live combined feed is append-in-
-            //   spirit — text + streaming_text + pending_stream grows
-            //   monotonically within a sub-turn. But at each sub-turn
-            //   boundary the prior sub-turn's streaming_text folds into
-            //   msg.text and streaming_text resets, so the NEXT feed is
-            //   a divergent-prefix change; once the accumulated body
-            //   crosses set_content_async's 16 KB threshold that swap
-            //   would spawn a detached parse worker. While the worker
-            //   runs is_parsing() is true and the widget returns its
-            //   PREVIOUS element tree — the live reveal FREEZES — and
-            //   the result is only adopted (maybe_apply_async_) the next
-            //   time build() is polled. If the wire goes quiet for a
-            //   beat while the frozen-scrollback visual-hash gate
-            //   suppresses redraws, build() stops being polled and the
-            //   finished parse sits unapplied: the tail stalls until the
-            //   next delta / 100 ms Tick. That's the "md streaming stops
-            //   after a while in a long turn, fine again next turn"
-            //   report (next turn = fresh <16 KB placeholder → sync
-            //   path). The sync path has no is_parsing() window, so the
-            //   live reveal can never freeze on a parse.
+            //   LIVE 传输 (! 定下来了): 总是喂同步
+            //   set_content。现场综合饲料是附加 -in-
+            //   精神——文本+ streaming_text +
+            //   pending_stream 单调生长在子体内 -turn。
+            //   但是,在每个子 -turn 边界上一个子 -turn's
+            //   streaming_text 归并 输入 msg.text 财务
+            //   报告和已审计财务报表 streaming_text 重新来过,
+            //   所以 下一个 种子是不同的 -prefix 更改; 一旦累积
+            //   正文 十字路口 set_content_async's 16
+            //   KB 交换的门槛将产生脱落 解析 工作线程。当 工作线程 运行
+            //   is_parsing ()是真实的,部件返回其 PREVIOUS
+            //   元素 源码树 - 现场直播 逐步显示 FREEZES ——结果只通过(.
+            //   maybe_apply_async_ )下一次(见注:
+            //   build() 已经调查过了 如果 传输 安静地呆着,
+            //   冰冻的 -scrollback 视觉 -hash 门压制重画,
+            //   build() 停止民意调查 完成 解析 未应用的座位: 末尾
+            //   拖拉机,直到下一个三角洲/100米。 流式传输 停止( E)
+            //   之后的一段时间, 下一回合再做一次精细的修改。
+            //   报告( 下转 = 新鲜 < 16 KB 占位符 – 同步
+            //   路径 )。 同步路径没有is_parsing( ) 窗口,
+            //   因此, 运行的逐步显示 永远不能冻结 解析。
             //
-            //   SETTLED / RELOAD (settled): keep the async variant. A
-            //   thread reload or scrollback recovery swaps in a whole
-            //   >=16 KB body at once as a divergent prefix; offloading
-            //   that one-shot parse to a worker keeps the render thread
-            //   responsive, and finish() below force-adopts it in the
-            //   same pass, so there's no unbounded freeze window.
+            //   SETTLED / RELOAD (已解决):保持同步 变体.
+            //   A 线程 重新装入或 回滚缓冲区 整个16年的回收
+            //   交换 KB 正文 一次作为不同的前缀; 卸载该前缀
+            //   -shot 解析 改为: 工作线程 保留 渲染 线程
+            //   反应迅速,以及 finish() 低于部队 -adopts
+            //   在同一条通道里,所以没有无限制的冷冻窗.
             if (!settled)
                 cache.streaming->set_content(feed_source);
             else
                 cache.streaming->set_content_async(feed_source);
         }
 
-        // Settled message → commit any trailing tail to the prefix's
-        // block list. finish() flushes whatever is still in the
-        // streaming tail into the canonical committed block path
-        // (md_block_to_element), so the settled render is byte-identical
-        // to the live one.
+        // 处理好留言 – 执行任何跟踪 末尾 转到前缀的块列表。
+        // finish() 冲着那些还留在里面的东西 流式传输
+        // 末尾 进入克尼科承诺的区块路径(
+        // md_block_to_element 故结业者, 渲染 谓 字节
+        // -identical 给活的
         //
-        // Historically this was load-bearing for a trailing closed code
-        // fence: find_block_boundary only committed a fenced block once
-        // its closing ``` was followed by a newline, so a message ending
-        // at the closing backticks (the common case for a reply ending
-        // in a code example) left the last block stuck in the tail,
-        // rendered via render_tail's inline path. render_tail and
-        // md_block_to_element feed the same border/padding builder
-        // slightly different code strings, so their cells weren't
-        // byte-identical — at settle the whole last block re-emitted to
-        // the terminal (the "repaint", worst over SSH). That divergence
-        // is now fixed upstream in maya (boundary.cpp eager-commits a
-        // closing fence at end-of-buffer), so the live and settled cells
-        // already match before this call. finish() is kept because it's
-        // idempotent (no-op once committed_ == source_.size()) and still
-        // the correct place to flush any OTHER trailing-block kind.
+        // 历史上,这是 加载-bearing 用于跟踪关闭的代码栅栏:
+        // find_block_boundary 只犯过一次围栅
+        // 其结束 ``` 后紧跟换行，因此消息若结束于
+        // 关闭后键( 常见的以代码结尾的回覆例) 时, 最后一个块卡在 末尾 ,
+        // 通过 render_tail '是内线路径. render_tail
+        // 财务报告和已审计财务报表 md_block_to_element
+        // 给同样的 border/padding 构建器 代码字符串略有不同,
+        // 所以 存储单元 刚才不是 字节-identical - 在
+        // 最后一块块的解决上 -emitted 编号 终端 (无) "repaint" ,
+        // 最糟糕的过去 SSH。现在这种差异已经固定 上游 输入 maya
+        // (boundary.cpp 提前加载-commits 端端的
+        // 关闭栅栏 -of-buffer 故他们已活了,已安定下来,
+        // 存储单元 已在此之前匹配 调用. finish() 是因为它 幂
+        // 等 (无) -op 曾经犯过罪... source_.size
+        // 并且仍然是正确的冲洗地点 OTHER 跟踪 -block 有点
         //
-        // At settle we kick off the finalize ramp FIRST — the widget
-        // glides its reveal cursor to the live edge over ~200 ms and
-        // flips live_ off itself when the cursor catches up. We defer
-        // finish() (which forces live_=false) until that ramp completes,
-        // so the reveal animation isn't cut short and dump its backlog
-        // in one frame.
+        // 解决后我们再跳下最后的斜坡 首次 - 部件滑
+        // 动了它 逐步显示 光标到活边的光标为~200 ms,
+        // 当光标赶上时会自动翻转。 我们推迟。
+        // finish() 直到坡道完工,所以...
+        // 逐步显示 动画没有缩短, 并把它的积压堆积成
+        // 一 帧.
         //
-        // Skip on a sizes-unchanged frame. set_live(true) goes through
-        // the Tracked<> wrapper which auto-bumps build_dirty_ on EVERY
-        // assignment (even same-value): a wasted rebuild per frame at 60
-        // fps. request_finalize is idempotent (early-out on existing
-        // deadline) but cheap to skip. With this gate, no-grow frames
-        // leave build_dirty_ alone and build() returns cached_build_
-        // directly.
+        // 跳过大小 -unchanged 帧. set_live 穿过有轨电车
+        // 的自动包装 -bumps build_dirty_ 打开 每个 转让
+        // (即使相同) -value : 浪费的重建 帧 计60岁 FPS.
+        // request_finalize 谓 幂等 (早间 -out ) ,
+        // 但跳过费用低廉。使用此门,不 -grow 帧 离职 build_dirty_
+        // 单独和 build() 返回时 cached_build_
+        // 直接来
         if (!sizes_unchanged) {
             if (settled) {
-                // Finish so the live height equals the settled/frozen height
-                // — agent_session's MessageStop discipline — UNLESS an
-                // end-of-turn finalize ramp is still gliding (#5, interactive
-                // terminals only: finalize_turn arms request_finalize instead
-                // of settling, precisely so the steady-state backlog types
-                // out over ~200 ms instead of pasting in one frame). While
-                // the ramp runs, the widget is animating dense frames and
-                // flips live_ off ON ITS OWN once the tail visually
-                // settles; forcing finish() here would cut the glide and
-                // dump the backlog — the exact paste the ramp exists to
-                // prevent. Once the widget settles itself (is_finalizing
-                // false again), this branch runs finish() as before — a
-                // no-op shape-wise, but it flushes any trailing block and
-                // keeps the fps=0/SSH path (where the reducer already
-                // settled via settle_message_md) in lockstep.
+                // 完成后,活体高度等于 settled/frozen 高度 -
+                // 高度 - (单位:千米) agent_session's
+                // MessageStop 纪律—— 除非 结束 -of-turn
+                // 最终坡道仍在滑翔(5号,交互式) 终端 仅限: finalize_turn
+                // 武器 request_finalize 而不是安顿下来,
+                // 确切地说,稳定 -state 积压类型超过 ~200 ms
+                // 而不是粘贴在其中 帧。在坡道运行时,部件正在产生密集的动画
+                // 帧 并翻转 live_ 关闭 ON ITS 自身
+                // 一次 末尾 视线沉淀; 强制 finish() 这里可以
+                // 剪断滑翔板并倾倒积压的物—— 斜坡的准确贴贴是防止的。
+                // 一旦部件自行解决( ) is_finalizing 假的,
+                // 这个分支运行 finish() 与以前一样,
+                // -op 形状 -wise 但它冲刷任何后方的块 并保持 FPS
+                // =0/SSH 路径( 此处为 状态更新函数 已经通过
+                // settle_message_md )在锁步.
                 const bool end_glide_running =
                     cache.streaming->is_finalizing()
                     || (cache.streaming->is_live()
@@ -642,61 +642,61 @@ maya::Element cached_markdown_for(const Message& msg, const Model& m,
             }
         }
 
-        // ── The reasoning → answer seam ─────────────────────────────
+        // ── 推理 – 回答 接口边界 ─────────────────────────────
         //
-        // A reasoning slot settles the INSTANT the answer produces its first
-        // byte (see `settled` above: reasoning_active goes false). If the
-        // reasoning cursor still has backlog at that moment, nothing above
-        // bounds it:
+        // 推理槽解决 INSTANT 答案产生第一个 字节 (见A/C.5/61/L.48,
+        // 第16段) `settled` 以上:
+        // reasoning_active 如果推理光标在当时仍有积压,
+        // 则上面没有限制它:
         //
-        //   • the settle branch is gated on !sizes_unchanged, and reasoning's
-        //     source STOPS GROWING exactly when it settles — so from the next
-        //     frame on that gate is false and the branch never runs again.
-        //   • even when it does run, end_glide_running is true while the
-        //     reveal is in progress, so finish() is (correctly) skipped.
+        //   · 定居点分行被关上门! sizes_unchanged ,和推理的
+        //     来源 STOPS GROWING 等它解决了,
+        //     就从下个开始 帧 门上是假的,树枝再也不会跑了
+        //   • 即使它运行, end_glide_running 真实,而
+        //     逐步显示 正在进行中,所以 finish() 被跳过。
         //
-        // The widget is therefore left live with an unbounded glide: the
-        // reasoning block keeps typing at its own pace while the answer races
-        // underneath it, two typewriters running to different clocks. That is
-        // the jerky hand-off — and the alternative (letting finish() fire)
-        // is a one-frame paste of the remainder, which is worse.
+        // 因此,部件被保留在无约束滑翔机的状态下:推理
+        // 块在回答时,会按自己的速度打字 竞态 里面有两
+        // 个打字机跑到不同的时钟,那是个干手 -off —
+        // —和备选方法(删除) finish() 火)
+        // 是一门 -frame 余者用膏,更甚.
         //
-        // So arm the same bounded VISIBLE glide the answer path uses at its
-        // seams: a hard deadline that sprints the cursor to the edge over
-        // ~220 ms. Reasoning is skimmable bulk the reader has already moved
-        // past by the time the answer starts, so finishing it promptly is
-        // what the eye wants; the ramp keeps it a slide rather than a pop.
+        // 绑在同一个地方 可见 滑翔其使用的答案
+        // 路径 接口边界 : 将光标冲到边缘的硬
+        // 期限为~220 mss。 原因在于读者在
+        // 回答开始前已经移动过, 所以迅速完成是
+        // 眼睛想要的; 坡道保持滑动而不是流行。
         //
-        // Armed ONCE per slot (seam_glide_armed), outside the sizes gate,
-        // because the trigger is a state TRANSITION and not a byte arrival.
-        // Re-arming every frame would restamp the deadline and the cursor
-        // would never actually land.
+        // 武装ONCE每槽(seam_glide_armed),
+        // 大小门外,因为触发器是状态TRANSITION,而不是字节到达.
+        // 调 -arming 每隔一段时间 帧 将补上最后期限,
+        // 光标永远不会真正着陆。
         if (reasoning_view && settled && !cache.seam_glide_armed) {
             cache.seam_glide_armed = true;
             if (cache.streaming->is_live()
                 && cache.streaming->reveal_in_progress()
                 && !cache.streaming->is_finalizing()) {
-                // Ramp scaled to what is actually LEFT, not a constant.
+                // 径直缩放到实际的LEFT,而不是恒定.
                 //
-                // A fixed 220 ms was itself a burst whenever the remainder
-                // was large, which at this seam is the normal case: the
-                // final reasoning delta often lands only a few hundred ms
-                // before the answer's first token, so several hundred
-                // characters can still be unrevealed. 350 chars in 220 ms is
-                // ~1600 cps -- a paste wearing a ramp's clothes, and exactly
-                // the "no time to glide, it just bursts" report.
+                // 固定220毫秒本身就是一个爆炸 当其余的都是大,
+                // 此时 接口边界 通常情况下: 最终推理三角洲常常
+                // 只在答案的第一个符号之前降落几百 ms, 所以几百
+                // ms的字符仍然可以不读。 220 ms的350
+                // chars是~1600 cps—— 一个穿坡道衣服的贴纸,
+                // 确切的说就是 "no time to glide, it just bursts"
+                // 报告。
                 //
-                // So pick the duration from the backlog at a readable rate
-                // and clamp it. The floor keeps a tiny remainder from
-                // feeling sluggish; the ceiling stops a very long tail from
-                // still typing when the answer is already paragraphs ahead,
-                // at which point nobody is reading it.
+                // 底部可以保持微小的剩余部分,
+                // 避免感到疲软;
+                // 顶端会停得非常长。
+                // 末尾 回答已经是前面的段落了,
+                // 现在没人读它。
                 //
-                // The answer lane's seams can use a constant because its
-                // drain fires when text goes QUIET, so its backlog is
-                // small by construction. Reasoning has no such guarantee --
-                // it is cut off by an event on a different channel.
-                constexpr double kGlideCps = 220.0;   // readable, brisk
+                // 答题道 接口边界 因为它的排水量
+                // 在文本流出时会燃烧 QUIET ,
+                // 因此,由于建筑工程的积压量很小。
+                // 事件 在一个不同的频道。
+                constexpr double kGlideCps = 220.0;   // 可读, brisk
                 constexpr int    kMinMs    = 260;
                 constexpr int    kMaxMs    = 1400;
                 const std::size_t clip = cache.streaming->debug_reveal_byte_clip();
@@ -712,12 +712,12 @@ maya::Element cached_markdown_for(const Message& msg, const Model& m,
             }
         }
 
-        // Auto-fold of long code blocks is DISABLED: code blocks always
-        // render in full, never collapsed to a "▸ N lines of code hidden —
-        // unfold" stub. Long fences stay expanded even in a long
-        // conversation. (If the fold is ever reinstated, prose_rows in
-        // frozen.cpp must mirror the same threshold/kinds or the mid-run
-        // keep-loop strands a scrollback ghost.)
+        // 自动 -fold 长代码块为 DISABLED : 代码块 总是 渲染
+        // 完全没有崩溃到一个 "▸ N lines of code hidden — unfold"
+        // 长栅栏在长话短说时仍会扩大。 归并 被恢复,
+        // prose_rows 输入 frozen.cpp 必须是相同的
+        // threshold/kinds 或中间 -run 保留 -loop 线条
+        // a 回滚缓冲区 鬼魂(鬼魂) 鬼魂 (鬼魂)
 
         if (settled
             && cache.revealed_size == source.size()
@@ -728,58 +728,58 @@ maya::Element cached_markdown_for(const Message& msg, const Model& m,
         }
     }
 
-    // (Live/finalize transitions are handled above, before the finish()
-    // gate that depends on them.)
+    // (Live/finalize 过渡在上文,在 finish() 门,
+    // 那取决于他们。 )
 
-    // Track when `source` last grew so we can tell "actively streaming"
-    // (bytes flowing) from "streaming but stalled" (e.g. a 60–120 s
-    // extended-thinking pause with no deltas). Used by the RAF gate just
-    // below.
+    // 音轨时间 `source` 上次长大了,所以我们才能知道 "actively streaming"
+    // (字节 流动) "streaming but stalled" (e.g
+    // 60-120 s 延长 -thinking 暂停, 不使用三角形。 由。 RAF 门
+    // 就在下面
     {
         const std::int64_t now2 = ::maya::anim_now_ms();
         if (source.size() > cache.last_grow_size) {
             cache.last_grow_size = source.size();
             cache.last_grow_tick_ms = now2;
         } else if (source.size() < cache.last_grow_size) {
-            // Source rolled / shrank (set_content rollback, message reset).
+            // 源滚动/ 缩小( set_content 滚回, 重置消息)。
             cache.last_grow_size = source.size();
             cache.last_grow_tick_ms = now2;
         }
     }
 
-    // Re-arm the 16 ms animation frame for the WHOLE active streaming
-    // window. reveal_fx (the live-edge scramble/gradient/caret) is the
-    // only animation now; it needs a wake every frame while bytes are
-    // flowing so its trailing run resolves smoothly.
+    // 调 -arm 16 ms 动画 帧 财务报告和审定财务报表 整个 活动 流式
+    // 传输 窗口中选择一个窗口。 reveal_fx (现场直播) -edge
+    // scramble/gradient/caret )是现在唯一的动画;
+    // 它需要每个唤醒 帧 时 字节 流淌着,所以它的尾部会顺利地运转。
     //
-    // PRIMARY signal: the model is authoritatively streaming. m.s
+    // PRIMARY 信号: 模型具有权威性 流式传输. m.s .
     // .is_streaming() is variant-backed (phase::Streaming) and exact —
-    // it's the same signal the status bar / phase chip / sparkline gate
-    // on. Combined with !settled (this message still has live bytes in
-    // streaming_text/pending_stream), it means "the wire is open and
-    // THIS turn is the one receiving it." While that holds, keep the
-    // caret armed UNCONDITIONALLY — no matter how long the gap between
-    // deltas. The pulsing caret means "waiting for the model," which is
-    // exactly true during an inter-delta pause, even a 10 s one. This is
-    // what makes the fix robust across models/networks: it keys off the
-    // real in-flight state, not a guess about delta cadence.
+    // phase::Streaming )和准确的——是状态栏/相的相同信号.
+    // 标签 打开闪光门,与 ! 连接( 此信息仍然在直播) 字节 输入
+    // streaming_text/pending_stream ),
+    // 意思是说 "the wire is open and THIS turn is the one receiving it."
+    // 保持这个状态的同时,保持 光标 武装 UNCONDITIONALLY
+    // 不论三角洲之间的距离有多长 脉冲 光标 表示 "waiting for the model,"
+    // 完全正确,在一次 中间 -delta 暂停,甚至10秒,
+    // 这就是 使固定在横跨 models/networks : 它按键关闭
+    // 真实的英寸 -flight 州,不猜测三角洲cadence。
     //
-    // The earlier byte-recency window (since_grow_ms) raced the model's
-    // gap: 250 ms lapsed inside every slow-model gap (median ~470 ms),
-    // freezing the caret mid-sentence ("stream looks dead"); bumping it
-    // to 3 s only moved the cliff. A fixed timeout can ALWAYS be out-run
-    // by a slower model or a laggy link. The phase gate can't — it ends
-    // the instant the wire closes (phase → Idle/ExecutingTool) and not a
-    // frame before. Cost while streaming is bounded and already paid:
-    // build() runs every frame the visual hash advances; an armed caret
-    // adds a ~0.1-0.4 ms no-content repaint, only while genuinely live.
+    // 较早期 字节-recency 窗口( 窗口) since_grow_ms
+    // ) 赛跑模型的缺口:每慢跑一次,250毫秒内失效 -model
+    // 间隙(中间~470毫秒),冷却 光标 中点 -sentence (
+    // "stream looks dead" ),撞到3秒只移动了悬崖。
+    // 超时 能够 始终 出来 -run 由慢的模型或拉吉 链接 相位门
+    // 不能——它结束瞬间 传输 关闭(阶段) + Idle/ExecutingTool
+    // 而不是一个 帧 成本计算 流式传输 已限制且已支付:
+    // build() 运行 帧 视像散列推进; 武装 光标 添加 ~ 0.1
+    // -0.4 毫秒 否 -content 重绘 只有在真正活着的时候
     //
-    // The since_grow_ms window is kept as a SECONDARY fallback for the
-    // edge where is_streaming() has already flipped (e.g. StreamFinished
-    // landed, phase → Idle) but the reveal cursor still has a backlog to
-    // glide out — reveal_in_progress() below already covers that, but the
-    // window catches a stale-phase beat without re-introducing the race
-    // (it only EXTENDS arming, never cuts it short while is_streaming()).
+    // 电话 since_grow_ms 窗口为 SECONDARY 回退 边上
+    // is_streaming () 已经翻转( ) e.g. StreamFinished 着陆,
+    // 阶段 ~ 空),但 逐步显示 光标仍有一个积压需要滑出...
+    // reveal_in_progress (以下已涵盖这一点,但窗口抓住了 过期
+    // -phase 拍不拍不拍就拍不动 -introducing 编号 竞态 (
+    // 仅限 EXTENDS 武装,永远不要缩短时间 is_streaming()).
     const bool wire_streaming_here = !settled && m.s.is_streaming();
     constexpr std::int64_t kRevealActiveMs = 3000;
     const std::int64_t now3 = ::maya::anim_now_ms();
@@ -791,102 +791,102 @@ maya::Element cached_markdown_for(const Message& msg, const Model& m,
         wire_streaming_here
         || (!settled && since_grow_ms <= kRevealActiveMs);
 
-    // ── Scrollback safety: never let a mid-reveal row cross the viewport
-    //    top. Rows above the top are committed to IMMUTABLE native
-    //    scrollback; if one gets there while the typewriter is still
-    //    behind the wire (ghost-blanked cells, scramble tip, hot
-    //    gradient), later frames complete the reveal, the canvas row no
-    //    longer matches the committed copy, maya's scrollback-invariant
-    //    gate fires, and the grow-path recovery is a HardReset
-    //    (\x1b[2J\x1b[3J wipe) — seen by the user as duplicated/garbled
-    //    prose stranded above the tool cards.
+    // 回滚安全：逐字显示尚未完成的行不得越过可视区边界。
+    //    顶部。顶部的行被承诺 不可变 本地语言 回滚缓冲区 如果有
+    //    人在打字机后面 到达那里 传输 (鬼魂们) -blanked
+    //    存储单元 , 摇摆的尖端, 热梯度), 稍后 帧
+    //    完成该 逐步显示 画布行不再符合承诺的复制品 maya's
+    //    回滚缓冲区-invariant 山门着火,生长着 -path
+    //    恢复为a HardReset (\x1b[2J。
+    //    x1 b][3J擦拭]——被用户视为 duplicated/garbled
+    //    传言被困在工具卡上面
     //
-    //    (a) TOOL CARDS on this message: the Anthropic wire closes the
-    //        text block BEFORE tool_use streams, so this message's prose
-    //        is wire-complete the instant a ToolUse exists — there is
-    //        nothing left to type out. Meanwhile the card panel renders
-    //        BELOW this markdown and grows (Pending → Running progress
-    //        → Done), pushing the prose toward/past the viewport top.
-    //        Three-part hardening, all idempotent:
-    //        • snap_reveal_to_edge(): un-ghosts the tail (bumps
-    //          build_dirty_ so the rebuild is immediate);
-    //        • set_reveal_fx(false): stops the per-frame tip mutation
-    //          (scramble glyphs, gradient restyle, pulsing caret) so
-    //          every row that scrolls off is in its FINAL glyphs+style;
-    //        • finish(): force-commits the TRAILING PARAGRAPH into the
-    //          block path NOW. A message's last paragraph never receives
-    //          its terminating \n\n, so without this it rides in
-    //          render_tail's inline path for the whole tool phase and
-    //          only converts to a committed block at turn settle — and
-    //          the two paths wrap at (off-by-one) different widths, so
-    //          the conversion REWRITES the paragraph's rows. If those
-    //          rows crossed the viewport top during the tool phase
-    //          (they routinely do — the growing card pushes them up),
-    //          the settle-time rewrite hits immutable scrollback and
-    //          maya's gate can only HardReset (\x1b[2J\x1b[3J), wiping
-    //          and re-stranding the transcript — the oracle's
-    //          t1-settle corruption and the user's "prose duplicated
-    //          above the cards" screenshots. Committing here makes the
-    //          rewrap happen while the paragraph is still at the
-    //          viewport bottom (diff-repaintable), so its bytes are
-    //          FINAL before any later frame can scroll them off.
-    //        Post-tool prose arrives on a NEW placeholder Message (own
-    //        widget, fx on), so nothing visible is lost — the animation
-    //        simply doesn't outlive the prose it animates.
+    //    (a) TOOL CARDS 发件人: Anthropic
+    //        传输 关闭文本块 之前 tool_use 数据流 ,
+    //        所以这个信息 的散文是 传输-complete 瞬间 a
+    //        ToolUse 已存在 —— 已没有可以打出的任何字。 同时,
+    //        牌面板 渲染 下方 降级和生长( 待处理 ——正取得进展 ——完成,
+    //        推传言 toward/past 编号 可视区域 顶部。
+    //        三个 -part 全部硬化,所有 幂等:
+    //        • snap_reveal_to_edge (单位:千美元) -ghosts 编号 末尾 (弹簧)
+    //          build_dirty_ 故重建工程是立即进行的。
+    //        • set_reveal_fx (假):停止每名 -frame 提示突变
+    //          (斜滑格,梯度重样式,脉动 光标 所以,
+    //          每行滚动掉 是在它的 FINAL 格言+风格;
+    //        • finish() : 强 -commits 编号 TRAILING PARAGRAPH 输入
+    //          块路径 当前。一个消息的最后一段从未收到结束的\n\n,
+    //          所以没有它就进入 render_tail 整个
+    //          工具阶段的内置路径, 并且只在转弯时转换成承诺的块
+    //          —— 和两个路径的( 关闭) -by-one ) 宽度不同,
+    //          因此转换 REWRITES 如果这些行越过 可视区域
+    //          工具阶段的顶部(他们经常这样做——不断增长的卡片将
+    //          他们推向上),和解 -time 重写点击 不可变
+    //          回滚缓冲区 财务报告和已审计财务报表 maya '门
+    //          只能 HardReset (\x1b[2J\x1
+    //          b[3J],擦除和重置) -stranding 笔录
+    //          ——甲骨文的t1 -settle 腐败和用户
+    //          的腐败 "prose duplicated above the cards" 截图。
+    //          在此提交会让段落仍然在 可视区域 下方(
+    //          diff) -repaintable ),
+    //          因此,它为: 字节 已经 FINAL
+    //          以后任何时间之前 帧 可以把它们卷下来
+    //        员额 -tool 传言传到 新 占位符信件(
+    //        自有部件, fx 打开), 因此没有可见的丢失
+    //        —— 动画完全不会超过它的传动画。
     {
-        // NOTE on lane scope. This block reasons about tool CARDS
-        // interleaved into the body being revealed, which is an ANSWER-body
-        // concern: the reasoning "#r" slot has no cards inside it (a tool
-        // call belongs to the answer, below the reasoning block). Most of
-        // what follows is therefore inert for reasoning -- but the cursor
-        // SNAPS were not, and they ran for both lanes (#79).
+        // NOTE。这个工具的块原因 CARDS 连接
+        // 到 正文 被揭示,这是 ANSWER-body 关切:
+        // 理由 "#r" 插槽内没有牌( 一个工具) 调用
+        // 属于答案, 位于推理块下面。 因此, 大部分下面的
+        // 内容对于推理来说是惰性的 -- 但是光标 SNAPS
+        // 他们没有,他们跑到两条车道(#79).
         //
-        // The guards are on the snap/finish sites below rather than on
-        // has_cards, deliberately: has_cards also appears NEGATED (see
-        // text_gone_quiet), so forcing it false for reasoning would make a
-        // drain path newly REACHABLE on that lane instead of unreachable.
-        // Removing a wrong effect must not add a new one.
+        // 警卫在下面的snap/finish地点而不是has_cards地点,
+        // 故意:has_cards也出现NEGATED(见
+        // text_gone_quiet),因此强迫它作假推理将使该
+        // 车道上一条新的REACHABLE排水道,而不是无法到达.
+        // 删除错误的副作用时,不得添加新的。
         const bool has_cards = !msg.tool_calls.empty();
 
-        // ── Pre-emptive end-of-text drain (kills the burst at its ROOT) ──
+        // ── 预览 -emptive 结束 -of-text 排水管(在断裂处杀死 ROOT) ──
         //
-        // The reveal cursor rides ~drain_secs behind the wire to smooth
-        // jitter, so when the model closes its text block there is a
-        // backlog (~wire_cps × drain_secs) still to type out. The instant
-        // a tool_use arrives the guard below MUST hard-snap that backlog
-        // to the edge (a growing card would otherwise strand any lagged
-        // inline line — scrollback corruption, oracle-proven on ANY
-        // glide). That snap is the visible BURST ("first char sticks, then
-        // it all appears with the next tool").
+        // 电话 逐步显示 光标骑~ drain_secs 后面的 传输 以平滑的抖动,
+        // 所以当模型关闭其文本块时,会出现积压(~ wire_cps ×
+        // drain_secs 键入。 tool_use 到达下面的警卫
+        // 必须 难 -snap 积压到边缘(如果卡片不断增长,就会拖住任何滞
+        // 后的内线—— 回滚缓冲区 腐败,神谕 -proven 打开 任意
+        // 滑翔机,那支闪光灯是可见的 BURST (
+        // 首字符停住，其余内容直到下一次工具调用才出现。
         //
-        // But on the wire the text block goes QUIET a beat before the
-        // tool_use streams. During that gap there is NO card yet, so the
-        // reveal can safely GLIDE to the edge — nothing below it can
-        // scroll a lagged row off. Detect the gap (live, no cards, bytes
-        // have stopped growing for a short window) and request_finalize:
-        // the cursor sprints to the edge over a bounded ramp WHILE fx
-        // stays on, so it reads as the typewriter catching up, not a
-        // paste. By the time the tool_use lands the cursor is already at
-        // the edge and the mandatory snap below is a NO-OP → zero burst.
         //
-        // Safe against a mid-text pause (model stalls mid-sentence, not
-        // actually done): if more bytes arrive after a premature drain,
-        // the widget simply resumes revealing from the new edge — the
-        // early catch-up looks like "caught up, waiting," never a burst,
-        // and never touches scrollback (still no card). Gated on the same
-        // since_grow window the RAF logic uses so it never fights active
-        // streaming.
-        // Only drain when the WIRE HAS STOPPED streaming (is_streaming()
-        // false), not on a mid-stream inter-delta gap. A slowly-streaming
-        // model routinely pauses > kTextQuietMs BETWEEN deltas while still
-        // mid-message; draining then request_finalize()s, the ramp completes
-        // and flips the widget live_ off, and the NEXT delta re-lives it and
-        // PASTES the whole delta in one frame (profiled: live=0 idle frames
-        // immediately precede every +100-cell burst). The drain's real job is
-        // the text→tool seam, where the wire genuinely goes quiet before the
-        // tool_use streams; gating on !wire_streaming_here restricts it to
-        // exactly that case. text_block_closed (an explicit end-of-text wire
-        // event) still drains unconditionally.
+        // 但是在那个 传输 文本块去 QUIET 拍到拍子前的一拍,
+        // 拍到拍到拍拍子前 tool_use 数据流。在这种差距中, NO 牌还没,
+        // 所以 逐步显示 安全无虞 GLIDE 向边缘移动,
+        // 下方没有任何东西可以向后行滚动。 检测空隙( 有效, 无卡,
+        // ) 字节 已经停止生长,以建立短窗口), request_finalize:
+        // 光标冲刺到边缘的有界斜坡 WHILE fx 继续,
+        // 所以它读作打字机追赶,而不是贴面。
+        // tool_use 光标已经处于边缘,下面的强制坐标是 a
+        // NO-OP - 零爆破 - 零破碎 - 零裂破碎 零爆裂
+        //
+        // 安全地对着中点 -text 暂停( 模式摊位中间)
+        // -sentence ),但实际上没有完成):如果更多 字节
+        // 过早排水后到达,部件只是从新边缘恢复,即早期捕获 -up
+        // 看起来像 "caught up, waiting," 永远不要爆发,
+        // 永远不要触摸 回滚缓冲区 (还是没有牌) 同一牌的
+        // since_grow 窗口 RAF 逻辑使用所以它不会战斗
+        // 流式传输.
+        // 只有当 传输 HAS STOPPED 流式传输 (is_streaming
+        // (假),不是在中间 -stream 间 -delta 差距,
+        // 慢慢来 -streaming 模式常规暂停 > kTextQuiletMs
+        // BETWEEN 中点时的三角洲 -message ;
+        // 排水时 request_finalize (s),坡道完成并翻转部件 直播_,
+        // 和 下一个 三角形( D) -lives 和它, PASTES 整个三角洲在
+        // 一个 帧 (已显示: 直播=0闲置) 帧 紧接在每+100 个前 -cell。
+        // 排水沟的真正工作是文本工具。 接口边界 ,其中, 传输 真正安静下来
+        // tool_use 数据流 继续玩! wire_streaming_here 将它
+        // 限制在那个案子里 text_block_closed (明确结束) -of-text
+        // 传输 事件 —— —— 仍然无条件排水.
         constexpr std::int64_t kTextQuietMs = 120;
         const bool text_gone_quiet =
             !settled && !has_cards && !wire_streaming_here
@@ -894,117 +894,117 @@ maya::Element cached_markdown_for(const Message& msg, const Model& m,
             && cache.streaming->reveal_in_progress()
             && cache.last_grow_tick_ms != 0
             && since_grow_ms >= kTextQuietMs;
-        // ANSWER LANE ONLY, both terms.
+        // ANSWER LANE 仅 ,两个术语。
         //
-        // The drain's job, as the paragraph above says, is the text->tool
-        // seam: get the prose out before the card paints. Both signals are
-        // about the ANSWER body -- text_block_closed is the answer's
-        // end-of-text wire event, and since_grow_ms tracks the answer's
-        // bytes -- so neither says anything about whether the reasoning
-        // channel is done.
+        // 上文段落所说的排水沟的工作是文本工具 接口边界 :在牌画
+        // 之前把散文拿出来。两个信号都有关 ANSWER 正文 --
+        // text_block_closed 答案就是结束
+        // -of-text 传输 事件 ,和 since_grow_ms
+        // 跟踪答案 字节 - 所以,没有说 任何关于推理
+        // 通道是否完成。
         //
-        // Unguarded, a reasoning->tool-call turn (the common shape: think,
-        // then act) closed the answer's text block while the reasoning
-        // reveal was still mid-glide, and armed a 160 ms HARD ramp on it.
-        // One ~300-character paragraph finishing in 160 ms is ~1900 cps: the
-        // first reasoning box bursting even when it is a single paragraph,
-        // with no tool card and no ticker involved. Sibling of #79 -- same
-        // cause, a different answer-body mechanism reaching the other lane.
+        // 未加保护的推理工具 -call 转( 常见形状: 思考,
+        // 然后行动) 关闭了答案的文本块, 而推理 逐步显示 那时还中场
+        // -glide ,并武装160毫秒 HARD 斜坡上, 上面有斜坡。
+        // 一个~300 -character 段落在 160 ms 中
+        // 完成为 ~ 1900 cps: 第一个推理框即使是一个段落,
+        // 也不会爆炸, 没有工具卡和计时器。 兄弟姐妹 # 79 -
+        // 原因相同, 答案不同。 -body 到达另一条通道的机理。
         //
-        // The reasoning lane needs no equivalent: it has no card to get out
-        // of the way of, and its own end-of-channel is already handled where
-        // `settled` is computed.
+        // 推理道不需要等同:它没有卡片可以摆脱,它自己的终点
+        // 也一样 -of-channel 已经处理到
+        // `settled` 计算。
         if (!reasoning_view && (text_gone_quiet || msg.text_block_closed))
             cache.streaming->request_finalize(/*ramp_ms=*/160);
 
-        // Gate on is_live(): finish() assigns live_=false through the
-        // Tracked<> wrapper, which bumps build_dirty_ on EVERY assignment
-        // (even same-value) — running this block per frame would force a
-        // full widget rebuild every frame of the whole tool phase (the
-        // long-turn "md streaming becomes slow" lag). After the first
-        // pass live_ is off, is_live() is false, and the block is skipped;
-        // snap/fx-off are no-ops on a finished widget anyway.
+        // 打开门 is_live(): finish() 将 liveQQfalse
+        // 分配到 TrackedQQ 的包装器中, 它将产生 build_dirty_
+        // 打开 每个 转让(即使相同) -value ——运行此块每 帧 将
+        // 强制重建完整的部件 帧 工具阶段的周期(较长) -turn
+        // "md streaming becomes slow" 慢点
+        // 第一次通过直播后 is_live () 虚假,且块被跳过;
+        // snap/fx-off 无效 -ops 正在打开一个完成的部件。
         //
-        // Why HARD SNAP before the card can paint: the tool card renders
-        // BELOW this prose and starts GROWING the same frame it appears
-        // (Pending → Running → Done). A glide with the card visible
-        // leaves the reveal cursor ~drain_secs behind the live edge, so
-        // the lines between cursor and edge are still inline
-        // (uncommitted) — and the growing card pushes exactly those lines
-        // into native scrollback before the cursor reaches them
-        // (oracle-proven: 124 gate recoveries when this glided). The snap
-        // eliminates the lag instantly so there is no un-swept inline
-        // window for the card to strand.
+        // 为什么 HARD SNAP 在卡片可以画之前:工具卡
+        // 渲染 下方 开始这段流言 GROWING 同样的
+        // 帧 其出现( 4) 待处理 滑翔机,可以看见牌,
+        // 可以看见 逐步显示 光标~ drain_secs
+        // 光标和边缘之间的线条仍然在线条内(未承诺)
+        // ——而不断增长的卡片恰恰将这些线条推向原生线条.
+        // 回滚缓冲区 在光标到达它们之前( 甲骨文)
+        // -proven : 滑动时124门恢复。
+        // 弹出立即消除滞后, 这样就不会出现故障。 -swept
+        // 用于卡片串行的内线窗口。
         //
-        // ── Tool-panel DEFERRAL (kills the boundary burst) ──
+        // ── Tool-panel DEFERRAL (杀死边界破裂) ──
         //
-        // The pre-emptive drain above rarely gets to run: on the wire,
-        // content_block_stop(text) and content_block_start(tool_use) are
-        // CONSECUTIVE SSE events — usually the same TCP segment — so
-        // text_block_closed and has_cards become true in the SAME reduce
-        // batch and the drain gets ZERO frames before a card exists. The
-        // mandatory snap then pastes the whole wire_cps×drain_secs
-        // backlog in one frame: the user-reported "md sticks then bursts
-        // when a tool use happens" (tool_boundary_burst_probe reproduces
-        // it at 4-10× the steady reveal rate for close→tool gaps
-        // ≤ 80 ms, and unconditionally on transports that never emit
+        // 预告 -emptive 排水量很少能跑,在 传输, content_block_stop
+        // (文本)和 content_block_start(tool_use ) ,
+        // 即为 CONSECUTIVE SSE 事件 - 通常是一样的 TCP 段
+        // - 如此 text_block_closed 财务报告和已审计财务报表
+        // has_cards 变成真实的 相同 减少批量,排水量增加 ZERO 帧。
+        // 在卡片存在之前。强制抓取后粘贴整个卡片 wire_cps×drain_secs
+        // 积压案件 帧 : 用户 -reported
+        // Markdown 停住，工具调用时又突然成批出现。
+        // (tool_boundary_burst_probe 4 -10× 以
+        // 稳态复制 逐步显示 80毫秒,并无条件 传输层 永远不发
         // StreamTextBlockClosed).
         //
-        // Resolution: while the cursor is still mid-glide, HOLD THE TOOL
-        // PANEL OFF-SCREEN (cache.defer_tool_panel — consumed by
-        // append_assistant_body_slots / turn_config_for_assistant_run
-        // this same frame) and arm the finalize ramp. With nothing
-        // rendering below the prose there is no growing element to push
-        // a mid-reveal row past the viewport top — the only rows that
-        // can cross it are the OLDEST, fully-revealed committed ones,
-        // exactly the normal mid-stream case the oracle already proves
-        // safe. The typewriter finishes its glide (typically 300-700 ms
-        // of visible catch-up, the RateCursor's natural backlog decay),
-        // reveal_in_progress() flips false, and THEN the trio runs —
-        // snap is a no-op, fx drops, finish() commits the trailing
-        // paragraph — and the panel appears below FINAL prose. Zero
-        // paste, and the scrollback invariant (card never paints under
-        // un-swept inline rows) holds by construction.
+        // 分辨率: 当光标仍然在中点时 -glide, HOLD 该 TOOL
+        // PANEL OFF-SCREEN (
+        // cache.defer_tool_panel ——消耗
+        // append_assistant_body_slots /
+        // turn_config_for_assistant_run 同样的
+        // 帧 并武装最后的斜坡。 渲染 流言蜚语下面没有 增长的元素推中
+        // -reveal 横行过 可视区域 顶端——唯一可以跨越的行是:
+        // OLDEST ,完全读取 -revealed 承诺,完全的 正常的
+        // 中点 -stream 实例 甲骨文已经证明是安全的。打字机完成滑翔
+        // (通常为300-700毫秒可见渔获量) -up ,
+        // 则 RateCursor 自然积压的衰减,
+        // reveal_in_progress (翻转假,和) THEN 三角跑步,
+        // 快击是不行 -op ,fx滴,(Fx滴出), finish() 将后面
+        // 的段落改为: FINAL 散文,零面条,还有 回滚缓冲区 不变量 (卡片
+        // 从不画在un下) -swept 内线行)通过构造持有.
         //
-        // Bounds and bail-outs — the deferral must never hide a card
-        // indefinitely or delay an interaction:
-        //   • LAST-MESSAGE gate: the glide is only scrollback-safe while
-        //     NOTHING renders below this prose. The instant a following
-        //     message exists (the post-tool sub-turn placeholder — its
-        //     markdown/panel renders underneath and grows), a lagged
-        //     inline row above it can be pushed past the viewport top
-        //     mid-reveal — the exact corruption the hard snap prevents
-        //     (oracle-proven: deferring under a growing successor added
-        //     9 gate recoveries). So the defer holds only while this
-        //     message is the live tail's bottom-most element.
-        //   • ALL-PENDING + height-budget gate: the unhide frame grows
-        //     the tail by the hidden panel's full height in ONE frame.
-        //     Rows that cross the viewport top on a grow are committed
-        //     AS PAINTED — if the grow ≥ viewport height, the old
-        //     bottom-rule row (mutated into panel content by the unhide)
-        //     crosses un-repainted → shadow mismatch → HardReset
-        //     (oracle-proven at 60x18: a Running card accumulating 2×H
-        //     of hidden progress recovered on unhide). A Pending card's
-        //     preview is tail-windowed (height-bounded ~a dozen rows);
-        //     Running progress / Done output are unbounded. So the defer
-        //     holds only while EVERY card is still Pending AND the
-        //     estimated hidden height fits comfortably inside the
-        //     viewport. Production timing makes this the common case:
-        //     tools flip Running only after finalize_turn, so the whole
-        //     args-streaming window (the burst window) stays deferrable.
-        //   • kMaxCardDeferMs hard cap: a pathological backlog (the
-        //     adaptive ramp in request_finalize stretches to 2.5 s on
-        //     tens-of-KB dumps) falls back to the hard snap after 1.5 s
-        //     — a small residual paste is the lesser evil vs. a card
-        //     that looks stuck. Timed from cache.card_defer_since.
-        //   • pending_permission: a tool awaiting approval floats its
-        //     permission card as its own live-tail row the same frame —
-        //     the user must see WHAT they're approving, so the panel
-        //     cannot lag the prompt. Snap immediately.
-        // Tool EXECUTION is untouched — kick_pending_tools runs in the
-        // reducer regardless of panel visibility; a fast tool may
-        // already be Running/Done when its card first paints, which
-        // reads as "typewriter finished, then the result landed".
+        // 约束和bai-outs——推迟绝不能
+        // 无限期隐藏卡片或拖延互动:
+        //   • 最后-MESSAGE 门:滑翔机只是 回滚缓冲区-safe 时
+        //     无内容 渲染 下方的传言。以下的信息即刻存在(该帖子)
+        //     -tool 子目录 -turn 占位符——其
+        //     markdown/panel 渲染 下方和成长的一排
+        //     内线 上方的排行可以推过 可视区域 上中层 -reveal
+        //     —— 严打所防止的腐败(奇迹) -proven :
+        //     在一个不断增长的继任者领导下推迟, 增加了9个门的回收。
+        //     因此, 推迟只停留在此信息为实时时。
+        //     末尾 '在底部' ("底部") -most 元素。
+        //   • 全部-PENDING + 高处 -budget 门: 隐蔽 帧 增长
+        //     编号 末尾 以隐藏面板的全高处显示 一个 帧.
+        //     横跨 可视区域 成长的顶端是承诺 AS PAINTED
+        //     如果成长... 可视区域 高度,旧底 -rule
+        //     行( 由未隐藏的移入面板内容) 横跨未 -repainted
+        //     ——阴影错配 —— HardReset (
+        //     甲骨文) -proven 60x18: 一张运行卡,
+        //     累积2×H 隐藏的在未隐藏时回收的进展。
+        //     待处理 牌的预览是 末尾-windowed (高音)
+        //     (高音(hight)) -bounded ~ 12 行;
+        //     运行进度 / 完成输出未绑定。 因此推迟只
+        //     保留时 每个 牌还没完 待处理 和 估计的
+        //     隐藏高度适合 可视区域 生产时间是常见的情况:
+        //     工具翻转仅于 finalize_turn ,
+        //     所以整个词组 -streaming 窗口(破碎的窗口)仍可延缓。
+        //   • kMaxCardDeferMs硬盖:病理积压(
+        //     适应性斜坡英寸 request_finalize 伸展到2.5
+        //     秒对十 -of-KB 垃圾)在1.5 s之后又回到硬点,
+        //     少量的剩余面条是较小的邪恶面条, 相对于看起来卡住了的卡片。
+        //     时间从 cache.card_defer_since.
+        //   • pending_permission:等待批准的工具浮动
+        //     权限 纸牌作为自己的直播 -tail 划一样 帧
+        //     ——用户必须看到 内容 他们正在批准,
+        //     所以小组不能落后于 提示词 立刻抓好,马上抓好
+        // Tool EXECUTION没有受到任何影响——kick_pending_tools
+        // 运行于状态更新函数,无论面板能见度如何;
+        // 一个快速工具在它的卡片第一次涂装时可能已经是Running/Done,
+        // 其写法为"typewriter finished, then the result landed".
         if (has_cards && !settled && cache.streaming->is_live()) {
             constexpr std::int64_t kMaxCardDeferMs = 1500;
             const std::int64_t defer_now = ::maya::anim_now_ms();
@@ -1015,31 +1015,31 @@ maya::Element cached_markdown_for(const Message& msg, const Model& m,
             const bool is_tail_bottom =
                 !m.d.current.messages.empty()
                 && &msg == &m.d.current.messages.back();
-            // Hidden-height budget: every card must be Pending, and the
-            // worst-case hidden rows must fit well inside the viewport so
-            // the unhide grow can never push the mutated seam row past the
-            // commit boundary in one frame.
+            // 隐藏 -height 预算:每张卡必须 待处理 ,
+            // 最糟糕的,最糟糕的是,你还是 -case 隐藏行必须
+            // 非常适合 可视区域 那样无藏的生长 就不会推动突变 接口
+            // 边界 逐行越过承诺边界 帧.
             //
-            // This used to be a flat `12 rows per card`, which is not a
-            // bound — it is a guess, and it was wrong in the direction that
-            // corrupts. A STREAMING edit card renders
+            // 这以前是公寓 `12 rows per card`
+            // 但它并不是一个束缚——这是猜测,它朝着腐败的方向是错误的。
+            // STREAMING 编辑卡 渲染
             //
-            //     1 stat chip + 2×edit_tail_per_side diff rows
+            //     1个统计 标签 + 2×edit_tail_per_side diff 行数
             //
-            // where per_side = clamp((stream_body_budget()-1)/2, 1, 6)
-            // widens with terminal height (edit_body.cpp). At an 80x30
-            // terminal that is 1 + 2×6 = 13 body rows, and the card measured
-            // 20 rows with chrome — against an estimate of 12. The
-            // 8-row under-estimate authorized the instant card with more
-            // rows in flight than the viewport could hold, so a
-            // half-typed reveal line was committed to immutable scrollback
-            // (scrollback_oracle_test, 80x30: marker uniq-2-1 stranded).
+            // 地点 per_side = 夹( () stream_body_budget
+            // (-1)/2, 1,6) 扩大范围 终端 高度( 4)
+            // edit_body.cpp 80x30时 终端 + 2×6 = 13
+            // 的数值 正文 排行,卡片测量了20行带铬——而估计是12.
+            // 8 -row 下级 -estimate 授权在飞行中行数超过
+            // 可视区域 撑得住,所以半个 -typed 逐步显示
+            // 承诺 不可变 回滚缓冲区 (scrollback_oracle_test ,
+            // 80x30: 标记 uniq-2-1 搁浅).
             //
-            // Derive it from the SAME budget the renderer uses, so the two
-            // cannot drift: see stream_card_rows_bound(). Over-estimating is
-            // safe here — it only defers the card or resolves a few extra
-            // rows; under-estimating strands glyphs in scrollback that no
-            // repaint can ever fix.
+            // 从这里得到它 相同 预算 渲染器 使用,所以两者不能漂移:
+            // stream_card_rows_bound () 结束
+            // -estimating 这里安全——它只推迟卡片或解决几行额外问题;
+            // -estimating 线条刻入 回滚缓冲区 没有 重
+            // 绘 永远可以修复。
             bool all_pending = true;
             for (const auto& tc : msg.tool_calls)
                 if (!tc.is_pending()) { all_pending = false; break; }
@@ -1049,95 +1049,95 @@ maya::Element cached_markdown_for(const Message& msg, const Model& m,
             const bool hidden_fits =
                 est_hidden_rows < ::maya::available_height() - 4;
 
-            // ── The ONE fact this whole seam keys off: the reveal backlog ──
+            // ── 电话 一个 其实,这一切 接口边界 键关: 逐步显示 积压 ──
             //
-            // reveal_backlog = source bytes the typewriter cursor still has
-            // to catch up on before it reaches the live edge
-            // (debug_reveal_byte_clip() is the cursor's byte position; -1 =
-            // already AT the edge). This is the single source of truth for
-            // "is there a burst to smooth here", and every branch below reads
-            // it — nothing consults reveal_in_progress() (a raw cursor<edge
-            // boolean that fires for a 3-byte tail as readily as a 3 KB one)
-            // or whether the provider sent a StreamTextBlockClosed event.
+            // reveal_backlog = 来源 字节 击打机光标在到达
+            // 直播边缘之前仍需要赶超( Q)
+            // debug_reveal_byte_clip ()是光标的 字节 位置;
+            // -1 = 已经 AT 这是唯一的真理来源
+            // 这里是否存在需要平滑处理的突发增量？
+            // 下面的每个分支都读它——没有咨询 reveal_in_progress (
+            // 原始光标<指针擦亮,点火3) -byte 末尾 和3一样容易 KB (一)
+            // 或提供者是否发送 StreamTextBlockClosed 事件.
             //
-            // Why this matters: the deferral hides a fresh tool card until
-            // the reveal cursor lands, purely to stop a big unrevealed tail
-            // from pasting in one frame at the text→tool seam. Below the
-            // threshold there's nothing to smooth, so deferring is pure
-            // latency — the card sits hidden for the finalize ramp before it
-            // appears. Keying the decision on reveal_in_progress() instead of
-            // the backlog SIZE was the Anthropic-vs-OpenAI "liveness"
-            // asymmetry: Anthropic ships prose in 50-100 char deltas with
-            // 90-200 ms gaps, so at the seam a small last-delta tail is
-            // almost always still gliding (reveal_in_progress() true → defer,
-            // card held); OpenAI-compat usually has the cursor already at the
-            // edge (false → card shows at once, "more live"). Gating on the
-            // backlog SIZE makes every provider behave identically: pop the
-            // card immediately for the common short-prose-then-tool case,
-            // still smooth a genuine large-backlog burst. ~2 wrapped rows.
+            // 为何这很重要: 推迟隐藏新工具卡直到 逐步显示 光标着陆,
+            // 纯粹是为了阻止一个大不见识的 末尾 由粘贴在一块 帧 文本的
+            // 文本 工具 接口边界。在门槛以下没有平滑之处,
+            // 所以推迟纯粹是延缓的。卡片在显示前会隐藏在最后的斜坡上。
+            // reveal_in_progress () 而不是积压
+            // SIZE 曾经是 Anthropic-vs-OpenAI
+            // "liveness" 非对称性 : Anthropic
+            // 船在50-100的三角洲上 装有90-200米的空隙 所以
+            // 在 接口边界 最后一个小的 -delta 末尾 几乎总是
+            // 滑翔( reveal_in_progress (a) 真实 —
+            // — 推迟,持卡; OpenAI-compat 通常光标已经位于
+            // 边缘(假的 ~ 卡片显示一次, "more live" )
+            // 处理积压案件 SIZE 让每个提供者都表现得一样: 立即为普通
+            // 短片弹出卡片 -prose-then-tool 大小写,
+            // 仍能平滑的 真正的大写 -backlog 爆裂 ~2包着的排.
             constexpr std::size_t kMinDeferBacklogBytes = 160;
             const std::size_t reveal_clip =
                 cache.streaming->debug_reveal_byte_clip();
             const std::size_t reveal_backlog =
                 (reveal_clip == static_cast<std::size_t>(-1)
                  || source.size() <= reveal_clip)
-                    ? 0                                   // cursor at the edge
+                    ? 0                                   // 边角的光标
                     : source.size() - reveal_clip;
             const bool backlog_worth_smoothing =
                 reveal_backlog >= kMinDeferBacklogBytes;
 
-            // ── Headroom proof: why the card can pop while prose reveals ──
+            // ── 头室证明:为什么卡片在传言显示时可以弹出 ──
             //
-            // The scrollback oracle's invariant is that committed rows are
-            // append-only. A mid-reveal row (ghosted tail / scramble glyphs)
-            // is only DANGEROUS if it can reach immutable scrollback before
-            // it resolves — and a row reaches scrollback ONLY by being pushed
-            // past the viewport top, which requires total content height to
-            // exceed the viewport.
+            // 电话 回滚缓冲区 先知的神话 不变量 承诺行是附加
+            // -only 中间 -reveal 行( 主办) 末尾
+            // / 摇摆的格言) 仅是 DANGEROUS 如果它能
+            // 达到 不可变 回滚缓冲区 在它决心之前,有一条线,
+            // 回滚缓冲区 仅 被推过 可视区域 顶端,它要求总内容
+            // 高度超过 可视区域.
             //
-            // Geometry we control: the reveal tail is always the BOTTOM-MOST
-            // prose of this message, and the only thing rendered below it is
-            // this message's tool card(s). So the unresolved tail crosses the
-            // top iff
+            // 我们控制的几何: 逐步显示 末尾 总是 BOTTOM
+            // -MOST 信件的传言,下面唯一能表达的就是此
+            // 信件的工具卡。所以,尚未解决的 末尾 如果横跨顶部,
+            // 则
             //
             //     rows_below_tail + tail_rows  >  viewport_rows
             //
-            // The KEY refinement over a binary "does it all fit" gate: the
-            // invariant is not "the tail is fully revealed" but "nothing
-            // UNRESOLVED crosses the top". Those differ. Rows leaving the
-            // viewport are only dangerous while they are still ghosted, and
-            // their animation is about to become invisible anyway. So when
-            // the tail does NOT fit we do not hide the card and we do not
-            // paste the whole tail — we resolve EXACTLY the overflowing
-            // prefix (advance_reveal_floor) and let every still-visible row
-            // keep its typewriter. The card therefore appears immediately in
-            // ALL cases; only the part you could not have watched is skipped.
+            // 电话 KEY 改进后a 二进制程序 "does it all fit"
+            // 门: 不变量 不是,是"我们",不是"我们"
+            // 尾部内容已完整显示。
+            // 不过 "nothing UNRESOLVED crosses the top" 不同,
+            // 行离开 可视区域 只有在他们仍然被鬼魂包围的时候,
+            // 他们才危险,他们的动画也即将变得隐形。 末尾 已经 不
+            // 适合我们不隐藏牌 我们不粘整张牌 末尾 - 我们决定
+            // 恰好 溢出前缀( Q) advance_reveal_floor
+            // )让每一个静静 -visible 排行保留打字机。所以,
+            // 卡片立即出现在 全部 案件; 只有你无法观看的部分被跳过。
             const int term_rows_now = ::maya::available_height();
             const int cols_now      = std::max(1, ::maya::available_width());
 
-            // Row bound for the unrevealed tail. ceil(bytes/cols) ALONE is
-            // NOT an upper bound, for TWO independent reasons — both measured
-            // in tests/reveal_headroom_test.cpp:
+            // 捆绑着未读的行 末尾。 ceil (帮助) ( bytes/cols)
+            // ALONE 谓 不 上方绑定,用于 两个 独立理由——均按
+            // tests/reveal_headroom_test.cpp:
             //
-            //  1. Newlines. It assumes every byte consumes a column, which a
-            //     '\n' violates: 100 bytes holding 40 '\n' occupies 40+ rows,
-            //     not 2 (measured 41 vs 2, a 20x under-estimate). Newline-
-            //     dense markdown (lists, tables, short fenced lines) is
-            //     exactly the shape that tends to precede a tool call.
-            //  2. Inset. Markdown blocks render inside padding/indent, so the
-            //     usable text width is NARROWER than the terminal. Dividing
-            //     by the full `cols` therefore over-states how much text fits
-            //     per row (measured: a 500-char line at 46 cols renders 12
-            //     rows, but cols-wide division predicts 11).
+            //  1. 新线,它假定每条线 字节 消耗列,该列为
+            //     '\n'违反:100字节持有40'\n'占据40+行,
+            //     而不是2(测量为41对2,一个20x under
+            //     -estimate). Newline-密集的标记下限(列表,
+            //     表格,短栅栏线)正是倾向于在工具调用之前的形状.
+            //  2. 内置、标记区块 渲染 内 padding/indent ,所以,请
+            //     可用文本宽度为 NARROWER 超过 终端。 以全数分隔
+            //     `cols` 因此结束 -states 每行文字的匹配度( 测量:
+            //     500) -char 线条, 以 46  cols 键 渲染 12行,
+            //     但缩写 -wide 11),第11节。
             //
-            // So: bound each unrevealed LINE separately against a CONSERVATIVE
-            // wrap width. A line of length L costs ceil(L/wrap_w) rows,
-            // minimum 1 (a blank line still occupies a row). Summing that over
-            // the tail dominates both the wrap term and the line-count term.
-            // Word-wrap only breaks EARLIER than a hard character wrap (it
-            // backs up to a space), so a character-wrap count at a width no
-            // greater than the real one is a genuine upper bound.
-            constexpr int kBlockInset = 2;   // padding/indent safety margin
+            // 所以: 将每个未读的绑起来 LINE 与A类分开
+            // CONSERVATIVE 包宽度。 长度 L
+            // 成本( C) L/wrap_w )行,最小值1(空白行仍
+            // 占一行)。 末尾 主导包词和线条 -count 术语。
+            // 单词 -wrap 只休息时间 EARLIER 而不是硬
+            // 字符包(它反向到一个空格),所以是一个字符 -wrap
+            // 以宽度计算,不大于真实值是一个真正的上方界限。
+            constexpr int kBlockInset = 2;   // padding/indent 安全保障
             const int wrap_w = std::max(1, cols_now - kBlockInset);
             const std::string_view tail_sv =
                 std::string_view{source}.substr(source.size() - reveal_backlog);
@@ -1159,22 +1159,22 @@ maya::Element cached_markdown_for(const Message& msg, const Model& m,
                 }
             }
 
-            // Chrome the tail shares the viewport with: composer + status +
-            // the turn's own header/rail. Matches the margin hidden_fits uses.
+            // Chrome the 末尾 与 可视区域 共用:作曲家+状态+转弯自己
+            // 的 header/rail. 匹配 hidden_fits 使用的边距.
             constexpr int kChromeRows = 6;
-            // Slack for block-level markup in the unrevealed tail that adds
-            // rows beyond its own text lines (code-fence borders, table
-            // separators, blockquote padding). MEASURED, not guessed:
-            // reveal_headroom_test renders a fence/quote/table corpus at 5
-            // widths and asserts est_tail_rows + this slack covers every
-            // real height — worst observed deficit is 2 rows (table borders),
-            // so 4 holds with 2 rows of margin. Change maya's markdown
-            // chrome and that corpus fails before this proof can authorize
-            // a card that strands ghosted rows. Keep the two copies equal.
+            // 缺少 -level 标记在未读的 末尾 中,
+            // 它会增加超出自己文本行的行(代码 -fence 边框,
+            // 表分隔符,块引号垫). MEASURED,没有猜测:
+            // reveal_headroom_test 渲染 a
+            // fence/quote/table 5宽度的函体和主张
+            // est_tail_rows + 这种松懈覆盖了每一个真实
+            // 高度——最差的观测赤字是2行(表边框),所以4个持持,
+            // 有2行差值. maya 标记下铬和这个血压 失败之前,
+            // 证据可以授权一张卡片 拖着幽灵的行。 请保持两张相等。
             constexpr int kBlockChromeSlack = 4;
-            // How many rows must leave the viewport once the card is shown.
-            // >0 means that many LEADING tail rows would scroll into
-            // immutable scrollback while still ghosted.
+            // 牌一显示,有多少行必须离开可视区域.
+            // >0表示数量 LEADING 末尾 将行滚动到
+            // 不可变 回滚缓冲区 却依然被鬼所缠绕
             const int overflow_rows =
                 (term_rows_now <= 0)
                     ? 0
@@ -1188,10 +1188,10 @@ maya::Element cached_markdown_for(const Message& msg, const Model& m,
                 && !m.d.pending_permission
                 && term_rows_now > 0;
 
-            // Defer ONLY when the geometry is unusable (no viewport dims) or
-            // a precondition unrelated to height fails. Height alone never
-            // forces a hold any more — overflow is handled by resolving the
-            // overflowing prefix instead.
+            // 推迟 仅 当几何学无法使用时( 无)
+            // 可视区域 高度本身就再也不会迫使人们
+            // 保持高度了 — — 溢出问题由解决溢出
+            // 问题来加以解决。
             const bool can_defer =
                 backlog_worth_smoothing
                 && !instant_card_ok
@@ -1204,24 +1204,24 @@ maya::Element cached_markdown_for(const Message& msg, const Model& m,
                 if (cache.card_defer_since_ms == 0)
                     cache.card_defer_since_ms = defer_now;
                 cache.defer_tool_panel = true;
-                // Glide to the edge now — covers transports that never
-                // emit StreamTextBlockClosed (the drain above may not
-                // have fired) and re-arms idempotently when it did.
+                // 滑到边缘,现在——覆盖 传输层 永远不发
+                // StreamTextBlockClosed (上面
+                // 的排水管可能没有发射) -arms 其有时能知.
                 cache.streaming->request_finalize(/*ramp_ms=*/160);
             } else if (instant_card_ok) {
                 // ── INSTANT CARD + PARTIAL RESOLVE ──
                 //
-                // The card is shown THIS frame unconditionally. If the tail
-                // fits, nothing else is needed and the whole reveal keeps
-                // animating. If it does NOT fit, resolve just the leading
-                // `overflow_rows` rows so no ghosted cell can be stranded in
-                // scrollback, and let the rest keep typing on screen.
+                // 牌已经显示 此 帧 无条件。 末尾 合适,
+                // 不需要其他东西,整个 逐步显示 如果真的有,
+                // 请继续动画 不 合适,解决只是领先
+                // `overflow_rows` 排好队,不要鬼鬼祟祟 存储
+                // 单元 可能困在 回滚缓冲区 ,让其余的继续输入屏幕。
                 if (overflow_rows > 0) {
-                    // Rows → codepoint prefix. Walk whole LINES and stop once
-                    // the accumulated row cost covers the overflow. Rounding
-                    // is deliberately UP (we consume the entire line that
-                    // straddles the boundary): resolving MORE than strictly
-                    // required is always safe, resolving less is not.
+                    // 行 = 代码前缀。 全部行走
+                    // LINES 一旦累积的行成本覆盖了溢出,
+                    // 就停止。 UP (我们消耗了跨越
+                    // 边界的全线): MORE 绝对
+                    // 要求总是安全的, 解决的不是。
                     std::size_t resolve_bytes = 0;
                     int rows_acc = 0;
                     std::size_t line_start = 0;
@@ -1237,9 +1237,9 @@ maya::Element cached_markdown_for(const Message& msg, const Model& m,
                         resolve_bytes = nl + 1;
                         line_start    = nl + 1;
                     }
-                    // advance_reveal_floor takes an ABSOLUTE codepoint
-                    // position in the whole source, so count the revealed
-                    // prefix plus the slice we just decided to resolve.
+                    // advance_reveal_floor
+                    // 需要一个 ABSOLUTE 整个源代码点位置,
+                    // 所以数一下被揭示的前缀加上我们刚决定解决的切片.
                     const std::size_t abs_bytes =
                         (source.size() - reveal_backlog) + resolve_bytes;
                     std::size_t cp = 0;
@@ -1248,65 +1248,65 @@ maya::Element cached_markdown_for(const Message& msg, const Model& m,
                     cache.streaming->advance_reveal_floor(cp);
                 }
 
-                // Do NOT snap and do NOT finish(): the reveal stays live and
-                // keeps gliding under the visible card. request_finalize arms
-                // the adaptive ramp so the tail still lands promptly (and, on
-                // transports without StreamTextBlockClosed, at all) instead of
-                // crawling at the readable floor now that there is no wire
-                // jitter left to smooth.
+                // 不执行 来,来,来 不 finish() : 数据
+                // 逐步显示 保持活泼,并保持滑翔 在可见的卡。
+                // request_finalize 将适应性斜坡举起,
+                // 这样 末尾 仍然迅速着陆(和 传输层 不含
+                // StreamTextBlockClosed 而不是爬在可读的地板上
+                // 现在没有 传输 左转转顺滑
                 cache.defer_tool_panel    = false;
                 cache.defer_exit_finished = false;
                 cache.card_defer_since_ms = 0;
                 cache.streaming->request_finalize(/*ramp_ms=*/160);
                 ::maya::anim::keep_animating();
             } else {
-                // Exit (glide done / cap hit / bail-out). Instead of an
-                // INSTANT snap+finish (which pasted the whole typed-but-
-                // unrevealed backlog in one frame at the tool boundary — the
-                // "first char sticks then it all appears with the next tool"
-                // burst), arm a BOUNDED GLIDE: the reveal sprints to the edge
-                // over ~150 ms (fast but visible), and finish() runs on a
-                // LATER frame once the cursor lands, via the same phase-1/
-                // phase-2 deferred-exit path below. 150 ms is short enough to
-                // stay scrollback-safe (a growing card can't strand a lagged
-                // row before the ramp lands) yet reads as "catching up to
-                // land" rather than a paste.
+                // 退出(滑翔完成/盖帽击中/保释) -out。而不是一个
+                // INSTANT 抓完( 贴满了 ) 带类型的-but- 未
+                // 报告积压的1件 帧 工具边界上——
+                // 首字符停住，其余内容直到下一次工具调用才出现。
+                // 断裂),手臂a BOUNDED GLIDE : 数据 逐步显示
+                // 短跑到边缘的~150毫秒(快速但可见),
+                // 以及 finish() 运行在 a LATER 帧 光标一旦降落,
+                // 通过同样 phase-1/ 推迟的阶段2 -exit 150毫秒
+                // 的短路可以停留 回滚缓冲区-safe (一张成长的牌不能在坡道
+                // 着陆前 拖一排落后的线) "catching up to land"
+                // 而不是一个糊涂。
                 //
-                // Two cases still finish IMMEDIATELY (no glide): the reveal
-                // backlog is below the smoothing threshold (the common
-                // already-caught-up / tiny-tail case — nothing to glide), or
-                // we never entered a live reveal. Those keep the original
-                // single-frame behaviour, which is imperceptible. Same
-                // backlog_worth_smoothing SSOT the defer gate uses — no second
-                // reveal_in_progress() reading with different semantics.
+                // 仍有两起案件结案 IMMEDIATELY (无滑翔): 逐步
+                // 显示 积压低于平滑阈值( 常见的已) -caught-up
+                // 微小的 微小 微小 -tail 案件 - 没有什么可以滑翔的),
+                // 或者我们从来没有进入一个现场 逐步显示。这些保持原始单曲
+                // -frame 行为,这是不可察觉的。
+                // backlog_worth_smoothing SSOT 延迟门使用——无
+                // 秒 reveal_in_progress ()用不同的语义来阅读.
                 const bool was_deferring = cache.defer_tool_panel;
                 const bool has_backlog = backlog_worth_smoothing;
                 if (reasoning_view) {
-                    // The reasoning lane has no card to stay consistent
-                    // with, so there is nothing here to protect and the snap
-                    // is pure damage: it jumped the reasoning cursor to the
-                    // live edge at every tool boundary, bursting the block
-                    // once per tool call and worst on the last paragraph,
-                    // where the final call lands (#79). Leave the reveal
-                    // alone and let it keep gliding.
+                    // 推理道没有卡片可以保持一致,
+                    // 所以这里没有任何保护,断裂是纯粹的
+                    // 损坏:它在每个工具边界上将推理光标跳到活边,
+                    // 每工具一次爆破块 调用 最后一段
+                    // 最糟糕的是,最后一段 调用 离开
+                    // 土地(#79) 逐步显示 独自一人,
+                    // 让它继续滑翔。
                     //
-                    // Scrollback safety, which is why the snap exists, is an
-                    // ANSWER-body concern: it is the growing tool CARD that
-                    // can push a half-revealed row off the top. The reasoning
-                    // block sits above the cards and is not what grows.
+                    // 回滚缓冲区 安全,这就是为什么 闪电是
+                    // ANSWER-body 关注:这是日益增长的
+                    // 工具 CARD 推得过半 -revealed
+                    // 排出顶部,推理板坐牌上方,不是生长的.
                 } else if (has_backlog) {
-                    // Bounded glide, then defer the finish to the exit path.
+                    // 被挡住的滑翔机,然后把完成延迟到出口路径.
                     cache.streaming->snap_reveal_to_edge(/*glide_ms=*/150);
                     cache.defer_tool_panel    = true;
                     cache.defer_exit_finished = false;
                     ::maya::anim::keep_animating();
                 } else {
-                    cache.streaming->snap_reveal_to_edge();   // no-op / instant
+                    cache.streaming->snap_reveal_to_edge();   // 无-op/即时
                     cache.streaming->set_reveal_fx(false);
                     cache.streaming->finish();
                     cache.card_defer_since_ms = 0;
                     if (was_deferring) {
-                        cache.defer_exit_finished = true;   // unhide next frame
+                        cache.defer_exit_finished = true;   // 下个 帧 解密
                         ::maya::anim::keep_animating();
                     } else {
                         cache.defer_tool_panel = false;
@@ -1315,41 +1315,41 @@ maya::Element cached_markdown_for(const Message& msg, const Model& m,
             }
         } else if (has_cards && !settled && cache.defer_tool_panel) {
             if (!cache.defer_exit_finished) {
-                // The deferral's finalize ramp completed and the widget
-                // flipped live_ off ON ITS OWN (advance_reveal_cursor_'s
-                // scramble-settle gate) before the exit above got a frame.
-                // finish() must STILL run exactly once: it force-commits
-                // the trailing paragraph out of render_tail's inline path,
-                // whose off-by-one wrap vs the committed-block path is the
-                // settle-time row rewrite ("t1-settle corruption"). Panel
-                // stays hidden this frame (phase 1); unhides next (phase 2).
+                // 推迟完成的斜坡, 部件翻转为直播_ 关闭 ON ITS
+                // 自身 (advance_reveal_cursor_
+                // 正在移动 -settle 门),前面的出口有一个 帧.
+                // finish() 必须 仍然 运行精确一次: 它强制
+                // -commits 后段从 render_tail '是内线路径,
+                // 其关闭 -by-one 将承诺包起来 -block 路径是和解
+                // -time 行重写( R) "t1-settle corruption"。
+                // 小组将隐藏此内容 帧 (第1阶段); 下一轮(第2阶段)。
                 cache.streaming->set_reveal_fx(false);
                 cache.streaming->finish();
                 cache.defer_exit_finished = true;
                 ::maya::anim::keep_animating();
             } else {
-                // Phase 2: the finish-mutation frame has painted; the
-                // panel now appears as a pure bottom-append grow.
+                // 第二阶段:结束 -mutation 帧 已涂色;
+                // 面板现在以纯底显示 -append 增长。
                 cache.defer_tool_panel   = false;
                 cache.defer_exit_finished = false;
                 cache.card_defer_since_ms = 0;
             }
         } else {
-            // No cards / settled / widget already finished — make sure a
-            // stale defer can never hide a panel on a later frame.
+            // 没有卡/ 已结算/ 部件已完成 ——
+            // 确保 过期 迟到永远不能隐藏面板 帧.
             cache.defer_tool_panel    = false;
             cache.defer_exit_finished = false;
             cache.card_defer_since_ms = 0;
         }
     }
 
-    //    (b) Viewport HEIGHT SHRINK: the terminal autonomously pushes the
-    //        top viewport rows into native scrollback. If the live reveal
-    //        edge is among them it freezes stale (the height-resize
-    //        corruption). A resize is a discrete user event, so rendering
-    //        the tail fully-revealed for that one frame is imperceptible
-    //        and leaves no ghosted row to strand. snap_reveal_to_edge is
-    //        a no-op when settled / not reveal_fx / already at the edge.
+    //    (b) 可视区域 HEIGHT SHRINK : 数据 终端 自动
+    //        推顶 可视区域 排成原生 回滚缓冲区 如果活下来 逐步显示 边缘在其中,
+    //        它会冻结 过期 (高度) 高处 -resize 缩放是
+    //        一个单独的用户 事件 ,所以,我说 渲染 编号 末尾 完全
+    //        删除 -revealed 给那个 帧 无法察觉,
+    //        没有留下 幽灵行行。 snap_reveal_to_edge 是
+    //        一个不 -op 解决/未解决 reveal_fx 已经到了边缘
     {
         const int cur_h = ::maya::available_height();
         if (cache.last_render_height > 0 && cur_h < cache.last_render_height
@@ -1360,46 +1360,46 @@ maya::Element cached_markdown_for(const Message& msg, const Model& m,
 
     auto built = cache.streaming->build();
 
-    // Keep the 16 ms frame armed while EITHER new bytes are actively
-    // flowing (stream_in_motion) OR the widget's reveal cursor is still
-    // gliding toward the live edge after a burst. The second condition is
-    // what makes the typewriter continuous across a wire pause: the model
-    // ships a burst then goes quiet for 100-200 ms, but the cursor still
-    // has a backlog to type out — without re-arming here the loop would
-    // fall to the Tick cadence and the cursor would jump on the next wake
-    // (the "bursts, not continuous" symptom). build() advanced the cursor
-    // just above, so reveal_in_progress() reflects this frame's state.
+    // 留着16毫 帧 武装时 EITHER 新建( N) 字节
+    // 流动积极( stream_in_motion) OR 部件的
+    // 逐步显示 光标在爆炸后仍然在向活边滑动。 第二个条件是,
+    // 打字机是如何连续地穿过一个 传输 暂停: 模型船发生爆炸,
+    // 就会保持100-200毫秒的安静, 但光标仍有积压需要打印出来,
+    // 无需重排 -arming 转圈会掉到滴答卡登斯 光标会在下
+    // 一个钟声上跳下( "bursts, not continuous"
+    // 症状). build() 将光标移到上面,
+    // 所以 reveal_in_progress () 反映这一点 帧 '其州.
     //
-    // Third condition — a background parse in flight (is_parsing()):
-    // set_content_async hands a large divergent prefix to a worker and
-    // keeps returning the PREVIOUS element tree until the result lands.
-    // maybe_apply_async_ (which adopts the landed result) runs ONLY from
-    // build(), i.e. only when view() runs, i.e. only when the visual hash
-    // advances. If bytes pause mid-parse (a wire burst-then-quiet), the
-    // hash stops advancing, build() stops being called, and the finished
-    // parse sits unapplied — the tail freezes until the next delta or the
-    // 100 ms Tick happens to wake the loop (the "md gets stuck then
-    // bursts" stutter on big pastes / large reflows). Keeping the frame
-    // armed while parsing makes build() keep polling so the result is
-    // adopted the instant the worker finishes.
+    // 第三个条件——背景 解析 飞行中( is_parsing()):
+    // set_content_async 手持一个大相径庭的前缀
+    // 工作线程 并不断返回 PREVIOUS 元素 源码树 直到结果落地。
+    // maybe_apply_async_ (通过着陆结果)运行 仅
+    // 发件人 build(), i.e。仅在 view() 运行 i.e。
+    // 只有当视觉散列推进时。如果 字节 暂停中间 -parse (a
+    // 传输 爆裂( 爆炸) -then-quiet ),散列停止前进,
+    // build() 停止呼叫, 结束 解析 静坐不应用—— 末尾
+    // 冻结直到下一个三角洲或100 ms 滴答恰好唤醒了循环(即
+    // "md gets stuck then bursts" 口吃大贴/大回流。
+    // 帧 武装时 解析 制造 build() 继续投票
+    // 投票结果立即通过 工作线程 结束。
     //
-    // Fourth condition — the widget is LIVE with reveal_fx (is_live()).
-    // render_live_panel_ animates the trailing-edge scramble / gradient
-    // / pulsing caret EVERY frame the widget is live_, even when the
-    // reveal cursor has caught up to the edge (backlog 0) and is just
-    // waiting for the next token. The first three terms can ALL be false
-    // in that pinned-but-live state during a slow mid-stream gap: bytes
-    // aren't flowing (stream_in_motion can lapse if phase briefly leaves
-    // Streaming during a tool round-trip AND the 3 s window expires),
-    // the cursor is at the edge (reveal_in_progress false), no ramp, no
-    // parse. Without this term the caret would stop pulsing and the turn
-    // would look frozen even though the model is still working. Gating on
-    // is_live() (the exact condition render_live_panel_ animates under)
-    // guarantees the caret keeps breathing for the whole live window,
-    // independent of phase or any timeout — the same robustness principle
-    // as the is_streaming() caret gate, applied to the widget's own live
-    // state. Cost is the bounded ~0.1-0.4 ms no-content repaint, paid
-    // only while a turn is genuinely live.
+    // 第四个条件——部件是 LIVE 与 reveal_fx (is_live()).
+    // render_live_panel_ 动画后方 -edge
+    // 摇摆/ 渐变/ 脉冲 光标 每个 帧 部件为 live_,
+    // 即使当 逐步显示 光标已抓到边缘( 背面log 0) ,
+    // 并且正在等待下一个符号。 前三个术语可以 全部 被钉在那个
+    // 钉子里是虚假的 -but-live 状态在中点 -stream
+    // 间隙 : 字节 流不动( A) stream_in_motion
+    // 如果相位短暂离开, 则会失效。 流式传输 工具回合期间
+    // -trip 和 3 s 窗口过期时,光标位于边缘( 3 s)。
+    // reveal_in_progress 假的,没有斜坡,
+    // 没有 解析。没有这一术语, 光标 转弯会冷冻,尽管模型还在
+    // 工作 is_live () (确切条件)
+    // render_live_panel_ 动画下方)保证 光标
+    // 保持整个直播窗口的呼吸, 独立于相位或任何 超时 - 同样的强性原则
+    // 作为 is_streaming() 光标 门,应用到部件自身的状态。
+    // 成本为 ~0.1-0.4 ms no -content 重绘 ,
+    // 只在转弯真正活着的时候才支付.
     const bool live_caret =
         !settled && cache.streaming->is_live();
     if (stream_in_motion
@@ -1410,23 +1410,23 @@ maya::Element cached_markdown_for(const Message& msg, const Model& m,
 
     if (prof_t0.time_since_epoch().count() != 0) {
         const auto us = std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now() - prof_t0).count();   // stopwatch: perf log only
-        // Real reveal cursor (the byte the typewriter has reached) and
-        // the per-call jump in it — the number that shows a BURST. A
-        // smooth glide moves the clip a few bytes per frame; a paste
-        // (tool-boundary snap, in-progress-line reveal) jumps it by
-        // hundreds in one call. dclip is the honest burst signal.
+            std::chrono::steady_clock::now() - prof_t0).count();   // stopwatch: 仅限perf日志
+        // 真实 逐步显示 光标( 光标) 字节 和每台打字机
+        // -call 跳跃——显示一个 BURST 滑翔机可以移动
+        // 剪辑 字节 百分比 帧 ; 粘贴( 工具) -boundary 开始,
+        // 开始 -progress-line 逐步显示
+        // 跳跃了几百个在一个 调用 暗号是真实的爆破信号
         const std::size_t clip = cache.streaming->debug_reveal_byte_clip();
-        // Per-SLOT previous clip, not one static shared by every caller.
+        // 人数 -SLOT 上一个剪辑,不是每个呼叫者共享的静态.
         //
-        // cached_markdown_for runs once per streaming widget per frame -- the
-        // reasoning "#r" lane, the answer lane, one per sub-turn -- and a
-        // single `static prev_clip` was differenced across all of them. So
-        // dclip was reasoning-clip minus answer-clip: noise, often negative,
-        // occasionally a huge positive that looked exactly like the paste it
-        // was supposed to detect. The one instrument for diagnosing bursts
-        // was unusable on the lane most complained about, and it reported
-        // nothing to say which lane a line belonged to.
+        // cached_markdown_for 每运行一次 流
+        // 式传输 部件每件 帧 - 推理 "#r" 车道,
+        // 答题车道,每个车道1 -turn - 和单人
+        // `static prev_clip` 都不同,
+        // 所以Dclip是推理 -clip 减去答题 -clip :噪音,
+        // 往往是阴性,偶尔会有一个巨大的正态,看起来完全像它应该检测的面条。
+        // 诊断暴发的一个仪器在最抱怨的车道上是无法使用的,
+        // 它没有报告一条线路属于哪条车道。
         static std::unordered_map<std::string, std::size_t> prev_clips;
         const std::size_t now_clip =
             (clip == static_cast<std::size_t>(-1)) ? source.size() : clip;
@@ -1448,40 +1448,40 @@ maya::Element cached_markdown_for(const Message& msg, const Model& m,
                 static_cast<long long>(us));
     }
 
-    // Live markdown body returned UNPADDED. Composer anti-bounce — the
-    // stream-start indicator→first-content seam, the typewriter crossing
-    // a block boundary, a tool card collapsing as it settles — is handled
-    // autonomously in maya (Runtime::render): it tracks the live
-    // transcript's running-max height and pads up to it across a
-    // transient dip, decaying once the shrink proves real so idle carries
-    // no dead space. maya owns that mechanism end-to-end; this body
-    // element just renders the revealed extent honestly.
+    // 现场打压 正文 返回( E) UNPADDED 反作曲家
+    // -bounce - 电话 数据流-start 指标 − 第
+    // 一项 -content 接口边界 ,在区块边界上,打字机在结算
+    // 时会崩溃,工具卡会自动处理。 maya (
+    // Runtime::render 追踪现场记录 -max
+    // 高度和垫子都覆盖在瞬间 等心理医生证明 如此闲置的空间没有枯萎后
+    // 就会衰败 maya 拥有此机制结束 -to-end ;
+    // 此选项 正文 元素纯 渲染 真相大白的暴露了一切
     return reasoning_view ? built : prose_capped(std::move(built));
 }
 
-// ── Per-speaker visual identity: rail color + glyph + display name.
-//    Centralized so the rail color, the header glyph, and the bottom
-//    streaming indicator stay in lockstep.
+// 各发言方的视觉标识：侧边线颜色、符号和显示名称。
+//    集中了铁路的颜色, 头文件 格莱弗,
+//    还有底部 流式传输 指标保持锁定。
 struct SpeakerStyle {
     maya::Color color;
     std::string glyph;
     std::string label;
-    // Smart Mode role accent, empty when Smart Mode didn't route this turn.
-    // Rendered as a dim " · strategist" suffix next to the model name so
-    // delegation is legible without a second UI surface.
+    // Smart Mode 角色口音,当 Smart Mode 不引导此转弯时空.
+    // 变暗了 " · strategist" 模型名称旁边的后缀
+    // 这样授权就可辨认了,没有第二秒 UI 表面, 显示
     std::string role_label;
     maya::Color role_color;
 };
 
-// Per-role accent for Smart Mode turns. Distinct hues so a scrolled
-// transcript reads as a delegation trace at a glance: who did the thinking,
-// who did the work, who did the grunt task.
+// 智能模式的Per-role口音转弯。
+// 不同的花色,这样滚动的笔录就成了代表团的一面:谁在思考,
+// 谁在工作,谁在做咕噜声。
 struct RoleAccent { std::string label; maya::Color color; };
-// Exhaustive over ModelRole rather than a chain of string compares. The
-// difference is not style: the old form silently returned nullopt for
-// anything it didn't recognise, so a role added to the enum would have
-// lost its accent with no warning and no failing test. A total switch
-// makes -Wswitch say so at compile time.
+// 疲劳过度 ModelRole 而不是串链比较。
+// 区别不是样式:旧的形态默默返回了任何它
+// 没有识别到的字段的无名词,所以在字符串中
+// 添加了一个角色。 枚举 完全开关 -Wswitch
+// 说吧 编译 时间
 [[nodiscard]] RoleAccent role_accent_for(smart::ModelRole role) {
     switch (role) {
         case smart::ModelRole::Strategic:
@@ -1494,40 +1494,40 @@ struct RoleAccent { std::string label; maya::Color color; };
     return RoleAccent{"strategist", role_brand_alt};
 }
 
-// `msg` is the message being titled: an assistant turn is labelled by the
-// model that ACTUALLY served it (Message::served_model), not by the live
-// picker selection. Under Smart Mode those differ on most turns, and the
-// selection also changes retroactively when the user switches models — so
-// reading it here mislabelled the whole transcript.
+// `msg`是标题中的信息:一个助手转弯被ACTUALLY
+// 服务于它的模型(Message::served_model)
+// 贴上标签,而不是由运行的选择面板选择。 在智能模式下,
+// 大多数转弯时不同,选择也会在用户切换模型时追溯性地改变,
+// 因此在这里读它会错误地标上整个记录。
 SpeakerStyle speaker_style_for(Role role, const Model& m, const Message* msg) {
     if (role == Role::User) {
-        // User rail is `role_brand` (magenta) — distinct from code-reference
-        // cyan and matching the composer's accent color when has-text, so
-        // the user's typed message visually flows into their turn header.
+        // 用户栏杆是 `role_brand` (magenta)——与代码不同
+        // -reference 青色和配对 作曲者的口音颜色何时有 -text ,
+        // 所以用户的 带类型的 消息可视化地流动到它们转弯 头文件.
         return {role_brand, "\xe2\x9d\xaf", "You"};                  // ❯
     }
-    // Prefer the turn's own provenance; fall back to the live selection for
-    // turns that predate the field (or ran with Smart Mode off).
+    // 更喜欢转弯自己的出处; 回到现场选择在球场前(
+    // 或用Smart Mode 关闭)的转弯.
     const std::string& id = (msg && !msg->served_model.empty())
                                 ? msg->served_model.value
                                 : m.d.model_id.value;
 
-    // ONE decode, from the domain SSOT (domain/model_name.hpp). This used to
-    // be an if-chain over is_opus/is_sonnet/is_haiku plus a hand-rolled
-    // goto-based version scanner — roughly 60 lines that duplicated both the
-    // family classifier and the version extractor, and disagreed with the
-    // other copies. Two concrete bugs it carried:
+    // 一个 从域解码 SSOT (domain/model_name.hpp。
+    // 这曾经是如果 -chain 结束 is_opus/is_sonnet/is_haiku
+    // 加上一只手,我帮你 -rolled 开始 -based 版本扫描
+    // 仪——大约60行,既复制了家族分类器,又复制了版本提取器,
+    // 与其他复制件不相符。它携带了两条混凝土错误:
     //
-    //   • the chain had no is_fable/is_mythos/is_gpt arm, so the 2026
-    //     flagship lane fell through to the "non-Anthropic local model"
-    //     branch and rendered WITH a vendor prefix nothing else used;
-    //   • Haiku's hue here (bright_cyan) disagreed with the badge widget's
-    //     (green), so one model had two identities.
+    //   • 链条没有is_fable/is_mythos/is_gpt臂,因此2026年
+    //     旗舰航道掉到 "non-Anthropic local model"
+    //     分支和已交付 WITH 销售商前缀,其他任何用法;
+    //   • Haiku的呼声(bright_cyan)不同意徽章部件的呼声
+    //     (绿色),所以一个模型有两个身份。
     //
-    // Both are now structurally impossible: the family table is exhaustive
-    // over the enum and the colour table is proven not to collide with the
-    // status hues. `medium()` — "Opus 4.8" — is the turn-header projection;
-    // the `· 1M` annotation is the picker's business.
+    // 两者目前都不可能在结构上实现:家庭表格在家庭结构方面是详尽无遗的。
+    // 枚举 并且证明颜色表不会与状态色调相撞。 `medium()` —
+    // "Opus 4.8" - 轮到你们了 -header 投影;
+    // 数据 `· 1M` 注释是 选择面板 生意上的事 说吧
     const auto name = model_name::decode(id);
     SpeakerStyle out{name.color, "\xe2\x9c\xa6", name.medium()};     // ✦
     if (msg)
@@ -1539,23 +1539,23 @@ SpeakerStyle speaker_style_for(Role role, const Model& m, const Message* msg) {
     return out;
 }
 
-// ── Trailing meta strip for the turn header — `12:34 · 4.2s · turn N`.
-// `checkpoint` appends a subtle `· ↺ checkpoint` tag so a restore-point
-// user turn reads as an ordinary turn carrying a marker, NOT a separate
-// full-width divider widget hanging above the rail (which looked like
-// chrome / a broken empty message).
-// "just now" / "4m ago" / "2h ago" / "3d ago" from a wall-clock stamp.
+// 轮次标题后的元信息条，格式为 `12:34 · 4.2s · turn N`。
+// `checkpoint` 贴上一个微妙的 `· ↺ checkpoint`
+// 标记为恢复 -point 用户转身读作普通转身,带有标记,
+// 不 单独装满 -width 悬在铁轨上方的分割部件( 它看起来
+// 像铬 / 一个破碎的空信件)。
+// "just now" / "4m ago" / "2h ago" / "3d ago" 从墙上 -clock 邮票。
 //
-// Coarse ON PURPOSE: the question a relative stamp answers is "how long
-// ago, roughly", and a turn that reads "4m 12s ago" invites arithmetic
-// nobody wanted to do. One unit, no decimals.
+// 粗体的ONXX PURPOSE:相对邮票回答的问题为
+// "how long ago, roughly",转弯读作"4m 12s ago",
+// 请无人愿意做的算术. 一个单位,不小数.
 [[nodiscard]] inline std::string relative_time(
         std::chrono::system_clock::time_point ts,
         std::chrono::system_clock::time_point now) {
     if (ts.time_since_epoch().count() <= 0) return {};
     auto s = std::chrono::duration_cast<std::chrono::seconds>(now - ts).count();
-    // A stamp from the future is a clock skew, not a time to report; the
-    // honest rendering of "negative ago" is the present.
+    // 未来的邮票是时钟摇摆,不是报告的时间;诚实的 渲染
+    // 备注 "negative ago" 是现在。
     if (s < 0)  s = 0;
     if (s < 45) return "just now";
     if (s < 3600)  return std::to_string(s / 60)   + "m ago";
@@ -1563,20 +1563,20 @@ SpeakerStyle speaker_style_for(Role role, const Model& m, const Message* msg) {
     return std::to_string(s / 86400) + "d ago";
 }
 
-// `now` is the frame's calendar time (Model::wall_at(anim_now())), so the
-// "4m ago" stamps are a function of the Model and the frame clock.
+// `now` 是那个 帧 '日历时间( Model::wall_at(anim_now (()),
+// 因此, "4m ago" 邮票是该表的函数 Model 编辑 帧 钟声。
 std::string format_turn_meta(const Message& msg, int turn_num,
                              std::optional<float> elapsed_secs,
                              std::chrono::system_clock::time_point now,
                              bool checkpoint = false) {
-    // Timestamps, per the Appearance pref.
+    // 时间戳,按外观预告.
     //
-    //   Off      — nothing. The default, and the right one: in a live
-    //              session "when" is always "just now", so the clock is
-    //              noise in the gutter of every single turn.
-    //   Relative — "4m ago". What you actually want when re-reading a long
-    //              thread: the distance between turns, not the hour.
-    //   Absolute — "14:32". For correlating with a log or a colleague.
+    //   关闭,没有。默认,正确的一个:在现场
+    //              "when" 总是 "just now"
+    //              时钟是每个转弯的沟渠里的声音
+    //   相对的 - "4m ago"。当您想要时, -reading
+    //              长 线程 :转弯之间的距离,而不是时空.
+    //   绝对-"14:32". 与日志或同事的关系。
     std::string meta;
     switch (agentty::ui_prefs::current().timestamps) {
         case agentty::ui_prefs::Timestamps::Off:
@@ -1588,47 +1588,47 @@ std::string format_turn_meta(const Message& msg, int turn_num,
             meta = timestamp_hh_mm(msg.timestamp);
             break;
     }
-    // Every following part is " \xc2\xb7 "-joined, so the separator has to be
-    // conditional on something already being there — otherwise Off leaves a
-    // leading "\xc2\xb7" hanging where the clock used to be.
+    // 接下来的每个部分 " \xc2\xb7 "-joined ,
+    // 所以分离器必须以已经存在的东西为条件——否则Off留下一个
+    // 领先的 "\xc2\xb7" 挂在钟原来的位置上
     const auto join = [&meta](std::string part) {
         if (!meta.empty()) meta += "  \xc2\xb7  ";
         meta += std::move(part);
     };
-    // Only surface elapsed when it's meaningful. A near-instant local-model
-    // reply yields ~0s wall-clock, which `format_duration_compact` renders
-    // as a useless "0ms"/"12ms" — drop anything under 100ms.
+    // 只有表面经过才有意义,一个接近 -instant 当地 -model 回复值~0s
+    // 壁 -clock ,哪个 `format_duration_compact` 渲染
+    // 是个没用的 "0ms"/"12ms" - 任何低于100米的东西。
     if (elapsed_secs && *elapsed_secs >= 0.1f)
         join(format_duration_compact(*elapsed_secs));
     if (turn_num > 0)
         join("turn " + std::to_string(turn_num));
     if (checkpoint)
-        join("\xe2\x86\xba checkpoint");   // ↺ checkpoint
+        join("\xe2\x86\xba checkpoint");   // 检查站
     return meta;
 }
 
-// ── Compute the assistant turn's wall-clock elapsed: from previous
-//    user message timestamp to this one.
+// 计算助手轮次的实际经过时间，从前一条
+//    用户信件的时间戳到此。
 std::optional<float> assistant_elapsed(const Message& msg, const Model& m) {
     if (msg.role != Role::Assistant) return std::nullopt;
-    // Memoized: the result depends only on msg.timestamp and the prior
-    // User message's timestamp — both immutable once this message
-    // exists — so a settled value never changes. Without the memo the
-    // reverse scan below is O(sub-turns since the last user turn) run
-    // every frame for the run head, which grows with turn depth (the
-    // whole in-flight turn sits in the live tail until settle). Cache
-    // on the head message's per-message slot; return the cached value
-    // on every subsequent frame.
+    // 记忆:结果仅取决于 msg.timestamp 和用户信件
+    // 的时间戳- 两者 不可变 一旦此消息存在, 已解析的值
+    // 就永远不会改变。 没有此信息, 则将无法更改。 记忆缓存
+    // 下面的反向扫描是 O( sub) -turns 自上次用户
+    // 回合以来) 运行每 帧 以转弯深度生长的运行头部(整个运行头部),
+    // -flight 转身坐在现场 末尾 以至你们安定下来。
+    // 缓存 头条消息的每 -message 槽;
+    // 返回随后每次的缓存值 帧.
     //
-    // Access is PARTITION-SAFE. The head of a live run is frequently the
-    // PINNED streaming edge; routing this memo through the settled
-    // message_md() would migrate it out of the pinned set every frame,
-    // defeating the eviction-immunity. Read via a non-migrating peek()
-    // first; only when the slot exists and already holds the memo do we
-    // return it. On the (rare) miss we must write, so we touch the slot
-    // in whichever home it already lives — message_md_live() if pinned
-    // (preserves the pin), message_md() otherwise — so the write never
-    // moves the entry across the partition.
+    // 访问是 PARTITION-SAFE 现场跑步的头头经常
+    // 是 PINNED 流式传输 边缘; 路径 记忆缓存
+    // 解决 message_md 将它从固定的集合中移出 帧
+    // 击败驱逐 -immunity。通过非读取 -migrating
+    // peek() 首; 只有在槽存在且已经持有时 记忆缓
+    // 存 我们一定要写出失落的画面,所以我们摸一下它已经住
+    // 过的哪个家的插槽。 message_md_live
+    // 以钉住者发誓, message_md ()否则——
+    // 所以写字从不移动条目横跨分区.
     if (const auto* mc = m.ui.view_cache.peek(m.d.current.id, msg.id);
         mc && mc->elapsed_valid)
         return mc->elapsed_cached;
@@ -1650,31 +1650,31 @@ std::optional<float> assistant_elapsed(const Message& msg, const Model& m) {
     return result;
 }
 
-// Append one Assistant Message's body slots (markdown + tools panel +
-// inline permission) to `cfg.body`. Pulled out of turn_config so a run
-// of consecutive Assistant Messages can be rendered as ONE Turn (see
-// turn_config_for_assistant_run), matching agent_session's discipline
-// where every internal seam contributes a body slot to one Turn.
+// 添加一个助理信件 正文 插槽( 标记下+工具面板+内含) 权限 改
+// 为 `cfg.body`。从 turn_config 因此,
+// 可以将连续的助理信件运行为 一个 转弯( 见
+// turn_config_for_assistant_run ,
+// 匹配 agent_session 每一个内部的纪律 接口边界 捐款a 正文 位置到一个转弯
 //
-// Tool panel emission is split from text emission so a run of
-// consecutive sub-turn Messages (each with one tool, no text) renders
-// as ONE merged panel rather than N stacked single-tool panels. The
-// panel cache key is the `anchor_msg_id` — stable across rebuilds
-// because messages are append-only, and unique per merged group
-// because each group is anchored at the FIRST contributing Message.
-// Build the actions panel fresh every frame (agent_session pattern).
-// Settled assistant runs get snapshotted into m.ui.frozen by
-// freeze_range — they never re-enter this function. Live panels are
-// bounded by the in-flight turn's tool count, so per-frame cost is
-// O(active_tools). One AgentTimeline carrier per panel, born here,
-// dropped when cfg.body goes out of scope: no shared_ptr identity
-// flip races, no spinner-bucket cache, no freeze fast path. The old
-// freeze cache was dead weight — the Element it built is snapshotted
-// straight into m.ui.frozen the same frame the slot is populated.
+// Tool 面板排放从文本排放中分割,因此是连续的子
+// 排放 -turn 信件( 每个都有一个工具, 没有文本)
+// 渲染 以 一个 合并面板而不是 N 堆叠单 -tool
+// 小组讨论。 缓存 键是 `anchor_msg_id`
+// —— 重建间稳定, 因为信件是附件 -only ,
+// 每个合并组的独特性,因为每个组都固定在 首次 提供信件。
+// 新建动作面板 帧 (agent_session , 以图示形式)。
+// 解密助理运行被快照到 m.ui.frozen 由
+// freeze_range - 他们从不 -enter。
+// 活面板以 IN 键为界。 -flight 转动工具数,
+// 所以 -frame 成本为 O( active_tools。
+// 一个 AgentTimeline 每一面板的载体,生于此地,
+// 在 cfg.body 超出范围:否 shared_ptr 身份翻转 竞态 ,
+// 没有 加载动画-bucket 缓存 ,没有快速冻结路径。旧的冻结路径
+// 缓存 被直接描绘成 m.ui.frozen 同样的 帧 插槽是人烟
 //
-// Permission card is NO LONGER appended here. The host floats it as
-// its own live_tail entry below the active assistant Turn (mirrors
-// agent_session's `Permission` sibling under the root vstack).
+// 权限 纸牌是 NO LONGER 随附在此。 主机将它作为自己的浮点
+// live_tail 正在运行的助手转弯( 镜像) 下方的条目
+// agent_session's `Permission` 结巴在根茎下.
 void append_assistant_tool_panel(maya::Turn::Config& cfg,
                                  const Message& msg,
                                  std::span<const ToolUse> tool_calls,
@@ -1683,162 +1683,162 @@ void append_assistant_tool_panel(maya::Turn::Config& cfg,
 {
     if (tool_calls.empty()) return;
 
-    // Route settled sub-turn panels through the dedicated per-message
-    // panel memo (g_panel_render_memo, agent_timeline.cpp). It is keyed
-    // on this message's stable id + compute_render_key() so a settled
-    // sub-turn is a single-uint64-compare hit — skipping even the
-    // O(tools) content-key string build a bare g_panel_cache hit would
-    // pay. That is what keeps per-frame view cost flat as an in-flight
-    // run accumulates hundreds of settled sub-turns (they stay in the
-    // live tail until settle and are re-emitted every frame). The memo
-    // lives next to g_panel_cache, NOT in the RAM-bounded ViewCache, so
-    // its depth is decoupled from markdown-tree retention. A running
-    // tool advances the render_key each frame → natural miss → rebuild
-    // (spinner animates), handled inside the memoized helper.
+    // 路线已解决子 -turn 专用面板 -message 面板 记忆缓存 (
+    // g_panel_render_memo, agent_timeline.cpp。
+    // 它被键入此消息的稳定 id + compute_render_key (
+    // 所以)一个已解决的潜水艇 -turn 是一个单人 -uint64-compare
+    // 点击——甚至跳过 O(工具) 内容 -key 字符串构建为赤色
+    // g_panel_cache 击球会付出代价的,这就是保持每架 -frame
+    // 将成本平整视为 -flight 运行累积数百个已定居子 -turns (
+    // 他们留在现场) 末尾 直到安顿下来,然后重新安顿 -emitted 每隔
+    // 一段时间 帧。。 内容。 记忆缓存 住在旁边 g_panel_cache,
+    // 不 输入 RAM-bounded ViewCache ,所以它的深度 与
+    // 标记下降脱钩 -tree 保留。运行中的工具将推进 render_key
+    // 每一个 帧 重建(自然错失) 加载动画 动画,在记忆器内处理.
     const int frame = m.s.spinner.frame_index();
     cfg.body.emplace_back(agent_timeline_element_memoized(
         msg.id.value, msg.compute_render_key(),
         tool_calls, frame, style.color));
 }
 
-// Reasoning/thinking block for one assistant message, or nullopt when the
-// message carries no reasoning text. This is the SINGLE place reasoning is
-// turned into a renderable slot; both the single-message path
-// (append_assistant_body_slots) and the run-merged live/frozen path
-// (emit_subturn) call it, so live and frozen transcripts render identically
-// and every provider funnels through one implementation (DRY). The unified
-// Message::reasoning_display_text() means Anthropic thinking, Codex reasoning
-// summaries, and OpenAI-compat reasoning_content all render the same block.
+// Reasoning/thinking 块,用于一个助理消息,或者当消息没有带推理文本时无效。
+// 唯一 位置推理变成一个可转换的插槽; 两者都是 -message 路径( 选项)
+// append_assistant_body_slots )和运行
+// -merged live/frozen 路径( 选项) emit_subturn)
+// 调用 现场直播和冷冻记录 渲染 与每个供应商通过一个执行的漏斗相同( DRY )统一.
+// Message::reasoning_display_text () 指
+// Anthropic 认为, Codex 推理摘要,以及 OpenAI-compat
+// reasoning_content 全部( E) 渲染 同一个街区。
 //
-// CENTRAL STREAMING: reasoning text flows through the SAME StreamingMarkdown
-// reveal + cache machinery as normal answer text (cached_markdown_for with
-// MdView::Reasoning, a sibling "#r" cache slot). So it streams smoothly and
-// fast — incremental parse, rate-smoothed reveal cursor, component cache —
-// exactly like the answer body, instead of re-parsing a tail window every
-// frame.
+// CENTRAL STREAMING : 推理文本流经 相同 StreamingMarkdown
+// 逐步显示 + 缓存 作为普通答文的机器( cached_markdown_for
+// 与 MdView::Reasoning ,一个兄弟 "#r" 缓存 插槽,
+// 所以这样 数据流 平稳和快速——递增 解析 , 费率 -smoothed 逐步显示 光标,
+// 组件 缓存 完全如答案一样 正文 ,而不是重新 -parsing a 末尾 窗口中
+// 帧.
 //
-// UX (no interaction, correct with immutable scrollback):
-//   • LIVE: a dim, left-gutter-bordered thought stream with a breathing
-//     "Reasoning" header, streaming the FULL text via the reveal cursor.
-//   • SETTLED: the SAME block stays fully rendered — it does NOT fold to a
-//     one-line summary. The header loses its spinner and reads "✦ Reasoned
-//     (~N tokens)"; the complete reasoning remains below it, dim, above the
-//     answer. Baked at freeze; never changes, never needs a keystroke.
+// UX (没有交互,正确与 不可变 回滚缓冲区):
+//   • LIVE:阴暗的,左方的-gutter-bordered认为数据流有呼吸能力
+//     "Reasoning" 头文件,流式传输 FULL文本通过逐步显示光标.
+//   • SETTLED : 数据 相同 块状保持完全渲染——它确实 不 归并 改为:
+//     单曲 -line 简表。 头文件 失去它,失去它,没有它 加载动画 读
+//     "✦ Reasoned (~N tokens)" ; 完整的推理仍然在下面,
+//     暗淡, 答案之上。 烤焦在冻结中; 永不改变, 永不需要键盘。
 std::optional<maya::Element> reasoning_slot(const Message& msg, const Model& m) {
-    // ONE switch decides whether a reasoning block renders: Appearance's
-    // "Thinking" row.
+    // 一个 切换决定是否设置推理块 渲染 : 外观 "Thinking"
+    // 划线
     //
-    // There used to be two, and the first was dead. `m.d.show_reasoning` was
-    // documented here as "^R in the model picker" -- but ^R is diff review,
-    // and nothing dispatches ModelsToggleShowReasoning (its reducer arm and
-    // Msg variant are still there, unreachable). So the flag sat frozen at
-    // whatever settings.json last held, and that stale value silently
-    // decided whether anyone could see thinking: `true` meant Appearance's
-    // Hidden was the only way to turn it off, `false` meant the Appearance
-    // row did nothing at all. Neither matched what the user had chosen,
-    // because they had never been offered the choice.
+    // 昔有二人,而先人已死. `m.d.show_reasoning`
+    // 此处记录为 "^R in the model picker" - 但是,
+    // 我们... ^R 正在审核,没有发送 ModelsToggleShowReasoning
+    // (其数量) 状态更新函数 手和手 Msg 变体 仍然在那里,
+    // 无法到达。 标志 随便坐着 settings.json
+    // 最后一次持有,并且 过期 价值默默地决定了是否任何人能看到
+    // 这样的想法: `true` 外表隐藏是唯一能关掉它的方法
+    // `false` 表示外观行完全没有做任何事情。
+    // 既不符合用户的选择, 因为他们从未获得选择。
     //
-    // docs/COPILOT_RESPONSES.md already caught the same flag contradicting
-    // the effort strip on the REQUEST side and removed it from there. This is
-    // the display half of that cleanup. The rule itself lives in
-    // ui::reasoning_shown now, because the reveal subscription and the
-    // activity indicator have to answer it the same way.
+    // docs/COPILOT_RESPONSES.md 已经抓到
+    // 了一样的 标志 与工作条相矛盾 REQUEST 边并移除它。
+    // 这是清理中的一半。规则本身就生活在其中。
+    // ui::reasoning_shown 现在,因为 逐步显示
+    // 事件订阅 活动指标也必须以同样的方式回答这个问题。
     if (!reasoning_shown(msg)) return std::nullopt;
 
-    // Two questions, not one, and they used to share a boolean.
+    // 两个问题,不是一个,他们过去都分享一个布尔。
     //
-    //   in_flight    — is this turn still working on this message?
-    //   thinking_now — is the model thinking right now, as opposed to
-    //                  running a tool or answering? That is what the HEADER
-    //                  says and what the elapsed meter ticks on.
+    //   in_flight ——这一转机是否仍在这个消息上起作用?
+    //   thinking_now 模型是现在在思考,
+    //                  而不是运行一个工具还是回答? HEADER
+    //                  上面写着 和已经过期的计数器的滴答
     //
-    // m.s.active() rather than is_streaming() because a tool executing is
-    // the same turn in flight, and msg.thinking_open() rather than a peek at
-    // whether the reveal is mid-glide because the wire's own thinking phase
-    // survives a quiet gap — an animation flag does not, and keying the
-    // header off one made it flip to "Reasoned" at every pause.
+    // m.s.active ()而不是(a) is_streaming
+    // (因为工具执行是同一转弯飞行,而且) msg.thinking_open
+    // (而不是偷看是否 逐步显示 中间 -glide 因为 传输 自己的
+    // 思考阶段 生存了一段静静的空白——动画 标志 ,并按键 头文件
+    // 掉下来的,翻过来的 "Reasoned" 每一个暂停。
     const auto& msgs = m.d.current.messages;
     const bool is_live_tail =
         !msgs.empty() && msgs.back().id == msg.id;
     const bool in_flight    = is_live_tail && m.s.active();
     const bool thinking_now = in_flight && msg.thinking_open();
 
-    // The reasoning body streams through the CENTRAL streaming-markdown path
-    // (own "#r" cache slot, cross-frame-persistent) so it reveals smoothly
-    // like normal text and stays fully rendered after settle — no fold, no
-    // height cap. The maya::ReasoningStream widget owns the polished chrome
-    // (animated header with the live token meter + left rail) and we hand it
-    // the cached body.
+    // 推理 正文 数据流 通过 CENTRAL 流式传输-markdown
+    // 路径( 属于 ) "#r" 缓存 插槽, 交叉 -frame-persistent
+    // )所以它像正常的文字一样平稳地揭示出来,在和解后保持完全的渲染——
+    // 不 归并 ,没有高帽。 maya::ReasoningStream
+    // 部件拥有抛光的铬(动画) 头文件 以活的标尺+左栏),我们把缓存的交给它.
+    // 正文.
     maya::Element body = cached_markdown_for(msg, m, MdView::Reasoning);
 
-    // Reasoning renders like a nested Turn: a real bold ┃ left rail (the same
-    // atomic bordered box a Turn uses for its rail — turns don't corrupt
-    // scrollback because the live edge streams through the shared reveal /
-    // scrollback-safety machinery, and reasoning shares that machinery via
-    // cached_markdown_for) plus a dimmed body so the answer below always wins
-    // the eye. Whole body, smooth reveal, full rail, dim — distinct aside.
+    // 理由说明 渲染 转弯:一个真正的大胆的左侧铁路(同一个原子
+    // 边框是转弯用于其铁路)——转弯不会腐化 回滚缓冲区
+    // 因为生命边缘 数据流 通过共享 逐步显示 / 回滚缓冲区
+    // -safety 推理通过 cached_markdown_for
+    // )加一个暗淡的 正文 所以下面的答案总是赢得眼球。
+    // 正文 平滑时 逐步显示 完全铁路,暗淡的,离谱的
     maya::ReasoningStream::Config rcfg;
-    rcfg.boxed    = true;    // real ┃ rail (like a Turn), not a per-line prefix
-    rcfg.meter_below = true; // the "· 158 tokens · 6.2s" line reads as a footer
-                             // for what you just watched, and it is the row
-                             // that keeps changing — keep it at the live edge
-                             // rather than scrolling it away mid-tick
-    rcfg.meter_chip  = false; // NOT a chip. The band's own one-column pad
-                              // pushed the ✦ a column right of the body text,
-                              // so the footer never lined up with the prose it
-                              // was summarizing. Flush text + motion says
-                              // "label" without the inset.
-    rcfg.meter_sweep = true;  // a highlight band rides left→right while live
-    rcfg.meter_sweep_fg = ui::fg;  // crest is BRIGHTNESS, not a second hue:
-                                   // a hue sweep over the muted meta fights
-                                   // the magenta rail, and under theme::native
-                                   // the blend snaps, so a hue crest would
-                                   // strobe gray→magenta. Dim→fg just reads as
-                                   // light passing over the row, in any theme.
-    rcfg.meter_rate  = true;  // "· 26 tok/s" — how fast it is actually thinking
-    rcfg.dim_body = true;    // recede the body by color so the answer wins
-    // Decision beats ("Let me…", "Actually", "The issue", bold titles)
-    // light up in the full text colour while the connective prose recedes,
-    // so a long block reads as steps instead of one grey river.
+    rcfg.boxed    = true;    // 实轨(如转弯),不单轨 -line 前缀
+    rcfg.meter_below = true; // 将 "· 158 tokens · 6.2s" 行读作页脚
+                             // 是因为你刚刚看到的,
+                             // 而正是这行 不断改变, 让它在活的边缘
+                             // 而不是在中途滚动 -tick
+    rcfg.meter_chip  = false; // 不 a 标签 乐队的独家 -column 垫
+                              // 将 # # # 推到 # # # # * 右侧
+                              // 正文 文本,所以脚印从不与它总结的词句排成一行。
+                              // Flush 文本 + movement 表示
+                              // "label" 而不设内障.
+    rcfg.meter_sweep = true;  // 右转时,
+    rcfg.meter_sweep_fg = ui::fg;  // 峰顶是 BRIGHTNESS ,不是第二个呼声:
+                                   // 哑巴上方的一片混乱 与
+                                   // 红衣铁道搏斗 并被击倒
+                                   // theme::native
+                                   // 混合的脆饼,所以一个螺旋 将
+                                   // 灰灰色的 magenta。
+    rcfg.meter_rate  = true;  // "· 26 tok/s" ——它实际上在思考的有多快?
+    rcfg.dim_body = true;    // 以颜色退换 正文 , 从而获得答案
+    // 裁决书("Let me…"、"Actually"、
+    // "The issue"、粗体标题)在连接的传言消退时,
+    // 用全文颜色点亮,所以一个长块读作阶梯而不是一条灰色河。
     rcfg.structured  = true;
     rcfg.waypoint_fg = ui::text_primary;
-    // Colors MUST come from the named-ANSI palette, not the widget's hardcoded
-    // truecolor defaults (0x8a gray body / indigo rail). agentty's rule is
-    // "the terminal theme wins": named ANSI adapts to the user's palette, so
-    // "recede" means the same thing on a light OR dark background. The
-    // hardcoded gray was low-contrast-to-invisible on light terminals.
-    //   body  → a fixed MID-gray (0x9a9a9a). A true mid-gray is the one color
-    //           that stays visible on ANY background — it has real contrast
-    //           against both a black and a white terminal, so "dimmed" never
-    //           collapses to invisible. Named ANSI can't guarantee this (the
-    //           theme may map bright_black to near-black, or white to near-bg);
-    //           a fixed mid-gray does. Still clearly recedes below the bright-
-    //           white answer prose.
-    //   header→ the theme's secondary ink, same always-visible reasoning as
-    //           the body.
+    // 颜色MUST来自命名的-ANSI调色板,而非部件硬编码的真彩默认值(0x8a
+    // gray 正文 / indigo rail). agentty的规则是
+    // "the terminal theme wins":命名为ANSI适应用户的调色板 ,
+    // 所以"recede"在光的OR暗色背景上表示相同的东西.
+    // 硬编码的灰色在光的 终端上是低-contrast-to-invisible.
+    //   正文 − 固定的 MID-gray (0x9a9a9). 真实的中点.
+    //           -gray 是保持可见的颜色 任意 与黑白两者的对比
+    //           终端 ,所以,我说 "dimmed" 永不崩溃为隐形。
+    //           命名 ANSI 无法保证( 主题可能映射)
+    //           bright_black 接近 -black ,或白色到接近
+    //           -bg ); 固定中间 -gray 仍然明显地退到 光明
+    //           的白色的回答旁白下
+    //   头文件 主题的次要墨水, 总是一样 -visible 推理作为
+    //           正文.
     //
-    //   These were a FIXED grey (0x9a9a9a), chosen because ui::muted
-    //   (bright_black) collapsed to near-invisible on true-black themes and
-    //   hid the live "Thinking" word and the "Reasoned · ~N tokens" meter.
-    //   That traded one invisibility for another: a mid-grey pinned in RGB
-    //   is equally unreadable on a LIGHT terminal, which is precisely the
-    //   "almost unusable on a light background" report (issue #37).
+    //   这些是 FIXED 灰色( 0x9a9a9), 选择原因 ui::muted (
+    //   bright_black (倒塌至附近) -invisible 真实的 -black 主题和
+    //   隐藏活 "Thinking" 单词和 "Reasoned · ~N tokens" 计数器。
+    //   将一个隐形物换成另一个:一个中点 -grey 被钉在地上 RGB 无法读
+    //   取到的 LIGHT 终端 ,
+    //   正是这个 "almost unusable on a light background" 报告(第37期)。
     //
-    //   The theme's own secondary/muted inks are the fix, because they are
-    //   contrast-checked against that theme's canvas — native resolves them
-    //   to the user's own ANSI palette, and a named scheme to hues picked
-    //   against its own background. Neither can be wrong the way a literal
-    //   always is on half the terminals in the world.
-    //           NOTE: the widget's settled-rail dim(accent)=accent.darken()
-    //           is a no-op on a named ANSI color, so the magenta rail stays
-    //           constant (fine — a steady rail reads as one continuous aside).
-    rcfg.accent      = ui::role_brand;          // ┃ rail + sigil
-    rcfg.header_word = ui::text_secondary;      // visible header/meter
-    rcfg.body_fg     = ui::text_secondary;      // always-visible dim
-    // `secondary` is a HUE in most schemes (green in Srcery), so reasoning
-    // read like success output. When the theme states real colours, use its
-    // own text ink pulled back toward the canvas, with a touch of the rail
-    // hue: neutral, clearly quieter than the answer, still >= 4.5:1.
+    //   主题本身 secondary/muted 墨水是固定的,
+    //   因为墨水是相对的 -checked 以这个主题的画布为
+    //   对象——本地人将它们解决给用户自己. ANSI 调色板,
+    //   以及一个从自己背景中挑选的花样的命名方案。字面文字总是
+    //   在一半上,这也不能错。 终端 世间.
+    //           NOTE : 部件已解决 -rail dim( 摄氏度) =
+    //           accent.darken () 是否定的( ) -op 名称上 ANSI 颜色,
+    //           因此紫红色的铁路保持恒定(fine——稳定的铁路读作一个连续的边).
+    rcfg.accent      = ui::role_brand;          // 铁路+西吉尔
+    rcfg.header_word = ui::text_secondary;      // 可见的header/meter
+    rcfg.body_fg     = ui::text_secondary;      // 永远 -visible 暗处
+    // `secondary` 是一个 HUE 在大多数方案中(在
+    // Srcery中为绿色),所以推理读起来像成功输出。
+    // 当主题表达出真实的颜色时,使用自己的文字墨水向画布拉回,
+    // 并带有铁路的触觉:中立,明显比答案安静,仍然QQ4.5:1.
     {
         const maya::Theme& th = maya::theme::live();
         const auto tx = th.resolve(maya::Color::slot(maya::ThemeSlot::Text));
@@ -1856,14 +1856,14 @@ std::optional<maya::Element> reasoning_slot(const Message& msg, const Model& m) 
             const double lb = lum(bg.r(), bg.g(), bg.b());
             auto mix = [&](double t) {
                 auto ch = [&](int a, int b, int c) {
-                    const double v = a + (b - a) * t;          // toward bg
-                    return static_cast<uint8_t>(v + (c - v) * 0.12 + 0.5);  // tint
+                    const double v = a + (b - a) * t;          // 向bg方向移动
+                    return static_cast<uint8_t>(v + (c - v) * 0.12 + 0.5);  // 锡
                 };
                 return maya::Color::rgb(ch(tx.r(), bg.r(), ac.r()),
                                         ch(tx.g(), bg.g(), ac.g()),
                                         ch(tx.b(), bg.b(), ac.b()));
             };
-            // Pull back as far as 40%, but never below 4.5:1 on the canvas.
+            // 退到40%,但从不低于帆布上的4.5:1.
             for (double t = 0.40; t >= 0.0; t -= 0.05) {
                 const auto c = maya::theme::live().resolve(mix(t));
                 const double lc = lum(c.r(), c.g(), c.b());
@@ -1876,29 +1876,29 @@ std::optional<maya::Element> reasoning_slot(const Message& msg, const Model& m) 
             }
         }
     }
-    // Thinking::Collapsed — a glance, and that is the whole pref: the last
-    // 8 ROWS of the reasoning, whether it is still arriving or long done.
-    // Thinking::Shown is the one that renders all of it.
+    // Thinking::Collapsed - ——一览,
+    // 这就是整个前言:最后8段 ROWS 无论是现在还是很久之前 都有可能找到答案
+    // Thinking::Shown 是那个 渲染 全部都一样
     //
-    // The cap does NOT depend on the turn's state, and that is deliberate.
-    // Deriving it from "is this live" meant the block changed shape on
-    // events that say nothing about how much reasoning the reader wants:
-    // the window released when a tool started (phase left Streaming), when
-    // the typewriter went idle at a pause, and when a later sub-turn made
-    // this message no longer the tail — unfolding a whole chain-of-thought
-    // mid-turn (measured: +32 rows in one frame, in a QUIET frame) and
-    // snapping back when the next burst landed. One cap, one shape.
+    // 上限是NOT 取决于转弯状态,这是故意的。
+    // 是从哪来的? "is this live"
+    // 表示块在 事件 却不说读者想要多少推理:
+    // 工具启动时释放的窗口( 左侧阶段) 流式传输 ),
+    // 当打字机在暂停时闲置,当后来的子机时 -turn 不再使用此
+    // 信件 末尾 ——走出一条整条链子. -of-thought 中
+    // 点 -turn (计量:+32行,一行) 帧 中,
+    // 在一个 QUIET 帧 一次爆炸降落时会回击 一顶帽子 一只形状
     //
-    // ROWS, so the block grows to 8 and then holds — it cannot shrink.
+    // ROWS,所以块会增长到8,然后坚守——它不能缩水.
     if (agentty::ui_prefs::current().thinking
             == agentty::ui_prefs::Thinking::Collapsed)
         rcfg.live_tail_rows = 8;
     maya::ReasoningStream rs{rcfg};
     rs.set_live(thinking_now);
     rs.set_char_hint(msg.reasoning_display_text().size());
-    // Reasoning duration for the "· 3.2s" header meter: closed phases plus
-    // the open one, so a turn that thinks, acts, and thinks again shows the
-    // total rather than restarting or freezing at the first phase.
+    // 有效期 "· 3.2s" 头文件 度量:
+    // 关闭阶段加开阶段,所以转动时会思考,动作,
+    // 再思考一次,在第一阶段显示总比开始或冻结.
     const std::int64_t now_ms =
         std::chrono::duration_cast<std::chrono::milliseconds>(
             maya::anim_now().time_since_epoch()).count();
@@ -1906,37 +1906,37 @@ std::optional<maya::Element> reasoning_slot(const Message& msg, const Model& m) 
     return rs.build_with_body(std::move(body));
 }
 
-// Single-message body slot append: text (if any) then this message's
-// tool panel (if any). Used by `turn_config` for non-run-merged
-// renders (User turns delegate to a different branch; this is hit by
-// the single-Message Assistant path that pre-dates the run merge).
+// 单身 -message 正文 插槽附件:文本( 如果有) 然后此信件的
+// 工具面板( 如果有的话)。 使用 `turn_config` 非
+// 国家 -run-merged 渲染 (用户将代表转向不同的分支;
+// 这是被单项击中的) -Message 预告的助理路径 -dates )),运行合并.
 void append_assistant_body_slots(maya::Turn::Config& cfg,
                                  const Message& msg,
                                  std::span<const ToolUse> tool_calls,
                                  const Model& m,
                                  const SpeakerStyle& style)
 {
-    // Reasoning block first — it renders ABOVE the answer (chain-of-thought
-    // precedes the conclusion). Single shared helper; see reasoning_slot.
+    // 原因块首先——它 渲染 上方 答案(链) -of-thought
+    // 将您输入到一个共享的帮助器中。 reasoning_slot.
     if (auto rs = reasoning_slot(msg, m))
         cfg.body.emplace_back(std::move(*rs));
 
     const bool has_body = !msg.text.empty() || !msg.streaming_text.empty();
     if (has_body) {
         cfg.body.emplace_back(cached_markdown_for(msg, m));
-        // Tool-panel deferral: cached_markdown_for just decided (this
-        // same frame) whether the reveal cursor is still mid-glide with
-        // a fresh tool card. Read via non-migrating peek() — the slot may
-        // be PINNED (live), and message_md() here would migrate it out
-        // of the pinned set. See the decision site for the mechanism.
+        // Tool-panel 推迟 : cached_markdown_for
+        // 刚刚决定(同样) 帧 是否为 逐步显示 光标仍然在中端 -glide
+        // 使用新工具卡。通过非工具卡读取 -migrating peek()
+        // - 槽可能是 - 可能就是 时间档 PINNED (活),
+        // 和 message_md () 这里将它从固定的套装中移出。
         //
-        // BUT never defer once a tool is actually EXECUTING. Deferral only
-        // exists to smooth the brief prose-glide vs. fresh-*Pending*-card
-        // window; a Running/Done tool's card must show immediately. Without
-        // this, if the defer-exit machine misses a follow-up frame (the
-        // stream goes quiet, no animation frame fires) defer_tool_panel
-        // stays true and the running card stays invisible — the "tool shows
-        // running but I don't see its card" report.
+        // BUT 工具一旦生效,就永远不要推迟 EXECUTING。推迟只用于平滑
+        // 简短的表达语 -glide 与新* 关系 待处理*-card 窗口;
+        // a Running/Done 工具的卡片必须立即显示。没有此选项,
+        // 如果推迟 -exit 机器缺少一个跟随 -up 帧 (无) 数据流 安静,
+        // 没有动画 帧 火灾) defer_tool_panel 保持真实,
+        // 运行中的卡片不会被看到—— 即 "tool shows running but I don't see its card"
+        // 报告。
         const bool any_executing = std::any_of(
             tool_calls.begin(), tool_calls.end(),
             [](const ToolUse& tc){ return !tc.is_pending(); });
@@ -1949,25 +1949,25 @@ void append_assistant_body_slots(maya::Turn::Config& cfg,
     append_assistant_tool_panel(cfg, msg, tool_calls, m, style);
 }
 
-} // namespace
+} // 命名空间结束。
 
 maya::Turn::Config turn_config(const Message& msg, std::size_t msg_idx,
                                int turn_num, const Model& m,
                                bool continuation,
                                std::string_view meta_override,
                                std::span<const ToolUse> tool_calls_override) {
-    // agent_session pattern: build a fresh Config every call. Settled
-    // turns get their Element snapshotted into m.ui.frozen at freeze
-    // time and rendered from there; the live tail rebuilds each frame
-    // but is bounded to the in-flight turn. No Config / Element
-    // memoization here.
+    // agent_session 模式: 构建一个新配置 调用。
+    // 和解的转折 让他们的元素被拍成 m.ui.frozen
+    // 冻结时间和从那里产生; 现场 末尾 重建每个 帧
+    // 被绑在其中 -flight 转弯。无配置/元素
+    // 记忆化缓存 给
     (void)msg_idx;
 
-    // Tool-batch merge plumbing: when the caller passes an override
-    // span, treat it as the effective tool_calls for this turn. Saves
-    // an O(N) deep-copy of `msg` every frame on the live tail's merged
-    // path — the originals stay in `m.d.current.messages[*]` and we
-    // borrow them through the span.
+    // Tool-batch 合并管道:当呼叫者通过一个覆盖跨度时,
+    // 视之为有效 tool_calls 轮到这个了 保存 深 O( N) 深
+    // O ( N) -copy 备注 `msg` 每隔一段时间 帧 现场直播
+    // 末尾 合并路径——原作保留在 `m.d.current.messages[*]`
+    // 并且我们借他们整个周期。
     std::span<const ToolUse> tool_calls = tool_calls_override.empty()
         ? std::span<const ToolUse>{msg.tool_calls}
         : tool_calls_override;
@@ -1984,29 +1984,29 @@ maya::Turn::Config turn_config(const Message& msg, std::size_t msg_idx,
                               ? assistant_elapsed(msg, m)
                               : std::nullopt,
                           m.wall_at(maya::anim_now()),
-                          /*checkpoint=*/msg.role == Role::User
+                          /*检查站=*/msg.role == Role::User
                               && msg.checkpoint_id.has_value());
     if (!meta_override.empty()) cfg.meta = std::string{meta_override};
-    // Smart Mode role tag, leading the meta strip so the delegation trace
-    // reads down the right-hand gutter: "strategist · 12:34 · 4.2s · turn 3".
+    // 智能模式角色标记,领导元条,因此代表团追踪读出右-hand沟:
+    // "strategist · 12:34 · 4.2s · turn 3".
     if (!style.role_label.empty())
         cfg.meta = style.role_label + "  \xc2\xb7  " + cfg.meta;
 
-    // Compact-boundary turn: rendered as a real, minimal SYSTEM turn
-    // rather than a bare full-width divider (which read as chrome / a
-    // stray rule floating in the transcript). It gets its own quiet
-    // speaker identity — a `≡` glyph, a muted rail, a "Compacted"
-    // label + timestamp meta — and a one-line body that says what
-    // happened. This slots into the conversation as a legible event,
-    // the same shape as a User/Assistant turn, so it no longer looks
-    // broken.
+    // 压缩 -boundary 转弯:作为真实、
+    // 最小的 SYSTEM 转身而不是赤裸裸的满地 -width
+    // 分词(读作铬/在记录中漂浮的一条偏离规则),它获得自己的
+    // 静音演说者身份——a `≡` 格力,一条哑巴,
+    // 一个 "Compacted" 标签 + 时间戳元—— 和
+    // 一个 -line 正文 谈话中这个插槽是可辨识的 事件 ,
+    // 形状与 User/Assistant 转过来,所以它看起来不再
+    // 坏了。
     //
-    // The model still receives the full summary text on the wire
-    // (msg.text is untouched); the view deliberately elides the raw
-    // summary prose (it's written for the model, can be many KB, and
-    // would push the preserved tail off-screen the instant compaction
-    // lands). CC does the same — its `compact_boundary` transcript line
-    // renders as a marker, not the summary body.
+    // 该模型仍然收到关于 传输 (msg.text
+    // 图片中, 包含许多内容。 KB ,
+    // 并会推动保存 末尾 关 -screen
+    // 即时紧凑的土地。 CC ——其国家
+    // `compact_boundary` 记录行
+    // 渲染 作为标记,而不是摘要 正文.
     if (msg.is_compact_summary) {
         cfg.glyph      = "\xe2\x89\xa1";              // ≡
         cfg.label      = "Compacted";
@@ -2018,15 +2018,15 @@ maya::Turn::Config turn_config(const Message& msg, std::size_t msg_idx,
         return cfg;
     }
 
-    // Fork provenance card: a synthetic Role::User message seeded at the
-    // head of a freshly-forked thread. WITHOUT this the fork would look
-    // like a blank screen — messages.empty() is false (this note exists)
-    // so the welcome screen is suppressed, yet a plain User bubble of the
-    // raw wire instruction would read as if the USER typed the pointer.
-    // Instead it gets its own quiet identity — a "\u2443" fork glyph, an info
-    // rail, a "Forked" label — and a one-line body telling the user the
-    // parent transcript is readable on demand. The model still receives
-    // msg.text in full on the wire (it's a real User message, not elided).
+    // 叉出处卡:一种合成的Role::User消息种子在
+    // 新式-forkedXX线程. WITHOUT这个
+    // 叉子看起来像空白屏幕——messages.empty()
+    // 是假的(本注存在),所以欢迎屏幕被压制,
+    // 然而原始传输指示的纯用户泡会读作"USER带类型的"的指针.
+    // 相反,它得到了自己的安静身份——一个 "\u2443" 叉格力
+    // 信息铁路 一条 "Forked" 标签——和标签 -line
+    // 正文 告诉用户, 父记录可以按要求读取。 模型仍然收到
+    // msg.text 满载在 传输 (这是真实的用户信息,不是滑动的).
     if (msg.fork_note) {
         using namespace maya::dsl;
         cfg.glyph      = "\xe2\x91\x83";              // ⑃
@@ -2036,10 +2036,10 @@ maya::Turn::Config turn_config(const Message& msg, std::size_t msg_idx,
         cfg.body.emplace_back(maya::Turn::PlainText{
             .content = "Branched into a fresh thread with near-zero context.",
             .color   = fg});
-        // Second line names the parent transcript so the user (and the
-        // scrollback) can see WHERE the prior conversation lives — the
-        // model reads it on demand. Path in code-reference cyan, clipped
-        // so a long absolute path can never wrap the card.
+        // 第二行将父文本命名为用户(和 回滚缓冲区
+        // 可见 WHERE 之前的对话生活——模型按要求读取。
+        // 代码路径 -reference 青色,
+        // 剪辑的长的绝对路径 永远不能包卡。
         if (!msg.fork_transcript.empty()) {
             std::string content;
             std::vector<maya::StyledRun> runs;
@@ -2060,28 +2060,28 @@ maya::Turn::Config turn_config(const Message& msg, std::size_t msg_idx,
         return cfg;
     }
 
-    // Smart Mode ROUTING card: a synthetic, wire-inert event surfacing the
-    // per-turn routing DECISION (which model + effort the turn ran on, the
-    // classified complexity that scaled it, and which layers are active).
-    // Its own identity — a brain glyph, purple rail, "Smart Mode" label —
-    // marks it as an orchestration event, not a real turn. The actual
-    // subagent delegations render as ordinary `task` tool cards.
+    // 智能模式 ROUTING 牌:合成的, 传输-inert 事件
+    // 表面显示( E) -turn 路径 DECISION (哪个
+    // 模型 + 努力, 运行在, 分类复杂度 缩放, 哪些层是活动).
+    // 其特性——脑胶水,紫色铁栏杆, "Smart Mode"
+    // 标记为管弦乐 事件 真正的潜质代表团 渲染
+    // 普通的,我们来 `task` 工具卡。
     if (msg.smart_routing) {
         using namespace maya::dsl;
         cfg.glyph      = "\xf0\x9f\xa7\xa0";          // 🧠
         cfg.label      = "Smart Mode";
-        cfg.rail_color = accent;                       // purple/accent axis
+        cfg.rail_color = accent;                       // purple/accent 轴
         cfg.meta       = timestamp_hh_mm(msg.timestamp);
 
-        // Complexity → status hue: complex=warn, standard=info, simple/trivial=muted.
+        // 复杂度 – 状态色调: 复杂度=警告, 标准值=info, simple/trivial 被谋杀了
         auto cx_color = [&](const std::string& c) -> maya::Color {
             if (c == "complex")  return status_warn;
             if (c == "standard") return status_info;
             return muted;
         };
 
-        // Line 1: "routed → <model>  · effort <e>  · <complexity>" as one
-        // truncating node so it can never wrap.
+        // 第1行:"routed → <model>  · effort <e>  · <complexity>"
+        // 作为一个调试节点,所以它永远不能包.
         {
             std::string content;
             std::vector<maya::StyledRun> runs;
@@ -2110,7 +2110,7 @@ maya::Turn::Config turn_config(const Message& msg, std::size_t msg_idx,
             }}});
         }
 
-        // Line 2: active layers as compact chips.
+        // 第2行:活动层作为紧凑的标签.
         {
             std::string content;
             std::vector<maya::StyledRun> runs;
@@ -2134,38 +2134,38 @@ maya::Turn::Config turn_config(const Message& msg, std::size_t msg_idx,
         return cfg;
     }
 
-    // Proactive-retrieval context turn: like the compact boundary, this is
-    // a synthetic User message the MODEL sees in full (msg.text carries the
-    // <retrieved-context> block) but the transcript renders as a quiet
-    // one-liner so the raw passages don't dominate the user's view. Its
-    // own muted identity (a book glyph, "Retrieved context" label) marks
-    // it as auto-injected reference, not the user's words.
+    // 主动-retrieval上下文转:与紧凑边界一样,
+    // 这是MODEL完全看到的(msg.text携带<retrieved-context>
+    // 块)合成用户信息,但记录稿渲染是静默的1-liner,
+    // 所以原始通道不会支配用户的视角,它本身的虚弱身份(一本书glyph,
+    // "Retrieved context"标签)标记为
+    // 自动-injected参考,而不是用户的词.
     if (const auto& pc = msg.proactive) {
-        // Parse the [source:path:line] headers out of the block so the
-        // card can show the user WHAT grounded the answer — not just how
-        // many passages. Each header is a line of the form
-        //   [docs:path/to/file.md:12]  /  [skill:git:0]  /  [memory:...]
-        // We collect the DISTINCT "source path" pairs (dropping the line
-        // number and any duplicate chunks of the same file) so a file
-        // that contributed three passages shows once. Cheap: one linear
-        // scan of a bounded block.
+        // 解析 [来源:路径:线] 头文件 出块后,卡片可以显示用户
+        // 内容 答案是建立在基础上的,而不仅仅是多少段。 头文件 窗体
+        // 的行 [docs: path/to/file.md
+        //   :12]/[技能:git:0]/[1]]  ⁇ .
+        // 内存 :...] 我们收集 DISTINCT "source path"
+        // 双( 丢弃行号以及同一文件的任何重复块) 因此,
+        // 贡献了三个段落的文件会显示一次。 便宜: 对一个有界限
+        // 块进行一次线性扫描。
         int n = 0;
-        // Per-distinct-source provenance, in first-seen order. We capture
-        // everything the block can tell us so the card reads like a real
-        // citation, not just a filename: the kind, the path, the FIRST line
-        // number it cited, how many passages (chunks) that same source
-        // contributed, and a preview of the first passage's text.
+        // 人数 -distinct-source 来源,
+        // 在第一 -seen 我们捕捉到所有可以显示的,
+        // 所以卡片读起来像真实的引用,而不仅仅是文件名: 那种,
+        // 路径,路径, 首次 它引用的行号,同一来源贡献的
+        // 段落(chunks),以及第一个段落文本的预览。
         struct Src {
-            std::string kind;      // docs / skill / memory / mcp
-            std::string path;      // file path or record id (no :line)
-            std::string line;      // first cited line number ("" if none)
-            std::string snippet;   // preview of the first passage body
-            std::string full;      // full passage body (bounded) for expand
-            int         chunks{0}; // # passages from this same source
+            std::string kind;      // 文档/技能/内存/mcp
+            std::string path;      // 文件路径或记录 id (无: line)
+            std::string line;      // 首引用行号( 3) "" (无)
+            std::string snippet;   // 第正文段预览
+            std::string full;      // 完全通过 正文 (捆绑)用于扩充
+            int         chunks{0}; // 同一来源的段落
         };
         std::vector<Src> sources;
-        // Per-kind passage tallies (docs/skill/memory/mcp/…) for a compact
-        // "2 memory · 1 doc" breakdown on the meta line — in first-seen order.
+        // 人数 -kind 记录( docs/skill/memory/mcp/ .) 契约
+        // "2 memory · 1 doc" 元线的细分情况——以首字母 -seen 秩序。 秩序。
         std::vector<std::pair<std::string, int>> kinds;
         auto bump_kind = [&](const std::string& k) {
             for (auto& kv : kinds) if (kv.first == k) { ++kv.second; return; }
@@ -2174,12 +2174,12 @@ maya::Turn::Config turn_config(const Message& msg, std::size_t msg_idx,
         for (std::size_t p = msg.text.find("\n["); p != std::string::npos;
              p = msg.text.find("\n[", p + 1)) {
             ++n;
-            std::size_t open = p + 2;                       // past "\n["
+            std::size_t open = p + 2;                       // 过去 "\n["
             std::size_t close = msg.text.find(']', open);
             if (close == std::string::npos) continue;
             std::string tag = msg.text.substr(open, close - open);
-            // Split "source:path:line" → "source" + "path" (peel a trailing
-            // ":line" if the last colon-field is all digits).
+            // 拆分( E) "source:path:line" → "source" + "path"
+            // (按一条线索) ":line" 如果最后一个结肠 -field 数字。
             std::size_t colon = tag.find(':');
             std::string src  = colon == std::string::npos
                                  ? std::string{"docs"} : tag.substr(0, colon);
@@ -2198,25 +2198,25 @@ maya::Turn::Config turn_config(const Message& msg, std::size_t msg_idx,
                 }
             }
 
-            // Pull the first non-empty line of THIS passage's body as a
-            // preview, and the FULL body (to the next "\n[" header or the
-            // end) for the expanded view. Body starts just after the
-            // header's closing "]\n".
+            // 第一次不拉就拉出来 -empty 线条 此 过路的
+            // 正文 以预览形式,并 完整 正文 (下个) "\n["
+            // 头文件 或结尾),用于扩展视图。 正文 刚开始 头
+            // 文件 关闭 "]\n".
             std::string snippet, full;
             std::size_t body = msg.text.find('\n', close);
             if (body != std::string::npos) {
-                ++body;                                     // past the newline
-                // Full passage runs to the next header ("\n[") or block end.
+                ++body;                                     // 过新线
+                // 整个通道一直到下一个 头文件 ("\n[" )或块端.
                 std::size_t next = msg.text.find("\n[", body);
                 std::size_t stop = next == std::string::npos
                                      ? msg.text.size() : next;
                 full = msg.text.substr(body, stop - body);
-                // Trim trailing blank lines / whitespace.
+                // 调整后行/ 空白空间。
                 while (!full.empty()
                        && (full.back() == '\n' || full.back() == ' '
                         || full.back() == '\t' || full.back() == '\r'))
                     full.pop_back();
-                // Bound the expansion so a huge passage can't blow the card.
+                // 封锁了扩建,以至于一个巨大的通道不能吹动卡片.
                 constexpr std::size_t kFullCap = 800;
                 if (full.size() > kFullCap) {
                     full.resize(kFullCap);
@@ -2230,11 +2230,11 @@ maya::Turn::Config turn_config(const Message& msg, std::size_t msg_idx,
                 std::size_t a = line.find_first_not_of(" \t");
                 if (a != std::string::npos) {
                     line.erase(0, a);
-                    // Collapse internal whitespace runs to a single space so
-                    // a citation lifted from an ALIGNED markdown table row
-                    // ("col a          | col b") renders as one compact line
-                    // instead of a snippet split by a dead gutter of padding
-                    // spaces. Tabs/CR normalized too.
+                    // 折叠内部白空间运行到一个空格,所以引用从一个空格中
+                    // 解开 ALIGNED 缩放表格行( Q)
+                    // "col a          | col b")
+                    // 渲染 以一条紧凑的线,而不是由死沟槽的垫片空格分割。
+                    // Tabs/CR 也已经恢复正常了
                     std::string compact;
                     compact.reserve(line.size());
                     bool in_ws = false;
@@ -2249,15 +2249,15 @@ maya::Turn::Config turn_config(const Message& msg, std::size_t msg_idx,
                             in_ws = false;
                         }
                     }
-                    // Drop any trailing single space the collapse left.
+                    // 丢弃任何倒塌留下的后方空间。
                     if (!compact.empty() && compact.back() == ' ')
                         compact.pop_back();
                     line = std::move(compact);
-                    // Keep the WHOLE first line (bounded only so the render
-                    // key / cache stays stable on pathological input) — the
-                    // view clips it to the ACTUAL card width at paint time via
-                    // `| clip`, so a wide terminal shows far more than a narrow
-                    // one instead of a fixed 60-char stub with dead space.
+                    // 留着 整个 第一行(仅限 渲染 键
+                    // / 缓存 ——视图将其剪切到 实际
+                    // 彩绘时的卡宽度 `| clip`
+                    // 宽度 终端 显示远不止一个窄的,
+                    // 而不是固定的 60 -char 死空的树枝
                     constexpr std::size_t kSnipCap = 512;
                     if (line.size() > kSnipCap) {
                         line.resize(kSnipCap);
@@ -2267,9 +2267,9 @@ maya::Turn::Config turn_config(const Message& msg, std::size_t msg_idx,
                 }
             }
 
-            // Merge into the distinct-source list: a file that contributed
-            // three chunks shows once, with chunks==3 and the first cited
-            // line / snippet / full body retained.
+            // 合并到 difficient-source 列表中:一个曾经贡献过
+            // 三个块的显示的文件, dicus  ⁇ 3 和第一个引用的行 /
+            // spipet / full 正文 保留.
             auto it = std::find_if(sources.begin(), sources.end(),
                 [&](const Src& s){ return s.kind == src && s.path == path; });
             if (it != sources.end()) {
@@ -2283,33 +2283,33 @@ maya::Turn::Config turn_config(const Message& msg, std::size_t msg_idx,
 
         cfg.glyph      = "\xf0\x9f\x93\x9a";          // 📚
         cfg.label      = "Retrieved context";
-        // Blue rail: this is a CONTEXT / reference turn (status_info axis),
-        // which also lifts the whole card out of the flat muted gray.
+        // 蓝色铁路:这是 CONTEXT / 参考转弯( 转弯)
+        // status_info ),它也把整张卡片从平面的哑灰色中抬出来.
         cfg.rail_color = status_info;
 
-        // Meta line (right-aligned, like elapsed time on assistant turns)
-        // carries the whole "how good / how much" summary so the body is
-        // free for pure provenance. Rendered as a COLOR-SEGMENTED strip
-        // (cfg.meta_element) — a single dim string can't tint the gauge by
-        // confidence, and this reads at a glance:
-        //   ▰▰▰▰▱▱▱▱ 46%·moderate · 2 doc · 1 mem
+        // 元线( 右) -aligned ,就像在助手转弯时经过的时间)
+        // 背负整个 "how good / how much" 提要 简
+        // 表 正文 纯种的,是自由的。 COLOR-SEGMENTED
+        // 脱光( rax) cfg.meta_element )——单调弦
+        // 不能通过自信来触动表,这个图读起来一看:
+        //   - 4个中度医生;
         //   └─ filled cells + %+word tinted green/yellow/red by strength;
-        //      empty cells muted; kind counts in code-cyan, labels dim.
-        // Kept compact (8-cell gauge, abbreviated kind labels, no " total"
-        // padding) and clipped so it can NEVER wrap onto a second row —
-        // fully responsive: narrow terminals ellipsize the tally tail,
-        // wide ones show it whole, and the gauge+percent always survive.
+        //      空 存储单元 已变音; 代码中的种类计数 -cyan ,标签暗淡。
+        // 紧凑( 8) -cell 测量,缩写为类型标签,
+        // 无 " total" 并剪辑了它,这样它就可以
+        // 绝不 将“完全响应”包装到第二行:窄 终端 略微
+        // 计算 末尾 宽度显示整个, 测量率+% 总是存活。
         {
             using namespace maya::dsl;
-            // The meta strip is built as a SINGLE TextElement with per-segment
-            // color runs, rendered TextWrap::TruncateEnd. A single truncating
-            // text node is GUARANTEED to occupy exactly one row at any width:
-            // an hstack of separate colored nodes can (and on a ~30-col mobile
-            // SSH terminal did) overflow the header row and WRAP onto a second
-            // line ("67%·str" / "ong"). Folding every segment into one node +
-            // TruncateEnd makes wrapping structurally impossible — narrow
-            // terminals ellipsize the tally tail while the gauge+percent
-            // (emitted leftmost) always survive.
+            // 元条条是用每-segment的颜色运行的SINGLE TextElement建造的,
+            // 使TextWrap::TruncateEnd变为了双元条条条条.
+            // 一个单节节线的文本节点是GUARANTEED,可以占用任何宽度的一行: .
+            // 独立的彩色节点的支架(和在~30上) -col 移动 SSH
+            // 终端 已经),溢出 头文件 排行和 WRAP 放在第二行(
+            // 键入) ( "67%·str" / "ong" )将每个
+            // 部分叠成一个节点+ TruncateEnd 使结构上的
+            // 包装无法进行——狭义 终端 略微计算 末尾 测量度+%
+            // (被允许的左侧)总是能存活下来。
             std::string meta;
             std::vector<maya::StyledRun> mruns;
             auto push = [&](std::string_view s, maya::Style st) {
@@ -2318,15 +2318,15 @@ maya::Turn::Config turn_config(const Message& msg, std::size_t msg_idx,
                 meta.append(s);
             };
 
-            // Inside the `pc` guard, so the confidence is reachable only
-            // on a message that actually has one — no sentinel compare.
+            // 在`pc`守护内部,因此信心只能通过一个
+            // 实际上有一条信息——没有哨兵比较——来达到.
             if (pc->confidence) {
                 const double c = std::clamp(*pc->confidence, 0.0, 1.0);
                 constexpr int kCells = 8;
                 const int filled = static_cast<int>(c * kCells + 0.5);
-                // One hue = one meaning: strength maps to the status axis
-                // (green ok / yellow warn / red weak) so the gauge color
-                // itself answers "trust this grounding?" pre-attentively.
+                // 1 hue = 1 含义: 强度图到状态轴( 绿色 OK / 黄色
+                // 警告 / 红色 弱) 所以显示器颜色本身就答了。
+                // "trust this grounding?" 预览 -attentively.
                 const char* word = c >= 0.60 ? "strong"
                                  : c >= 0.35 ? "moderate"
                                              : "weak";
@@ -2337,21 +2337,21 @@ maya::Turn::Config turn_config(const Message& msg, std::size_t msg_idx,
                 for (int i = 0; i < filled; ++i)      filled_cells += "\xe2\x96\xb0";
                 for (int i = filled; i < kCells; ++i) empty_cells  += "\xe2\x96\xb1";
                 const int pct = static_cast<int>(c * 100.0 + 0.5);
-                // Filled portion in the strength hue, empty in muted so the
-                // gauge reads as a true fill bar, then bold percent + dim
-                // word both tinted so the whole cluster coheres as one signal.
+                // 填充部分在强度色调中, 空在哑音中,
+                // 显示表读作真正的填充条, 然后粗体+暗字
+                // 两者都锡着, 所以整个集群 汇成一个信号。
                 push(filled_cells, maya::Style{}.with_fg(tint));
                 push(empty_cells,  maya::Style{}.with_fg(muted));
                 push(" " + std::to_string(pct) + "%", maya::Style{}.with_fg(tint).with_bold());
                 push(std::string("\xc2\xb7") + word, maya::Style{}.with_fg(tint).with_dim());
             }
 
-            // By-kind breakdown ("2 doc · 1 mem") answers what & how much.
-            // Counts in code-reference cyan (the quantities you scan),
-            // labels + dots dim. Abbreviate to keep the strip short; a
-            // trailing dim total ties multi-kind rows off.
+            // 由 -kind 细目( "2 doc · 1 mem" ) 答案( 多少 )。
+            // 代码中的数 -reference 青色(您扫描的数量),
+            // 标签+点数 dim。 缩略以保持条形线短;
+            // 一条后缀的暗色总链接多 -kind 划开
             auto short_kind = [](std::string k) -> std::string {
-                // singularize/abbrev: "memory"->"mem", "docs"->"doc", etc.
+                // singularize/abbrev: "memory"->"mem", "docs"->"doc" 等 类.
                 if (k == "memory")  return "mem";
                 if (k == "docs" || k == "doc") return "doc";
                 if (k == "skill" || k == "skills") return "skill";
@@ -2382,42 +2382,42 @@ maya::Turn::Config turn_config(const Message& msg, std::size_t msg_idx,
             }};
         }
 
-        // Body = pure provenance, one dense line per distinct source:
-        //   └ memory · 0357a6d8            “agentty now has a native…”
-        //   └ docs · RUST-CRITIQUE.md:42 ×3  “Where a Rust advocate…”
-        // kind is muted, path in code-reference cyan (the actionable
-        // anchor), ":line" appended when the citation carried one, and a
-        // "×N" chunk badge when one source contributed several passages.
-        // The snippet trails in quotes so you see the CONTENT that grounded
-        // the answer, all on ONE row. Capped; overflow → "… N more".
+        // 正文 = 纯来源,每个不同来源的一条密集线:
+        //   └ 记忆 · 0357a6d8            “agentty 现在具有原生……”
+        //   └ 文档 · RUST-CRITIQUE.md:42 ×3  “Rust 支持者会在哪里……”
+        // 类型是哑音, 代码路径 -reference
+        // 青(可操作锚), ":line" 引文中附有一个
+        // 和一个 "×N" 一条线条的路段 被一个线条所覆盖
+        // 片段的线索在引文中,所以你可以看到 CONTENT 答案,
+        // 所有基础 一个 排行。 "… N more".
         {
             using namespace maya::dsl;
             constexpr std::size_t kMaxSources = 5;
             const std::size_t total = sources.size();
             const bool expanded = pc->expanded;
-            // Collect every provenance row into ONE gap-0 vstack pushed as a
-            // single BodySlot. maya::Turn inserts a blank gap between adjacent
-            // non-blank body slots, so emitting each source as its own slot
-            // stranded an empty line between rows. Bundling them into one slot
-            // makes maya see a single block → the rows sit flush against each
-            // other, and the one inter-slot gap only separates this whole
-            // provenance block from the meta/affordance around it.
+            // 将每个出处行装入ONE 漏洞-0 vstack,
+            // 作为单个BodySlot. maya::Turn在相邻的非
+            // -blank 正文空档间插入一个空白空档,这样,
+            // 每个出处都作为自己的空档在行间搁浅。 将它们装入一个空档间,
+            // 使得maya看到一个单一块 – 排在彼此之间,
+            // 一个跨-slot空档只将整个出处块与周围的meta/affordance分开。
+            //
             std::vector<maya::Element> rows;
             for (std::size_t i = 0; i < sources.size() && i < kMaxSources; ++i) {
                 const Src& s = sources[i];
                 std::string kindpart = s.kind + " \xc2\xb7 ";     // "docs · "
                 std::string pathpart = s.path.empty() ? s.kind : s.path;
                 if (!s.line.empty()) pathpart += ":" + s.line;
-                // "×N" badge only when this source contributed >1 passage.
+                // "×N"徽章只有在此来源贡献 >1通过时才使用.
                 std::string badge = s.chunks > 1
                     ? "  \xc3\x97" + std::to_string(s.chunks) : std::string{};
 
-                // Each provenance entry must be ONE truncating text node.
-                // A horizontal stack of individually styled fragments still
-                // asks Yoga to lay out every fragment; once the fixed prefix
-                // consumes the row, later fragments can wrap even if the
-                // final snippet has `| clip`. Combining the runs makes the
-                // width constraint structural rather than best-effort.
+                // 每个出处条目必须是ONE的文本节点。
+                // 横向堆放单个样式的碎片仍要求瑜伽将每个
+                // 碎片都抛出;一旦固定的前缀消耗了行,
+                // 以后的碎片即使最后片段已经包起来也能够包起来.
+                // `| clip`。结合运行使宽度
+                // 制约结构而非最佳 -effort.
                 auto source_row = [&](std::string_view preview) {
                     std::string content;
                     std::vector<maya::StyledRun> runs;
@@ -2443,16 +2443,16 @@ maya::Turn::Config turn_config(const Message& msg, std::size_t msg_idx,
                 };
 
                 if (expanded) {
-                    // Expanded content remains a single row too. The full
-                    // passage is available to the renderer, but is clipped
-                    // at the current terminal width rather than pushing the
-                    // retrieval card (and following turns) onto extra rows.
+                    // 扩展的内容也仍然是一行。
+                    // 渲染器 ,但被剪切到当前
+                    // 终端 宽度而不是将检索卡(
+                    // 以及之后的转折)推到额外的行上。
                     std::string quoted = s.full.empty() ? std::string{}
                         : " \xe2\x80\x9c" + s.full + "\xe2\x80\x9d";
                     rows.push_back(source_row(quoted));
                 } else if (!s.snippet.empty()) {
-                    // Keep quotation marks in the same truncating node: no
-                    // dangling close quote and, critically, no second line.
+                    // 在同一节点保留引号:不贴近引号,
+                    // 而且,关键是,不贴第二行。
                     rows.push_back(source_row(
                         "\xe2\x80\x9c" + s.snippet + "\xe2\x80\x9d"));
                 } else {
@@ -2472,11 +2472,11 @@ maya::Turn::Config turn_config(const Message& msg, std::size_t msg_idx,
                 cfg.body.emplace_back(maya::Turn::BodySlot{
                     maya::detail::vstack().gap(0)(std::move(rows)).build()});
             }
-            // Affordance footer — only when there's a full body worth
-            // expanding to. Tells the user the toggle exists and what it
-            // does; dim so it never competes with the citation content.
-            // Kept as its own slot so the single inter-slot gap sets it
-            // apart from the flush provenance block above.
+            // 付得起的脚步手——只有满了 正文 值得扩展到。
+            // 告诉用户 切换 和它所做的一切,
+            // 暗淡的,所以它永远不与引用的内容竞争。
+            // 将单人间作为自己的插槽 -slot
+            // 隔板把它和上面的冲浪源块分开
             const bool any_full = std::any_of(sources.begin(), sources.end(),
                 [](const Src& s){ return !s.full.empty(); });
             if (any_full) {
@@ -2495,16 +2495,16 @@ maya::Turn::Config turn_config(const Message& msg, std::size_t msg_idx,
     }
 
     if (msg.role == Role::User) {
-        // Substitute chip placeholders (\x01ATT:N\x01) with their
-        // human-readable captions so a 400-line paste renders as
-        // "[Pasted text · 412 lines · 14 KB]" in the transcript
-        // instead of inlining the whole body. The wire still sees
-        // the full bytes — the transport calls attachment::expand()
-        // at request-build time. Image placeholders consult
-        // msg.attachments (which still holds an entry per image with
-        // path/media_type/byte_count populated even after the bytes
-        // were lifted onto msg.images), so the same chip label
-        // formula used in the composer applies here verbatim.
+        // 替换 标签 占位符(\x01ATT:N\x01) 与他们的人类
+        // -readable 标题如此 400 -line 粘贴 渲染
+        // 以 "[Pasted text · 412 lines · 14 KB]"
+        // 而不是把整个都排入记录片 正文。该词 传输 仍然看到满的 字
+        // 节 - 电话 传输层 调用 attachment::expand
+        // (a) 应请求 -build 时间。图像占位符查询
+        // msg.attachments (每个图像仍保留一个条目,
+        // 其中 path/media_type/byte_count 即使在之后,
+        // 人口也仍然众多 字节 被抬到 msg.images ),
+        // 所以一样 标签 作曲中使用的标签公式在此逐字应用。
         std::string display;
         if (msg.attachments.empty()) {
             display = msg.text;
@@ -2542,9 +2542,9 @@ maya::Turn::Config turn_config_for_assistant_run(
     int turn_num, const Model& m)
 {
     const auto& msgs = m.d.current.messages;
-    // Pre-conditions defended at the only two call sites (build_live_tail
-    // / freeze_range), but guard anyway so this function can be reused
-    // without subtle row-shape corruption if the range ever turns out empty.
+    // 预览 -conditions 仅两人为辩护 调用 地点( build_live_tail
+    // / freeze_range ),但无论如何要注意,这样这个功能
+    // 就可以在不细微行的情况下被重用 -shape 腐败,如果范围 变成空的。
     if (run_first >= run_end || run_first >= msgs.size())
         return {};
     const std::size_t end = std::min(run_end, msgs.size());
@@ -2565,62 +2565,62 @@ maya::Turn::Config turn_config_for_assistant_run(
         cfg.meta = style.role_label + "  \xc2\xb7  " + cfg.meta;
 
     if (head.role != Role::Assistant) {
-        // Defensive: only Assistant runs use the multi-message path.
-        // For a User head this collapses to the single-message build.
+        // 防御:只有助理运行使用多-message路径.
+        // 对于用户头部来说, 崩溃到 -message 的单块。
         return turn_config(head, run_first, turn_num, m,
-                           /*continuation=*/false,
+                           /*继续=*/false,
                            /*meta_override=*/{},
                            /*tool_calls_override=*/{});
     }
 
-    // Walk the run, emitting one tool panel per Message that carries
-    // tools. agent_session's discipline: one tool batch = one panel,
-    // flushed when the next text block starts OR the run ends. In
-    // agentty terms a "batch" is the tools attached to a single
-    // Anthropic Message; the post-tool placeholder model gives us
-    // one Message per sub-turn already, so each Message's tool_calls
-    // are conceptually one batch (the model's reply text for that
-    // sub-turn either precedes them in the same Message or arrives
-    // on the following Message).
+    // 运行,每个信件释放一个工具面板, 并携带工具。
+    // agent_session '纪律: 一个工具批次=一个面板,
+    // 当下一个文本块启动时冲掉 OR 运行结束。
+    // agentty 术语a "batch" 是一个单项工具
+    // Anthropic 信件; 邮件 -tool 占位符
+    // 模型给出每个子信件一个 -turn 已经,所以每个消息的
+    // tool_calls 概念上是一批(模型的回复文本用于该
+    // 子) -turn 或者在他们之前传出同样的教诲,
+    // 或者在以下的教诲中传到他们面前。
     //
-    // Order in the rendered body mirrors wire order: text(i)
-    // → panel(i) → text(i+1) → panel(i+1) …  Sub-turns whose only
-    // contribution is a tool batch (no text) emit just a panel.
-    // No cross-Message merging: every sub-turn gets its own panel,
-    // matching agent_session where each ev::ToolEnd batch becomes
-    // its own actions_panel(...).
+    // 所交付的命令 正文 镜像 传输 顺序:文本(一) → 面板
+    // (一) — 文本(一+1) → 表板(一+ 1)...
+    // 子 -turns 唯一的贡献是 工具批(无文本) 仅发出一个面板。
+    // 无十字架 -Message 合并: 每个子 -turn 获得自己的面板,
+    // 匹配 agent_session 每一地点 ev::ToolEnd 批次变成自己的
+    // actions_panel(...).
     std::string error_accum;
 
-    // ── Emit one sub-turn's body slots into `into`. Factored out of
-    //    the run loop so the settled-prefix hoist below can reuse the
-    //    EXACT same slot construction (byte-identical rows) inside a
-    //    nested Turn.
+    // 把一个子轮次的正文槽位输出到 into，从
+    //    运行循环,所以已解决 -prefix 下方的升能重用 EXACT
+    //    同一档次的构造( 4) : 字节-identical 排)
+    //    在巢中转弯.
     auto emit_subturn = [&](std::size_t idx, maya::Turn::Config& into) {
         const Message& m_i = msgs[idx];
-        // Reasoning block first — above this sub-turn's answer text. Same DRY
-        // helper as the single-message path so live and frozen match.
+        // 理由块第一——在本子之上 -turn 的答案文本。同样 DRY
+        // 帮助者作为单身 -message 路径如此的活和冻的匹配。
         if (auto rs = reasoning_slot(m_i, m))
             into.body.emplace_back(std::move(*rs));
         const bool has_text = !m_i.text.empty() || !m_i.streaming_text.empty();
         bool defer_panel = false;
         if (has_text) {
             into.body.emplace_back(cached_markdown_for(m_i, m));
-            // Same-frame deferral handshake as append_assistant_body_slots:
-            // cached_markdown_for just decided (this frame) whether the
-            // reveal cursor is still mid-glide with a fresh tool card.
-            // Read the flag via a non-migrating peek() — cached_markdown_for
-            // may have PINNED this slot (it's live), and re-accessing it
-            // through the settled message_md() here would migrate it back
-            // out of the pinned set, un-pinning the very edge we just
-            // protected. peek() reads from whichever home it lives in
-            // without perturbing the partition.
+            // 一样 -frame 推迟握手为 append_assistant_body_slots:
+            // cached_markdown_for 刚刚决定(这个) 帧
+            // 是否为 逐步显示 光标仍然在中端 -glide 并带有新的工具卡。
+            // 读读 标志 以非方式 -migrating peek() —
+            // cached_markdown_for 可能已经
+            // PINNED 和关于 -accessing 透过定居的
+            // message_md (这里会把它从被钉住的套装上移
+            // 回) -pinning 我们刚保护的边缘 peek()
+            // 读着它住的哪个家 而不扰动分界线
             if (const auto* mc = m.ui.view_cache.peek(m.d.current.id, m_i.id))
                 defer_panel = mc->defer_tool_panel;
-            // Never defer once a tool is actually EXECUTING — same guard as
-            // append_assistant_body_slots. Deferral only smooths the brief
-            // prose-glide vs. fresh-*Pending*-card window; a Running/Done
-            // card must show immediately, even if the defer-exit machine
-            // misses a follow-up frame ("tool shows running but no card").
+            // 工具一旦真正存在,就永远不要推迟 EXECUTING - 和我们一样的警卫
+            // append_assistant_body_slots。推迟只使简短的散文平滑
+            // -glide 与新* 关系 待处理*-card 窗口; a Running/Done
+            // 牌必须立即显示, 即使延迟 -exit 机器缺少一个跟随 -up 帧
+            // 工具显示正在运行，却没有卡片。
             if (defer_panel
                 && std::any_of(m_i.tool_calls.begin(), m_i.tool_calls.end(),
                                [](const ToolUse& tc){ return !tc.is_pending(); }))
@@ -2636,120 +2636,120 @@ maya::Turn::Config turn_config_for_assistant_run(
         if (m_i.error && error_accum.empty()) error_accum = *m_i.error;
     };
 
-    // ── Per-sub-turn stable-identity slots (flat per-frame cost + a
-    //    corruption-proof live tail vs. turn depth). ──
+    // 每个子轮次具有稳定标识的槽位，使每帧开销保持固定，并提供
+    //    腐败 -proof 现场直播 末尾 转弯深度。
     //
-    //    An in-flight assistant run can accumulate hundreds of settled
-    //    sub-turns that all sit in the live tail until the whole run
-    //    settles and freezes (freeze happens only at turn-settle; there
-    //    is no sound mid-run freeze — see frozen.cpp). So the live tail
-    //    grows unbounded during a deep autopilot run, and its leading
-    //    sub-turns overflow into the terminal's IMMUTABLE native
-    //    scrollback while the run is still live. Two requirements fall
-    //    out of that, and a single mechanism satisfies both:
+    //    进一进 -flight 助理运行可以累积数百个已安顿
+    //    的子程序 -turns 都坐在现场 末尾 直到整个
+    //    运行平息和冻结(冻结只发生于转弯) -settle ;
+    //    没有声音中 -run 冻结——见 frozen.cpp
+    //    故曰活人. 末尾 在深层自动驾驶运行中 及其领先的
+    //    子程序中 生长无限制 -turns 溢出进入
+    //    终端's 不可变 本地语言 回滚缓冲区 运行还在进行中,
+    //    有两个要求,一个机制满足了两个条件:
     //
-    //      (1) FLAT per-frame cost: a settled sub-turn must not be
-    //          rebuilt/re-walked from scratch every frame, or per-frame
-    //          CPU grows O(turn depth).
-    //      (2) APPEND-ONLY scrollback: once a sub-turn's rows have
-    //          committed to native scrollback they can NEVER be re-
-    //          emitted at a shifted position or under a changed element
-    //          identity — maya's inline diff treats any committed-row
-    //          mutation as uncorrectable and HardResets (\x1b[2J\x1b[3J),
-    //          wiping+restranding the transcript. THIS is the user's
-    //          report: "a running tool card doesn't show, then the reply
-    //          and the prior cards render broken."
+    //      (1) FLAT 百分比 -frame 成本: 已结算子 -turn 绝对
+    //          不是 rebuilt/re-walked 从零开始 帧 ,或按 -frame
+    //          CPU 增长 O( 转弯深度 )。
+    //      (2) APPEND-ONLY 回滚缓冲区 : 一次子 -turn
+    //          排队对本地人有承诺 回滚缓冲区 他们可以 绝不 在一个改变位置
+    //          或改变元素身份下重新发射—— maya 内置 diff 处理任何已
+    //          执行 -row 变异为无法更正和 HardResets (\x1b
+    //          [2J\x1 b[3J],擦除+重排笔录. 此 是用户的报表 :
+    //          运行中的工具卡片未显示，随后回复和旧卡片又渲染错乱。
     //
-    //    The mechanism: wrap EACH settled sub-turn in its OWN bare Turn
-    //    keyed on a STABLE per-sub-turn hash (its message id + its own
-    //    compute_render_key). Consequences:
     //
-    //      • Stable identity for life. A sub-turn's slot occupies a
-    //        fixed body index (its ordinal in the run) and, once the
-    //        sub-turn settles, a fixed hash_id — for every frame until
-    //        it freezes. maya blits it from its component cache (flat
-    //        cost) and never re-emits it (append-only safe). A settling
-    //        sub-turn just goes from "hash changes each frame" (live) to
-    //        "hash frozen" — the exact lifecycle maya already handles
-    //        for the whole live tail.
-    //      • NO regrouping, ever. The earlier growing-prefix and
-    //        fixed/row chunk designs both MOVED a sub-turn from an eager
-    //        top-level slot INTO a differently-keyed group Turn as the
-    //        boundary advanced. On a viewport short enough that the sub-
-    //        turn had already overflowed, that move rewrote a committed
-    //        row → HardReset. Per-sub-turn slots never move between
-    //        containers, so that transition cannot occur at ANY depth or
-    //        terminal size (scrollback_oracle deep_run_turn: green on
-    //        every shape).
     //
-    //    Robustness carve-outs (a slot must stay per-frame REBUILT, not
-    //    stably keyed, while any of these hold — else a card vanishes or
-    //    an animation stalls):
-    //      • A non-terminal tool (still running): its render_key already
-    //        advances every frame (progress/elapsed), so keying it is a
-    //        natural miss+rebuild anyway; we still stamp the key so the
-    //        blit engages the instant it settles.
-    //      • A live/finalizing/revealing/parsing reveal widget: the hash
-    //        is invariant across the scramble→clean transition, so a
-    //        stable key mid-reveal would freeze scramble glyphs. Keep
-    //        such a sub-turn UNKEYED (rebuild every frame) until drained.
-    //      • An active tool-panel DEFER machine (defer_tool_panel /
-    //        defer_exit_finished / card_defer_since): the defer flag is
-    //        per-frame mutable state NOT folded into the render key, and
-    //        its two-phase exit only advances while cached_markdown_for
-    //        runs every frame. A stable key would (a) bake a panel-hidden
-    //        body under a key the defer-clear never bumps → card
-    //        invisible forever, and (b) stall the exit machine. Keep it
-    //        UNKEYED until the defer machine is idle.
+    //    机制: 包 EACH 已结算子 -turn 中文本无 自身 光线 打开按键在 a
+    //    STABLE 百分比 -sub-turn 散列( 其信件 id + 其本身)
+    //    compute_render_key 后果:
     //
-    //    Byte-identity with the flat build (freeze_range) and the whole-
-    //    run-hash live-tail path holds by construction: each bare Turn
-    //    reuses maya::Turn's own is_blank-gated body assembly and sits as
-    //    a top-level body slot, so build_inner inserts exactly one gap
-    //    between adjacent non-blank slots — the same rows as emitting the
-    //    sub-turn's markdown/panel inline.
+    //      • 终生稳定身份。 -turn 时段占用
+    //        固定 正文 指数(其 序号 )和,一旦潜艇 -turn 和解,
+    //        一个固定 hash_id ——每笔 帧 直到它冻起来。
+    //        maya 由它的组成部分擦出 缓存 (费用上涨),
+    //        不再重 -emits 附录 -only 安全地),一个安顿的子.
+    //        -turn 刚刚从 "hash changes each frame"
+    //        (活)到 "hash frozen" ——确切的生命周期 maya
+    //        已经处理整个直播 末尾.
+    //      • NO 重新组合,永远, 早期增长 -prefix 财务报告和已审计财务报表
+    //        fixed/row 块设计两个 MOVED 子类 -turn 从 a。
+    //        提前加载 顶端 -level 插槽 INTO 不一样
+    //        -keyed 组合随边界的推进而转动。在 a 可视区域 转弯已经够短了,
+    //        移动重排了承诺的一行。 HardReset 数字
+    //        -sub-turn 插槽从不在容器之间移动,因此不能在
+    //        任意 深度或 显示 终端 大小( 4) scrollback_oracle
+    //        deep_run_turn : 绿色在每一个
+    //        形状上).
+    //
+    //    坚固的雕刻 -outs (必须保留每个 -frame REBUILT ,
+    //    没有被刺键,而其中的任何一个持有——否则一张卡片消失
+    //    了或一个动画摊:
+    //      • 非 -terminal 工具( 仍在运行): 其 render_key 已经
+    //        预发 帧 (progress/elapsed ),
+    //        所以按键是自然的错失+重建;我们仍然在键上盖章,
+    //        这样,血滴就立即解决。
+    //      • A live/finalizing/revealing/parsing 逐步显示 部件:散列
+    //        谓 不变量 穿过了整个摇篮 干净的过渡 如此
+    //        稳定的键中 -reveal 将冻结拼音。
+    //        -turn UNKEYED (重建时间) 帧 )直到排水。
+    //      • 一台活动工具-panel DEFER机(defer_tool_panel /
+    //        defer_exit_finished / card_defer_since
+    //        : 推迟 标志 单位 -frame 可变 状态 不 折叠到
+    //        渲染 键,以及其两个 -phase 只退出预付,
+    //        而 cached_markdown_for 运行 帧 稳定键将(
+    //        a) 烤面板 -hidden 正文 键下推迟 -clear
+    //        永远不要碰 ~ 牌永远隐形,和 (b) 拖住退出机器。
+    //        保留它 UNKEYED 直到延迟机器闲置为止
+    //
+    //    字节-identity 与平面建筑( freeze_range 整个运行
+    //    -hash 现场直播 -tail 构造所控路径:每一次光转再利用
+    //    maya::Turn 属于自己的 is_blank-gated 正文 组装起来,
+    //    像顶部一样坐着 -level 正文 插槽,所以,( 插槽) build_inner
+    //    插入相邻非相邻的精确空格 -blank 插槽——与排放子的同列 -turn's
+    //    markdown/panel 内置。
     auto subturn_stably_keyable = [&](std::size_t j) -> bool {
         const auto& mj = msgs[j];
         if (mj.role != Role::Assistant) return false;
-        // Live wire bytes still arriving → this is the streaming edge (or
-        // a sub-turn mid-stream). Its reveal_fx animates the scramble /
-        // gradient / caret BETWEEN byte arrivals with NO size change, so
-        // a content-keyed hash would freeze between deltas: maya blits the
-        // cached bare Turn, cached_markdown_for never re-runs, its
-        // request_animation_frame() is never re-armed, and the typewriter
-        // FREEZES until an unrelated hash axis flips (the low-CPU "md gets
-        // stuck mid-turn" report). Must be built inline so its per-frame
-        // builder keeps running. Checked FIRST — independent of whether
-        // msg.text has any settled prefix yet.
+        // 现场直播 传输 字节 仍然到达 —— 这是 流式传输 边( 或子)
+        // -turn 中点 -stream。。 其内容 reveal_fx 动画
+        // / 渐变 / 光标 BETWEEN 字节 抵达者 NO 大小变化,
+        // 所以内容 -keyed 散列会在三角洲之间冻结: maya 闪烁了缓存的光转,
+        // cached_markdown_for 永远不要 -runs ,
+        // 其编号为 request_animation_frame () 永远不再
+        // -armed ,打字机则 FREEZES 直至不相干的散列轴翻转(低点)
+        // -CPU "md gets stuck mid-turn"。必须内置,
+        // 这样它就可以在下方 -frame 构建器持续运行。 已检查 首次 ——不
+        // 考虑是否 msg.text 还没有确定前缀。
         if (!mj.streaming_text.empty() || !mj.pending_stream.empty())
             return false;
         for (const auto& tc : mj.tool_calls)
             if (!tc.is_terminal()) return false;
-        // Non-migrating peek(): this is a READ-ONLY state probe. Routing
-        // it through message_md() would migrate a pinned live entry down
-        // into the settled map — exactly the un-pin we must avoid. A slot
-        // that doesn't exist yet is trivially not animating (no widget),
-        // so nullptr → keyable-so-far.
+        // 无 -migrating peek() : 这是 READ-ONLY 州检,
+        // 通过 message_md () 将一个被钉住的活人迁移到定居
+        // 的地图上——即未定居的地图。 -pin 我们必须避免。
+        // 一个尚未存在的插槽是微不足道的不动画(没有部件),所以 nullptr
+        // − 可键 -so-far.
         const auto* mc = m.ui.view_cache.peek(m.d.current.id, mj.id);
         if (mc && (mc->defer_tool_panel || mc->defer_exit_finished
                 || mc->card_defer_since_ms != 0))
             return false;
-        // Reveal widget still animating (live / finalize ramp / cursor
-        // gliding backlog / async parse) → same freeze hazard as live
-        // bytes: the hash is invariant across the scramble→clean
-        // transition, so keying it would strand the animation. Applies
-        // whether or not text has committed — a message can have a
-        // settled text prefix with the widget still live_ during the
-        // finalize ramp, so DON'T gate this on text being non-empty.
+        // 逐步显示 部件仍在动画中( 启用/
+        // 最终确定斜坡/ 光标滑翔积压/ 自动启动)
+        // 解析 □ 与活体相同的冻结危险 字节
+        // : 散列是( ) 不变量 使用文本是否已经执行。
+        // 消息可以在最后的斜坡上有一个已解决的文本前缀,
+        // 并且部件仍然在运行中。
+        // DON 打开这个在文本是非 -empty.
         if (mc && mc->streaming && mc->streaming->is_animating())
             return false;
-        // SAME hazard for the sibling REASONING slot (mj.id + "#r"): reasoning
-        // streams through its own StreamingMarkdown whose reveal animates
-        // BETWEEN thinking deltas with no answer-channel size change. If we
-        // key the turn off content while the reasoning reveal is mid-glide,
-        // the reasoning widget's builder stops re-running and the reasoning
-        // typewriter FREEZES ("reasoning shows up fully, not streaming"). Must
-        // stay inline while the reasoning reveal is live/animating too.
+        // 相同 兄弟姐妹的危害 REASONING 插槽( N) mj.id + "#r"
+        // : 推理 数据流 透过自己的 StreamingMarkdown 其 人 名
+        // 逐步显示 动画 BETWEEN 思考三角洲,没有答案 -channel 大小变化。
+        // 如果我们按下关闭内容键,同时进行推理 逐步显示 中间 -glide ,
+        // 推理部件的构建器停止了 -running 和推理打字机 FREEZES (
+        // 推理内容一次性出现，没有流式显示。
+        // 在推理时必须保持内在 逐步显示 谓 live/animating 也一样。
         const auto* rc =
             m.ui.view_cache.peek(m.d.current.id, MessageId{mj.id.value + "#r"});
         if (rc && rc->streaming && rc->streaming->is_animating())
@@ -2757,42 +2757,42 @@ maya::Turn::Config turn_config_for_assistant_run(
         return true;
     };
 
-    // ── Live-edge protection is STRUCTURAL, not a manual touch. ──
+    // ── 现场直播 -edge 保护是 STRUCTURAL 而不是手动触摸 ──
     //
-    //    The loop below calls cached_markdown_for() once per sub-turn
-    //    that has text — O(depth) distinct (thread,msg) accesses per
-    //    frame. Previously that walk shared ONE LRU with the live edge,
-    //    so once depth exceeded the cap the walk evicted the oldest
-    //    entries as it inserted new ones — and the streaming edge (last
-    //    message, touched last) sat at the LRU back when the walk began.
-    //    Evicting it destroyed its StreamingMarkdown widget + reveal
-    //    bookkeeping, restarting the reveal from scratch and stalling the
-    //    typewriter (the "md animation not smooth in a long turn"
-    //    report). The old fix was a belt-and-braces manual touch of the
-    //    edge BEFORE the walk plus a bumped cap so realistic depth
-    //    wouldn't thrash — both mitigations of a shared-LRU hazard.
+    //    下面的环 调用 cached_markdown_for
+    //    (a) 每分公司一次 -turn 案文——O(深度)
+    //    不同( 线程 .msg) 访问次数 帧 之前,我们分享了
+    //    一个 LRU 有了活的边缘,一旦深度超过盖子,
+    //    步行就驱逐了最古老的条目,因为它插入了新的条目——和 流式传输
+    //    边( 上一封信件, 触摸上一个) 坐在 LRU 回到散步开始的时候
+    //    它摧毁了它的StreamingMarkdown部件+逐步显示簿记,
+    //    从头开始重新启动逐步显示并拖住打字机(
+    //    "md animation not smooth in a long turn"报告)。
+    //    旧的固定装置是一条带-and-braces手动触碰的边缘BEFORE,
+    //    走动加一个凸起的盖子,这样现实的深度就不会被打
+    //    乱了——这两种装置都减轻了共享的-LRU危险。
     //
-    //    That hazard no longer exists, and there is no LRU at all now.
-    //    cached_markdown_for routes a live message (live wire bytes OR an
-    //    animating widget) through the cache's PINNED map, which is never
-    //    evicted; settled sub-turns go in a separate staging map that is
-    //    never evicted either — it is DROPPED per-message at freeze (see
-    //    cache.hpp / freeze_range). No walk depth can touch a live edge,
-    //    and no walk depth grows memory: both maps are bounded by the
-    //    active turn. The stall class is unrepresentable, not merely
-    //    unlikely. Nothing to pre-touch here.
+    //    危险已经不复存在了,没有 LRU 现在,所有。
+    //    cached_markdown_for 路径一条实时消息( live)
+    //    传输 字节 OR 动画部件)通过 缓存's PINNED 映射,
+    //    从未被删除; 已定居子 -turns 在一个单独的中图中,
+    //    它永远不会被逐出——这是 DROPPED 百分比 -message
+    //    冻结时(见 cache.hpp / freeze_range。
+    //    没有行走深度可以触摸活的边缘,也没有行走深度会长出来 内存
+    //    : 两张地图都以活动转弯为界。 摊位类不能够代表, 不仅仅是不可能。
+    //    没有预览 -touch 给
 
     for (std::size_t i = run_first; i < end; ++i) {
-        if (msgs[i].role != Role::Assistant) break;   // run boundary
+        if (msgs[i].role != Role::Assistant) break;   // 运行边界
         if (subturn_stably_keyable(i)) {
-            // Settled sub-turn: emit as its own bare Turn with a stable
-            // per-sub-turn hash_id. maya caches + blits it every frame
-            // and never re-emits it once its rows commit to scrollback.
+            // 已解决子 -turn : 发射作为自己的光线 转动,
+            // 每转稳定 -sub-turn hash_id. maya 缓存 +
+            // 擦伤每个 帧 永远不要 -emits 一旦它一行承诺 回滚缓冲区.
             maya::Turn::Config sub;
             sub.bare       = true;
             sub.rail_color = style.color;
             emit_subturn(i, sub);
-            if (sub.body.empty()) continue;   // nothing to show
+            if (sub.body.empty()) continue;   // 无所显示
             sub.hash_id = maya::CacheIdBuilder{}
                 .add(std::string_view{"agentty.turn.subturn"})
                 .add(std::string_view{msgs[i].id.value})
@@ -2800,9 +2800,9 @@ maya::Turn::Config turn_config_for_assistant_run(
                 .build();
             cfg.body.emplace_back(maya::Turn{std::move(sub)}.build());
         } else {
-            // Live / animating / deferring sub-turn: build inline into
-            // the outer Turn so its side-effecting per-frame builders
-            // (reveal cursor, defer exit machine, spinner) keep running.
+            // 直播/ 动画/ 推迟子 -turn : 将内线建在外侧
+            // 转身 -effecting 百分比 -frame
+            // 建筑师( 逐步显示 光标,推迟退出机器, 加载动画 继续跑
             emit_subturn(i, cfg);
         }
     }

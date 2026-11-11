@@ -1,61 +1,61 @@
 #pragma once
-// agentty::util::capped_read — reading a user file with a size limit, in a
-// shape where ignoring "too big" does not compile.
+// agentty::util::capped_read — 读取具有大小限制的用户文件，
+// 其形式是忽略 "too big" 不会忽略 编译。
 //
-// ── The bug this deletes ─────────────────────────────────────────────────
+// ── 删除的错误 ─────────────────────────────────────────────────
 //
-// Four files independently wrote the same helper:
+// 四个文件独立编写了同一个助手：
 //
-//     std::string read_capped(const fs::path& p, std::size_t cap) {
+//     std::string read_capped(const fs::path& p, std::size_t 上限) {
 //         if (!is_regular_file(p)) return {};
 //         if (size > cap)          return {};     // <-- indistinguishable
 //         ...
 //     }
 //
-// and every one shipped the same bug, because an empty string answers three
-// different questions at once: absent, unreadable, and too big to use.
-// Callers wrote `if (raw.empty()) continue;` — right for the first two,
-// silently wrong for the third. Measured, not guessed:
+// 并且每个人都带来了相同的错误，因为空字符串同时回答
+// 了三个不同的问题：不存在、不可读以及太大而无法使用。
+// 呼叫者写了 `if (raw.empty()) continue;`—
+// —前两个是正确的，第三个是默默地错误的。测量而非猜测：
 //
-//   skills    an oversized SKILL.md vanished with `0 warning(s)`. The
-//             author's skill did not exist and nothing said why.
-//   hooks     `agentty hooks` printed "no hooks file" with the file right
-//             there, so a PreToolUse hook written to BLOCK something was
-//             inert while the user believed it was armed.
-//   AGENTS.md cut at 64 KiB with no marker, so a rule near the bottom never
-//             reached the model while the author watched the top of their
-//             file take effect.
+//   技能超大的SKILL.md随着`0 warning(s)`一起消失。
+//             作者的技巧并不存在，也没有说明为什么。
+//   钩子`agentty hooks`在该文件处打印了"no hooks file"，
+//             因此写入BLOCK的PreToolUse
+//             钩子是惰性的，而用户相信它已武装。
+//   AGENTS.md在64 KiB处切割，没有标记，
+//             因此靠近底部的规则从未到达模型，而作者观察他们的文件的
+//             顶部采取副作用。
 //
-// Three separate finds, three separate fixes. That is the tell: a bug fixed
-// three times in three files is one missing type.
+// 三个单独的发现，三个单独的修复。这就是说明：在三个文件
+// 中修复了三次的错误是一种缺失类型。
 //
-// ── Why this is a variant and not an enum + string ───────────────────────
+// ── 为什么这是个 变体 而不是一个 枚举 + 字符串 ───────────────────────
 //
-// jaal's first principle: "Contracts are types. If a rule can be a concept,
-// a type-state or a private constructor, it is. Breaking it should fail to
-// compile, with a message that names the rule."
+// jaal的第一原则：
+// 契约应由类型表达。规则若能写成概念、类型状态或私有构造函数，就应这样做；违反时应在编译阶段失败，并指出具体规则。
 //
-// An enum beside a string is weaker than it looks — `c.text` is reachable
-// whatever `c.kind` says, so the conflation is still WRITABLE and the rule
-// survives only as long as reviewers keep noticing. A variant makes the
-// outcomes alternatives: there is no `.text` to read until you have said
-// which case you are in, and `visit` over a lambda set that omits one
-// alternative is a compile error naming the type you forgot.
 //
-// So the four states are four types:
+// 字符串旁边的 枚举 比它看起来要弱——无论 `c.kind` 说什么，
+// `c.text` 都是可到达的，所以合并仍然是 WRITABLE，
+// 并且只有当审阅者不断注意到时，该规则才存在。 变体 使结果
+// 可供选择：在您说出自己所处的情况之前，没有 `.text`
+// 可供读取，而省略一个替代方案的 lambda 集上的
+// `visit` 是命名您忘记的类型的 编译 错误。
 //
-//     Content     the bytes, within the cap
-//     Absent      nothing there. Normal.
-//     Unreadable  present, but the read failed
-//     TooBig      present, readable, over the limit — NEVER silent
+// 所以这四种状态就是四种类型：
 //
-// ── Why not std::expected<std::string, Error> ────────────────────────────
+//     内容字节，
+//     在上限内没有任何内容。普通的。
+//     存在不可读，但读取失败 TooBig 存在，
+//     可读，超出限制 — 绝不 无提示
 //
-// TooBig is not "something went wrong" — the file is fine, agentty's limit
-// is the constraint — and each caller answers it differently: skills keeps a
-// reporting stub, hooks names the path and exits 1, AGENTS.md truncates WITH
-// a marker rather than refusing. `expected` funnels all three into one
-// `if (!r) return;`, which is exactly the collapse that caused the bug.
+// ── 为什么不呢 std::expected<std::string, Error> ────────────────────────────
+//
+// TooBig不是"something went wrong"——文件没问题，
+// agentty的限制是约束——并且每个调用者以不同的方式回答它：
+// 技能保留报告存根，挂钩命名路径并退出1，AGENTS.md截断WITH标记而不是拒绝。
+// `expected` 将所有三个合并为一个
+// `if (!r) return;`，这正是导致该错误的崩溃。
 
 #include <cstdint>
 #include <filesystem>
@@ -67,37 +67,37 @@
 
 namespace agentty::util {
 
-// ── The four outcomes, as types ──────────────────────────────────────────
+// ── 四种结果,作为类型 ──────────────────────────────────────────
 
-// Bytes, within the cap. An EMPTY file lands here, not in Absent: "the user
-// wrote an empty hooks.json" and "there is no hooks.json" are different
-// facts, and a caller that wants to treat them alike can say so.
+// 字节，在帽内。 空 文件位于此处，而不是缺席：
+// "the user wrote an empty hooks.json" 和
+// "there is no hooks.json" 是不同的事实，想要以相同方式对待它们的调用者可以这样说。
 struct Content { std::string text; };
 
-// No such file, or not a regular file. The one case a caller may skip
-// without comment.
+// 没有这样的文件，或者不是常规文件。调用者可以跳过而不发表
+// 评论的一种情况。
 //
-// A DIRECTORY is Absent, deliberately. `std::ifstream` OPENS a directory
-// successfully on Linux and throws out of the first read — that crashed this
-// process once (`basic_filebuf::underflow error reading the file: Is a
-// directory`, from `mkdir .agentty/mcp.json`). The is_regular_file check in
-// front is what makes it impossible rather than merely unlikely.
+// DIRECTORY是故意不存在的。 `std::ifstream` OPENS 在
+// Linux 上成功创建一个目录，并在第一次读取时抛出异常，导致此进程崩溃一次（
+// `basic_filebuf::underflow error reading the file: Is a directory`，
+// 来自 `mkdir .agentty/mcp.json`）。
+// 前面的 is_regular_file 检查使得它变得不可能，而不是仅仅不可能。
 struct Absent {};
 
-// Present, but the open or the stat failed. Permissions, a race with a
-// delete, a device that went away.
+// 存在，但打开或统计失败。 权限，带有删除的 竞态，
+// 一个消失的设备。
 struct Unreadable {};
 
-// Present and readable and OVER THE LIMIT. Carries the real size so the
-// caller can say how far over, which is the difference between "your file is
-// too big" and a number the user can act on.
+// 存在且可读以及OVER 该 LIMIT。携带实际大小，
+// 以便呼叫者可以说出距离多远，这是 "your file is too big"
+// 和用户可以操作的数字之间的差异。
 struct TooBig { std::uintmax_t size = 0; };
 
-// Exactly one of the four. No default-reachable `.text`, so a caller cannot
-// read bytes without first saying which case they are in.
+// 正是四个之一。没有默认的-reachable `.text`，
+// 因此调用者在没有先说明他们所处的情况的情况下无法读取字节。
 using Capped = std::variant<Content, Absent, Unreadable, TooBig>;
 
-// ── Reading ──────────────────────────────────────────────────────────────
+// ── 阅读 ──────────────────────────────────────────────────────────────
 
 [[nodiscard]] inline Capped capped_read(const std::filesystem::path& p,
                                         std::size_t cap) {
@@ -118,13 +118,13 @@ using Capped = std::variant<Content, Absent, Unreadable, TooBig>;
     return Content{std::move(buf)};
 }
 
-// ── Reading the result ───────────────────────────────────────────────────
+// ── 阅读结果 ───────────────────────────────────────────────────
 //
-// `bytes_or_empty` is the ONE lossy accessor, and it is named so you cannot
-// reach for it by accident. It exists for the handful of call sites that
-// genuinely treat every failure alike (a probe asking only "is there
-// anything here"). Everywhere else, visit — the compiler will not let you
-// forget TooBig.
+// `bytes_or_empty`是ONE有损存取器，其命名是为了让您
+// 不会意外触及它。它是为少数 调用 站点而存在的，这些站点真正以同样的
+// 方式对待所有故障（仅询问 "is there anything here"
+// 的探测）。在其他地方，请访问 — 编译器 不会让您忘记
+// TooBig。
 [[nodiscard]] inline const std::string& bytes_or_empty(const Capped& c) {
     static const std::string kEmpty;
     const auto* got = std::get_if<Content>(&c);
@@ -135,14 +135,14 @@ using Capped = std::variant<Content, Absent, Unreadable, TooBig>;
     return std::holds_alternative<Content>(c);
 }
 
-// The real size when over the cap, else 0. For building the message.
+// 超过上限时的实际大小，否则为0。用于构建消息。
 [[nodiscard]] inline std::uintmax_t oversize_bytes(const Capped& c) noexcept {
     const auto* big = std::get_if<TooBig>(&c);
     return big ? big->size : 0;
 }
 
-// A one-line explanation of a non-Content result, for a CLI row or a lint
-// warning. Empty for Content and Absent — neither needs saying.
+// 对于 CLI 行或 lint 警告，非 -Content 结果的
+// one-line 解释。内容空虚、缺席——两者都无需多言。
 [[nodiscard]] inline std::string capped_note(const Capped& c,
                                              std::size_t cap) {
     return std::visit([cap](const auto& v) -> std::string {

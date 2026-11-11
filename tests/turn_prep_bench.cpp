@@ -1,10 +1,10 @@
-// turn_prep_bench — UI-thread cost of starting the next model request.
+// turn_prep_bench — UI-thread 启动下一个模型请求的成本。
 //
-// Loads a REAL saved thread and times the synchronous work launch_stream does
-// on the UI thread before the request goes to a worker: copying the Thread
-// snapshot. Also times the Anthropic wire body build (worker side) so we can
-// see both halves of "tool finished -> bytes on the wire".
-//   agentty_standalone_tests turn_prep_bench <thread-id> [runs]
+// 加载 a 真实 已保存 线程 和同步工作的时间 launch_stream
+// 显示在 UI 线程 在请求去之前 工作线程 : 复制 线程 快照 时间
+// Anthropic 传输 正文 建( 建( O) 工作线程 双倍的
+// 工具完成到字节发往传输链路之间的延迟。
+//   agentty_standalone_tests turn_prep_bench <thread-id> [跑
 
 #include <algorithm>
 #include <chrono>

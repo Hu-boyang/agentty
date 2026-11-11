@@ -1,20 +1,20 @@
-// stats.cpp — the stats panel. Table-driven: no per-tab branches.
+// stats.cpp 数据面板。 -driven : 无 -tab 树枝。
 //
-// The whole view is:
+// 整个观点是:
 //
-//   for each Section in the active tab's TabDesc
-//       extract() its Metrics
-//       build ONE card Element from them, chosen by the Section's Viz
-//       push the card into cfg.prebuilt
+//   用于当前标签中每个区域 TabDesc
+//       extract()
+//       其计量构建 一个 由区域Viz公司将卡片推入
+//       cfg.prebuilt
 //
-// Adding a tab touches this file NOT AT ALL. That is the design's claim,
-// and this file is where it either holds or does not.
+// 添加标签来触摸此文件 不 AT 全部 . 这就是设计师的索赔,
+// 并且这个文件要么是它持有的,要么是没有。
 //
-// Formatting lives in domain/stats/unit.hpp (one format() for the whole
-// panel), and each Viz maps to one standalone maya widget (Donut,
-// Sparkline, Gauge, BarChart, Histogram, LineChart). The cards flow into
-// responsive columns via maya::Panel's col_max_width layout, so this file
-// owns exactly one thing: which theme colour a domain hue slot maps to.
+// 格式化 生活于 domain/stats/unit.hpp (一个)
+// format() ),每个Viz地图为单独的 maya 部件( 唐纳、
+// 火花线、 高盖、 BarChart 直方图, LineChart。
+// 卡片会通过 maya::Panel's col_max_width 排版,
+// 因此,这个文件拥有完全一样东西:哪个主题将域名槽地图颜色化到什么位置。
 
 #include "panels_prologue.hpp"
 
@@ -37,18 +37,18 @@
 namespace agentty::ui {
 namespace {
 
-// The card accent ramp.
+// 牌口音斜坡.
 //
-// These used to be nine hardcoded RGB values -- a private palette the theme
-// could not see, so the stats panel kept its own colours no matter what
-// scheme the user picked. The comment defending them had half a point: a
-// STATUS palette (green=good, red=failed) carries the wrong meaning for a
-// grid of named categories.
+// 这些过去是九条硬码 RGB 值 - 主题无法看到一个私人调色板,
+// 因此无论用户选择什么方案, STAS 面板都保留了自己的颜色。
+// 保护它们的注释有半点: a STATUS 调色板(
+// green=good, red=failed)对命名类别
+// 网格带有错误的含义.
 //
-// But the answer to "status is the wrong axis" is a categorical ramp, not a
-// private one. maya::theme::series() is exactly that, derived from the
-// theme's own role slots in an alternating order so adjacent slices
-// contrast. Same argument, one layer down, and it follows the user.
+// 但答案是,我们... "status is the wrong axis"
+// 绝对是斜坡,不是私人斜坡 maya::theme::series
+// ()正是这个,它来自主题本身的角色槽,其顺序相交,
+// 相邻的切片对比。同样的参数,一个层下,它跟随用户。
 namespace hue {
 [[nodiscard]] inline maya::Color at(std::size_t i) {
     return maya::theme::series(maya::theme::live(), i);
@@ -59,33 +59,33 @@ namespace hue {
 }
 }  // namespace hue
 
-// A CATEGORICAL ramp, for charts whose slices are named things rather
-// than states — the example's palette in its cycling order, so adjacent
-// slices contrast instead of walking the spectrum into two neighbouring
-// blues.
+// A CATEGORICAL 斜坡,对于其切片被命名
+// 为事物而不是状态的图表——示例的调色板在它的循环顺序中,
+// 所以相邻的切片对比而不是将光谱走进两个相邻的
+// 蓝色.
 [[nodiscard]] maya::Color series_hue(int slot, std::size_t i) {
-    // The catch-all slice draws muted. "other" is the ABSENCE of a
-    // category, so giving it a category's colour makes it read as one
-    // more of them — which it did: it collided with the largest slice.
+    // 捕捉到的鱼 -all 切片画哑巴。 "other" 是
+    // 那个 ABSENCE 一种分类,所以给它一个分类的颜色,
+    // 它读起来又是一个—— 它做到了: 它与最大的切片相撞。
     //
-    // Straight through to maya rather than a local `static const` table:
-    // a static would be built on first call and then frozen for the
-    // process, which is precisely the bug the private ramp had.
+    // 直通到这里 maya 而不是当地 `static const` 表格: 数据
+    // 静态将建在第一个调用上,然后为这个过程冻结,
+    // 而这正是私人坡道的缺陷。
     if (slot < 0) return maya::theme::series_other(maya::theme::live());
     return maya::theme::series(maya::theme::live(), i);
 }
 
-// ── card() — a bare titled section, matching the agent_stats look ─────────
+// ── card() 空标题区域,匹配 agent_stats 看着 ─────────
 //
-// No border: the accent-coloured heading over the content IS the section
-// boundary. A box around every card turns a page of figures into a grid of
-// forms, and in two columns the boxes double up along the gutter. The
-// vstack + padding(0,1) gives the breathing room a border would have,
-// without the ink.
+// 无边框:重音 -coloured 标题翻过内容
+// IS 每张卡片的周围有一个盒子将一页数字转换成一个网格,
+// 在两栏中,盒沿沟渠双向翻转。vstack +
+// pading(0,1) 给呼吸室一个边框,
+// 没有墨水。
 //
-// Each card carries its OWN accent, cycling the ramp, so a grid of them
-// reads as distinct panels rather than one wall of the same colour — the
-// thing that makes the example's dashboard legible at a glance.
+// 每张卡都带有它的OWN口音,绕过坡道,
+// 所以其中的网格读作不同的面板而不是同一颜色的一面墙
+// ——这个东西使这个例子的仪表板可以一目了然.
 [[nodiscard]] Element card(std::string_view heading, maya::Color tint,
                            std::vector<Element> body) {
     std::vector<Element> rows;
@@ -98,22 +98,22 @@ namespace hue {
     return (dsl::v(std::move(rows)) | padding(0, 1)).build();
 }
 
-// A section with nothing to say still draws its heading, so a tab does not
-// silently drop a section the reader expected — the dim dash says "measured,
-// empty" rather than "forgot to render".
+// 一张无话可说的小片仍画着标题,
+// "measured, empty" 而不是说
+// "forgot to render".
 [[nodiscard]] Element empty_placeholder() {
-    return text("\xe2\x80\x94", fg_dim(hue::dim()));   // — em dash
+    return text("\xe2\x80\x94", fg_dim(hue::dim()));   // - 破烂
 }
 
-// ── Viz builders ──────────────────────────────────────────────────────────
+// ── Viz 构建器 ──────────────────────────────────────────────────────────
 //
-// Each takes the extracted metrics and returns the card body (the elements
-// under the heading). One function per PRESENTATION, so this file grows a
-// case when a Viz is added, never when a tab is.
+// 每人拿取的度量衡,然后返回卡片 正文 (标题下的各项内容)
+// PRESENTATION ,因此,当一个 Viz 被添加时,
+// 这个文件会长出一个大小写,而从不长出一个标签。
 
-// Bars — one horizontal bar per metric, coloured by a hue cycle. Scaled to
-// the largest value, or to `of` when the metrics carry a shared denominator
-// (so shares of a whole read against that whole, not against each other).
+// 条 — 每公尺一个水平条, 颜色为色循环。
+// 缩放到最大值, 当公尺带有一个共同分母时,
+// 缩放为 `of`( 整体的份额读成整体, 而不是相互对应 )。
 [[nodiscard]] std::vector<Element> build_bars(const std::vector<stats::Metric>& ms) {
     std::vector<maya::Bar> bars;
     bars.reserve(ms.size());
@@ -131,22 +131,22 @@ namespace hue {
     return out;
 }
 
-// Spark — an inline block sparkline per metric from its series, on ONE
-// line: label, trace, then the metric's formatted value. show_last is off
-// because it prints the raw last SAMPLE, which is a different number from
-// the metric's formatted value — showing both invited the reader to
-// reconcile "280" with "702ms".
-// Spark — the trends of a section. A metric with NO series is not a trend:
-// it is a plain figure that happens to share the section ("Turns using
-// cache" beside "Hit rate"). Those are handed back through `figures` so
-// the caller can put them in the READOUT column, where there is room for
-// them — squeezing them under the chart cost the chart height and left the
-// readout column half empty.
+// Spark——从系列中每公吨内含块火花,于 一个 线条:标签、
+// 跟踪,然后是度量标准的格式值。 show_last 关闭,
+// 因为它打印了最后的生源 SAMPLE ,这与度量标准的
+// 格式值不同——显示两者都邀请读者进行调和 "280"
+// 与 "702ms".
+// Spark——一节的趋势。 与NO系列的衡量标准不是一个趋势:
+// 恰巧是共用一节的平面数字("Turns using cache"
+// 与"Hit rate"相邻),这些数字通过
+// `figures`交还,以便呼叫者把它们放入READOUT栏,
+// 在那里有空间——按下图表将它们压在图表高下,
+// 并让读出栏半空。
 [[nodiscard]] std::vector<Element> build_sparks(const std::vector<stats::Metric>& ms,
                                                std::vector<stats::Metric>* figures) {
     std::vector<Element> out;
     out.reserve(ms.size() * 2);
-    // How many metrics will actually draw here — the ones with a series.
+    // 有多少个衡量标准会在这里画出来——那些有一系列的。
     std::size_t drawn = 0;
     for (const auto& mt : ms) if (!mt.series.empty()) ++drawn;
 
@@ -167,14 +167,14 @@ namespace hue {
         std::vector<float> series;
         series.reserve(mt.series.size());
         for (double d : mt.series) series.push_back(static_cast<float>(d));
-        // A RATE over turns is a curve, not a strip. A spark is one cell per
-        // sample, so a nine-turn history drew nine blocks — and with a steady
-        // ~93% every block was full height, which reads as a solid slab
-        // rather than a trend. The braille plot fills the card, draws a
-        // connected line, and carries an axis, so the shape and the level are
-        // both legible.
+        // A RATE 转弯是曲线,不是条纹,火花是一条
+        // 存储单元 每个样本,所以一个九 -turn 历史画
+        // 了九个块——每个块的平稳~93%是全高,
+        // 读起来是坚固的板块而不是趋势,大字纹图案填满了卡片,
+        // 画了一条连接的线,并搭载了轴线,所以形状和关卡都能够
+        // 辨别出来.
         if (mt.unit == stats::Unit::Ratio) {
-            // Share the body between the charts that will actually draw.
+            // 将 正文 共享到实际绘制的图表中。
             const int n = static_cast<int>(std::max<std::size_t>(1, drawn));
             const int h = std::clamp((panel_detail::panel_viewport_h() - 4) / n - 1,
                                      4, 14);
@@ -191,29 +191,29 @@ namespace hue {
 
         maya::SparklineConfig scfg{.color = series_hue(0, i), .show_last = false};
         maya::Sparkline spark{std::move(series), scfg};
-        // The value rides in the LABEL so it sits on the trace's line.
+        // 值在 LABEL 所以它坐落在追踪线上
         std::string label = mt.label;
         if (mt.value != 0 || mt.of != 0)
             label += "  " + stats::format(mt.unit, mt.value);
         spark.set_label(label);
-        // Claim the column. A component reports a natural width and flex
-        // leaves it there, so a nine-point trace sat as a stub in a column
-        // three times its width while the histogram beside it filled the
-        // same space. grow() hands it the slack, and the widget stretches
-        // each sample across the cells it gets.
+        // 要求栏,一个部分报告自然宽度,灵活度就让它存在,
+        // 所以9 -point 微量作为柱子的支点,
+        // 宽度是它的三倍, 而它的旁边的直方图则充填了同样的空间。
+        // grow() 将每个样本伸到整个区域
+        // 存储单元 就会变得很脆弱
         out.push_back(spark.build() | dsl::grow(1.0f));
     }
     return out;
 }
 
-// Plot — a braille line chart per metric from its series, sized to the
-// height the panel has rather than a fixed 6 rows: one plot is usually the
-// whole card, so the rows it does not take are dead space in the column.
+// 绘图——从它的系列中,每公尺一个盲文线图,
+// 大小到面板的高度而不是固定的6行:一个图
+// 通常是整张卡片,所以它不取的行是列中的死空.
 [[nodiscard]] std::vector<Element> build_plots(const std::vector<stats::Metric>& ms) {
     std::vector<Element> out;
     out.reserve(ms.size() * 2);
-    // Share the body between plots when a section carries several, and keep
-    // room for the card's heading, its blank and each plot's caption.
+    // 当一个区域携带数个时, 将 正文 共享到各块,
+    // 并留有卡片的行驶、 空白和每个图片的字幕的空间。
     const int n = std::max<int>(1, static_cast<int>(ms.size()));
     const int avail = (panel_detail::panel_viewport_h() - 3) / n - 1;
     const int height = std::clamp(avail, 4, 20);
@@ -223,15 +223,15 @@ namespace hue {
         series.reserve(mt.series.size());
         for (double d : mt.series) series.push_back(static_cast<float>(d));
         maya::LineChart chart{std::move(series), height};
-        // Shade under the curve: a lone trace across a tall plot is mostly
-        // empty, and the eye reads the emptiness as the data.
+        // 曲线下方的阴影:一个跨越高地图的孤零零的
+        // 痕迹大多是空的,眼睛将空的读作数据.
         chart.set_fill(true);
         chart.set_color(series_hue(0, i));
         out.push_back(chart.build());
-        // The caption carries the PEAK. A plot's tallest point is the figure
-        // a reader reaches for ("largest prefix"), and it was living in its
-        // own card in another column — a number in one place and the shape
-        // that produced it in another. On the axis it is one reading.
+        // 标题带有 PEAK。图中最高的点是读者所达到的数字
+        // ( "largest prefix" ),
+        // 它生活在另一个栏的自己的牌上——一个数字在一个地方,
+        // 另一个地方的形状产生它。在轴上,它是一个读数。
         if (!mt.label.empty()) {
             std::string cap = mt.label;
             double peak = 0;
@@ -243,9 +243,9 @@ namespace hue {
     return out;
 }
 
-// Band — was a stacked bar of one metric's parts; the standalone equivalent
-// is a BarChart of those parts, so each segment reads as its own labelled bar
-// against the whole.
+// 乐队——是一个由1公尺零件组成的堆叠条;独立等价物是
+// 这些零件中的BarChart,所以每个部分读作自己的标注条,
+// 与整体相对.
 [[nodiscard]] std::vector<Element> build_band(const std::vector<stats::Metric>& ms) {
     std::vector<maya::Bar> bars;
     float peak = 0.0f;
@@ -265,9 +265,9 @@ namespace hue {
     return out;
 }
 
-// Donut — the parts of a whole as a braille ring, one segment per part. The
-// metric's detail sits in the centre (the headline share), its label as the
-// caption. One donut per metric, since a donut IS a composition.
+// 甜甜圈(Donut) —— 整体的片段作为盲文环,每部分一个段.
+// 公尺的细节坐落在中心(头条份额),其标签为标题.
+// 每一公尺一个甜甜圈,因为一个甜甜饼 IS 是一个组成.
 [[nodiscard]] std::vector<Element> build_donuts(const std::vector<stats::Metric>& ms) {
     std::vector<Element> out;
     for (const auto& mt : ms) {
@@ -279,11 +279,11 @@ namespace hue {
         }
         if (!mt.detail.empty()) d.center(mt.detail);
         d.caption(mt.label);
-        // Fill the height the panel actually has rather than a fixed 7 rows.
-        // The body is panel_viewport_h() tall; take off the caption, the
-        // card's heading and its blank, and a row of slack so the ring never
-        // pushes the card into the scroll. One donut is the whole card, so
-        // the height it does not use is dead space in the column.
+        // 填充面板实际的高度,而不是固定的7行.
+        // 电话 正文 谓 panel_viewport_h
+        // ()高;脱下标题,卡片的走向和空白,一行松动,
+        // 使戒指永远不把卡片推入卷轴中,一个甜甜圈是整张卡片,
+        // 所以它不使用的高度就是列中的死空.
         const int avail = panel_detail::panel_viewport_h() - 4;
         d.rows(std::clamp(avail, 5, 16));
         out.push_back(d.build());
@@ -292,13 +292,13 @@ namespace hue {
     return out;
 }
 
-// Hist / Dist — a distribution as block columns, one bucket per metric.
+// hist / Dist——作为块柱的分布,每公尺一桶.
 //
-// No caption: the CARD's heading already names the section, and the
-// histogram repeating it printed "First byte spread" twice, one line under
-// the other. The card owns the title; the chart just draws.
+// 无标题: CARD 标题中已经指定了区域名称,
+// 并重印了直方图 "First byte spread" 两次,
+// 一张在另一行下。 牌拥有标题; 图表只是绘制。
 [[nodiscard]] std::vector<Element> build_hist(
-    std::string_view /*heading*/, const std::vector<stats::Metric>& ms) {
+    std::string_view /*标题*/, const std::vector<stats::Metric>& ms) {
     maya::Histogram h;
     for (const auto& mt : ms) h.bucket(mt.label, mt.value);
     h.rows(6);
@@ -307,31 +307,31 @@ namespace hue {
     return out;
 }
 
-// The width a card may lay itself out in.
+// 一张卡的宽度可能自行确定。
 //
-// Panel measures a PREBUILT body element against an unbounded probe (1<<14)
-// to discover its height — it only runs the column flow for `items`. A card
-// holding a self-sizing chart (BarChart fills its slot, then prints the
-// value at the far end) answers that probe honestly: it sizes a row to
-// sixteen thousand columns, and when the card is then PAINTED in the real
-// ~36-column body the value is the part that falls off the edge. That is
-// the "189 clipped writes" the golden test catches.
+// 小组措施a PREBUILT 正文 元素对一个无约束探测器(1
+// ⁇ 14) 发现其高度——它只运行列流用于 `items`。
+// 一张自控卡片 -sizing 图表( 4) BarChart
+// 填充其槽,然后打印在最远的端值) 诚实的回答: 它的大小
+// 一行到一万六千列,当卡片是时 PAINTED 真实的~36
+// -column 正文 值是掉落到边缘的部分。
+// "189 clipped writes" 黄金测试的捕获量。
 //
-// So the card states its own ceiling. terminal_cols() is the width the
-// frame will really be painted at; Config::content_width() takes off the
-// border and padding, and the scrollbar gutter comes off too because
-// build() puts the body and the gutter side by side.
-// The width the card GRID is laid out in — the real body width, so
-// viewport() divides a true number into columns and the unbounded measure
-// probe cannot inflate a self-sizing chart past the slot it paints in.
+// 所以卡片上写着自己的上限. terminal_cols
+// () 宽度为: 帧 将真正被画在; Config::content_width
+// ()脱去边框和铺垫,卷条沟也脱下,
+// 因为 build() 放下那个 正文 和沟边并排。
+// 牌的宽度 GRID ——真实的 正文 宽度,
+// 所以 viewport() 将一个真实数字分为列,未绑定的测量
+// 探测器无法充充电自定义 -sizing 图表通过它画的插槽。
 [[nodiscard]] int body_width() {
     const int frame = maya::panel::detail::terminal_cols() > 0
                           ? maya::panel::detail::terminal_cols()
                           : 80;
-    // Frame + padding + the scrollbar gutter come off via content_width and
-    // kScrollbarCols. card() then pads each cell one cell either side, and
-    // THAT is what the grid must also leave room for — without it the last
-    // column's content runs under the gutter by exactly those two cells.
+    // 帧 + 贴贴 + 滚动条沟槽通过 content_width 和
+    // kScrollbar Cols. 中 了 , 并 了。 card()
+    // 然后各铺上 存储单元 单曲 存储单元 双方,以及 该 电网必须留有空间,
+    // 没有电网,最后一栏的内容就流到沟渠下,正好是这两个。 存储单元.
     constexpr int kCardPadCols = 2;
     const int inner = maya::panel::Config::content_width(frame)
                       - maya::panel::Config::kScrollbarCols
@@ -339,23 +339,23 @@ namespace hue {
     return std::max(16, inner);
 }
 
-// One section → one or MANY cards.
+// 一节 → 1张或 MANY 牌.
 //
-// A Kv/Hero section is a LIST of independent figures, and the example's
-// dashboard is a grid of small cards — one figure each — which is what
-// gives viewport() enough cells to fan into three and four columns. Folding
-// a whole section's figures into one tall card leaves the grid two wide
-// with half the screen empty, which is exactly how this looked against the
-// example. So the scalar kinds SPLIT: every metric becomes its own card,
-// titled with its label and showing its value.
+// A Kv/Hero 区域为 a LIST
+// 独立数字的图案表是小卡的网格——每个图——这
+// 就是给人们的 viewport() 够了 存储
+// 单元 将整个区域的数字叠成一张高卡片,使网格宽两间,
+// 屏幕半空,这正是这个例子的对照。所以,
+// Scalar 类型 SPLIT :每个公尺成为自己的牌,
+// 标有其标签并显示其价值。
 //
-// The picture kinds (Bars/Spark/Plot/Band/Donut/Hist) get a card each —
-// their metrics are SERIES OF ONE chart, not separate figures.
+// 图片类型( 4) Bars/Spark/Plot/Band/Donut/Hist 每人拿
+// 一张牌——他们的衡量标准是: SERIES OF 一个 图表,而不是单独的数字。
 //
-// The scalar kinds do NOT get a card each. Each scalar SECTION becomes a
-// group of lines appended to `text_groups`; the caller then deals those
-// groups into a couple of text columns, so a tab is a picture plus two
-// readout columns rather than one tall column beside a chart.
+// 斯卡尔人喜欢 不 每个牌,每个牌 SECTION
+// 成为附件中的一组行 `text_groups` ;
+// 然后调用者将这些组处理成几个文本列,所以一个标签是
+// 图片加两个读出列而不是图表旁边的一个高的列.
 void build_cards(const stats::Section& sec, const stats::Facts& f,
                  std::vector<stats::Metric>& scratch,
                  std::vector<std::vector<Element>>& text_groups,
@@ -368,7 +368,7 @@ void build_cards(const stats::Section& sec, const stats::Facts& f,
     const std::size_t slot = out.size();
     const maya::Color tint = series_hue(0, slot);
 
-    // ── scalar kinds: one GROUP of lines, dealt into a column later ───
+    // ── 斜拉线类型: 1 GROUP 线条, 稍后再分栏 ───
     if (sec.viz == stats::Viz::Kv || sec.viz == stats::Viz::Hero) {
         if (scratch.empty()) return;
         std::vector<Element> group;
@@ -395,19 +395,19 @@ void build_cards(const stats::Section& sec, const stats::Facts& f,
         return;
     }
 
-    // ── picture kinds: one card for the whole section ──────────────────
+    // ── 图片类型: 整个区域一张牌 ──────────────────
     //
-    // A Spark section can also carry plain figures (no series). Those go to
-    // the readout column rather than under the chart — there is room for
-    // them there, and the chart keeps its height.
+    // 火花部分也可以携带普通数字(无序列),
+    // 这些数字会转到读出栏而不是图表下,
+    // 它们在那里有空间,图表会保持高度。
     std::vector<stats::Metric> figures;
 
-    // A Spark section emits ONE CARD PER TRACE, not one card holding them
-    // all. Each trace then pairs with the distribution of the same
-    // quantity: the Stream tab reads as "first byte, and its spread" beside
-    // "output rate, and its spread" rather than both traces in one column
-    // and both spreads in another, which asks the reader to carry a number
-    // across the panel to meet its own histogram.
+    // 闪光区域释放 一个 CARD PER TRACE ,而不是一张卡片,
+    // 每张卡片都持有。然后,每张跟踪片与相同数量的分布成对:
+    // 数据流 选项卡读作 "first byte, and its spread"
+    // 边上 "output rate, and its spread"
+    // 而不是在一栏中留下痕迹,在另一栏中则同时传播,这要求读者携带
+    // 一个数字横跨面板,以满足自己的直方图.
     if (sec.viz == stats::Viz::Spark) {
         for (const auto& mt : scratch) {
             if (mt.series.empty()) { figures.push_back(mt); continue; }
@@ -443,7 +443,7 @@ void build_cards(const stats::Section& sec, const stats::Facts& f,
         case stats::Viz::Hist:
         case stats::Viz::Dist:  body = build_hist(sec.heading, scratch);  break;
         case stats::Viz::Kv:
-        case stats::Viz::Hero:  break;   // handled above
+        case stats::Viz::Hero:  break;   // 以上处理
     }
 
     if (!figures.empty()) {
@@ -459,7 +459,7 @@ void build_cards(const stats::Section& sec, const stats::Facts& f,
         text_groups.push_back(std::move(group));
     }
 
-    // Every metric was a figure — nothing left to draw, so no card.
+    // 每个度量衡都是个数字——没有了画,所以没有牌.
     if (body.empty() && !figures.empty()) return;
 
     if (body.empty()) body.push_back(empty_placeholder());
@@ -468,21 +468,21 @@ void build_cards(const stats::Section& sec, const stats::Facts& f,
     titles.push_back(std::string{sec.heading});
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 Element stats_panel(const Model& m) {
     const auto* o = m.ui.panel.get<pn::Stats>();
     if (!o) return nothing();
 
-    // One incremental refresh. On a settled thread this folds nothing; while
-    // streaming it folds exactly the live tail. See domain/stats/facts.hpp
-    // for why the cursor and the epoch guard are shaped the way they are.
+    // 递增更新一次,在解决的 线程 这个 归并 无; 时 流式传输 来,
+    // 来,来 归并 完全就是现场直播 末尾。
+    // 见 domain/stats/facts.hpp 光标和时代守卫为何被塑造成这样
     const stats::Facts& f = o->projection.refresh(m.d.current);
 
-    // A tab can become unavailable under the user (the last tool call was
-    // rewound away). Landing on it would show an empty panel with no way to
-    // understand why, so the selection is corrected here rather than
-    // defended in every extractor.
+    // 标签可以在用户下无法使用( 最后一个工具调用
+    // 被重置 )。 登陆时会显示一个空面板,
+    // 无法理解原因, 因此选择在此校正, 而不是在每
+    // 个提取器中进行辩护。
     const auto visible = stats::visible_tabs(f);
     stats::Tab active = o->tab;
     if (!stats::tab_available(active, f)) active = visible.front();
@@ -493,19 +493,19 @@ Element stats_panel(const Model& m) {
     cfg.subtitle = std::string{stats::tab_subtitle(active)};
     cfg.accent   = hue::cyan();
 
-    // Tabs are the WIDGET's chrome, not this host's: it owns the padding,
-    // the selected treatment and how the strip degrades on a narrow frame,
-    // so every tabbed panel looks the same by construction.
+    // 标签是 WIDGET 铬 不是这个宿主 拥有
+    // 垫子 选择的治疗方法 以及条状物在狭长的 帧 ,
+    // 所以每个制表板 外观与构造相同。
     //
-    // Editor marking because these tabs are PEERS you switch between, not
-    // views of one underlying thing — " │ " dividers carry the structure
-    // and there is no underline rule. Filled because a mark that works by
-    // CONTRAST says nothing about the first tab in the strip; a chip
-    // states "this is the live view" on its own.
+    // 编辑器标记,因为这些标签 PEERS 你转身,而不是 观点
+    // 一个基本的东西 - " │ " 分隔符带有结构,没有下划线规则。
+    // 填充是因为一个标记通过 CONTRAST 字条上的第一个
+    // 标签没有写, a 标签 状态
+    // "this is the live view" 独自一人
     //
-    // The strip shows only the AVAILABLE tabs, so a session that never ran
-    // a tool has no Tools chip to land on — an empty tab is a tab admitting
-    // it should not have been drawn.
+    // 条条只显示 AVAILABLE 选项卡,所以从未运行
+    // 过工具的会话没有工具 标签 以“在”为定位,
+    // 空标签是承认它不应该被绘制的标签。
     cfg.tabs.reserve(visible.size());
     for (auto t : visible) cfg.tabs.emplace_back(stats::tab_title(t));
     cfg.tab_active = 0;
@@ -514,25 +514,25 @@ Element stats_panel(const Model& m) {
     cfg.tab_mark = maya::TabMark::Editor;
     cfg.tab_fill = true;
 
-    // The panel body: one card per section, fanned into responsive columns
-    // by maya::viewport() — the same layout the agent_stats example is built
-    // around. viewport() picks the column count from a width CEILING (a slot
-    // at or under max_width is one column, over it two, over twice it
-    // three…), fills left-to-right then wraps, and keeps every card
-    // responsive to its OWN column rather than the screen.
+    // 小组 正文 : 每一区一张牌,扇成响应列,由 maya::viewport
+    // () ——布局相同 agent_stats 以实例为中心。
+    // viewport() 从宽度中选择列数 CEILING (在以下
+    // 时间段) max_width 是一个柱子,在它上,在它的两,
+    // 两倍以上它三... ,填满左侧 -to-right 然后包装,
+    // 并保持每张卡 响应它的 自身 栏而不是屏幕。
     //
-    // The whole grid goes in as ONE prebuilt Element. Panel only runs its
-    // own column flow for `items`, and it measures a prebuilt body against
-    // an unbounded probe (1<<14) — so the grid is handed the REAL width via
-    // .width, which is both what makes the columns come out right and what
-    // stops a self-sizing chart from sizing itself to sixteen thousand
-    // columns and then losing its tail when painted in the real body.
+    // 整个网格都像 一个 预建元素。面板只运行自己的列
+    // 流 `items` ,它测量一个预建 正文 反射
+    // 无界探测器(1 ⁇ 14),因此,电网被传送
+    // 真实 宽度通过.width, 既是使柱子出对,
+    // 也是阻止自我 -sizing 图表从缩小到16,000列,
+    // 然后失去 末尾 真实的画 正文.
     std::vector<stats::Metric> scratch;
     scratch.reserve(32);
 
     const auto& sections = stats::tab_desc(active).sections;
-    std::vector<std::vector<Element>> text_groups;   // one per scalar section
-    std::vector<Element> pictures;                   // one card per chart
+    std::vector<std::vector<Element>> text_groups;   // 每个卡片区一个
+    std::vector<Element> pictures;                   // 每张一张牌
     text_groups.reserve(sections.size());
     pictures.reserve(sections.size());
     std::vector<bool> tall_picture;
@@ -540,37 +540,37 @@ Element stats_panel(const Model& m) {
     for (const auto& sec : sections)
         build_cards(sec, f, scratch, text_groups, pictures, tall_picture, picture_title);
 
-    // Past two charts, share a cell — but only with one that FITS.
+    // 上两个图表,共享 a 存储单元 - 但只有一个 FITS.
     //
-    // Every chart as its own cell makes a chart-heavy tab too many columns
-    // wide, and a cell that wraps lands on a grid row that starts below the
-    // body: a section the reader never sees. A spark and a histogram share
-    // a column comfortably.
+    // 每一个图表都是自己的 存储单元 绘制图表 -heavy 选项卡,
+    // 宽度太多的列,以及 a 存储单元 将陆地包裹在从下方开始的网格
+    // 线上 正文 :读者从未见过的一节,一个火花和一个直方图可以
+    // 舒适地分享一个专栏.
     //
-    // Two DONUTS do not — a dozen rows each against a fourteen-row body —
-    // and pairing them blind to height is what cost the Tools tab "calls by
-    // outcome". A chart joins the open cell only while the running height
-    // leaves room; otherwise it starts its own.
+    // 两位 DONUTS 不要,一打一打一对十四 -row 正文
+    // ——将它们盲目对高,这是工具标签的成本 "calls by outcome"。
+    // 一张图表将加入打开的 存储单元 只在运行高度离开空间时,
+    // 否则它就会开始自己的高度。
     //
-    // NOMINAL heights, not a live measure: sizing the pack from the terminal
-    // makes one thread group its charts differently between renders.
+    // NOMINAL 高度,不是活的量度: 将包从
+    // 终端 做一个 线程 将其图表在 渲染.
     if (pictures.size() > 2) {
-        // A cell may run TALLER than the body: a paired trace-and-spread is
-        // the thing worth seeing together, and the second half of the pair
-        // being a scroll away still beats it being in another column with a
-        // number to carry across the panel. Two short charts fit; a donut
-        // still refuses to share, since two of those is twice the body.
+        // A 存储单元 可能运行 TALLER 超过 正文
+        // : 成对的跟踪 -and-spread 它们是值得
+        // 一起看的,而后半段是卷轴的离场,它仍然比另一栏中要
+        // 多一个数字,可以横跨面板。两个短图是合适的;
+        // 一个甜甜圈仍然拒绝分享,因为其中两个是两倍。 正文.
         constexpr int kCellRows  = 16;
         constexpr int kDonutRows = 12;
         constexpr int kShortRows = 7;
 
-        // Pair a trace with the SPREAD OF THE SAME QUANTITY first.
+        // 和那个 SPREAD OF 该 相同 QUANTITY 先说
         //
-        // Packing in section order puts both traces in one cell and both
-        // spreads in the next, so the reader carries "first byte 341ms"
-        // across the panel to meet its own histogram. Matching on the
-        // subject word keeps each story in one column: first byte and its
-        // spread, then output rate and its spread.
+        // 按区段顺序包装,将两个痕迹都放在一个 存储单元 二者
+        // 在接下来的一段时间里展开,所以读者们带着
+        // "first byte 341ms" 横跨面板以达到
+        // 自己的直方图。在主题词上匹配将每个故事保留在一个栏中:首先
+        // 字节 及其扩散,然后输出率及其扩散。
         std::vector<std::size_t> order(pictures.size());
         for (std::size_t i = 0; i < order.size(); ++i) order[i] = i;
         std::vector<bool> taken(pictures.size(), false);
@@ -579,8 +579,8 @@ Element stats_panel(const Model& m) {
             if (taken[i]) continue;
             taken[i] = true;
             seq.push_back(i);
-            // The partner is the next unpaired card whose title shares this
-            // one's leading word ("First byte" -> "First byte spread").
+            // 合伙人是下一个无名牌,其头衔与这位老板的首字母相同(第1行).
+            // "First byte" -> "First byte spread").（从 First byte 切换到 First byte spread。）
             const std::string& mine = picture_title[i];
             const std::size_t cut = mine.find(' ');
             const std::string key = cut == std::string::npos ? mine : mine.substr(0, cut);
@@ -610,18 +610,18 @@ Element stats_panel(const Model& m) {
         pictures = std::move(packed);
     }
 
-    // Deal the scalar figures into TWO columns, balanced by LINE COUNT, so
-    // a tab is a readout plus its pictures — cells that divide a wide panel
-    // evenly — rather than one very tall column beside a chart.
+    // 将平面图处理成 两个 栏,以 LINE COUNT ,
+    // 所以一个标签是读出 +它的图片—— 存储单元 平分一个宽的面板,
+    // 而不是一个高大的柱子,旁边有一个图表。
     //
-    // Balancing by line rather than by group, because dealing whole groups
-    // only balances when the groups are of similar size: the Reasoning tab's
-    // are three lines against twelve, so whichever column took the big one
-    // was four times the other and the figures ran off the bottom.
+    // 以行而不是按组进行平衡,
+    // 因为只处理组类大小相似的组类: 原因标签
+    // 是三行对十二行,所以无论哪个列取大一行
+    // 是另一行的四倍,数字都从底部冲出.
     //
-    // The cut lands on a BLANK, which is the only place a figure ends.
-    // Cutting mid-figure orphaned a detail ("16%") at the top of the second
-    // column, away from the value it qualifies.
+    // 割断的地上 BLANK ,这是唯一一个数字结束的地方。
+    // 切换中点 -figure 孤负一个至亲的(至亲)。 "16%"
+    // )在第二列的顶部,远离它有资格的值。
     std::vector<Element> text_a, text_b;
     if (!text_groups.empty()) {
         std::vector<Element> all;
@@ -637,29 +637,29 @@ Element stats_panel(const Model& m) {
             if (t && t->content.empty()) { cut = i; break; }
         }
         if (cut >= all.size()) {
-            // No blank at or after the midpoint — look backwards instead.
+            // 中间点或之后没有空白——反向看。
             for (std::size_t i = half; i-- > 0;) {
                 const auto* t = maya::as_text(all[i]);
                 if (t && t->content.empty()) { cut = i; break; }
             }
         }
         for (std::size_t i = 0; i < all.size(); ++i) {
-            if (i == cut) continue;            // drop the blank we cut on
+            if (i == cut) continue;            // 放下我们剪的空白
             (i < cut ? text_a : text_b).push_back(std::move(all[i]));
         }
     }
-    // The readout is its OWN two-column grid, nested inside one outer cell.
+    // 读取是它的 自身 双 -column 网格,在一个外层内筑巢 存储单元.
     //
-    // Flattening picture + text_a + text_b into three sibling cells makes
-    // the chart just one column of three, so it shrinks as the readout
-    // grows. Nesting keeps the split at the top level to TWO — the readout,
-    // and the pictures beside it — and lets the readout divide its own half
-    // again.
+    // 平滑图 + text_a + text_b
+    // 变成三个兄弟 存储单元 使图表只显示一列三,
+    // 因此随着读出量的增加而缩小。 两个 ——读出,
+    // 以及旁边的照片——让读出再将自己的一半
+    // 分成.
     //
-    // The inner grid is HANDED its width. It cannot see the outer split, so
-    // measured against the unbounded probe it either collapses back to one
-    // column (which is what kept the Reasoning tab's figures in a single
-    // tall stack) or divides a width it does not have and clips.
+    // 内网格是它的宽度为 HANDED。 它看不到外网的分割,
+    // 因此对照无约束的探测器测量, 它要么倒塌到一列( 也就是
+    // 它把“ 原因” 标签的数字保存在一个高的堆栈中) ,
+    // 要么将它没有的宽度和剪辑的宽度分割出来。
     Element readout;
     bool has_readout = false;
     {
@@ -668,11 +668,11 @@ Element stats_panel(const Model& m) {
         if (!text_b.empty()) text_cards.push_back(card({}, hue::cyan(), std::move(text_b)));
         if (!text_cards.empty()) {
             const int n = static_cast<int>(text_cards.size());
-            // The readout is the LEAD cell and holds two columns of text, so
-            // it takes half the body — the charts divide the rest. Splitting
-            // the width evenly between every outer cell left the figures
-            // 20 columns each and wrapped their labels mid-phrase ("of
-            // generated / tokens were / reasoning").
+            // 读出是 LEAD 存储单元 并持有两列文字,所以需要一半
+            // 正文 ——图中将其余部分进行划分。将宽度平分于每个外侧
+            // 存储单元 数字各20栏,并包裹标签 -phrase
+            // (
+            // "of generated / tokens were / reasoning").（已生成 token 中，有多少属于推理内容。）
             const int share = std::max(34, body_width() / 2);
             readout = maya::viewport(std::move(text_cards),
                                      maya::ViewportOpts{.max_width = std::max(16, share / n),
@@ -687,8 +687,8 @@ Element stats_panel(const Model& m) {
         }
     }
 
-    // The readout LEADS — the figures are what must be readable first, and
-    // the charts illustrate them.
+    // 读取 LEADS 数字是必须首先读取的,
+    // 图表说明了这些数字。
     std::vector<Element> cards;
     cards.reserve(pictures.size() + 1);
     if (has_readout) cards.push_back(std::move(readout));
@@ -697,26 +697,26 @@ Element stats_panel(const Model& m) {
     const int ncards = static_cast<int>(cards.size());
     cfg.prebuilt.push_back(
         maya::viewport(std::move(cards),
-                       maya::ViewportOpts{// A tab is usually the readout plus
-                                          // one or two pictures, so let a
-                                          // column get wide.
+                       maya::ViewportOpts{// 标签通常是读出加
+                                          // 一两张照片,
+                                          // 所以让一列宽。
                                           .max_width = 56,
-                                          // Never ask for more columns than
-                                          // there are cards. Without this the
-                                          // width can afford THREE columns
-                                          // while the tab has two cards, and
-                                          // viewport treats that as underfull
-                                          // — it holds both at max_width and
-                                          // leaves the surplus empty, which is
-                                          // the dead strip on the right. Capped
-                                          // at the card count the grid is full,
-                                          // so it divides the whole slot
-                                          // exactly and the cards FILL it.
+                                          // 永远不要要求比卡片多的列。
+                                          // 没有卡片,
+                                          // 宽度可以承受 三个
+                                          // 标签有两张牌时的列,
+                                          // 可视区域 认为这还不够充分,
+                                          // max_width 并
+                                          // 留下剩余部分, 右侧是死条。
+                                          // 在卡片上被盖住的网格是满的,
+                                          // 所以它把整个插槽和牌都
+                                          // 完全分割开来。
+                                          // FILL 就是这样
                                           .max_cols  = ncards,
-                                          // A chart still needs its label, a
-                                          // bar and the value; below this the
-                                          // grid stays one column rather than
-                                          // truncating in two.
+                                          // 图表仍然需要其标签、
+                                          // 条和值;在此下方,
+                                          // 网格将保持一列,
+                                          // 而不是将网格切换成两列。
                                           .min_width = 30,
                                           .gap       = 3,
                                           .gap_y     = 2,
@@ -724,38 +724,38 @@ Element stats_panel(const Model& m) {
                                           .flow      = maya::Flow::Row})
             .build());
 
-    // No row selection: this is a document, not a picker.
+    // 无行选择:这是文档,不是选择面板。
     cfg.selected = -1;
 
-    // Flow cards into responsive columns. A card needs ~30 columns to keep
-    // its labels and values whole; capped at 40 so a very wide terminal
-    // does not stretch a two-value tile across half the screen. The gap
-    // keeps neighbouring cards from reading as one.
-    // NOTE: col_max_width/col_min_width/col_gap are NOT set. Panel only runs
-    // its column flow for `items`; a `prebuilt` body is one opaque stack —
-    // here, the single viewport() grid above, which does the columns itself.
+    // 将卡片流到响应列。卡片需要~30列才能保持其
+    // 标签和值整体;封顶为40,宽度非常大 终端
+    // 不拉伸两条 -value 横跨半屏的瓦片,
+    // 空白会让相邻的牌无法读为一体。
+    // NOTE: col_max_width/col_min_width/col_gap
+    // 已经 不 设置。面板只运行其列流用于 `items`; a `prebuilt`
+    // 正文 是一个不透明的堆栈——这里,单 viewport() 上方的网格,它本身就执行列。
 
-    // No rule off the headings. The accent heading and the column split
-    // already separate the sections; a rule across every heading turns a
-    // page of figures into a form.
+    // 标题没有例外。重音标题和列已分开各节;
+    // 每栏各有一条规则将数字的一页
+    // 变成一个表格。
     cfg.header_rule = false;
 
     cfg.scroll = &o->scroll;
-    // Body height: the same one every other panel uses. A panel that matches
-    // its siblings is worth more than one tuned to its own content; overflow
-    // scrolls, which is what the scrollbar is for.
+    // 正文 高度: 每一个面板都使用同样的高度。
+    // 与其兄弟姐妹匹配的面板值超过一个调值, 以适应它的内容;
+    // 溢出卷轴, 卷轴条就是用来用的。
     cfg.viewport_h = panel_detail::panel_viewport_h();
 
-    // Hold that height rather than shrink-wrapping to the tab. These tabs
-    // differ in length, so without this the frame would resize every time
-    // the reader pressed tab.
+    // 保持高度,而不是缩小 -wrapping。
+    // 这些标签的长度不同,所以没有这个选项 帧 每次读者按下
+    // 标签时都会调整大小。
     cfg.fixed_viewport = true;
 
-    // Keys go through the shared key_hints helper, not a hand-spelled
-    // string in `note`: note is plain text below the body, so it cannot
-    // shed keys under width pressure and its spacing drifted from every
-    // other panel's footer. `tab` only appears when there IS another view
-    // to switch to.
+    // 键通过共享 key_hints 帮手,
+    // 不是帮手 -spelled 字符串输入 `note` :
+    // 注释为下面的纯文本 正文 ,因此它不能在宽度压力下掉出键,
+    // 其间隔从其他面板的脚上漂移. `tab` 只在有时出现 IS 换到
+    // 另一个视图。
     std::vector<Hint> keys;
     if (visible.size() > 1) keys.push_back({"tab", "switch view", 3});
     keys.push_back({"\xe2\x86\x91\xe2\x86\x93", "scroll", 5});   // ↑↓

@@ -1,11 +1,11 @@
-// keystore_test — OS keystore round-trip.
+// keystore_test — OS 密钥托尔圆形 -trip.
 //
-// The keystore is opt-in (AGENTTY_USE_KEYSTORE) and backend-dependent
-// (libsecret / macOS security / WinCred). When no backend is available — the
-// common case in headless CI — the test SKIPS with success rather than
-// failing, so it never blocks a build lacking a Secret Service / keychain.
-// To actually exercise the round-trip, run with AGENTTY_USE_KEYSTORE=1 on a
-// host with an unlocked keyring.
+// 键盘是选择 -in (AGENTTY_USE_KEYSTORE )和后
+// 端(后端) -dependent (库机密/) macOS 安保/安保/安保
+// WinCred )),当没有后端时——无头的常见情况. CI ——考证.
+// SKIPS 而不是失败 所以它永远不会阻碍一个建筑 缺少特勤/键链。
+// 来练习圆圈 -trip 运行 AGENTTY_USE_KEYSTORE =1
+// 在一个有未解锁的密钥环的主机上.
 #include "agentty/auth/keystore.hpp"
 
 #include <cstdio>
@@ -27,13 +27,13 @@ int main() {
     if (!ks::available()) {
         std::printf("SKIP: no keystore backend enabled/available "
                     "(set AGENTTY_USE_KEYSTORE=1 on a host with a keyring)\n");
-        return 0;  // graceful skip
+        return 0;  // 优雅的跳过
     }
 
     const std::string key = "agentty-test-item";
     const std::string val = "sealed-{v:2,kdf:argon2id,blob:...}";
 
-    // Clean any leftover from a previous aborted run.
+    // 清除上次中止运行中留下的任何剩余。
     ks::remove(key);
 
     CHECK(ks::store(key, val) == ks::Status::Ok, "store returns Ok");

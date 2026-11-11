@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// teardown_test.cpp — the process-exit shutdown registry.
+// teardown_test.cpp ——过程 -exit 关闭 注册表.
 //
-// Why this exists: main() used to discharge "join every background thread"
-// with a hand-written list at the bottom of the function. settings_cache
-// wrote a stop function, documented it as "called during teardown", and no
-// call was ever added — so its worker sat joinable inside a function-local
-// static and ~std::thread called std::terminate at exit (verified: the probe
-// aborted with exit code 134).
+// 为什么存在这个: main() 用于排放 "join every background thread"
+// 手牵着一只手 -written 列表,位于函数底部。 settings_cache
+// 写一个停止函数, 将其记录为 "called during teardown" ,
+// 没有 调用 被添加到这个名字中, 工作线程 在一个函数内可连接的坐落 -local
+// 静态和~ std::thread 调用 std::terminate 出口(核实:
+// 探测器以出口代码134中止)。
 //
-// A hand-maintained list cannot catch that; it IS the thing a hand-maintained
-// list forgets. Subsystems register themselves at the moment they acquire a
-// thread, and main() drains the registry from a scope guard so every early
-// return (~20 CLI subcommands) is covered too.
+// 一只手,你来帮忙 -maintained 列表无法抓取; IS 手牵手
+// -maintained 列表中已忽略。子系统在获取时进行注册。 线程 ,
+// 和 main() 排水,排水, 水,水,水 注册表 由护目镜,
+// 所以每次早归(~20) CLI 子命令)也覆盖。
 
 #include "agentty/util/teardown.hpp"
 #include "agtest.hpp"
@@ -26,7 +26,7 @@
 namespace teardown = agentty::util::teardown;
 
 TEST_CASE("teardown: actions run LIFO and the registry drains") {
-    teardown::run(agtest::cap());                       // start from a clean registry
+    teardown::run(agtest::cap());                       // 从干净的注册表开始
 
     std::vector<int> order;
     teardown::on_shutdown("first",  [&](const maya::unlocked&) { order.push_back(1); });
@@ -36,22 +36,22 @@ TEST_CASE("teardown: actions run LIFO and the registry drains") {
     CHECK(teardown::pending() == 3);
     teardown::run(agtest::cap());
 
-    // LIFO, like static destruction: a subsystem registered later may depend
-    // on an earlier one, so it tears down first.
+    // LIFO,像静态破坏:一个后来注册的子系统可能依赖于
+    // 早期的子系统,所以它首先会撕裂.
     REQUIRE(order.size() == 3);
     CHECK(order[0] == 3);
     CHECK(order[1] == 2);
     CHECK(order[2] == 1);
 
-    // Drained — a second run is a no-op rather than a double-join.
+    // 排水量——第二次排水是拒绝 -op 而不是双倍 -join.
     CHECK(teardown::pending() == 0);
     teardown::run(agtest::cap());
     CHECK(order.size() == 3);
 }
 
 TEST_CASE("teardown: a throwing action does not stop the others") {
-    // A throw during teardown is worse than the failure it reports, so run()
-    // swallows and continues to the next action.
+    // 拆卸时的投球比它报告的失败还要糟糕 所以 run()
+    // 吞下去,继续下一步行动
     teardown::run(agtest::cap());
 
     std::atomic<int> ran{0};
@@ -65,9 +65,9 @@ TEST_CASE("teardown: a throwing action does not stop the others") {
 }
 
 TEST_CASE("teardown: cancel removes a registration") {
-    // An owner whose lifetime is shorter than the process must be able to
-    // withdraw, or the registry would hold a callback into freed memory —
-    // trading the abort this registry prevents for a use-after-free at exit.
+    // 拥有者 生命周期 短于进程必须能够退出,
+    // 或者 注册表 将持有 回调 变成自由 内存 —— 交易
+    // 此终止 注册表 用于预防 -after-free 出口处
     teardown::run(agtest::cap());
 
     std::atomic<int> ran{0};
@@ -79,9 +79,9 @@ TEST_CASE("teardown: cancel removes a registration") {
     CHECK(teardown::pending() == 1);
 
     teardown::run(agtest::cap());
-    CHECK(ran.load() == 1);          // only the kept one fired
+    CHECK(ran.load() == 1);          // 只有那个被开除的
 
-    // Idempotent, and safe with a token whose action already ran.
+    // 幂等 安全地用一个已经行动起来的标志
     teardown::cancel(token);
     teardown::cancel(0);
 }

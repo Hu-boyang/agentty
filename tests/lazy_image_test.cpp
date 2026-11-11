@@ -1,23 +1,23 @@
-// lazy_image_test — loading a thread must not decode its images, and must
-// still be byte-for-byte correct the moment anything asks for them.
+// lazy_image_test 装入a 线程 不得解码其图像,
+// 而且必须仍然是 字节-for-byte 纠正任何要求他们的时刻。
 //
-// Images are the bulk of a big thread on disk (one real 29 MB thread here is
-// 17 MB of image payload), and decoding them at load time is pure waste: the
-// render path never reads image bytes, only their sizes. So ImageContent
-// defers materialisation to the first bytes() call.
+// 图像是大块头 线程 磁盘上(一个实数 29) MB 线程 这儿是17号
+// MB 图像 载荷 并解码他们 加载 时间是纯粹的浪费: 渲染 路径
+// 从不读取图像 字节 仅限大小 所以 ImageContent 推迟
+// 按需加载 改为第一个 bytes() 调用.
 //
-// That optimisation is only worth anything if it is invisible. These tests
-// pin the properties that make it invisible:
+// 优化只有在隐形的情况下才值钱。
+// 这些测试将使其隐形的属性定点:
 //
-//   1. a saved → loaded image yields the ORIGINAL bytes (blob and legacy
-//      inline-base64 forms alike),
-//   2. loading alone does NOT materialise (the whole point),
-//   3. copies of an unmaterialised image still resolve correctly,
-//   4. re-saving an unmaterialised image preserves the payload — the
-//      dangerous case, since a naive writer would serialise empty bytes and
-//      silently destroy every image in the thread on the next autosave,
-//   5. a missing blob degrades to empty rather than throwing, matching what
-//      the old eager loader did.
+//   1. a 已保存 → 已加载 图像生成 ORIGINAL 字节 (blob和遗产)
+//      内含-base64形式相同;
+//   2. 单装货 不 按需加载 (整个问题),
+//   3. 一份非物质化图像的副本仍然正确无误地解决,
+//   4. 关于 -saving 一个非物质化的图像保存 载荷 - 电话
+//      危险的,因为一个天真作家 会串连空的 字节 并
+//      悄悄地摧毁了 每一个图像 线程 下一个自动保存,
+//   5. 缺失的块会退化为空而非扔,匹配什么
+//      旧的 提前加载 装填机的
 
 #include "agtest.hpp"
 
@@ -40,8 +40,8 @@ using namespace agentty;
 
 namespace {
 
-// Deterministic pseudo-binary payload — includes bytes that are not valid
-// UTF-8, so a path that stringifies rather than treats it as bytes breaks.
+// 定型假-binaryXX载荷——包括无效的字节XXXX/UTF-8,
+// 因此这条路径是弦化而不是把它当作字节断裂.
 std::string payload(std::size_t n, unsigned seed = 1) {
     std::string s;
     s.reserve(n);
@@ -64,7 +64,7 @@ Thread thread_with_image(const std::string& bytes) {
     return t;
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("lazy image: save → load round-trips the exact bytes") {
     const std::string original = payload(64u * 1024u);
@@ -92,14 +92,14 @@ TEST_CASE("lazy image: loading does NOT materialise the bytes") {
     REQUIRE(loaded.has_value());
     const auto& img = loaded->messages[0].images[0];
 
-    // THE point of the change: nothing was decoded yet.
+    // 该 更改的点: 还没有解码。
     CHECK(!img.materialised());
     CHECK(!img.source().blob.empty());
 
-    // Asking is what pays for it — and it's correct when we do.
+    // 问是何以付之——当我们这样做时,是正确的.
     CHECK(img.bytes() == original);
     CHECK(img.materialised());
-    // Idempotent: a second call returns the same bytes, not a re-read.
+    // 幂等 : 秒数 调用 返回相同的内容 字节 ,不是一个 -read.
     CHECK(img.bytes() == original);
 }
 
@@ -112,17 +112,17 @@ TEST_CASE("lazy image: a copy of an unmaterialised image still resolves") {
     auto loaded = persistence::load_thread_by_id(::agentty::IoAccess::grant(), t.id);
     REQUIRE(loaded.has_value());
 
-    // Threads are copied around freely (checkpoints, forks, the view cache).
-    // A copy taken BEFORE materialisation must carry the source with it.
+    // 线程 自由复制周围(检查点、叉、视图) 缓存).
+    // 一份拷贝 之前 按需加载 一定要带着源头
     ImageContent copy = loaded->messages[0].images[0];
     CHECK(!copy.materialised());
     CHECK(copy.bytes() == original);
 }
 
 TEST_CASE("lazy image: re-saving an unmaterialised image keeps the payload") {
-    // The dangerous case. Every turn autosaves the thread; if the writer
-    // serialised an unmaterialised image by reading its (empty) bytes, the
-    // first save after a switch would wipe every image in the thread.
+    // 危险的案子,每转弯都会自动保存 线程 ;
+    // 如果作者通过读取其(空)来序列化一个非物质化的图像 字节 ,
+    // 第一个 保存 切换后,会擦拭每张图像 线程.
     const std::string original = payload(48u * 1024u, 11);
     Thread t = thread_with_image(original);
     persistence::save_thread(::agentty::IoAccess::grant(), agtest::cap(), t);
@@ -131,7 +131,7 @@ TEST_CASE("lazy image: re-saving an unmaterialised image keeps the payload") {
     REQUIRE(loaded.has_value());
     CHECK(!loaded->messages[0].images[0].materialised());
 
-    // Save it straight back WITHOUT ever touching bytes().
+    // 保存 直冲回来 无需 曾经触摸 bytes().
     persistence::save_thread(::agentty::IoAccess::grant(), agtest::cap(), *loaded);
     persistence::flush_pending_saves(::agentty::IoAccess::grant(), agtest::cap());
 
@@ -143,8 +143,8 @@ TEST_CASE("lazy image: re-saving an unmaterialised image keeps the payload") {
 }
 
 TEST_CASE("lazy image: legacy inline base64 still loads") {
-    // Threads written before the blob store carry `data` (base64) inline.
-    // They must keep working, lazily, with no migration.
+    // 线程 在blob 商店载货前写 `data` (base64 ) 内线。
+    // 他们必须继续工作,懒惰,没有移民。
     const std::string original = payload(4096, 5);
     Thread t;
     t.id = ThreadId{"lazyimg_legacy"};
@@ -152,9 +152,9 @@ TEST_CASE("lazy image: legacy inline base64 still loads") {
     m.role = Role::User;
     m.text = "legacy";
     t.messages.push_back(std::move(m));
-    // Seed a LEGACY whole-document file directly. save_thread() now
-    // migrates to the log format and retires the .json, so it can no
-    // longer be used to manufacture the old shape this test is about.
+    // 种子 a LEGACY 整体 -document 直接存档。
+    // save_thread ()现在迁移到日志格式,并退出。
+    // JSON ,因此它不能再用来制造这个测试所涉及的旧形状.
     const auto seed_path = persistence::threads_dir() / (t.id.value + ".json");
     {
         auto j = persistence::thread_meta_to_json(t);
@@ -165,7 +165,7 @@ TEST_CASE("lazy image: legacy inline base64 still loads") {
         persistence::write_json_atomic(::agentty::IoAccess::grant(), seed_path, j.dump(2));
     }
 
-    // Hand-write the legacy shape into the saved file.
+    // 手 -write 将遗迹形状变成 已保存 文档。
     const auto path = persistence::threads_dir() / (t.id.value + ".json");
     std::string doc;
     {
@@ -188,15 +188,15 @@ TEST_CASE("lazy image: legacy inline base64 still loads") {
     REQUIRE(loaded.has_value());
     REQUIRE(loaded->messages[0].images.size() == 1);
     const auto& img = loaded->messages[0].images[0];
-    CHECK(!img.materialised());          // still lazy, just from base64
+    CHECK(!img.materialised());          // 仍然 惰性 ,仅从 base64
     CHECK(img.bytes() == original);
 }
 
 TEST_CASE("lazy image: a legacy inline image migrates to a blob on save") {
-    // Lazy loading alone doesn't shrink a legacy thread: the 17 MB of base64
-    // is still tokenized by the JSON parser on every single load. Saving
-    // migrates it to the blob store ONCE, after which the thread file is
-    // small forever. The bytes must survive that migration untouched.
+    // 惰性 单装不会缩小遗产 线程 17个 MB 备注
+    // base64 仍然以 JSON 解析器 每一张 加载。
+    // 保存将其迁移到blob商店 一次 ,然后 线程 文件是小的,
+    // 永远。 字节 必须在这种移徙中幸存下来。
     const std::string original = payload(8192, 13);
     Thread t;
     t.id = ThreadId{"lazyimg_migrate"};
@@ -204,7 +204,7 @@ TEST_CASE("lazy image: a legacy inline image migrates to a blob on save") {
     m.role = Role::User;
     m.text = "legacy";
     t.messages.push_back(std::move(m));
-    // Seed a LEGACY whole-document file directly (see the note above).
+    // 种子 a LEGACY 整体 -document 直接存档(见上文注释)。
     const auto path = persistence::threads_dir() / (t.id.value + ".json");
     {
         auto j = persistence::thread_meta_to_json(t);
@@ -233,15 +233,15 @@ TEST_CASE("lazy image: a legacy inline image migrates to a blob on save") {
     }
     const auto legacy_size = fs::file_size(path);
 
-    // Load (lazy) then save straight back — the autosave every turn does.
+    // 加载(惰性)然后是保存直回——每转弯自动保存.
     auto legacy = persistence::load_thread_file(::agentty::IoAccess::grant(), path);
     REQUIRE(legacy.has_value());
     CHECK(!legacy->messages[0].images[0].materialised());
     persistence::save_thread(::agentty::IoAccess::grant(), agtest::cap(), *legacy);
     persistence::flush_pending_saves(::agentty::IoAccess::grant(), agtest::cap());
 
-    // The save rewrote the thread in the LOG format, so the legacy
-    // document is gone and the payload now lives in the blob store.
+    // 电话 保存 重订 线程 输入 LOG 格式,
+    // 因此遗留文档已删除, 载荷 现在住在小店里
     const auto log_path = persistence::threads_dir() / (t.id.value + ".jsonl");
     REQUIRE(fs::exists(log_path));
     CHECK_FALSE(fs::exists(path));
@@ -257,7 +257,7 @@ TEST_CASE("lazy image: a legacy inline image migrates to a blob on save") {
     CHECK_MESSAGE(fs::file_size(log_path) < legacy_size,
                   "and the thread file must shrink by the payload size");
 
-    // And the image still reads back byte-for-byte.
+    // 图像仍然读回 字节-for-byte.
     auto migrated = persistence::load_thread_by_id(::agentty::IoAccess::grant(), t.id);
     REQUIRE(migrated.has_value());
     REQUIRE(migrated->messages[0].images.size() == 1);
@@ -265,8 +265,8 @@ TEST_CASE("lazy image: a legacy inline image migrates to a blob on save") {
 }
 
 TEST_CASE("lazy image: a missing blob degrades to empty, never throws") {
-    // Matches the eager loader's old behaviour for a corrupt/absent payload:
-    // empty bytes, which every wire path already skips.
+    // 匹配 提前加载 装填器的旧行为 corrupt/absent 载荷:
+    // 空 字节 ,每个 传输 路径已跳过。
     auto img = ImageContent::lazy(
         "image/png", ImageContent::Source{.blob = "definitely-not-a-real-blob",
                                           .b64 = {}});
@@ -274,13 +274,13 @@ TEST_CASE("lazy image: a missing blob degrades to empty, never throws") {
 }
 
 TEST_CASE("lazy image: many threads reading one unmaterialised image") {
-    // bytes() is const and runs on worker threads: the provider transports
-    // build the wire body off the UI thread, and the persistence writer
-    // saves on its own. It used to write two `mutable` fields unguarded, so
-    // two readers of the same unresolved payload raced on a std::string.
-    // Now it resolves once under std::call_once. Under the tsan preset this
-    // is the regression check; in a normal build it checks every reader
-    // sees the exact bytes.
+    // bytes() 正在连接并运行 工作线程 线程 : 提供者
+    // 传输层 构建 传输 正文 关闭 UI 线程 ,并显示 持久化
+    // 编剧 保存 曾经写过两首 `mutable` 字段没有保护,
+    // 所以两个读取器没有解决 载荷 比赛在a std::string.
+    // 一次就解决了 std::call_once。在 tsan
+    // 预设下,这是回归检查;在普通建筑中,它检查每个读者都
+    // 看到准确的 字节.
     const std::string original = payload(256u * 1024u, 11);
     Thread t = thread_with_image(original);
     persistence::save_thread(::agentty::IoAccess::grant(), agtest::cap(), t);
@@ -288,8 +288,8 @@ TEST_CASE("lazy image: many threads reading one unmaterialised image") {
     auto loaded = persistence::load_thread_by_id(::agentty::IoAccess::grant(), t.id);
     REQUIRE(loaded.has_value());
 
-    // One object shared by reference, AND copies of it: both are real
-    // shapes (a const Thread& handed around, a Thread copied per turn).
+    // 参考文献中共享的天体, 和 复制件: 两者都是真实形状(
+    // 凸轮)。 线程 交接( G), a 线程 复制每转弯)。
     const ImageContent& shared = loaded->messages[0].images[0];
     REQUIRE(!shared.materialised());
     std::vector<ImageContent> copies(4, shared);
@@ -308,8 +308,8 @@ TEST_CASE("lazy image: many threads reading one unmaterialised image") {
 }
 
 TEST_CASE("lazy image: set_bytes on one copy leaves the others alone") {
-    // Copies share one cell for cheap copying; replacing the payload must
-    // not change what the other copies see.
+    // 复制共享一个 存储单元 用于廉价复制;
+    // 替换 载荷 不得改变其他副本所见。
     const std::string original = payload(4u * 1024u, 5);
     ImageContent a{"image/png", original};
     ImageContent b = a;

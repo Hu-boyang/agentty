@@ -1,9 +1,9 @@
-// symbol_read_corpus — replay real `read symbol=` lookups that failed in
-// saved sessions against the CURRENT tool. Each line of the corpus file is
-// `<abs path>\t<symbol>`; the symbol is known to appear in the file. Reports
-// how many resolve, and prints the misses. Also pass --verbose to show the
-// first line of each resolved span (sanity: it should be the definition).
-//   agentty_standalone_tests symbol_read_corpus <corpus.tsv> [--verbose]
+// symbol_read_corpus ——重播真实
+// `read symbol=` 无法在其中搜索 已保存 届会的会期 当前 工具。
+// 每个实体文件的行是 `<abs path>\t<symbol>` ;
+// 缩写 符号 显示多少解析度,并打印出误差。还通过 --verbose
+// 以显示每个已解析的跨度的第一行(安全性:应该是定义)。
+//   agentty_standalone_tests symbol_read_corpus <corpus.tsv> [--verbose] (中文(简体) ).
 
 #include "agtest_cap.hpp"
 #include <cstdio>
@@ -55,9 +55,9 @@ int main(int argc, char** argv) {
         std::printf("corpus had no usable `<path>\\t<symbol>` lines\n");
         return 1;
     }
-    // Every line is a symbol KNOWN to be in that file, so a miss is a
-    // regression in `read symbol=`, not a property of the corpus. Fail loudly
-    // instead of printing MISS and exiting 0 — a probe that cannot fail is
-    // not a test.
+    // 每行都是一条 符号 KNOWN 写进文件里,
+    // 所以误读就是回归 `read symbol=` 而不是被
+    // 打印出来 MISS 并且退出 0 —— 无法失败的探测器
+    // 不是测试.
     return ok == total ? 0 : 1;
 }

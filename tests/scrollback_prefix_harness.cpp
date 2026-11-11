@@ -1,30 +1,30 @@
-// scrollback_prefix_harness — STANDALONE, on-demand append-only-prefix
-// oracle for the agentty↔maya scrollback seam.
+// scrollback_prefix_harness — STANDALONE 打开 -demand 附录
+// -only-prefix 预言 agentty↔maya 回滚缓冲区 接口边界.
 //
-// WHY THIS EXISTS (and why it is NOT a ctest entry):
-//   The full oracle (tests/scrollback_oracle_test.cpp) drives maya's real
-//   Runtime::render through a PTY with the whole agentty view + freeze/trim
-//   lifecycle — thorough, but heavy, and it lives behind AGENTTY_BUILD_TESTS
-//   + ctest. This project's workflow skips ctest. So the invariant that
-//   actually matters — "a row committed to native scrollback is NEVER later
-//   rewritten, reordered, or duplicated" — had no cheap, reachable check.
+// 原因 此 EXISTS (以及为什么是) 不 测试条目 :
+//   完整的先知( 圣灵) tests/scrollback_oracle_test.cpp 驱动器
+//   maya 真实的 Runtime::render 以电子邮件方式发送 PTY 整个 agentty 视图
+//   + freeze/trim 生命周期——彻底但很重,它生活在后面 AGENTTY_BUILD_TESTS
+//   + cest. 此工程的工作流程跳过 cest。 所以 不变量 这一点实际上很重要——
+//   提交到原生回滚缓冲区的行，之后绝不能被重写、重排或重复。
+//   没有便宜的、可以伸手的支票。
 //
-//   This harness fills that gap. It drives maya's PUBLIC inline-frame API
-//   (Empty→seed→render→commit→demote→render) directly against a minimal
-//   in-process terminal emulator with native scrollback, across a battery
-//   of oversized-startup / committed-prefix / re-emit scenarios, and
-//   asserts the append-only-prefix property. It builds with ONE g++ line
-//   (no CMake, no maya test target) and runs in well under a second:
+//   这条绳子可以填补空白,它能驱动 maya's PUBLIC 内置 -frame
+//   API (时间) 渲染 承诺 承诺 表示承诺 表示决心 渲染 直接对极小
+//   于 -process 终端 本地模拟器 回滚缓冲区 ,跨过一个超大电池
+//   -startup / 已执行 -prefix / 重写 -emit 假设,
+//   并声明附件 -only-prefix 属性。它与 一个 g++ 行(
+//   无) CMake ,没有 maya 测试目标),运行在一秒以内:
 //
 //     g++ -std=c++23 -I third_party/maya/include tests/scrollback_prefix_harness.cpp
 //         build/third_party/maya/libmaya.a -o /tmp/sbh && /tmp/sbh
 //
-//   (Any libmaya.a / object set providing InlineFrameState + Canvas +
-//   Writer works; the harness only touches those three public headers.)
+//   (任何活动) libmaya.a / 对象集提供 InlineFrameState
+//   + 画板 + 作家作品; 绳子只触及这三家公共 头文件.)
 //
-//   The minimal TermEmu + pipe writer are ported from
-//   test_fresh_oversized_scrollback.cpp — kept self-contained here so the
-//   harness has ZERO dependency on the test tree's check.hpp or build glue.
+//   最低额 TermEmu + 管道刻录器从
+//   test_fresh_oversized_scrollback.cpp - 保持自我 - 保持自已 - 保持
+//   自身自已 -contained 这儿,所以绳子有 ZERO 对测试的依赖 源码树's check.hpp 或造胶.
 
 #include "maya/render/inline_frame.hpp"
 #include "maya/render/canvas.hpp"
@@ -46,7 +46,7 @@ using namespace maya;
 using namespace maya::inline_frame;
 
 // ─────────────────────────────────────────────────────────────────────────
-// Non-blocking pipe Writer (ported).
+// Non-blocking 管线作家 (移植).
 // ─────────────────────────────────────────────────────────────────────────
 static std::pair<Writer, int> make_pipe_writer() {
     int fds[2];
@@ -69,7 +69,7 @@ static std::string read_fd(int rfd) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// TermEmu — minimal ANSI terminal with native scrollback (ported).
+// TermEmu 最低 ANSI 终端 与本地关系 回滚缓冲区 (发端).
 // ─────────────────────────────────────────────────────────────────────────
 struct TermEmu {
     int cols, rows;
@@ -169,7 +169,7 @@ struct TermEmu {
 };
 
 // ─────────────────────────────────────────────────────────────────────────
-// Harness state + assertions.
+// 利用状态+断言.
 // ─────────────────────────────────────────────────────────────────────────
 static int g_failures = 0;
 static int g_checks   = 0;
@@ -189,9 +189,9 @@ static Canvas marked_canvas(int width, int rows, StylePool& pool, const char* pr
     return c;
 }
 
-// The INVARIANT check: no marked row appears twice in the whole transcript
-// (scrollback ++ viewport). A duplicate means a committed row was re-emitted
-// — the exact corruption class. Returns first dup pair (or {-1,-1}).
+// 电话 INVARIANT 检查: 整个记录中两次没有标记行( Q)
+// 回滚缓冲区 ++ 可视区域。重复表示承诺行已重新 -emitted
+// ——确切的腐败类. 返回第一dup对(或{-1,-1}).
 struct DupScan { int a = -1, b = -1; std::string line; int count = 0; };
 static DupScan scan_dups(const TermEmu& emu, const char* marker) {
     auto all = emu.transcript();
@@ -219,23 +219,23 @@ static void dump(const TermEmu& emu, const char* why) {
             all[static_cast<std::size_t>(y)].c_str());
 }
 
-// The maya public witness for viewport height in a no-tty test context.
+// 电话 maya 公共证人 可视区域 高度在无 -tty 测试上下文。
 using maya::term_rows_for_test;
 
 // ─────────────────────────────────────────────────────────────────────────
-// Frame drivers. The Empty→Fresh seed render and the Synced render have
-// DIFFERENT signatures (Synced consumes a verify() ShadowWitness), so they
-// need separate helpers — exactly the two shapes the runtime uses.
+// 帧 驱动程序。空 = 弗赖什种子 渲染 和同步的 渲染 有过 不同
+// 签名(同步 消耗 a verify() ShadowWitness )),
+// 所以他们需要单独的帮助者——正是两者塑造了". 运行时 使用时。
 // ─────────────────────────────────────────────────────────────────────────
 
-// Empty→seed→render. Feeds emitted bytes into the emulator; returns the
-// Synced arm (asserting we reached it).
+// 空 / 种子 / 空 的 / 籽 / 尾 的 种子 或 种子。 渲染。释放的种子 字
+// 节 进入模拟器,以返回同步臂(我们已到达它)。
 static std::optional<InlineFrame<Synced>>
 seed_render(TermEmu& emu, int rfd, const Canvas& c, int term_h,
             StylePool& pool, Writer& writer) {
     auto o = InlineFrame<Empty>{}.seed().render(
         c, content_rows(c), term_rows_for_test(term_h), pool, writer,
-        /*sync=*/false);
+        /*同步=( ===*/false);
     emu.feed(read_fd(rfd));
     return std::visit([](auto&& a) -> std::optional<InlineFrame<Synced>> {
         using T = std::decay_t<decltype(a)>;
@@ -244,31 +244,31 @@ seed_render(TermEmu& emu, int rfd, const Canvas& c, int term_h,
     }, std::move(o));
 }
 
-// (A Synced→verify→render driver would live here for multi-frame
-// scenarios; the current single-render / re-emit set doesn't need it. The
-// full multi-frame streaming path is covered by the PTY oracle instead —
-// see the SCOPE note on scn_oversized_startup.)
+// (A同步 ) ——核实 —— 渲染 司机会在这里多住 -frame 假设;
+// 当前的单 -render / 重写 -emit 完全多档 -frame
+// 流式传输 路径覆盖在 PTY 先知会代替他——见 SCOPE 说明
+// scn_oversized_startup.)
 
 // ─────────────────────────────────────────────────────────────────────────
-// SCENARIO 1 — OVERSIZED STARTUP places every row exactly once.
-//   A first (Fresh) render of a canvas taller than the viewport must put
-//   its top (content − term_h) rows into scrollback and its tail in the
-//   viewport, every row present EXACTLY once in reading order. This is the
-//   append-only base case; capping case (A) or double-emitting would show
-//   as a missing row or a duplicate here.
+// SCENARIO 1 — OVERSIZED STARTUP 每行都放一次,就放一次
+//   首个( 弗雷什 ) 渲染 高过画布的 可视区域 必须在顶端(
+//   内容 - term_h )行进 回滚缓冲区 财务报告和已审计
+//   财务报表 末尾 输入 可视区域 ,每行现成 恰好 读取顺序。
+//   这是附件 -only 基数; 上限大小写( A) 或双倍 -emitting
+//   将会显示为缺少的行或重复。
 //
-//   NOTE ON SCOPE: this harness drives maya's RAW InlineFrame API, which
-//   diffs against its own prev_cells shadow but does NOT own the host-side
-//   front-trim (dropping the committed prefix from the next canvas) that
-//   agentty's view performs between streaming frames. Faithfully modeling
-//   incremental multi-frame GROWTH therefore requires replicating that
-//   front-trim, which is exactly what the full PTY oracle
-//   (tests/scrollback_oracle_test.cpp, driving the real Runtime::render +
-//   agentty view) already does. This standalone harness deliberately keeps
-//   to the single-render / re-emit invariants it CAN model exactly — the
-//   load-bearing corruption class (a committed row re-emitted) — rather
-//   than ship scenarios whose "failures" are harness mismodeling, not maya
-//   bugs. Honest coverage beats broad-but-wrong coverage.
+//   NOTE ON SCOPE : 这个拉带驱动器 maya's RAW
+//   InlineFrame API ,这与自己的 prev_cells 阴影却有 不
+//   拥有主机 -side 前面 -trim (从下一个画布上删除已承诺的前缀)
+//   agentty 视图在 流式传输 帧 . 忠实地模拟渐进式多 -frame
+//   GROWTH 因此,需要复制这一条线 -trim ,这正是什么 满 PTY
+//   甲骨文 (中文(简体) ).
+//   tests/scrollback_oracle_test.cpp 驾驶真实的
+//   Runtime::render + agentty 视图中已使用。这种独立的控制带会
+//   刻意保持到单项 -render / 重写 -emit 不变量 来,来,来 CAN
+//   模型的精确性—— 加载-bearing 腐败类别(已执行的行) -emitted —
+//   —而不是那些在船舶上造成严重损失的船舶情况。 "failures" 系系系系错构,
+//   不是 maya 错误,诚实的报导比广义的要好 -but-wrong 报道。
 // ─────────────────────────────────────────────────────────────────────────
 static void scn_oversized_startup(int W, int TERM_H) {
     const int CONTENT = TERM_H + 16;
@@ -281,7 +281,7 @@ static void scn_oversized_startup(int W, int TERM_H) {
     check(s.has_value(), "startup: oversized first render reaches Synced");
     dump(emu, "startup");
 
-    // Every BOOT-row-k present once, in ascending order, all CONTENT rows.
+    // 每一个 BOOT-row-k 一次,按上升顺序,全部 CONTENT 排行数.
     auto all = emu.transcript();
     int expected = 0; bool ordered = true;
     for (const auto& ln : all) {
@@ -302,14 +302,14 @@ static void scn_oversized_startup(int W, int TERM_H) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// SCENARIO 2 — committed-prefix IMMUTABILITY at the API level.
-//   After an oversized render + commit(overflow), scrollback_prefix_matches
-//   must be TRUE for the committed rows against the same canvas (they are
-//   byte-identical to what physically overflowed — the runtime's safety
-//   gate). And the ScrollbackMarker must clamp: you can never commit more
-//   rows than prev_rows. These are the exact predicates Runtime::render's
-//   gate relies on; pinning them here catches a regression in the shadow
-//   shift / prefix-compare math without needing a full frame loop.
+// SCENARIO 2 - 已执行 -prefix IMMUTABILITY 现场 API 级别。
+//   过大之后 渲染 + 承诺(流出), scrollback_prefix_matches
+//   一定是,我必须 TRUE 以行者发誓, 字节-identical
+//   以至物质溢出, 运行时 安全门,还有...
+//   ScrollbackMarker 必须夹住: 您无法执行的行数
+//   超过 prev_rows。这些是准确的上游 Runtime::render
+//   '门依赖; 将它们钉在这里会发现阴影移/ 前缀中的回归
+//   -compare 数学不需要一个满分 帧 循环。
 // ─────────────────────────────────────────────────────────────────────────
 static void scn_committed_prefix_immutable(int W, int TERM_H) {
     const int CONTENT = TERM_H + 20;
@@ -325,29 +325,29 @@ static void scn_committed_prefix_immutable(int W, int TERM_H) {
     const int overflow = s->rows() - TERM_H;
     check(overflow > 0, "pin: frame overflows the viewport");
 
-    // The committed prefix is byte-identical to the canvas top `overflow`
-    // rows — the gate must agree.
+    // 承诺的前缀是 字节-identical 转到画布顶端 `overflow`
+    // 行——门必须同意.
     check(s->scrollback_prefix_matches(c, overflow),
           "pin: committed prefix matches canvas top (gate would allow diff)");
 
-    // Over-commit clamps: asking for more than prev_rows yields a marker
-    // bounded to prev_rows (never an out-of-range shift).
+    // 完毕 -commit 夹: 要求多于 prev_rows 生成一个标记,以 prev_rows
+    // (从来没有出过) -of-range ) , 以"换班"为主.
     auto over = s->scrollback_marker(s->rows() + 100);
     check(over.rows() <= s->rows(),
           "pin: over-commit marker clamps to prev_rows ("
           + std::to_string(over.rows()) + " <= " + std::to_string(s->rows()) + ")");
 
-    // A DIVERGENT canvas top must FAIL the prefix match — the gate must not
-    // green-light a diff over a shifted prefix.
-    Canvas other = marked_canvas(W, CONTENT, pool, "XXX");  // different labels
+    // A DIVERGENT 画布必须顶端 FAIL 前缀匹配——大门不能绿
+    // -light diff 过一个转动的前缀。
+    Canvas other = marked_canvas(W, CONTENT, pool, "XXX");  // 不同的标签
     check(!s->scrollback_prefix_matches(other, overflow),
           "pin: divergent prefix correctly FAILS the gate");
 
-    // Capture the marker BEFORE the move-commit consumes `s`.
+    // 抓取标记 之前 移动 -commit 消耗量 `s`.
     auto committed_marker = s->scrollback_marker(overflow);
 
-    // Commit is well-formed: after committing `overflow`, prev_rows drops
-    // by exactly that many and stays >= 0.
+    // 交纳是好的 -formed : 实施后 `overflow`,
+    // prev_rows 多少人来过,就只留下零
     const int before = s->rows();
     auto committed = std::move(*s).commit(committed_marker);
     check(committed.rows() == before - overflow,
@@ -359,17 +359,17 @@ static void scn_committed_prefix_immutable(int W, int TERM_H) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// SCENARIO 3 — RE-EMIT the SAME committed canvas (the classic strand).
-//   Rendering an already-committed oversized canvas through a FRESH Empty
-//   (empty prefix) MUST strand a duplicate — this is the hazard the runtime
-//   avoids by routing recovery through Stale/HardReset, never bare case-A.
-//   We assert the hazard IS present (proving the harness detects it) and
-//   that the SAFE path (commit + Stale repaint) does NOT strand.
+// SCENARIO 3 — RE-EMIT 编号 相同 已用过的帆布,
+//   渲染 已经 -committed 通过一个超大小画布 FRESH
+//   空( 空前缀) 必须 线条重复 —— 这是危险 运行时 通过路径
+//   回收避免 Stale/HardReset ,从不裸露的箱子 -A.
+//   我们坚持危险 IS 现(验证绳子能探测到) SAFE
+//   路径(承诺+) 过期 重绘 已经 不 线条。
 // ─────────────────────────────────────────────────────────────────────────
 static void scn_reemit_hazard_and_safe(int W, int TERM_H) {
     const int TALL = TERM_H + 16;
 
-    // (a) HAZARD: bare Empty re-emit strands (harness must DETECT a dup).
+    // (a) HAZARD : 空重写 -emit 线条( harness 一定要) DETECT 来,我们来,我们去,我们去
     {
         StylePool pool;
         auto [writer, rfd] = make_pipe_writer();
@@ -377,7 +377,7 @@ static void scn_reemit_hazard_and_safe(int W, int TERM_H) {
         Canvas c = marked_canvas(W, TALL, pool, "REEM");
         auto s1 = seed_render(emu, rfd, c, TERM_H, pool, writer);
         check(s1.has_value(), "reemit-hazard: first render Synced");
-        // Bare Empty re-emit of the SAME canvas (the unsafe shape).
+        // 空空重置 -emit 会 议 日 程 和 议 程 相同 画布(不安全的形状).
         auto s2 = seed_render(emu, rfd, c, TERM_H, pool, writer);
         check(s2.has_value(), "reemit-hazard: re-emit Synced");
         auto d = scan_dups(emu, "REEM-row-");
@@ -386,7 +386,7 @@ static void scn_reemit_hazard_and_safe(int W, int TERM_H) {
         close(rfd);
     }
 
-    // (b) SAFE: HardReset-shaped re-emit (wipe prefix) does NOT strand.
+    // (b) SAFE: HardReset-shaped 内容 -emit (擦除前缀)确实 不 线条。
     {
         StylePool pool;
         auto [writer, rfd] = make_pipe_writer();
@@ -394,9 +394,9 @@ static void scn_reemit_hazard_and_safe(int W, int TERM_H) {
         Canvas c = marked_canvas(W, TALL, pool, "SAFE");
         auto s1 = seed_render(emu, rfd, c, TERM_H, pool, writer);
         check(s1.has_value(), "reemit-safe: first render Synced");
-        // Model HardReset::render: prepend the \x1b[2J\x1b[3J\x1b[H wipe,
-        // then a bare Fresh re-emit. The \x1b[3J clears scrollback so the
-        // re-scroll pushes only freshly-blanked rows off — no dup.
+        // Model HardReset::render: 预置\x1b[2J\x1 b][3J
+        // \x11b][H擦擦,然后是赤裸的新鲜的re-emit. x1b[3J] 清除回滚缓冲区,
+        // 所以re-scroll推的只有刚开始的-blanked行——没有dup.
         emu.feed(std::string("\x1b[2J\x1b[3J\x1b[H"));
         auto s2 = seed_render(emu, rfd, c, TERM_H, pool, writer);
         check(s2.has_value(), "reemit-safe: wipe re-emit Synced");
@@ -409,12 +409,12 @@ static void scn_reemit_hazard_and_safe(int W, int TERM_H) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────────────
-// SCENARIO 4 — ScrollbackMarker GENERATION binding (type-theoretic SoT).
-//   The marker is a capability bound to the IDENTITY of the state that
-//   issued it. A marker consumed against the SAME generation commits; a
-//   STALE marker (issued before an intervening commit advanced the state)
-//   is REJECTED as a no-op — it can never MISAPPLY a superseded row count.
-//   This is the deposit-watermark second-accountant class closed by type.
+// SCENARIO 4 — ScrollbackMarker GENERATION 绑定 (类型) -theoretic SoT).
+//   标记是连接到 IDENTITY 使用标记的标记
+//   相同 生成时执行; a STALE 标记(在干预
+//   承诺之前发布) REJECTED 作为无 -op
+//   - 它永远不会 MISAPPLY a 替换的行数。
+//   这是押金 -watermark 第二届 -accountant 按类型分类的课关闭。
 // ────────────────────────────────────────────────────────────────────────────────────
 static void scn_marker_generation(int W, int TERM_H) {
     const int TALL = TERM_H + 16;
@@ -429,19 +429,19 @@ static void scn_marker_generation(int W, int TERM_H) {
     const int overflow = s->rows() - TERM_H;
     check(overflow > 0, "gen: frame overflows the viewport");
 
-    // A live state that has rendered carries a non-zero generation.
+    // 已经存在状态的状态 带来了非 -zero 生成。
     const std::uint64_t gen_before = s->state_generation();
     check(gen_before != 0, "gen: rendered state has non-zero generation ('"
           + std::to_string(gen_before) + "')");
 
-    // Mint a marker NOW, at gen_before. This is the stale one we'll try to
-    // reuse after an intervening commit.
+    // 薄荷标记 当前 ,在 gen_before。这是 过期
+    // 一次我们尝试在一次介入后再使用
     auto stale = s->scrollback_marker(overflow);
     check(stale.generation() == gen_before,
           "gen: marker captures the issuing state's generation");
 
-    // (a) LEGITIMATE same-tick commit: a FRESH marker minted from `s` is
-    //     consumed immediately — same generation, must succeed & advance.
+    // (a) LEGITIMATE同为-tick承诺:从`s`中
+    //     铸造的FRESH标记立即被消耗——同一代人必须成功和进步。
     const int before = s->rows();
     auto fresh = s->scrollback_marker(overflow);
     auto committed = std::move(*s).commit(fresh);
@@ -450,17 +450,17 @@ static void scn_marker_generation(int W, int TERM_H) {
           + std::to_string(committed.rows()) + " == "
           + std::to_string(before - overflow) + ")");
 
-    // The commit advanced the generation — the state's identity changed.
+    // 承诺推进了一代人——国家身份改变.
     const std::uint64_t gen_after = committed.state_generation();
     check(gen_after != gen_before,
           "gen: commit advances the generation ("
           + std::to_string(gen_before) + " -> "
           + std::to_string(gen_after) + ")");
 
-    // (b) STALE marker rejection: the `stale` marker (still at gen_before)
-    //     applied to the POST-commit state must be a NO-OP — rows unchanged.
-    //     Without the generation guard this would drop `overflow` more rows
-    //     from a shadow that never pushed them (the deposit-watermark bug).
+    // (b) STALE 标记拒绝: `stale` 标记( 仍然在 gen_before
+    //     适用于 POST-commit 状态必须是 NO-OP - 整行不变。
+    //     没有一代守卫,这个会掉下来的 `overflow` 更多从
+    //     阴影中推出的行数( 保证金) -watermark 错误).
     const int rows_pre_stale = committed.rows();
     auto after_stale = std::move(committed).commit(stale);
     check(after_stale.rows() == rows_pre_stale,
@@ -473,14 +473,14 @@ static void scn_marker_generation(int W, int TERM_H) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────────────
-// SCENARIO 5 — ScrollbackProof: the render gate lifted into the type system.
-//   check_scrollback is the SOLE producer of the proof that
-//   InlineFrame<Synced>::render now REQUIRES. Three outcomes:
-//     - overflow + matching prefix → WITNESSED proof (bound to state)
-//     - overflow + shifted prefix  → std::nullopt (caller MUST recover)
-//     - fits the viewport          → VACUOUS proof (nullptr, overflow 0)
-//   "Render an overflowed frame without the gate" is now uncompilable;
-//   this scenario proves the runtime discharge of that obligation.
+// SCENARIO 5 — ScrollbackProof:渲染门升入型号系统.
+//   check_scrollback 是那个 SOLE 证明的制作人
+//   InlineFrame<Synced>::渲染 现在 REQUIRES . 三项成果:
+//     - 溢出+匹配前缀 → WITNESSED 证明( 绑定状态)
+//     - 溢出+调换前缀 + std::nullopt (电话 必须 追回)
+//     - 适合你,我爱他 可视区域          → VACUOUS 证明( 3) nullptr , 溢出数 0)
+//   不经过判定门直接渲染溢出帧。
+//   现在无法合并; 运行时 履行该义务。
 // ────────────────────────────────────────────────────────────────────────────────────
 static void scn_scrollback_proof(int W, int TERM_H) {
     const int TALL = TERM_H + 16;
@@ -492,7 +492,7 @@ static void scn_scrollback_proof(int W, int TERM_H) {
     check(s.has_value(), "proof: oversized render reaches Synced");
     if (!s) { close(rfd); return; }
 
-    // (a) Overflow + matching prefix → WITNESSED proof.
+    // (a) 过度流+匹配前缀 → WITNESSED 证明。
     auto ok = s->check_scrollback(c, TERM_H);
     check(ok.has_value(),
           "proof: overflow + matching prefix issues a proof");
@@ -507,13 +507,13 @@ static void scn_scrollback_proof(int W, int TERM_H) {
               "proof: witnessed proof is bound to a state");
     }
 
-    // (b) Overflow + SHIFTED prefix → std::nullopt (must recover).
-    Canvas shifted = marked_canvas(W, TALL, pool, "ZZZ");  // different labels
+    // (b) 流出+ SHIFTED 前缀 __ std::nullopt (必须恢复).
+    Canvas shifted = marked_canvas(W, TALL, pool, "ZZZ");  // 不同的标签
     auto bad = s->check_scrollback(shifted, TERM_H);
     check(!bad.has_value(),
           "proof: shifted prefix yields NO proof (render is blocked)");
 
-    // (c) Frame FITS the viewport (term_h >= rows) → VACUOUS proof.
+    // (c) 帧 FITS 可视区域(term_h  ⁇   ⁇ ) − VACUOUS 证明。
     auto vac = s->check_scrollback(c, s->rows() + 5);
     check(vac.has_value(), "proof: non-overflow frame issues a vacuous proof");
     if (vac) {
@@ -530,16 +530,16 @@ static void scn_scrollback_proof(int W, int TERM_H) {
 int main() {
     std::fprintf(stderr, "scrollback_prefix_harness — append-only-prefix oracle\n");
 
-    // The generation scenario deliberately feeds committed() a STALE
-    // marker to prove it is rejected. In a debug-built libmaya that path
-    // aborts (the loud tripwire); tell it to no-op instead so the harness
-    // can assert the rejection rather than crash. Release libmaya ignores
-    // this (already a silent no-op).
+    // 生成方案有意输入 committed() a STALE
+    // 标记以证明它被拒绝。在调试中 -built 路径中止的
+    // libmaya( 响亮的绊线); 告诉它不要 -op 而不是让
+    // 绳子能够坚持拒绝而不是崩溃。 释放libmaya忽略了这一点
+    // (已经沉默了不) -op).
     setenv("MAYA_NO_GATE_ABORT", "1", 1);
 
-    // A spread of terminal shapes (narrow/wide, short/tall), so the
-    // overflow / commit / prefix-compare arithmetic is exercised across
-    // regimes rather than one lucky size.
+    // 传播 终端 形状( E) narrow/wide,
+    // short/tall ),因此溢出/承诺/前缀 -compare 算术
+    // 是跨政权进行的,而不是一个幸运的大小。
     struct Shape { int w, h; };
     const Shape shapes[] = {
         { 80, 24 },

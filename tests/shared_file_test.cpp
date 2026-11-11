@@ -1,23 +1,23 @@
-// shared_file_test — persistence::SharedFile excludes a second agentty
-// PROCESS, and the agentty side of the lock is actually wired to jaal.
+// shared_file_test — persistence::SharedFile 不包括第二
+// 笔 agentty PROCESS ,并显示 agentty 边 锁 实际被传输连接到 jaal.
 //
-// WHAT THIS TESTS, AND WHAT IT DELIBERATELY DOES NOT CLAIM
+// 测试覆盖的行为及明确不作保证的部分。
 //
-// jaal's file_lock conformance suite owns the kernel semantics (a second
-// process waits, a dead holder strands nothing, shared vs exclusive). This
-// test owns the question jaal cannot answer: is AGENTTY's critical section
-// really taking that lock, on the sidecar for the file it names, or has the
-// policy layer been wired to nothing?
+// jaal's file_lock 兼容套件拥有内核语义
+// ( 一个第二个进程等待, 一个死持者什么也不要,
+// 共享 vs 独家)。 此测试拥有问题 jaal 无法回答
+// : AGENTTY 关键部分真的拿 锁 ,在它命名的文件的侧车上,
+// 或者政策层被线到什么?
 //
-// It does NOT assert "a thread cannot vanish from the picker". It was
-// written to, and that claim is false: load_all_threads() enumerates the
-// THREADS DIRECTORY and uses index.json only as a metadata cache, so a lost
-// index entry costs one re-parse and then self-heals. The honest cost of the
-// index race is a slow load and a briefly stale title. The guarantee worth
-// testing is the one below.
+// 不错 不 主张 "a thread cannot vanish from the picker" 写到,
+// 而这种说法是虚假的: load_all_threads () 列举
+// THREADS DIRECTORY 和用途 index.json 仅
+// 作为元数据 缓存 ,所以一个丢失的指数条目成本为 -parse 并自定义
+// -heals。索引的诚实成本 竞态 是一个慢 加载 和简短的 过期 标题。
+// 值得测试的保证如下。
 //
-// Fork, not threads. A threaded version passes under the in-process mutex
-// alone and would prove nothing about the half that was missing.
+// 叉子,别 线程。线性版本通过。 -process
+// 互斥量 并且不会证明 所缺少的一半。
 
 #include "agentty/io/shared_file.hpp"
 #include <thread>
@@ -42,7 +42,7 @@
 namespace fs = std::filesystem;
 namespace sf = agentty::persistence;
 
-namespace {  // fold: TU-local (bundled into agentty_standalone_tests)
+namespace {  // 归并: TU-local (捆绑成 agentty_standalone_tests)
 static int g_fail = 0;
 #define CHECK(cond, msg)                                                       \
     do {                                                                       \
@@ -55,10 +55,10 @@ sf::Lane& test_mu() {
     return m;
 }
 
-}  // namespace (fold)
+}  // 名称空间( 归并)
 
-// The fold build renames this to shared_file_test_main via -Dmain=...; it
-// gets its own process, which this test needs because it forks.
+// 电话 归并 将它重命名为 shared_file_test_main
+// 途经 -Dmain=... 因为它的叉子 需要这个测试
 int main() {
     std::printf("shared_file_test\n");
 
@@ -74,16 +74,16 @@ int main() {
     fs::create_directories(dir);
     const fs::path target = dir / "guarded.json";
 
-    // The lock must be real, not a silently-degraded no-op. A tmpfs/ext4
-    // /tmp supports locks, so a false here means the policy layer failed to
-    // reach jaal at all — which is the wiring bug this test exists to catch.
+    // 锁必须是真实的,而不是默默的-degraded no-op.
+    // Atmpfs/ext4/tmp支持锁,所以这里的一个假表示政策
+    // 层完全没有达到jaal——这就是这个测试存在的用来捕捉的线虫.
     CHECK(sf::with_shared_file(agtest::cap(), test_mu(), target, [](const maya::held<agentty::lock_levels::file_lane>&, sf::Held h) { return h.cross_process; }),
           "with_shared_file took the cross-process lock (jaal is wired in)");
 
-    // The lock lives on the SIDECAR, never on the target. This is the whole
-    // correctness argument: agentty writes these files by renaming a new
-    // inode over the target, so a lock held on the target would guard a file
-    // that is no longer the file.
+    // 电话 锁 生活状况 SIDECAR ,绝不在目标上。
+    // 这是整个正确性论点: agentty 将一个新的inode
+    // 重命名于目标上, 以此写入这些文件, 所以 锁 被扣在目标上会
+    // 保护一个不再是文件的文件.
     {
         const auto [sidecar, touched] = sf::with_shared_file(agtest::cap(), test_mu(), target,
             [](const maya::held<agentty::lock_levels::file_lane>&, sf::Held, std::string t) {
@@ -94,23 +94,23 @@ int main() {
     }
 
 #if HAVE_FORK
-    // A second PROCESS must be excluded while we hold it. The child reports
-    // how long it waited; it must have been blocked for a real fraction of
-    // the parent's hold, or the exclusion is not crossing the process
-    // boundary and the race is still open.
+    // 一会儿 PROCESS 儿童报告等待了多久;
+    // 必须被阻断,以获得父母的一小部分控制权,
+    // 否则排除并不跨越过程界限和
+    // 竞态 仍然开放。
     //
-    // ORDER MATTERS: the parent takes the lock BEFORE forking. Forking first
-    // and acquiring after is a race the test loses under parallel load — the
-    // child got in first and reported "waited 0 ms", which looks exactly
-    // like a broken lock. (It failed that way under ctest -j12 while passing
-    // standalone, which is the signature of a racy test, not a racy lock.)
+    // ORDER MATTERS : 父母一方接受 锁 之前
+    // 抢先抢先抢后抢先抢 竞态 测试在平行下丢失 加载 -
+    // 儿童先入后出,并报告 "waited 0 ms" 看上去
+    // 就像一个破碎的 锁 . (在试验中失败) -j12 独立通过,
+    // 这是 标志一个racy测试,而不是racy 锁.)
     //
-    // fcntl locks are NOT inherited across fork, so the child genuinely
-    // contends rather than sharing our hold. The child uses its own mutex
-    // because our copy of test_mu() is inherited LOCKED.
+    // 调值 锁 已经 不 儿童使用自己的武器,
+    // 而不是分享我们的财富。 互斥量 因为我们的复制品
+    // test_mu () 继承 LOCKED.
     {
-        // The whole parent side runs inside the critical section: fork,
-        // hold for kHold, then leave, and read the child's verdict after.
+        // 整个父母一方运行在关键部分:叉,
+        // 握kHold,然后离开,然后读孩子的判决.
         const auto child_waited = sf::with_shared_file(agtest::cap(), test_mu(), target,
             [](const maya::held<agentty::lock_levels::file_lane>&, sf::Held, std::string t) -> long long {
                 constexpr auto kHold = std::chrono::milliseconds{400};
@@ -120,10 +120,10 @@ int main() {
                 if (pid == 0) {
                     ::close(pipefd[0]);
                     const auto t0 = std::chrono::steady_clock::now();
-                    // Our copy of the lane is inherited locked, and so is
-                    // this thread's held-lock record (jaal's thread-local
-                    // rank). Contend from a fresh thread with its own lane:
-                    // it starts holding nothing, like any real second process.
+                    // 我们的车道复制品是被锁起来的,这个也是 线程
+                    // 持有 -lock 记录( jaal's 线程-local 级别。
+                    // 从新开始的相交 线程 拥有自己的车道:
+                    // 它开始没有东西, 像任何真正的第二个过程。
                     static sf::Lane child_lane;
                     long long v = -1;
                     std::thread([&] {
@@ -142,8 +142,8 @@ int main() {
                 }
                 ::close(pipefd[1]);
                 ::usleep(static_cast<unsigned>(kHold.count()) * 1000u);
-                // Leaving the body releases; the child reads after. Hand the
-                // pipe and pid out so the verdict is read unlocked.
+                // 离开 正文 的释放; 孩子会读到。
+                // 将管道和管道打开, 将判决解锁。
                 return (static_cast<long long>(pid) << 20) | pipefd[0];
             }, target.string());
         if (child_waited == -2) {

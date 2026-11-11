@@ -1,15 +1,15 @@
 #pragma once
-// agentty::provider::wire — cross-transport message/prompt helpers.
+// agentty::provider::wire-交叉-transport message/prompt帮助者。
 //
-// Small, stateless building blocks every transport (Anthropic, OpenAI-compat,
-// Ollama, ChatGPT/Codex) used to re-implement verbatim: the "assistant turn
-// carries tool results" predicate, the home-dir resolver, the capped file
-// read, and the CLAUDE.md user/project/local memory-block wrapper. Hoisted
-// here so a fix (a new memory tier, a Windows path quirk, the 64 KiB cap)
-// lands once. Byte output is guarded by the per-transport wire golden tests.
+// 每 传输层 (Anthropic、OpenAI-compat、Ollama、
+// ChatGPT/Codex)用于逐字重新-implement的小型、无状态构建块：
+// "assistant turn carries tool results"谓词、
+// home-dir解析器、所读取的上限文件和CLAUDE.md user/project/local
+// 内存-block包装纸。挂在这里，以便修复（新的 内存 层、Windows 路径怪癖、
+// 64 KiB 上限）落地一次。 字节 输出受到 per-transport 传输 黄金测试的保护。
 //
-// Distinct from wire.hpp (byte-level SSE framing, deliberately domain-light):
-// this one legitimately needs the domain Message + filesystem.
+// 区别于wire.hpp(字节-level SSE取帧，故意域-light):
+// 这合法地需要域消息+文件系统。
 
 #include <cstddef>
 #include <cstdlib>
@@ -24,32 +24,32 @@
 #include "agentty/domain/conversation.hpp"
 #include "agentty/provider/provider.hpp"   // provider::ToolSpec
 #include "agentty/util/image_dims.hpp"      // util::image_within_wire_limits
-#include "agentty/util/logx.hpp"            // AGT_LOG — name a dropped image
-#include "agentty/util/user_root.hpp"      // single per-user root (~/.agentty)
+#include "agentty/util/logx.hpp"            // AGT_LOG — 命名已删除的图像
+#include "agentty/util/user_root.hpp"      // 单个每-user根(~/.agentty)
 
 namespace agentty::provider::wire {
 
-// A tool's JSON Schema for the `parameters`/`input_schema` slot, guarded: a
-// tool that declares no schema still needs a valid empty-object schema on the
-// wire, or strict backends (OpenAI Responses, some proxies) 400. One guard,
-// used by every OpenAI-family tool encoder so the behaviour can't drift.
+// 工具的用于`parameters`/`input_schema`槽的JSON
+// 模式定义，受到保护：声明没有模式定义的工具仍然需要在传输上有效的空-object
+// 模式定义，或者严格的后端（OpenAI响应，一些代理）400。一个保护，
+// 由每个OpenAI-family 工具编码器，因此行为不会漂移。
 [[nodiscard]] inline nlohmann::json tool_schema_or_empty(const nlohmann::json& schema) {
     if (schema.is_null())
         return nlohmann::json{{"type", "object"}, {"properties", nlohmann::json::object()}};
     return schema;
 }
 
-// The OpenAI *Chat Completions* `tools` array shape:
-//   [{"type":"function","function":{name,description,parameters}}]
-// Shared verbatim by the OpenAI-compat transport AND the Ollama native
-// transport (they were byte-identical copies). The Responses wire uses a
-// FLATTER shape and keeps its own encoder, but reuses tool_schema_or_empty()
-// above so the null-schema guard is single-source.
+// OpenAI*聊天完成*`tools`阵列形状：
+//   [{"type":"function","function":{名称，描述，
+// 参数}}]由 OpenAI-compat 传输层 和 和 Ollama 本机 传输层
+// 逐字共享（它们是 字节-identical 副本）。响应 传输 使用 FLATTER
+// 形状并保留其自己的编码器，但重复使用上面的 tool_schema_or_empty()，
+// 因此 null-schema 保护是 single-source。
 [[nodiscard]] inline nlohmann::json openai_chat_tools(
     const std::vector<provider::ToolSpec>& tools) {
     nlohmann::json arr = nlohmann::json::array();
     for (const auto& t : tools) {
-        if (t.defer_loading) continue;   // Anthropic-only concept; never here
+        if (t.defer_loading) continue;   // Anthropic-only概念；从来没有在这里
         arr.push_back({
             {"type", "function"},
             {"function", {
@@ -62,63 +62,63 @@ namespace agentty::provider::wire {
     return arr;
 }
 
-// True whenever an assistant message carries ANY tool_calls. Anthropic (and
-// the OpenAI-shaped wires) require every tool_use/tool_call be paired with a
-// tool_result in the following message, terminal or not — sending the call
-// without its pair 400s and wedges the replayed transcript. So this drives the
-// "emit the follow-up tool-result turn" decision on every transport.
+// 每当辅助消息携带ANY tool_calls时为真。 Anthropic（和
+// OpenAI-shaped 线）要求每个 tool_use/tool_call
+// 与以下消息中的 tool_result 配对，无论 终端 与否 — 发送 调用
+// 而无需配对 400，并楔入重播的转录本。因此，这推动了每个 传输层 的
+// "emit the follow-up tool-result turn" 决策。
 [[nodiscard]] inline bool is_assistant_with_results(const Message& m) noexcept {
     return m.role == Role::Assistant && !m.tool_calls.empty();
 }
 
-// ── Wire IMAGE policy — the single source of truth ──────────────────────────
+// ── 传输 IMAGE 政策——真相的唯一来源 ──────────────────────────
 //
-// Every wire dialect (Anthropic Messages, OpenAI Responses, OpenAI-chat/NDJSON)
-// encodes images in its OWN JSON shape — that difference is legitimate and
-// stays per-dialect. What must NOT diverge is the POLICY around the bytes:
-// which images a message/tool contributes, the empty-bytes skip, and the
-// media-type default. Those decisions lived (badly) as copy-pasted lines in
-// three files, which is exactly how tool-result images shipped on the Anthropic
-// wire but silently not the other two. These helpers are that policy, once.
+// 每个 传输 方言（Anthropic 消息、OpenAI 响应、
+// OpenAI-chat/NDJSON)都以其 自身 JSON 形状对图像进行编码——该差异是
+// 合法的并且在 -dialect 中保持不变。 不 必须分歧的是 字节 周围的 POLICY：
+// message/tool贡献的图像、空-bytes跳过以及媒体-type默认。
+// 这些决定（糟糕地）以三个文件中的 copy-pasted 行的形式存在，
+// 这正是 tool-result 图像在 Anthropic 传输
+// 上传送的方式，但默默地不是其他两个。这些助手曾经就是那个政策。
 //
-//   wire_media_type   — the media_type to emit ('' → the safe image/png default)
-//   wire_message_images   — the images a USER message contributes
-//   wire_tool_result_images — the images a COMPLETED tool contributes
-//                             (read on an image file → ToolUse::Done.images)
+//   wire_media_type — 要发出的 media_type ('' → 安全 image/png
+//   默认值) wire_message_images — USER 消息贡献的图像
+//   wire_tool_result_images — COMPLETED 工具贡献的图像
+//                             (读取图像文件 → ToolUse::Done.images)
 //
-// Pointers (never copies) so a multi-MiB screenshot isn't duplicated per turn.
-// A dialect that forgets tool-result images is now a VISIBLE omission (it
-// doesn't call wire_tool_result_images) rather than a silent drift.
+// 指针（从不复制），因此 multi-MiB 屏幕截图每回合不会重复。
+// 忘记工具-result图像的方言现在是VISIBLE遗漏（它不是调用
+// wire_tool_result_images）而不是无声的漂移。
 
 [[nodiscard]] inline std::string_view wire_media_type(const ImageContent& img) noexcept {
     return img.media_type.empty() ? std::string_view{"image/png"}
                                   : std::string_view{img.media_type};
 }
 
-// True iff the image has real bytes AND fits the wire's pixel-dimension limit.
-// An empty-bytes ImageContent (a drained draft attachment that leaked into a
-// thread) serializes to an empty base64 "data" that 400s the whole request;
-// an oversized image (>2000 px/side) 400s a MANY-image request the same way
-// ("image dimensions exceed max allowed size"). Both are dropped from the wire
-// here — the ONE gate every dialect's image selector funnels through — so one
-// bad image can't kill an otherwise-valid turn. A 48 KB screenshot can still be
-// 3000+ px wide, so file size is no proxy; image_dimensions() reads the real
-// pixels from the header bytes.
+// 正确，当且仅当图像具有真实的字节 AND符合传输的像素-dimension限制。
+// 一个空的-bytes ImageContent（泄漏到线程中的一个已耗尽的草稿附件）
+// 序列化为一个空的base64 "data"，整个请求需要400秒；超大图像 (>
+// 2000 px/side) 400 秒 MANY-image 以相同方式请求 (
+// "image dimensions exceed max allowed size")。（图像尺寸超过允许的最大值。）
+// 两者都从这里的 传输 中删除——每种方言的图像选择器都通过 一个 门——所以一个坏
+// 图像不能杀死否则的 -valid 回合。 48 KB 的屏幕截图仍然可以是 3000
+// + px 宽，因此文件大小并不能代表； image_dimensions() 从
+// 头文件 字节 读取真实像素。
 [[nodiscard]] inline bool wire_image_sendable(
     const ImageContent& img, unsigned max_side = util::kMaxWireImageSide) noexcept {
-    // Dropping an image here is INVISIBLE by construction: the prose marker
-    // ("[image: <paste>]") still goes out, so the model is told an image is
-    // present and shown nothing, and the user sees a turn that silently
-    // ignored their screenshot. Name the reason once per drop so the log
-    // answers "why didn't it see my image" without bisecting the pipeline.
+    // 在此处丢弃图像是通过构造实现的INVISIBLE：散文标记（
+    // "[image: <paste>]")仍然熄灭，因此模型被告知
+    // 图像存在并且没有显示任何内容，并且用户看到一个默默地忽略他们的
+    // 屏幕截图的转弯。每次删除都指定一次原因，以便日志回答
+    // "why didn't it see my image"，而不会平分管道。
     if (img.bytes().empty()) {
         AGT_LOG(Wire, Warn, "wire.image_dropped",
                 "reason=empty_bytes media_type={}", wire_media_type(img));
         return false;
     }
-    // Every provider accepts exactly png/jpeg/gif/webp. Anything else (a
-    // macOS clipboard TIFF, a HEIC) 400s the WHOLE request — and since the
-    // image lives in history, every later turn too, wedging the thread.
+    // 每个提供商都准确地接受 png/jpeg/gif/webp.
+    // 任何其他内容（macOS 剪贴板 TIFF、HEIC）400 秒的 整个
+    // 请求 - 并且由于该图像存在于历史中，因此每一次轮回都会楔入 线程。
     {
         const auto mt = wire_media_type(img);
         if (mt != "image/png" && mt != "image/jpeg"
@@ -138,14 +138,14 @@ namespace agentty::provider::wire {
     return true;
 }
 
-// The number of image blocks a whole conversation would put on the wire, in
-// CANDIDATE terms (non-empty bytes, before the size gate). This is the input
-// to util::wire_max_side, so every dialect derives its per-request ceiling the
-// same way instead of each inventing a count. Both sources of image blocks are
-// included — user-turn images AND tool_result images — because the provider's
-// many-image limit counts BLOCKS in the request, not just the ones the user
-// pasted. A session that reads twenty screenshots via a tool hits the same
-// ceiling as one that pastes twenty.
+// 整个对话将放在传输上的图像块的数量，以CANDIDATE术语表示（非
+// -empty 字节，在尺寸门之前）。这是 util::wire_max_side
+// 的输入，因此每种方言都以相同的方式导出其 per-request 上限，
+// 而不是各自发明一个计数。图像块的两个来源都包含在内 - user
+// -turn 图像 和 tool_result 图像 - 因为提供商
+// 的 Many-image 限制在请求中计算 BLOCKS，
+// 而不仅仅是用户粘贴的图像。通过工具读取二十个屏幕截图的会话与粘贴二十个
+// 屏幕截图的会话达到了相同的上限。
 [[nodiscard]] inline std::size_t
 wire_image_count(const std::vector<Message>& msgs) noexcept {
     std::size_t n = 0;
@@ -160,7 +160,7 @@ wire_image_count(const std::vector<Message>& msgs) noexcept {
     return n;
 }
 
-// The images a USER message contributes to the wire (skipping empties).
+// USER消息贡献给传输（跳过空）的图像。
 [[nodiscard]] inline std::vector<const ImageContent*>
 wire_message_images(const Message& m, unsigned max_side = util::kMaxWireImageSide) {
     std::vector<const ImageContent*> out;
@@ -170,8 +170,8 @@ wire_message_images(const Message& m, unsigned max_side = util::kMaxWireImageSid
     return out;
 }
 
-// The images a COMPLETED tool contributes to its tool_result (skipping
-// empties). Non-empty only when a tool surfaced a picture (read on an image).
+// COMPLETED工具为其tool_result（跳过空）
+// 贡献的图像。仅当工具显示图片（在图像上读取）时才为非-empty。
 [[nodiscard]] inline std::vector<const ImageContent*>
 wire_tool_result_images(const ToolUse& tc, unsigned max_side = util::kMaxWireImageSide) {
     std::vector<const ImageContent*> out;
@@ -180,9 +180,9 @@ wire_tool_result_images(const ToolUse& tc, unsigned max_side = util::kMaxWireIma
     return out;
 }
 
-// tool_search results (#98). The tool writes one `loaded: <name>` line per
-// hit; on the Anthropic wire those become tool_reference blocks and the rest
-// of the text is the note. Kept in step with tools::plan::kLoadedMarker.
+// tool_search结果(#98)。该工具每次命中都会写入一行 `loaded: <name>` 行；
+// 在 Anthropic 传输 上，这些变成 tool_reference 块，
+// 其余文本是注释。与tools::plan::kLoadedMarker保持同步。
 inline constexpr std::string_view kToolSearchName = "tool_search";
 inline constexpr std::string_view kToolSearchLoaded = "loaded: ";
 
@@ -206,8 +206,8 @@ tool_search_references(const ToolUse& tc) {
     return out;
 }
 
-// True iff the message has at least one sendable USER image — the message-
-// emission gate every dialect used to open-code as a `has_images` loop.
+// 正确，当且仅当消息具有至少一个可发送的USER图像——每种方言
+// 用于将-code打开为`has_images`循环的消息发射门。
 [[nodiscard]] inline bool has_wire_message_image(
     const Message& m, unsigned max_side = util::kMaxWireImageSide) noexcept {
     if (m.role != Role::User) return false;
@@ -216,8 +216,8 @@ tool_search_references(const ToolUse& tc) {
     return false;
 }
 
-// User home directory, portably. HOME (POSIX) first, USERPROFILE (Windows)
-// second; empty path when neither is set.
+// 用户主目录，可移植。 HOME (POSIX) 第一，USERPROFILE (
+// Windows) 第二；当两者均未设置时为空路径。
 [[nodiscard]] inline std::filesystem::path home_dir() noexcept {
     if (const char* h = std::getenv("HOME"); h && *h)
         return std::filesystem::path{h};
@@ -228,23 +228,23 @@ tool_search_references(const ToolUse& tc) {
     return {};
 }
 
-// Read a text file, swallowing any I/O error (missing / unreadable → empty).
-// Truncated to `cap` bytes so one rogue multi-MB CLAUDE.md can't poison the
-// system prompt on every turn. Trailing whitespace is trimmed so a wrapper tag
-// never gets a blank line jammed against it.
+// 读取文本文件，吞掉任何 I/O 错误（丢失/不可读 → 空）。
+// 被截断为`cap` 字节，因此一个流氓multi-MB
+// CLAUDE.md不能在每一回合毒害系统提示词。尾随空白被修剪，
+// 因此包装标签永远不会被空行堵塞。
 //
-// A truncated file SAYS SO, in the returned text. This matters more here than
-// anywhere else the codebase caps a read: AGENTS.md is INSTRUCTIONS, and the
-// reader is the model. Cutting silently at 64 KiB meant a rule written near
-// the bottom -- "never delete files without asking" is exactly the kind of
-// thing people put at the end -- simply did not reach the model, while the
-// author watched the top of their file take effect and reasonably concluded
-// the whole thing had.
+// 返回的文本中截断的文件SAYS SO。这比其他任何地方都更重要，
+// 代码库 限制了读取：AGENTS.md 是 INSTRUCTIONS，
+// 读取器就是型号。在 64 KiB 处默默切割意味着在底部附近写了
+// 一条规则 - "never delete files without asking"
+// 正是人们放在最后的那种东西 - 根本没有到达模型，
+// 而作者看着他们文件的顶部采取了 副作用 并合理地得出了
+// 整个事情的结论。
 //
-// The marker is addressed to the model rather than logged, because the model
-// is who needs it: it is the one being asked to follow instructions it has
-// only part of, and it can say so when the missing part matters. A log line
-// would be read by nobody at the moment it counts.
+// 标记被寻址到模型而不是被记录，因为模型是需要
+// 它的人：它是被要求遵循它仅具有一部分的指令的模型，
+// 并且当丢失的部分重要时它可以这样说。
+// 日志行在重要的时刻不会被任何人阅读。
 [[nodiscard]] inline std::string read_capped_file(
     const std::filesystem::path& p, std::size_t cap = 64u * 1024u) {
     std::error_code ec;
@@ -264,21 +264,21 @@ tool_search_references(const ToolUse& tc) {
     return s;
 }
 
-// Resolve the global AGENTS.md — a user-level file that applies across
-// all projects, analogous to Codex's ~/.codex/AGENTS.md and OpenCode's
-// ~/.config/opencode/AGENTS.md. Not part of the published agents.md spec
-// (which is project-scoped only), but a pragmatic extension that major
-// tools implement.
+// 解析全局AGENTS.md——适用于所有项目的用户-level文件，
+// 类似于Codex的~/.codex/AGENTS.md和OpenCode的~/.config/opencode/AGENTS.md.。
+// 不是已发布的agents.md规范的一部分（
+// 仅是项目-scoped），而是主要工具实现的
+// 实用扩展。
 //
-// Two candidates are checked in priority order; the first non-empty file
-// wins:
-//   1. ~/.agentty/AGENTS.md  — agentty-specific global guidance
-//   2. ~/.agents/AGENTS.md   — shared global guidance for any agent tool
-//   3. ~/.codex/AGENTS.md    — Codex's global file ($CODEX_HOME if set), so
-//                              a Codex user's rules carry over as-is
+// 按照优先顺序对两个候选进行检查；第一个非 -empty 文件
+// 获胜：
+//   1.~/.agentty/AGENTS.md —agentty-specific全球指导
+//   2.~/.agents/AGENTS.md-任何代理工具的共享全球指南
+//   3. ~/.codex/AGENTS.md — Codex的全局文件($CODEX_HOME如果设置的话)，所以
+//                              Codex用户的规则继承为-is
 //
-// Returns the path to the first existing non-empty file, or an empty path
-// when no candidate exists.
+// 返回第一个现有的非-empty文件的路径，或者当不存在
+// 候选时返回空路径。
 [[nodiscard]] inline std::filesystem::path resolve_global_agents_md() noexcept {
     const auto home = home_dir();
     const auto root = ::agentty::util::user_root();
@@ -295,7 +295,7 @@ tool_search_references(const ToolUse& tc) {
         if (p.empty()) continue;
         std::error_code ec;
         if (std::filesystem::is_regular_file(p, ec) && !ec) {
-            // Non-empty check via read_capped_file (cheaper than stat+open twice).
+            // Non-empty通过read_capped_file检查（比stat+open两次便宜）。
             if (!read_capped_file(p).empty())
                 return p;
         }
@@ -303,11 +303,11 @@ tool_search_references(const ToolUse& tc) {
     return {};
 }
 
-// Where the CLAUDE.md tiers live, matching Claude Code:
-//   User    ~/.claude/CLAUDE.md ($CLAUDE_CONFIG_DIR if set); ~/CLAUDE.md
-//           is still read when that is missing, for older setups
-//   Project ./CLAUDE.md, and ./.claude/CLAUDE.md (both, in that order)
-//   Local   ./CLAUDE.local.md
+// CLAUDE.md层所在的位置，匹配Claude代码：
+//   用户~/.claude/CLAUDE.md ($CLAUDE_CONFIG_DIR如果设置）；
+//           ~/CLAUDE.md对于较旧的设置项目，当缺少该内容时仍会读取./CLAUDE.md，
+//   和./.claude/CLAUDE.md（两者均按此顺序）
+//   本地./CLAUDE.local.md
 [[nodiscard]] inline std::filesystem::path resolve_user_claude_md() noexcept {
     const auto home = home_dir();
     std::filesystem::path dir;
@@ -320,19 +320,19 @@ tool_search_references(const ToolUse& tc) {
 }
 inline constexpr const char* kProjectClaudeMd[] = {"CLAUDE.md", ".claude/CLAUDE.md"};
 
-// Join the two project files; either may be empty.
+// 将两个工程文件加入；两者都可以为空。
 [[nodiscard]] inline std::string join_project_claude_md(std::string a, std::string b) {
     if (a.empty()) return b;
     if (!b.empty()) a += "\n\n" + b;
     return a;
 }
 
-// The CLAUDE.md memory hierarchy — the "lite" wrapper (user/project/local
-// tiers only, no learned-memory / skills) that the local-model prompts share.
-// Paths are above. Empty/missing tiers are elided; all-empty returns "". The
-// intro line is a parameter so callers can keep their exact wording
-// (byte-identity matters — this feeds the system prompt behind a cache
-// breakpoint).
+// CLAUDE.md 内存层次结构-本地-model 提示词共享的"lite"
+// 包装器(仅user/project/local层，没有学习-memory/技能)。
+// 路径如上。 Empty/missing 等级已被省略； all-empty
+// 返回 ""。介绍行是一个参数，因此调用者可以保持其准确的措辞（字节
+// -identity 很重要 - 这会在 缓存 断点后面为系统 提示词
+// 提供数据）。
 [[nodiscard]] inline std::string claude_md_blocks(std::string_view intro) {
     const auto user_path      = resolve_user_claude_md();
     const std::string user    = user_path.empty() ? std::string{} : read_capped_file(user_path);
@@ -352,58 +352,58 @@ inline constexpr const char* kProjectClaudeMd[] = {"CLAUDE.md", ".claude/CLAUDE.
     return m;
 }
 
-// AGENTS.md — the open standard for project-scoped agent guidance, stewarded
-// by the Agentic AI Foundation (AAIF) under the Linux Foundation. See
-// https://agents.md. The published spec is project-scoped only (no user
-// tier, no local tier). However, major tools like Codex (~/.codex/AGENTS.md)
-// and OpenCode (~/.config/opencode/AGENTS.md) implement a global/user scope
-// as a pragmatic extension. agentty follows suit: when `global_path` is
-// non-empty (resolved by the caller via wire::resolve_global_agents_md()),
-// its content is emitted in a separate <agents-md-global> block BEFORE the
-// project-level <agents-md> block, so project guidance overrides global.
+// AGENTS.md —项目-scoped代理指导的开放标准，由Linux基金会下的
+// Agentic AI基金会(AAIF)管理。请参阅 https://agents.md.
+// 已发布的规范仅限于项目-scoped（无用户层，无本地层）。然而，像 Codex
+// (~/.codex/AGENTS.md) 和 OpenCode (
+// ~/.config/opencode/AGENTS.md) 这样的主要工具实现了
+// global/user 范围作为实用的扩展。 agentty 也是如此：当
+// `global_path` 是非 -empty（由调用者通过 wire::resolve_global_agents_md
+// () 解析）时，其内容在单独的 <agents-md-global> 块 之前
+// 和项目-level <agents-md> 块中发出，因此项目指导会覆盖全局。
 //
-// The spec also describes nested monorepo files for subpackages: "Place
-// another AGENTS.md inside each package. Agents automatically read the
-// nearest file in the directory tree, so the closest one takes precedence."
-// When `search_from` is a subdirectory of `workspace_root` (i.e. the agent's
-// cwd is inside a package), we walk upward looking for a second AGENTS.md
-// that is *not* the root file. If found, its content is emitted in a
-// separate <agents-md-package> block so the model can distinguish root-level
-// guidance from package-specific guidance and apply precedence correctly
-// (nearest wins). The walk stops at workspace_root — never escapes the
-// workspace boundary.
+// 该规范还描述了子包的嵌套 monorepo 文件：
+// 在每个包中放置 AGENTS.md，代理自动读取目录树中最近的文件，以距离最近者为准。
+// 当 `search_from` 是 `workspace_root`
+// 的子目录（i.e。代理的 cwd 在包内）时，我们向上寻找第二个
+// AGENTS.md，它*不是*根文件。如果找到，
+// 其内容将在单独的 <agents-md-package>
+// 块中发出，以便模型可以区分 root-level 指导和 package
+// -specific 指导并正确应用优先级（最近的获胜）。
+// 步行在 workspace_root 停止 - 永远不会逃脱
+// 工作区 边界。
 //
-// `workspace_root` is passed in (rather than resolved here) so this helper
-// stays self-contained: msg_shared.hpp does NOT pull in the util/fs_helpers
-// machinery, leaving the wire layer free of the ToolError/registry surface.
-// Callers (provider/prompt.cpp, openai/transport.cpp, ollama/transport.cpp)
-// already link util and resolve workspace_root() / project_root() from there.
+// `workspace_root`被传入（而不是在这里解析），因此该助手保持
+// self-contained:msg_shared.hpp NOT拉入util/fs_helpers机械，
+// 使传输层脱离ToolError/registry表面。
+// 调用者(provider/prompt.cpp、openai/transport.cpp、
+// ollama/transport.cpp)已经链接 util并从那里解析workspace_root()/project_root()。
 //
-// Returns "" when ALL tiers (global + root) are missing/empty so callers
-// elide the block without emitting an empty wrapper tag. Same 64 KiB cap +
-// trailing-whitespace trim as CLAUDE.md, via the shared wire::read_capped_file.
+// 当 全部 层（全局+根）是 missing/empty 时，返回 ""，
+// 因此调用者省略该块而不发出空包装标签。与 CLAUDE.md 相同的 64 KiB 帽
+// + 尾部 -whitespace 装饰，通过共享 wire::read_capped_file。
 //
-// Wire shape (precedence low → high):
-//   <agents-md-global>…</agents-md-global>      (optional, ~/.agentty/AGENTS.md)
-//   <agents-md>…</agents-md>                      (root, <workspace_root>/AGENTS.md)
-//   <agents-md-package>…</agents-md-package>      (optional, nearest nested)
-// The nested block is skipped when the nearest AGENTS.md is the root file
-// (same canonical path) to avoid duplication. Keeping the standardized public
-// project guidance visually distinct from personal CLAUDE.md notes lets the
-// model tell them apart and apply precedence correctly.
+// 传输形状(优先级低→高)：
+//   <agents-md-global>…</agents-md-global>(可选，
+//   ~/.agentty/AGENTS.md) <agents-md>…</agents-md>(根，
+//   <workspace_root>/AGENTS.md)
+// <agents-md-package>…</agents-md-package>(可选，
+// 最近嵌套) 当最近的AGENTS.md是根文件(相同规范路径)时，
+// 跳过嵌套块以避免重复。保持标准化公共项目指南在视觉上与个人 CLAUDE.md
+// 笔记不同，可以让模型区分它们并正确应用优先级。
 //
-// `read_file` is the file-reader used for EVERY tier (global, root, nested).
-// It defaults to the uncapped-cache read_capped_file (fine for the local-model
-// prompts, which rebuild rarely). The Anthropic path — which rebuilds the
-// system prompt on every turn — injects its mtime-cached reader instead, so
-// the per-turn cost is a handful of stat()s + a memcpy of the cached body,
-// not N full file reads. Either way the reader must apply the 64 KiB cap and
-// trailing-whitespace trim so byte-identity across providers holds.
+// `read_file`是用于EVERY层（全局、根、嵌套）的文件-reader。
+// 它默认为 uncapped-cache read_capped_file (对于很少
+// 重建的 local-model 提示词 来说很好)。 Anthropic 路径
+// （每次都会重建系统 提示词）会注入其 mtime-cached 读取器，
+// 因此 per-turn 的成本是一些 stat() + 缓存的 正文 的 memcpy，
+// 而不是 N 个完整文件读取。无论哪种方式，读者都必须应用 64 KiB 上限和尾部
+// -whitespace 修剪，以便跨提供商保持 字节-identity。
 using agents_md_reader = std::string (*)(const std::filesystem::path&);
 
-// Default reader: read_capped_file has a second (defaulted) cap parameter, so
-// its address is a 2-arg function pointer that won't bind to agents_md_reader.
-// This single-arg forwarder does — it applies the standard 64 KiB cap.
+// 默认读取器：read_capped_file具有第二个（默认）cap参数，
+// 因此其地址是不会绑定到agents_md_reader的2-arg函数指针。
+// 这个单一-arg转发器确实——它应用了标准的64KiB上限。
 [[nodiscard]] inline std::string read_capped_default(
     const std::filesystem::path& p) {
     return read_capped_file(p);
@@ -415,7 +415,7 @@ using agents_md_reader = std::string (*)(const std::filesystem::path&);
     const std::filesystem::path&   search_from = {},
     const std::filesystem::path&   global_path = {},
     agents_md_reader               read_file   = &read_capped_default) {
-    // ── Global scope (user-level, applies across all projects) ──
+    // ── 全球范围(用户-level,适用于所有项目) ──
     const std::string global_content =
         global_path.empty() ? std::string{} : read_file(global_path);
 
@@ -424,7 +424,7 @@ using agents_md_reader = std::string (*)(const std::filesystem::path&);
 
     std::string m;
 
-    // Global block first (lowest precedence).
+    // 全局块优先（最低优先级）。
     if (!global_content.empty()) {
         m += "\n\n<agents-md-global>\n";
         m += "Global guidance from ~/.agentty/AGENTS.md (or ~/.agents/AGENTS.md). "
@@ -434,7 +434,7 @@ using agents_md_reader = std::string (*)(const std::filesystem::path&);
         m += "\n</agents-md-global>";
     }
 
-    // Root project block.
+    // 根项目块。
     if (!content.empty()) {
         m += "\n\n<agents-md>\n";
         m += intro;
@@ -443,11 +443,11 @@ using agents_md_reader = std::string (*)(const std::filesystem::path&);
         m += "\n</agents-md>";
     }
 
-    // ── Nested monorepo walk: find nearest AGENTS.md below workspace_root ──
-    // Walk upward from `search_from` (typically the agent's cwd clamped
-    // inside the workspace via project_root()) looking for an AGENTS.md that
-    // is NOT the root file. Stops at workspace_root — never escapes the
-    // workspace boundary.
+    // ── 巢穴单列坡步行:在workspace_root下方找到最近的AGENTS.md ──
+    // 从`search_from`向上走(通常代理的cwd通过
+    // project_root()夹在工作区内)寻找作为根文件的NOT的AGENTS.md。
+    // 在 workspace_root 处停止 — 永远不会逃出
+    // 工作区 边界。
     if (!search_from.empty()) {
         std::error_code ec;
         auto root_canon = std::filesystem::weakly_canonical(workspace_root, ec);
@@ -474,7 +474,7 @@ using agents_md_reader = std::string (*)(const std::filesystem::path&);
                     m += nested;
                     m += "\n</agents-md-package>";
                 }
-                break;  // nearest found — stop walking
+                break;  // 最近发现——停止行走
             }
             dir = dir.parent_path();
         }

@@ -1,9 +1,9 @@
-// tool_output.cpp — the tool-output viewer panel's reducer (^O): the
-// list/body two-stage navigation, clipboard copy, and tail-follow scroll.
+// tool_output.cpp ——工具 -output 查看面板 状态更新函数 (^O
+// :  ⁇ list/body 双 -stage 导航、剪贴板副本,以及 末尾-follow 卷轴
 //
-// collect_viewer_entries / resync_live_tool_viewer stay in tool.cpp beside
-// the execution state they read (declared in internal.hpp) — they are the
-// shared seam between the panel and the execution plumbing.
+// collect_viewer_entries/resync_live_tool_viewer
+// 留在tool.cpp, 与他们读到的(在internal.hpp中宣布)
+// 执行状态相邻——它们是专门小组与执行管道之间的共享的接口边界.
 
 #include "agentty/runtime/app/update/internal.hpp"
 #include "agentty/runtime/app/update.hpp"
@@ -20,8 +20,8 @@
 namespace agentty::tool_output {
 
 namespace {
-// A note a tool leaves where it cut its output. Shown to the reader as a
-// "⋯ …" line, since a silent cut makes the output look complete.
+// 注释 工具会离开它剪切输出的地方。 显示为 "⋯ …" 线条。
+// 因为静音切开会让输出看起来完整。
 bool is_cut_note(std::string_view t) {
     return t.starts_with("[output capped") || t.starts_with("[output truncated")
         || t.starts_with("[truncated")
@@ -33,10 +33,10 @@ std::string as_cut_marker(std::string_view t) {
     while (t.starts_with(".") || t.starts_with(" ")) t.remove_prefix(1);
     return "\xe2\x8b\xaf " + std::string{t};   // ⋯
 }
-} // namespace
+} // 命名空间结束。
 
 std::string display_text(const Entry& e) {
-    // Tools echo their own description as line 1; the header already says it.
+    // 工具回响了它们自己作为第1行的描述;头文件已经说了.
     std::string_view s{e.output};
     if (e.call.args.is_object())
         for (const char* k : {"display_description", "description"})
@@ -48,7 +48,7 @@ std::string display_text(const Entry& e) {
                     break;
                 }
             }
-    // Turn cut notes into visible markers before the cleaner drops them.
+    // 在清洁剂放下前,将剪辑的笔记转换成可见的标记.
     std::string marked;
     std::vector<std::string> tail_notes;
     marked.reserve(s.size());
@@ -60,7 +60,7 @@ std::string display_text(const Entry& e) {
         auto t = ln;
         while (!t.empty() && t.front() == ' ') t.remove_prefix(1);
         if (is_cut_note(t)) {
-            // Notes after a closing fence would be dropped with the fence.
+            // 关闭围栏后的说明将随围栏而投下。
             if (last_fence != std::string_view::npos && p > last_fence)
                 tail_notes.push_back(as_cut_marker(t));
             else
@@ -72,7 +72,7 @@ std::string display_text(const Entry& e) {
         marked += '\n';
         p = nl + 1;
     }
-    // Shell-style tools wrap their output in a ``` fence for the model.
+    // shell 类工具为模型把输出包在 ``` 围栏中。
     const bool shell = e.call.args.is_object() && e.call.args.contains("command");
     std::string out = ui::clean_output(shell ? ui::strip_bash_output_fence(marked)
                                              : marked);
@@ -119,8 +119,8 @@ Cmd tool_output_update(Model& m, msg::ToolOutputMsg tm) {
             return Cmd::none();
         },
         [&](CloseToolOutput) -> Cmd {
-            // Esc semantics: an active search is cleared first; then body →
-            // back to the list; list → unwind one level.
+            // Esc 语义: 主动搜索先清除; 然后 正文 ~ 回列表;
+            // 列表 ~ 取消一个关卡.
             if (auto* o = m.ui.panel.get<pn::ToolOutput>(); o && o->viewing) {
                 if (!o->query.empty() || o->typing) {
                     o->query.clear();
@@ -138,14 +138,14 @@ Cmd tool_output_update(Model& m, msg::ToolOutputMsg tm) {
             auto* o = m.ui.panel.get<pn::ToolOutput>();
             if (!o) return Cmd::none();
             if (o->viewing) {
-                // Body stage: deltas scroll the viewport; a page is what the
-                // view last showed, less a line of overlap.
+                // 正文 级: 三角洲滚动 可视区域 ;
+                // 一个页面是视图上显示的内容,减去重叠的行。
                 auto& sc = m.ui.tool_viewer_scroll;
                 const int page = std::max(1, sc.viewport_bounds.h - 1);
                 sc.y = std::clamp(sc.y + e.delta + e.pages * page, 0, std::max(0, sc.max_y));
-                // Live tail-follow: scrolling UP off the bottom disengages
+                // 现场直播 末尾-follow : 滚动 UP 离底部脱离
                 // auto-tail so the user can read earlier output; scrolling
-                // (or Ending) back to the bottom re-engages it.
+                // (或结束)回到下方 -engages 就是这样
                 m.ui.tool_viewer_tail = (sc.y >= sc.max_y);
             } else {
                 int sz = static_cast<int>(o->entries.size());
@@ -166,10 +166,10 @@ Cmd tool_output_update(Model& m, msg::ToolOutputMsg tm) {
             return Cmd::none();
         },
         [&](ToolOutputStep& e) -> Cmd {
-            // ←/→ while reading an output: hop to the neighbouring
-            // entry's body directly. Clamped at the ends (no wrap — the
-            // list is short and wrap-around disorients more than it
-            // helps). List stage: no-op.
+            // QQ/ – 在读取输出时: 跳到相邻条目的
+            // 正文 直接。 粘贴在结尾( 不包 - 列表短且
+            // 包 -around 离谱比帮助更严重。
+            // 列表阶段: 否 -op.
             auto* o = m.ui.panel.get<pn::ToolOutput>();
             if (!o || !o->viewing) return Cmd::none();
             int sz = static_cast<int>(o->entries.size());
@@ -178,7 +178,7 @@ Cmd tool_output_update(Model& m, msg::ToolOutputMsg tm) {
             if (next != o->index) {
                 o->index = next;
                 m.ui.tool_viewer_scroll.y = 0;
-                // A search carries over: land on this output's first match.
+                // 搜索继续: 降落在这个输出的第一个对决上.
                 if (!o->query.empty()) { o->hit = 0; ++o->hit_seq; }
             }
             return Cmd::none();
@@ -190,11 +190,11 @@ Cmd tool_output_update(Model& m, msg::ToolOutputMsg tm) {
             auto jump = [&](int to) {
                 o->hit = to;
                 ++o->hit_seq;
-                m.ui.tool_viewer_tail = false;   // reading, not following
+                m.ui.tool_viewer_tail = false;   // 读,不遵循
             };
             switch (e.op) {
                 case Op::Open:
-                    if (!o->viewing) {   // / on the list searches the selected output
+                    if (!o->viewing) {   // / 在列表中搜索所选输出
                         o->viewing = true;
                         m.ui.tool_viewer_scroll.y = 0;
                     }
@@ -216,7 +216,7 @@ Cmd tool_output_update(Model& m, msg::ToolOutputMsg tm) {
                 }
                 case Op::Erase:
                     if (!o->typing) break;
-                    while (!o->query.empty()) {   // one UTF-8 character
+                    while (!o->query.empty()) {   // 1 UTF-8 个字符
                         const unsigned char b = static_cast<unsigned char>(o->query.back());
                         o->query.pop_back();
                         if ((b & 0xC0) != 0x80) break;
@@ -245,12 +245,12 @@ Cmd tool_output_update(Model& m, msg::ToolOutputMsg tm) {
             if (o->index < 0
                 || o->index >= static_cast<int>(o->entries.size()))
                 return Cmd::none();
-            // What the reader sees, not the notes and fences meant for the model.
+            // 读者所见,不是说明和栅栏 意为模型。
             std::string body = tool_output::display_text(
                 o->entries[static_cast<std::size_t>(o->index)]);
             std::size_t lines = body.empty() ? 0 : 1;
             for (char c : body) if (c == '\n') ++lines;
-            (void)write_clipboard_text(body);   // native pbcopy/wl-copy/xclip
+            (void)write_clipboard_text(body);   // 原生的 pbcopy/wl-copy/xclip
             auto toast = set_status_toast(m, "copied " + std::to_string(lines)
                 + (lines == 1 ? " line" : " lines"));
             return Cmd::batch(

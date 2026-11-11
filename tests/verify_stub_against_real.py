@@ -1,32 +1,26 @@
 #!/usr/bin/env python3
-"""verify_stub_against_real.py — is tests/fake_local_server.py honest?
+"""verify_stub_against_real.py：tests/fake_local_server.py 是否忠实于真实服务？
 
-The stub encodes OUR READING of each server's API. If the reading is wrong,
-every test built on it passes and the bug ships anyway — the test proves the
-stub matches itself, not that it matches reality.
+模拟服务器表达了我们对各服务器 API 的理解。若理解有误，依赖它的测试仍会全部通过，
+因为测试只能证明模拟实现与自身一致。
 
-This closes that loop: point it at a REAL server and it diffs the shape the
-stub claims against the shape the server actually returns. Key presence and
-JSON types only, never values (those legitimately differ per model/host).
+本脚本连接真实服务器，对比模拟实现声明的结构与实际返回结构。
+仅比较键是否存在及 JSON 类型，不比较因模型或主机而合理变化的具体值。
 
     python3 tests/verify_stub_against_real.py ollama   http://127.0.0.1:11434
     python3 tests/verify_stub_against_real.py llama    http://127.0.0.1:8080
     python3 tests/verify_stub_against_real.py lmstudio http://127.0.0.1:1234
 
-Exit 0 = the stub is faithful for every route the real server serves.
+退出 0 表示真实服务器提供的所有路由都与声明结构一致。
 
-There is also a --self-check mode, which runs every claim against the STUB
-instead of a real server:
+--self-check 模式则将每条声明与模拟服务器比较：
 
     python3 tests/verify_stub_against_real.py --self-check
 
-That is a weaker question on purpose — it cannot tell you the stub matches
-reality, only that the stub matches the claims. It exists because the two
-used to drift silently in the SAME direction: a field added to the stub but
-not to CLAIMS is never verified against anything, and a field in CLAIMS the
-stub doesn't serve reports "skip" forever and looks fine. Wiring this into
-ctest means adding a shape to the stub without stating the claim fails the
-build, so the manual real-server run has something honest to check.
+该模式只验证模拟实现与声明一致，无法证明它符合现实。
+此前二者可能同时悄悄偏离：模拟实现新增字段却没加入 CLAIMS，或 CLAIMS 中的
+字段从未由模拟实现提供，后者就会一直显示 skip。接入 ctest 后，这类遗漏会使构建失败，
+确保手动对照真实服务器时有可信的检查对象。
 """
 import json
 import os
@@ -36,8 +30,8 @@ import time
 import urllib.error
 import urllib.request
 
-# What each mode claims, as {route: [(json path, expected type)]}.
-# Paths use dots; "[]" means "first element of this array".
+# 每个模式要求什么,作为{路由:[(JSON路径,预期类型)]]].
+# 路径使用点; "[]" 表示 "first element of this array".
 CLAIMS = {
     "ollama": {
         "GET /api/tags": [
@@ -45,13 +39,13 @@ CLAIMS = {
             ("models[].model", str),
         ],
         "GET /api/ps": [
-            # The loaded window. Only present when a model is resident.
+            # 已加载窗口。 当模型为居民时才会出现。
             ("models[].context_length", int),
             ("models[].model", str),
         ],
         "POST /api/show": [
             ("model_info", dict),
-            # Matched by SUFFIX, so the test asserts the suffix exists.
+            # 与SUFFIX匹配,因此测试断言后缀存在.
             ("model_info.*.context_length", (int, float)),
         ],
     },
@@ -63,13 +57,13 @@ CLAIMS = {
         ],
         "GET /props": [
             ("default_generation_settings.n_ctx", int),
-            # The capability object. llama.cpp builds it by RUNNING the
-            # model's jinja template against probe inputs and diffing the
-            # output (common/jinja/caps.cpp, caps_get), so the key names
-            # are fixed by caps::to_map() in that file. If upstream renames
-            # one, agentty silently loses reasoning on every llama.cpp
-            # model and falls back to guessing from the GGUF filename —
-            # exactly the bug this replaced. Check the spelling, loudly.
+            # 能力对象。 llama.cpp 由"建"来建造 RUNNING
+            # 模型的jinja模板与探测器输入和输出的分解(
+            # common/jinja/caps.cpp, caps_get ),
+            # 因此,关键名称由 caps::to_map ()在该文件中。
+            # 如果 上游 重命名一个, agentty 默默地失去每个
+            # llama.cpp 模型,然后回到猜测 从 GGUF
+            # 文件名 — 正好是替换的bug。 请检查拼写, 大声地。
             ("chat_template_caps", dict),
             ("chat_template_caps.supports_reasoning_effort", bool),
             ("chat_template_caps.supports_tool_calls", bool),
@@ -80,31 +74,31 @@ CLAIMS = {
             ("models[].key", str),
             ("models[].max_context_length", int),
             ("models[].loaded_instances[].config.context_length", int),
-            # The capability object — the field the whole LM Studio bug was
-            # in. `reasoning` is an OBJECT here ({allowed_options, default}),
-            # not the bare bool Mistral uses, and the reader used to require
-            # is_boolean() and skip anything else. Every model then fell
-            # through to inference over a `publisher/model` key.
+            # 能力对象——整个领域 LM 工作室的虫子在里头 `reasoning`
+            # 是一个 OBJECT 这里( { allowed_options ,
+            # 默认),而不是赤裸的布卢尔·米斯特拉尔(英语:Bull Mistral)使用,
+            # 读者过去也要求 is_boolean 跳过其他任何事物,
+            # 然后每个模型都经过推断 `publisher/model` 键。
             #
-            # Checked as dict on purpose: if LM Studio ever flattens it to a
-            # bool, this fails loudly rather than the object arm quietly
-            # never matching. Note only the reasoning-capable rows carry it,
-            # so point this at a server with one loaded.
+            # 故意被检查为命令:如果 LM 工作室会把它
+            # 平整成一个小鸟, 而不是物体手臂 安静地不匹配。
+            # 请注意推理 -capable 行随身携带,
+            # 用一个指向服务器 已加载.
             ("models[].capabilities", dict),
             ("models[].capabilities.trained_for_tool_use", bool),
-            # The OBJECT arm itself. Worth stating separately from the
-            # parent: this exact type is what declared_reasoning()'s
-            # truthy_object combinator exists for, and if LM Studio ever
-            # flattens it to a bare bool the lens still matches (the bool
-            # arm catches it) while every comment here becomes a lie. Pin
-            # the shape so that change is visible rather than silent.
+            # 电话 OBJECT 与父母分开说明:这种确切类型是什么?
+            # declared_reasoning()'s
+            # truthy_object 组合符存在,
+            # 如果 LM 工作室会把它平整成裸露的鸟眼,
+            # 镜头仍然匹配(鸟臂抓住它),而这里的每个评论都变成谎言。
+            # 把形状固定下来,这样变化是显而易见的,而不是沉默的。
             ("models[].capabilities.reasoning", dict),
             ("models[].capabilities.reasoning.default", str),
         ],
     },
 }
 
-BODIES = {"POST /api/show": {"model": None}}   # model filled in at runtime
+BODIES = {"POST /api/show": {"model": None}}   # 模型填入时间 运行时
 
 
 def fetch(base, route, model=None):
@@ -124,8 +118,8 @@ def fetch(base, route, model=None):
 
 
 def resolve(doc, path):
-    """Walk a dotted path. '[]' takes the first element; '*' matches any key
-    whose remainder matches the rest of the path (used for GGUF arch keys)."""
+    """遍历点分路径。[] 取第一个元素；* 匹配任意键，
+    只要剩余部分能与余下路径匹配，用于 GGUF 架构键。"""
     cur = doc
     parts = path.split(".")
     i = 0
@@ -159,15 +153,14 @@ def resolve(doc, path):
 
 
 def verify(mode, base, quiet=False):
-    """Check every claim for `mode` against the server at `base`.
+    """对 base 处的服务器验证 mode 对应的全部声明。
 
-    Returns (checked, bad). A route the server doesn't serve is SKIPPED,
-    not counted — the point is "is what you do serve the shape we claim",
-    and a real llama.cpp has no /api/ps to answer for.
+    返回 (checked, bad)。服务器不提供的路由跳过且不计数，
+    因为检查关注已提供路由是否符合声明，例如真实 llama.cpp 并不提供 /api/ps。
     """
     claims = CLAIMS[mode]
 
-    # /api/show needs a model name; take the first one the server lists.
+    # /api/show需要一个模型名称;取第一个服务器列表的名.
     model = None
     if mode == "ollama":
         try:
@@ -195,7 +188,7 @@ def verify(mode, base, quiet=False):
             checked += 1
             got, err = resolve(doc, path)
             if err:
-                # An absent optional (nothing loaded) is not a lie.
+                # 不存在的可选性(无已加载)不是谎言。
                 print(f"  MISS {route} {path}: {err}")
                 bad += 1
                 continue
@@ -209,19 +202,19 @@ def verify(mode, base, quiet=False):
     return checked, bad
 
 
-# Claims that a real server answers but the STUB deliberately does not, with
-# the reason. Without this list --self-check would force the stub to serve
-# every field, which would destroy the cases it exists to cover.
+# 声称一个真正的服务器回答 但 STUB 故意不,有原因的,
+# 没有这个清单 --self-check 将迫使根茎
+# 为每个领域服务,这将摧毁它所要覆盖的病例。
 SELF_CHECK_EXEMPT = {
-    # The llama.cpp row carries only the train-time ceiling on purpose: the
-    # served window comes from /props, and that gap IS the bug the window
-    # probe guards. Adding n_ctx here would delete the test.
+    # 电话 llama.cpp 排队只载火车 -time
+    # 专用天花板:服务窗口来自/道具,该缺口 IS 窗口探测
+    # 器的窃听器。添加 n_ctx 这里删除测试。
     ("llama", "GET /v1/models", "data[].meta.n_ctx"),
 }
 
 
 def self_check():
-    """Run every claim against the stub instead of a real server."""
+    """对模拟服务器而非真实服务器验证全部声明。"""
     here = os.path.dirname(os.path.abspath(__file__))
     stub = os.path.join(here, "fake_local_server.py")
     total_bad = 0
@@ -233,13 +226,13 @@ def self_check():
                                 stderr=subprocess.DEVNULL)
         try:
             base = f"http://127.0.0.1:{port}"
-            # Wait for the listener rather than sleeping a guessed amount.
+            # 等待听众 而不是睡觉 猜测的数量。
             for _ in range(100):
                 try:
                     urllib.request.urlopen(base + "/v1/models", timeout=0.2)
                     break
                 except urllib.error.HTTPError:
-                    break          # answered, just not that route
+                    break          # 回答,只是没有这条路线
                 except Exception:
                     time.sleep(0.05)
             print(f"== {mode}")

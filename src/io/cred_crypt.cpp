@@ -32,27 +32,27 @@ namespace {
 
 using json = nlohmann::json;
 
-// Fixed application context bound into the key derivation. Changing this
-// string invalidates every previously-sealed file (they'll fail auth and
-// be treated as unrecoverable → the user re-runs `agentty login`).
+// 修复了绑定到密钥导出中的应用上下文。更改此字符串会使之前的每个
+// -sealed 文件失效（它们将无法通过身份验证并被视为不可恢复
+// → 用户 re-runs `agentty login`）。
 constexpr std::string_view kInfo = "agentty-credentials-v1";
 
-// libcrypto's first use would otherwise read and parse openssl.cnf (~0.4 ms
-// on every launch). Nothing here needs it.
+// libcrypto 的第一次使用否则会读取 解析 openssl.cnf (每次
+// 启动约 0.4 毫秒)。这里没有什么需要它。
 void init_crypto() {
     OPENSSL_init_crypto(OPENSSL_INIT_NO_LOAD_CONFIG, nullptr);
 }
 
-// ── Machine-stable seed ────────────────────────────────────────────────
-// Mixes: a per-machine id, the current user id, and the app context. This
-// is NOT a secret store — it's key material that stays constant for the
-// same (machine, user) so a file sealed today decrypts tomorrow, but a
-// copy of the file taken to ANOTHER machine (or another user) won't.
+// ── 机器-stable种子 ────────────────────────────────────────────────
+// 混合：per-machine id、当前用户 id 和应用程序上下文。
+// 这不是 的秘密存储 - 它的密钥材料对于同一台（机器、
+// 用户）保持不变，因此今天密封的文件明天就会解密，
+// 但传送到 ANOTHER 机器（或其他用户）的文件副本则不会。
 std::string machine_seed() {
     std::string seed;
 
 #if defined(_WIN32)
-    // MachineGuid is a stable per-install identifier.
+    // MachineGuid是稳定的per-install标识符。
     HKEY hk{};
     if (RegOpenKeyExA(HKEY_LOCAL_MACHINE,
                       "SOFTWARE\\Microsoft\\Cryptography", 0,
@@ -61,7 +61,7 @@ std::string machine_seed() {
         if (RegQueryValueExA(hk, "MachineGuid", nullptr, &type,
                              reinterpret_cast<BYTE*>(buf), &sz) == ERROR_SUCCESS
             && type == REG_SZ && sz > 0) {
-            seed.assign(buf, sz - 1); // drop trailing NUL
+            seed.assign(buf, sz - 1); // 删除尾随 NUL
         }
         RegCloseKey(hk);
     }
@@ -69,7 +69,7 @@ std::string machine_seed() {
         char name[256]; DWORD n = sizeof(name);
         if (GetComputerNameA(name, &n)) seed.assign(name, n);
     }
-    // Per-user salt: username is a reasonable stand-in for uid on Windows.
+    // Per-user salt:用户名是Windows上uid的合理立场-in。
     if (const char* u = std::getenv("USERNAME")) { seed += '\x1f'; seed += u; }
 #else
     for (const char* path : {"/etc/machine-id", "/var/lib/dbus/machine-id"}) {
@@ -83,7 +83,7 @@ std::string machine_seed() {
             seed = host;
         }
     }
-    // Bind to the numeric uid so a shared machine keeps per-user isolation.
+    // 绑定到数字uid，以便共享机器保持per-user隔离。
     seed += '\x1f';
     seed += std::to_string(static_cast<unsigned long>(::getuid()));
 #endif
@@ -94,9 +94,9 @@ std::string machine_seed() {
     return seed;
 }
 
-// HKDF-SHA256(seed, salt, info) → 32-byte AES key. OpenSSL 3's EVP_KDF is
-// the portable path; the deprecated one-shot HKDF() would also work but
-// EVP_KDF is what's guaranteed present in the linked OpenSSL.
+// HKDF-SHA256（种子、盐、信息）→ 32-byte AES 密钥。
+// OpenSSL 3的EVP_KDF是可移植路径；已弃用的 one-shot HKDF()
+// 也可以工作，但 EVP_KDF 是链接的 OpenSSL 中保证存在的内容。
 bool derive_key(const std::string& seed,
                 const unsigned char* salt, size_t salt_len,
                 std::array<unsigned char, 32>& out_key) {
@@ -124,22 +124,22 @@ bool derive_key(const std::string& seed,
     return ok;
 }
 
-// ── Optional passphrase (memory-hard factor) ───────────────────────────
-// scrypt parameters. N=2^15 (32768), r=8, p=1 is the interactive-login
-// profile from RFC 7914 — ~32 MiB and tens of ms per derivation, which
-// makes an offline guessing attack against the file painfully slow while
-// staying imperceptible for the once-per-save/load path here. Stored in
-// the envelope so unseal reproduces them even if we retune later.
+// ── 可选密码句( N) 内存-hard 因素) ───────────────────────────
+// scrypt参数。 N=2^15 (32768), r=8,
+// p=1 是来自 RFC 7914 — ~32 MiB 的交互式-login
+// 配置文件，每次推导需要数十毫秒，这使得针对文件的离线猜测攻击极其缓慢，
+// 同时对此处的 once-per-save/load 路径保持难以察觉。
+// 存储在信封中，因此即使我们稍后重新调整，启封后也会复制它们。
 constexpr uint64_t kScryptN = 1u << 15;
 constexpr uint32_t kScryptR = 8;
 constexpr uint32_t kScryptP = 1;
 
-// Read a line from /dev/tty with terminal echo disabled (so the passphrase
-// doesn't paint on screen). Returns std::nullopt if there is no controlling
-// tty (e.g. piped/headless) — the caller then errors instead of prompting.
+// 在禁用 终端 回显的情况下从 /dev/tty 读取一行（因此密码短语
+// 不会绘制在屏幕上）。如果没有控制 tty (e.g.piped/headless)，
+// 则返回 std::nullopt — 调用者将出现错误而不是提示。
 std::optional<std::string> prompt_passphrase() {
 #if defined(_WIN32)
-    return std::nullopt;   // interactive prompt unsupported here; use env var
+    return std::nullopt;   // 此处不支持交互提示词；使用环境变量
 #else
     FILE* tty = std::fopen("/dev/tty", "r+");
     if (!tty) return std::nullopt;
@@ -152,7 +152,7 @@ std::optional<std::string> prompt_passphrase() {
         noecho.c_lflag &= ~(tcflag_t)ECHO;
         ::tcsetattr(fd, TCSAFLUSH, &noecho);
     } else {
-        restored = true;   // couldn't toggle echo; still read, just echoes
+        restored = true;   // 无法 切换 回显；仍在阅读，只是回声
     }
 
     std::fputs("Enter agentty credential passphrase: ", tty);
@@ -168,12 +168,12 @@ std::optional<std::string> prompt_passphrase() {
 #endif
 }
 
-// Resolve the passphrase for this process, ONCE. Precedence:
-//   1. AGENTTY_PASSPHRASE (explicit secret, e.g. CI)
-//   2. AGENTTY_ENCRYPT_PASSPHRASE truthy → interactive prompt on /dev/tty
-//   3. neither → no passphrase (machine-only mode)
-// The result (present-or-absent) is cached so we prompt at most once per run
-// and every seal/unseal in the session agrees.
+// 解析该进程的密码，一次。优先级：
+//   1.AGENTTY_PASSPHRASE(显式秘密，e.g.CI)
+//   2.AGENTTY_ENCRYPT_PASSPHRASE真实→在/dev/tty上互动提示词
+//   3.既不是→也没有密码(machine-only模式)
+// 结果（present-or-absent)被缓存，因此每次运行我们最多提示词一次，
+// 并且会话中的每个seal/unseal都同意。
 const std::optional<std::string>& resolve_passphrase() {
     static std::once_flag once;
     static std::optional<std::string> cached;
@@ -194,10 +194,10 @@ const std::optional<std::string>& resolve_passphrase() {
     return cached;
 }
 
-// Fold a passphrase into 32 bytes of memory-hard key material via scrypt,
-// with EXPLICIT cost params. Same (passphrase, salt, params) always yields
-// the same output, so unseal reproduces it from the envelope's stored params.
-// Returns false on OpenSSL failure (e.g. memory limit).
+// 归并通过scrypt将密码短语转换成内存-hard密钥材料的32个字节，
+// 具有EXPLICIT成本参数。相同的（密码、盐、
+// 参数）总是产生相同的输出，因此 unseal 从信封存储的参数中再现它。
+// 当 OpenSSL 失败时返回 false（e.g.内存 限制）。
 bool scrypt_derive_params(const std::string& pass,
                           const unsigned char* salt, size_t salt_len,
                           uint64_t n, uint32_t r, uint32_t p,
@@ -208,8 +208,8 @@ bool scrypt_derive_params(const std::string& pass,
     EVP_KDF_free(kdf);
     if (!ctx) return false;
 
-    // scrypt's default memory guard (~32 MiB) can reject N=2^15 on some
-    // builds; raise the ceiling so the intended params always run.
+    // scrypt 的默认 内存 保护（~32 MiB)可以在某些构
+    // 建上拒绝 N=2^15；提高上限，以便预期的参数始终运行。
     uint64_t maxmem = 256ull * 1024 * 1024;
     OSSL_PARAM full[7];
     int i = 0;
@@ -228,7 +228,7 @@ bool scrypt_derive_params(const std::string& pass,
     return ok;
 }
 
-// Convenience: derive with the current default params (used at seal time).
+// 方便：用当前默认参数（在密封时使用）导出。
 bool scrypt_derive(const std::string& pass,
                    const unsigned char* salt, size_t salt_len,
                    std::array<unsigned char, 32>& out) {
@@ -236,19 +236,19 @@ bool scrypt_derive(const std::string& pass,
                                 kScryptN, kScryptR, kScryptP, out);
 }
 
-// ── Argon2id (preferred when the linked OpenSSL provides it) ─────────────
-// Argon2id is the modern PHC-winner memory-hard KDF; it resists both GPU and
-// side-channel attacks better than scrypt. It only landed in OpenSSL 3.2, so
-// we PROBE for it at runtime and fall back to scrypt on older libraries. New
-// files prefer argon2id; the envelope records which KDF ran so unseal always
-// reproduces the right one regardless of what the current build supports.
+// ── argon2id( 链接的OpenSSL 提供时首选) ─────────────
+// Argon2id是现代的PHC-winner 内存-hard KDF；
+// 它比 scrypt 更好地抵抗 GPU 和 side-channel 攻击。
+// 它仅在 OpenSSL 3.2 中发布，因此我们在 运行时 上对其进行 PROBE
+// 并回退到较旧的 库 上的 scrypt。新文件更喜欢argon2id；
+// KDF 运行的信封记录因此无论当前版本支持什么，解封总是会重现正确的记录。
 //
-// Params: t=3 passes, m=65536 KiB (64 MiB), p=1 lane. A conservative
-// interactive profile — ~64 MiB and tens of ms, matching scrypt's cost class
-// while being meaningfully harder to attack offline.
-constexpr uint32_t kArgonT = 3;         // iterations / passes
-constexpr uint32_t kArgonM = 64 * 1024; // memory in KiB (64 MiB)
-constexpr uint32_t kArgonP = 1;         // parallelism / lanes
+// 参数：t = 3次通过，m = 65536 KiB (64 MiB)，
+// p = 1泳道。保守的交互配置文件 — ~64 MiB 和数十毫秒，
+// 与 scrypt 的成本级别匹配，同时更难离线攻击。
+constexpr uint32_t kArgonT = 3;         // 迭代/遍
+constexpr uint32_t kArgonM = 64 * 1024; // 内存 在 KiB (64 MiB)
+constexpr uint32_t kArgonP = 1;         // 并行度/通道
 
 bool argon2id_available() {
     init_crypto();
@@ -261,8 +261,8 @@ bool argon2id_available() {
     return ok;
 }
 
-// Derive 32 bytes via Argon2id with EXPLICIT params (so unseal reproduces
-// from the envelope). Returns false on OpenSSL failure / unsupported.
+// 通过具有 EXPLICIT 参数的 Argon2id 导出 32 字节 (因此从
+// 信封中重新开封)。如果 OpenSSL 失败/不受支持，则返回 false。
 bool argon2id_derive_params(const std::string& pass,
                             const unsigned char* salt, size_t salt_len,
                             uint32_t t, uint32_t m, uint32_t p,
@@ -282,7 +282,7 @@ bool argon2id_derive_params(const std::string& pass,
     full[i++] = OSSL_PARAM_construct_uint32("iter",      &t);
     full[i++] = OSSL_PARAM_construct_uint32("memcost",   &m);
     full[i++] = OSSL_PARAM_construct_uint32("lanes",     &p);
-    // Argon2 requires threads <= lanes; pin threads=1 for determinism.
+    // Argon2要求线程<=泳道；引脚 线程=1 用于确定性。
     static uint32_t threads = 1;
     full[i++] = OSSL_PARAM_construct_uint32("threads",   &threads);
     full[i]   = OSSL_PARAM_construct_end();
@@ -292,11 +292,11 @@ bool argon2id_derive_params(const std::string& pass,
     return ok;
 }
 
-// Produce the final 32-byte AES key for a given salt. When a passphrase is
-// configured, the machine seed is EXTENDED with a memory-hard KDF over the
-// passphrase so the key depends on BOTH factors; otherwise it's the machine-
-// only path. `chosen_kdf` reports which passphrase KDF ran ("" = none, i.e.
-// machine-only v1) so seal can stamp the envelope and unseal can reproduce it.
+// 产生给定盐的最终 32-byte AES 密钥。配置密码短语后，
+// 机器种子为 EXTENDED，密码短语上带有 内存-hard KDF，
+// 因此密钥取决于 两者 因素；否则它是仅限机器的路径。
+// `chosen_kdf` 报告运行的是哪个密码 KDF（"" = 无，i.e。
+// machine-only v1)因此密封可以在信封上盖章并且开封可以复制它。
 bool derive_final_key(const unsigned char* salt, size_t salt_len,
                       bool require_passphrase,
                       std::array<unsigned char, 32>& out_key,
@@ -307,8 +307,8 @@ bool derive_final_key(const unsigned char* salt, size_t salt_len,
     const auto& pass = resolve_passphrase();
     if (pass && !pass->empty()) {
         std::array<unsigned char, 32> pk{};
-        // Prefer Argon2id where available; fall back to scrypt on older
-        // OpenSSL. AGENTTY_KDF=scrypt forces the fallback (testing / parity).
+        // 优选 Argon2id (如果可用)；在较旧的 OpenSSL 上回退到
+        // scrypt。 AGENTTY_KDF=scrypt 强制 回退（测试/奇偶校验）。
         const char* force = std::getenv("AGENTTY_KDF");
         const bool want_scrypt = force && std::strcmp(force, "scrypt") == 0;
         if (!want_scrypt && argon2id_available()
@@ -320,13 +320,13 @@ bool derive_final_key(const unsigned char* salt, size_t salt_len,
         } else {
             return false;
         }
-        // Bind the KDF output into the HKDF input keying material so the
-        // final key needs machine seed AND passphrase.
+        // 将 KDF 输出绑定到 HKDF 输入密钥材料中，
+        // 因此最终密钥需要机器种子 和 密码。
         seed.push_back('\x1f');
         seed.append(reinterpret_cast<const char*>(pk.data()), pk.size());
         OPENSSL_cleanse(pk.data(), pk.size());
     } else if (require_passphrase) {
-        // Envelope was sealed WITH a passphrase but none is available now.
+        // 信封上封有 WITH 密码，但现在没有可用的。
         return false;
     }
 
@@ -343,12 +343,12 @@ std::string b64(const unsigned char* p, size_t n) {
     return util::base64_encode(p, n);
 }
 
-} // namespace
+} // 命名空间结束。
 
 bool looks_sealed(const std::string& s) noexcept {
-    // Cheap structural probe: a sealed file is a JSON object whose first
-    // non-space bytes open a brace and mention our marker. Avoid a full
-    // parse on the hot path (every load).
+    // 廉价的结构探针：密封文件是JSON对象，其第一个非-space
+    // 字节打开大括号并提及我们的标记。避免在 高频路径 上
+    // 出现完整的 解析（每个 加载）。
     auto pos = s.find_first_not_of(" \t\r\n");
     if (pos == std::string::npos || s[pos] != '{') return false;
     return s.find("\"enc\"") != std::string::npos
@@ -392,8 +392,8 @@ std::optional<std::string> seal(const std::string& plaintext) {
             break;
         int total = outl;
         int finl = 0;
-        // GCM is a stream cipher: EncryptFinal emits no extra bytes, but
-        // the call must run to finalize the tag.
+        // GCM是数据流密码：EncryptFinal不发出额外的字节，
+        // 但是调用必须运行以最终确定标签。
         if (EVP_EncryptFinal_ex(ctx,
                 reinterpret_cast<unsigned char*>(ct.data()) + total, &finl) != 1)
             break;
@@ -405,7 +405,7 @@ std::optional<std::string> seal(const std::string& plaintext) {
     } while (false);
 
     EVP_CIPHER_CTX_free(ctx);
-    // Wipe the derived key from the stack promptly.
+    // 及时从堆栈中擦除派生密钥。
     OPENSSL_cleanse(key.data(), key.size());
     if (!ok) return std::nullopt;
 
@@ -417,17 +417,17 @@ std::optional<std::string> seal(const std::string& plaintext) {
         {"ct",    b64(reinterpret_cast<const unsigned char*>(ct.data()), ct.size())},
         {"tag",   b64(tag, sizeof(tag))},
     };
-    // When a passphrase factor is present, record the KDF + its params so a
-    // future unseal (possibly after we retune the cost, or on a build without
-    // argon2id) reproduces the exact derivation, and so unseal knows to
-    // REQUIRE the passphrase.
+    // 当存在密码短语因素时，记录KDF+其参数，以便将来的解
+    // 封（可能在我们重新调整成本之后，或者在没有argon2id
+    // 的构建上）再现精确的推导，并且因此解封知道
+    // REQUIRE密码短语。
     if (used_pass) {
         env["kdf"] = chosen_kdf;
         if (chosen_kdf == "argon2id") {
-            env["kdf_t"] = kArgonT;   // passes
-            env["kdf_m"] = kArgonM;   // memory KiB
-            env["kdf_p"] = kArgonP;   // lanes
-        } else {  // scrypt
+            env["kdf_t"] = kArgonT;   // 通行证
+            env["kdf_m"] = kArgonM;   // 内存 KiB
+            env["kdf_p"] = kArgonP;   // 车道
+        } else {  // 加密
             env["kdf_n"] = kScryptN;
             env["kdf_r"] = kScryptR;
             env["kdf_p"] = kScryptP;
@@ -442,7 +442,7 @@ std::optional<std::string> unseal(const std::string& envelope) {
     try {
         j = json::parse(envelope);
     } catch (...) {
-        return std::nullopt;   // not JSON → not our envelope
+        return std::nullopt;   // 不是 JSON → 不是我们的信封
     }
     if (!j.is_object() || j.value("enc", "") != "aes-256-gcm")
         return std::nullopt;
@@ -459,11 +459,11 @@ std::optional<std::string> unseal(const std::string& envelope) {
     if (salt.empty() || nonce.size() != 12 || tag.size() != 16)
         return std::nullopt;
 
-    // Does this envelope carry a passphrase factor? v2 envelopes stamp a
-    // "kdf" (argon2id or scrypt) plus the exact cost params. If so, the
-    // passphrase is REQUIRED and we reproduce the derivation with the STORED
-    // params + KDF (not the current defaults — the sealing build may have
-    // used a different KDF or cost than this one).
+    // 该信封是否带有密码因子？ v2 信封上印有 "kdf"（
+    // argon2id 或 scrypt）加上确切的成本参数。
+    // 如果是这样，密码是 REQUIRED，我们使用 STORED
+    // 参数 + KDF 重现推导（不是当前的默认值 - 密封版本
+    // 可能使用了与此不同的 KDF 或成本）。
     const std::string kdf_name = j.value("kdf", "");
     const bool has_pass_kdf = (kdf_name == "scrypt" || kdf_name == "argon2id");
 
@@ -473,7 +473,7 @@ std::optional<std::string> unseal(const std::string& envelope) {
     if (has_pass_kdf) {
         const auto& pass = resolve_passphrase();
         if (!pass || pass->empty())
-            return std::nullopt;   // sealed with a passphrase; none available
+            return std::nullopt;   // 用密码密封；没有可用的
 
         std::array<unsigned char, 32> pk{};
         bool kok = false;
@@ -483,14 +483,14 @@ std::optional<std::string> unseal(const std::string& envelope) {
                                          j.value("kdf_m", (uint32_t)kArgonM),
                                          j.value("kdf_p", (uint32_t)kArgonP),
                                          pk);
-        } else {  // scrypt
+        } else {  // 加密
             kok = scrypt_derive_params(*pass, salt_p, salt.size(),
                                        j.value("kdf_n", (uint64_t)kScryptN),
                                        j.value("kdf_r", (uint32_t)kScryptR),
                                        j.value("kdf_p", (uint32_t)kScryptP),
                                        pk);
         }
-        if (!kok) return std::nullopt;   // KDF failed / argon2id unsupported here
+        if (!kok) return std::nullopt;   // KDF 失败/此处不支持 argon2id
 
         std::string seed = machine_seed();
         seed.push_back('\x1f');
@@ -500,7 +500,7 @@ std::optional<std::string> unseal(const std::string& envelope) {
         OPENSSL_cleanse(seed.data(), seed.size());
         if (!dk) return std::nullopt;
     } else {
-        // Legacy/machine-only envelope: derive from the machine seed alone.
+        // Legacy/machine-only信封：源自机器种子单独。
         if (!derive_key(machine_seed(), salt_p, salt.size(), key))
             return std::nullopt;
     }
@@ -528,9 +528,9 @@ std::optional<std::string> unseal(const std::string& envelope) {
                 static_cast<int>(ct.size())) != 1)
             break;
         int total = outl;
-        // Set the expected tag BEFORE DecryptFinal — that's where GCM
-        // verifies authenticity. A tampered file / wrong machine key
-        // fails here and returns nullopt (no plaintext leaks).
+        // 设置预期标签BEFORE DecryptFinal——
+        // GCM在此处验证真实性。被篡改的文件/错误的机器密钥在此失败并返回
+        // nullopt（无明文泄漏）。
         if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG,
                 static_cast<int>(tag.size()),
                 const_cast<char*>(tag.data())) != 1)
@@ -538,7 +538,7 @@ std::optional<std::string> unseal(const std::string& envelope) {
         int finl = 0;
         if (EVP_DecryptFinal_ex(ctx,
                 reinterpret_cast<unsigned char*>(pt.data()) + total, &finl) != 1)
-            break;   // authentication failed
+            break;   // 认证失败
         total += finl;
         pt.resize(static_cast<size_t>(total));
         ok = true;

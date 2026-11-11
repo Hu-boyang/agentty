@@ -1,56 +1,56 @@
 #pragma once
-// View-side render cache.
+// 查看-side 渲染 缓存。
 //
-// Keeps mutable UI state out of the pure domain types (Message, ToolUse).
-// The domain describes *what* a conversation is; this cache describes
-// *what we've already painted for it* so we can skip rebuilding identical
-// Elements every frame.
+// 将 可变 UI 状态保留在纯域类型之外（消息、ToolUse）。
+// 域描述对话是什么；这个 缓存 描述了*我们
+// 已经为其绘制的内容*，因此我们可以跳过每个 帧
+// 重建相同的元素。
 //
-//   • Message markdown — finalized assistant messages whose `text` is
-//     immutable. Keyed by (thread_id, msg_idx). Streaming messages carry a
-//     separate `StreamingMarkdown` that caches block boundaries so each
-//     delta costs O(new_chars) instead of O(total).
+//   ·消息降价——最终确定的辅助消息，其`text`为
+//     不可变。由（thread_id、msg_idx）键入。 流式传输 消息携带单独
+//     的 `StreamingMarkdown` 和 缓存 块边界，因此每个增量
+//     成本为 O(new_chars)，而不是 O(总计)。
 //
-//   • Turn config + built Element — the FULL maya::Turn::Config + the
-//     Element returned by Turn::build() for a settled turn (one that has
-//     a successor in the message list, so by construction fully resolved).
-//     Caches the agent timeline (every tool card config), permission
-//     rows, markdown body. Without this, each frame walks every visible
-//     message and rebuilds N tool cards × M turns from scratch; after
-//     ~10 turns frame time grows enough that even direct mode feels
-//     sluggish, and over an SSH-tunnelled airgap the bigger frames pay
-//     per-byte transmission cost. Reusing the cached Element makes the
-//     per-frame cost O(active_turn) instead of O(total_turns × tools).
+//   ·转动配置+内置元件-FULL maya::Turn::Config+
+//     由 Turn::build() 返回的用于已确定回合的
+//     元素（在消息列表中具有后继者，因此通过构造完全解析）。
+//     缓存代理时间线（每个工具卡配置），权限行，markdown 正文。
+//     如果没有这个，每个 帧 都会遍历每条可见消息并从头开始重建 N
+//     工具卡 × M 圈；约 10 圈后 帧 时间增长得足够多，
+//     甚至直接模式也感觉迟缓，并且在 SSH-tunnelled 气隙上，
+//     更大的 帧 为每 -byte 传输成本付出了代价。
+//     重用缓存的元素使得 per-frame 的成本为 O(
+//     active_turn) 而不是 O(total_turns × 工具)。
 //
-// ── Spirit-pure reducer / self-managing cache ──
+// ── 灵灵 -pure 状态更新函数 / 自我 -managing 缓存 ──
 //
-// History:
-//   v1: process-global thread_local map keyed by (ThreadId, msg_idx),
-//       with free functions like `message_md_cache(tid, idx)` and
-//       `evict_thread(tid)`. The reducer called `ui::evict_thread(...)`
-//       on thread switch / NewThread / compaction to invalidate stale
-//       entries — type-pure (Model unchanged) but spirit-impure
-//       (mutated process-global state hidden from the Model).
+// 历史：
+//   v1:进程-global thread_local映射由(ThreadId，msg_idx)键控，
+//       具有诸如`message_md_cache(tid, idx)`和
+//       `evict_thread(tid)`等自由函数。 状态更新函数 在 线程
+//       开关/NewThread/压缩上调用 `ui::evict_thread(...)` 以
+//       使 过期 条目无效 - type-pure（Model 不变）但spirit
+//       -impure（对 Model 隐藏的突变 process-global 状态）。
 //
-//   v2: ViewCache moved into Model::UI as a mutable member. Reducer
-//       mutations were now visible in the returned Model — type-pure
-//       AND surface-pure. But the reducer still had to know about a
-//       render-side concern: it called `m.ui.view_cache.evict_thread()`
-//       to keep stale cache entries from colliding with new ones at
-//       the same (thread_id, msg_idx) key after compaction.
+//   v2:ViewCache作为可变成员移入Model::UI。
+//       状态更新函数 突变现在在返回的 Model — 类型 -pure
+//       和 表面 -pure 中可见。但 状态更新函数 仍然必须了解 渲染
+//       -side 问题：它调用 `m.ui.view_cache.evict_thread()`
+//       来防止 过期 缓存 条目在压缩后与同一（thread_id，
+//       msg_idx）键上的新条目发生冲突。
 //
-//   v3 (this file): cache keyed by (thread_id, message.id) — a stable
-//       per-Message identifier generated at construction and persisted
-//       to disk. Compaction creates new Messages with new IDs, so
-//       old entries become orphans naturally; no explicit eviction
-//       needed. The reducer never touches the cache anymore. View-side
-//       memoization stays through `mutable` on Model::UI::view_cache,
-//       which is the standard logical-const pattern: filling a
-//       memoization slot doesn't change observable Model behavior
-//       (every cache hit returns what a cache miss would have built).
+//   v3 (此文件)：缓存由(thread_id，
+//       message.id)键控——在构造时生成并保存到磁盘的稳定
+//       的per-Message标识符。压缩会创建具有新 ID
+//       的新消息，因此旧条目自然会成为孤儿；不需要明确驱逐。
+//       状态更新函数 不再接触 缓存。 View-side 记忆化缓
+//       存 在 Model::UI::view_cache 上停留到
+//       `mutable`，这是标准的逻辑 -const
+//       模式：填充 记忆化缓存 槽不会改变可观察到的 Model
+//       行为（每个 缓存 命中都会返回 缓存 未命中所构建的内容）。
 //
-// The runtime serializes update + view on one thread by construction,
-// so no internal locking is needed.
+// 运行时通过构造在一个线程上序列化更新+查看，
+// 因此不需要内部加锁。
 
 #include <array>
 #include <cstddef>
@@ -75,361 +75,361 @@ namespace agentty::ui {
 struct MessageMdCache {
     std::shared_ptr<maya::Element>            finalized;
     std::shared_ptr<maya::StreamingMarkdown>  streaming;
-    // Size of the source last fed into `streaming` after settle.
-    // Once a settled msg.text matches it, skip the per-frame
-    // set_content() / finish() round trip — set_content's bytes-
-    // equal fast path is already a no-op but still pays O(text)
-    // memcmp every frame for every visible settled turn. SIZE_MAX
-    // is the "not yet settled" sentinel.
+    // 稳定后最后馈送到`streaming`的源的大小。
+    // 一旦确定的msg.text与其匹配，则跳过per-frame
+    // set_content()/finish()往返行程——set_content
+    // 的字节-相等的快速路径已经是no-op，但仍然为每个可见的已确定回
+    // 合在每个帧支付O(text)memcmp。 SIZE_MAX 是
+    // "not yet settled" 哨兵。
     //
-    // No content hash: msg.text is never rewritten in place after
-    // StreamFinished moves streaming_text → text. Edits replace the
-    // Message wholesale (new MessageId, new cache slot), so size
-    // alone is a sufficient invariant.
+    // 无内容散列：在StreamFinished移动
+    // streaming_text→文本之后，msg.text永远不会就地重写。
+    // 编辑取代了消息批发（新的 MessageId，新的 缓存 插槽），
+    // 因此仅尺寸就足够了 不变量。
     std::size_t                               last_settled_size =
         static_cast<std::size_t>(-1);
 
-    // The motion level this widget's reveal-fx policy was configured with.
+    // 配置该小部件的逐步显示-fx策略的运动级别。
     //
-    // Per-WIDGET, because the question "must I re-apply the policy" is
-    // per-widget. It used to be a compare-and-reset latch local to
-    // cached_markdown_for(), which runs SEVERAL times per frame -- once per
-    // streaming widget (the reasoning "#r" lane, the answer lane, and one per
-    // sub-turn in a multi-message turn). The first caller consumed the change
-    // and every later widget that frame read "unchanged", so toggling motion
-    // mid-stream applied to the reasoning block and left the answer
-    // animating.
+    // Per-WIDGET，因为问题"must I re-apply the policy"
+    // 是per-widget。它曾经是cached_markdown_for
+    // ()本地的compare-and-reset锁存器，
+    // 每个帧运行SEVERAL次——每个流式传输小部件运行一次（推理"#r"通道，
+    // 答案通道，以及在multi-message回合中每个子-turn运行一次）。
+    // 第一个调用者消耗了更改，并且 帧 读取 "unchanged" 的每个后来
+    // 的小部件，因此切换运动 mid-stream 应用于推理块并留下
+    // 动画答案。
     //
-    // A process-global "changed this frame" flag fixes that and introduces
-    // worse problems: it is sticky across anything that does not publish
-    // every frame, so it leaks between tests and between a panel frame and a
-    // thread frame. Storing the applied value HERE needs no frame semantics
-    // at all -- a widget re-applies exactly when what it has differs from
-    // what is in force, which is the actual condition.
+    // 进程-global "changed this frame"
+    // 标志修复了该问题并引入了更严重的问题：它在不发布
+    // 每个帧的任何内容上都是粘性的，因此它在测试之间以及
+    // 面板帧和线程 帧之间发生泄漏。存储应用值 此处 根本
+    // 不需要 帧 语义——当小部件所拥有的内容与实际情况不同时，
+    // 它就会重新-applies。
     //
-    // -1 = nothing applied yet (a fresh widget configures unconditionally).
+    // -1 = 尚未应用任何内容（无条件配置新的小部件）。
     int                                       applied_motion = -1;
 
-    // Set once the reasoning->answer seam glide has been armed for this
-    // slot. The trigger is a state TRANSITION (reasoning settles when the
-    // answer's first byte lands), not a byte arrival, so it cannot live
-    // under the sizes-changed gate -- reasoning's source stops growing at
-    // exactly that moment, which is why the seam was previously unbounded.
-    // Latched so the deadline is stamped once; re-arming each frame would
-    // keep pushing it back and the cursor would never land.
+    // 一旦推理->应答接口边界滑翔机已针对该槽位被装备，
+    // 则设置。触发器是状态 TRANSITION（当答案的第
+    // 一个 字节 落地时推理就解决了），而不是 字节 到达，
+    // 因此它不能生活在尺寸 -changed 门下——推理的源
+    // 在那一刻停止增长，这就是 接口边界 以前不受限制的原因。
+    // 锁定，因此最后期限被标记一次； re-arming 每
+    // 个 帧 都会不断地向后推，光标永远不会落地。
     bool                                      seam_glide_armed = false;
 
-    // ── Reveal bookkeeping ──
+    // ── 逐步显示 记账 ──
     //
-    // There is no host-side typewriter cursor: cached_markdown_for feeds
-    // the FULL set of arrived bytes to the streaming widget every frame
-    // and lets maya's reveal_fx animate the live edge. `revealed_size` is
-    // therefore always held == source.size(); it survives only so the
-    // settled fast-path / freeze snapshot can confirm the whole message
-    // has been fed before treating it as final.
+    // 不存在主机-side打字机光标：cached_markdown_for
+    // 每隔帧将到达的字节的FULL组馈送到流式传输小部件，并让maya的
+    // reveal_fx对活动边缘进行动画处理。因此，`revealed_size`
+    // 始终保持 == source.size()；它的存在只是为了让
+    // 已确定的 fast-path / freeze 快照 可以在将
+    // 其视为最终消息之前确认整个消息已被馈送。
     std::size_t                               revealed_size = 0;
 
-    // Animation-clock timestamp (ms, maya::anim_now_ms) of the last frame
-    // at which `source` grew (new bytes arrived from the wire). Drives the
-    // "stream in motion" grace window that keeps the 16 ms animation frame
-    // armed while bytes are flowing so reveal_fx animates smoothly. Once the
-    // wire goes quiet for longer than the window (a model stall) RAF lapses
-    // and the loop falls back to the calmer Tick cadence; the next delta's
-    // eventfd wake revives it. Reset to zero on source shrink / roll.
+    // `source`增长的最后帧的动画-clock时间戳（毫秒，
+    // maya::anim_now_ms)（新的字节从传输到达）。
+    // 驱动 "stream in motion" 宽限窗口，
+    // 使 16 毫秒动画 帧 处于武装状态，同时 字节 正在流动，
+    // 因此 reveal_fx 动画流畅。一旦 传输 安静的时间超过窗口（模型失速），
+    // RAF 就会失效，循环会回到更平静的 Tick 节奏；下一个 Delta
+    // 的 eventfd 唤醒会恢复它。在源收缩/滚动时重置为零。
     //
-    // On the ANIMATION clock (not raw steady_clock) so it advances in
-    // lockstep with the reveal widget it gates and stays deterministic
-    // under maya::testing::advance_anim_clock_ms — otherwise a
-    // synchronous, byte-identical render sequence could take a different
-    // finalize/defer path run-to-run purely from wall-clock jitter
-    // (the flaky midrun_seam_test committed-prefix divergence). 0 = unset.
+    // 在 ANIMATION 时钟（不是原始 steady_clock）上，
+    // 因此它与 逐步显示 小部件同步前进，它门控并在
+    // maya::testing::advance_anim_clock_ms 下
+    // 保持确定性 — 否则，同步的 字节-identical 渲染 序列可能采用不同的
+    // finalize/defer 路径 run-to-run 纯粹来自 wall-clock
+    // 抖动（片状midrun_seam_test 犯了-prefix 分歧）。 0 = 未设置。
     std::int64_t                              last_grow_tick_ms = 0;
     std::size_t                               last_grow_size = 0;
 
-    // Scratch buffer for multi-sub-turn rendering. When a single
-    // Assistant message has produced text in a prior sub-turn (now
-    // in `msg.text`) and is now streaming more text in a follow-up
-    // sub-turn (in `msg.streaming_text`), we need to feed the
-    // widget the CONCATENATION of both so the live tail keeps
-    // growing visibly. Holding the joined buffer here gives a
-    // stable backing for the string_view fed into
-    // set_content_async. Cleared on settle.
+    // 对 multi-sub-turn 渲染 刮擦 缓冲区。
+    // 当单个助手消息在先前的 sub-turn（现在在 `msg.text`）
+    // 中生成文本并且现在在 follow-up sub-turn（在
+    // `msg.streaming_text`）中生成 流式传输 文本时，
+    // 我们需要为小部件提供两者的 CONCATENATION，
+    // 以便实时 末尾 不断明显增长。将已连接的 缓冲区 固定在此处，
+    // 可以为 string_view 送入
+    // set_content_async 提供稳定的支持。结算时清算。
     std::string                               combined_source;
 
-    // Sizes of the three components last folded into combined_source.
-    // Used by cached_markdown_for to short-circuit the per-frame
-    // concat + set_content_async round-trip when NONE of msg.text /
-    // streaming_text / pending_stream grew (the dominant case during
-    // reveal_fx animation: the widget renders 60 fps but bytes arrive
-    // 10-30 / s, so >90% of frames produce no source change).
+    // 最后折叠成combined_source的三个部件的尺寸。
+    // 当msg.text/streaming_text/pending_stream的NONE增长时，
+    // 由cached_markdown_for将per-frame concat
+    // + set_content_async round-trip用于short-circuit
+    // (reveal_fx动画期间的主要情况：小部件渲染 60 FPS但字节到达10-30/ s，
+    // 因此 >90% 的 帧 不会产生源更改）。
     //
-    // Without this guard the live tail rebuilds an N-byte string AND
-    // does an N-byte memcmp every frame for a long sub-turn-2 message
-    // (text holds prior sub-turn's settled body, streaming_text grows).
-    // O(turn-length) per frame on the in-flight run is what makes the
-    // perceived render speed degrade with turn size.
+    // 没有这个保护，活动末尾重建N
+    // -byte字符串AND每隔帧对长sub-turn-2消息执行N-byte
+    // memcmp（文本保存先前sub-turn的固定正文，streaming_text增长）。
+    // in-flight运行中每个帧的O(turn-length)
+    // 使得感知到的渲染速度随着转弯大小而降低。
     std::size_t last_text_size           = static_cast<std::size_t>(-1);
     std::size_t last_streaming_size      = static_cast<std::size_t>(-1);
     std::size_t last_pending_size        = static_cast<std::size_t>(-1);
 
-    // Viewport height seen on the previous frame (available_height() from
-    // the RenderContext). A DROP between frames is a terminal shrink: the
-    // terminal autonomously pushes the top viewport rows into immutable
-    // native scrollback. If the live reveal edge (ghost-blanked + scrambled
-    // per-codepoint) is among those rows it freezes stale in scrollback and
-    // the row is lost. cached_markdown_for snaps the reveal to the edge on
-    // such a frame (snap_reveal_to_edge) so no ghosted row exists to strand.
-    // 0 is the "first frame / unknown" sentinel (no shrink inferred).
+    // 在先前的帧上看到的可视区域高度(来自RenderContext的
+    // available_height())。 帧 之间的 DROP 是 终端
+    // 收缩：终端 自动将顶部 可视区域 行推送到 不可变 本机 回滚缓冲区 中。
+    // 如果实时 逐步显示 边缘（ghost-blanked + 加扰的 per
+    // -codepoint）位于这些行中，则会将 过期 冻结在 回滚缓冲区 中，
+    // 并且该行会丢失。 cached_markdown_for 将 逐步显示 扣到此类
+    // 帧 (snap_reveal_to_edge) 的边缘，因此不存在可绞合的幻影行。
+    // 0是"first frame / unknown"哨兵（不推断收缩）。
     int last_render_height = 0;
 
-    // ── Tool-panel deferral ──
+    // ── Tool-panel 推迟 ──
     //
-    // True while cached_markdown_for is holding this message's tool panel
-    // OFF-SCREEN because the reveal cursor is still gliding to the live
-    // edge. On the wire, content_block_stop(text) and content_block_start
-    // (tool_use) are consecutive SSE events — often the same TCP segment —
-    // so the pre-emptive end-of-text drain gets ZERO frames to run before
-    // a card exists, and the mandatory scrollback-safety hard-snap pastes
-    // the whole wire_cps×drain_secs backlog in one frame (the "md sticks
-    // then bursts at the tool" symptom; tool_boundary_burst_probe). While
-    // this flag is set the view skips append_assistant_tool_panel, so
-    // nothing renders below the prose that could push a mid-reveal row
-    // into immutable scrollback — the glide is safe and the snap at the
-    // card's first paint is a no-op. Recomputed EVERY frame by
-    // cached_markdown_for; consumed the same frame (same cfg build) by
-    // append_assistant_body_slots / turn_config_for_assistant_run.
-    // Messages that never build markdown (tool-only sub-turns) never set
-    // it — they have no prose to reveal.
+    // 当 cached_markdown_for 持有该消息的工具面板 OFF-SCREEN 时，
+    // 这是正确的，因为 逐步显示 光标仍然滑向实时边缘。在 传输 上，
+    // content_block_stop(文本) 和 content_block_start
+    // (tool_use) 是连续的 SSE 事件 — 通常是相同的 TCP 段 —
+    // 因此 pre-emptive end-of-text 排空在卡存在之前让 ZERO
+    // 帧 运行，并且强制 回滚缓冲区-safety 硬-snap 粘贴整个wire_cps
+    // ×drain_secs 积压在一台 帧 中（
+    // "md sticks then bursts at the tool" 症状；
+    // tool_boundary_burst_probe）。虽然设置了这个 标志，
+    // 但视图会跳过 append_assistant_tool_panel，因此散文下方
+    // 没有任何 渲染 可以将 mid-reveal 行推入 不可变 回滚缓冲区 — 滑动
+    // 是安全的，卡的第一个油漆处的卡扣是 no-op。
+    // 由 cached_markdown_for 重新计算 每个 帧；消耗了相同的 帧 （相同的 cfg 构建）
+    // append_assistant_body_slots/turn_config_for_assistant_run。
+    // 从未构建 markdown (tool-only sub-turns) 的消息
+    // 从未设置它 — 它们没有 逐步显示 的散文。
     bool defer_tool_panel = false;
-    // First frame the defer engaged — drives the kMaxCardDeferMs hard cap
-    // in cached_markdown_for so the card can never hide indefinitely.
-    // Animation-clock ms (maya::anim_now_ms) for determinism under a test
-    // clock, same rationale as last_grow_tick_ms. Zero = "not deferring".
+    // 首先帧延迟启用——驱动cached_markdown_for中的
+    // kMaxCardDeferMs硬上限，因此卡永远不会无限期地隐藏。
+    // 动画-clock ms (maya::anim_now_ms)用于测试时钟下的确定性，
+    // 与last_grow_tick_ms相同的原理。零 = "not deferring"。
     std::int64_t card_defer_since_ms = 0;
-    // Two-phase defer exit. When the glide completes, the exit frame runs
-    // finish() + fx-off — which MUTATES rows at the viewport bottom (the
-    // scramble tail un-ghosts, the trailing paragraph rewraps into the
-    // committed block path) — while the panel STAYS hidden, so the frame
-    // is mutation-only (diff-repaintable in place). The panel unhides on
-    // the NEXT frame, a pure bottom-append grow whose rows crossing the
-    // viewport top are all final. Collapsing both into one frame is
-    // grow+mutation — maya's HardReset arm (oracle-proven: the one-frame
-    // exit added 4 gate recoveries at 60x18).
+    // Two-phase推迟退出。当滑行完成时，退出 帧 运行 finish()
+    // + fx-off — 其中 MUTATES 在 可视区域 底部行（打乱
+    // 末尾 un-ghosts，尾随段落重新包装到提交的块路径中） —
+    // 而面板 STAYS 隐藏，因此 帧 是突变 -only（diff
+    // -repaintable 中地方）。面板在 下一个 帧 上显示，
+    // 这是一个纯粹的底部 -append 生长，其穿过 可视区域 顶部的行都是最终的。
+    // 将两者折叠成一个 帧 是生长+突变 - maya 的 HardReset
+    // 臂（oracle-proven：one-frame 出口在
+    // 60x18 处添加了 4 个门恢复）。
     bool defer_exit_finished = false;
 
-    // ── Memoized assistant-turn elapsed (header meta) ──
+    // ── 备忘录助理 -turn 已过期( 头文件 元) 维基月球在线解说-维基月度在线解说-1,1,2,2,3,2,4,2,5,2,6,5,5,4,5,7,5,6,6,7,7,6,8,7,8,6,9,7,9,8,8,9,6,1,7,2,7,1,8,5,8,2,8,1,5,1,1,6,2,1,3,7,3,1,4,7,4,1,9,2,9,1,10,1,0,1, ──
     //
-    // assistant_elapsed() reverse-scans m.d.current.messages to the
-    // previous User message to compute the turn's wall-clock duration.
-    // That scan is O(sub-turns since the last user turn) = O(turn
-    // length), run EVERY frame for the run head while the turn is in
-    // flight — a genuine per-frame cost that grows with turn depth
-    // (the whole in-flight turn stays in the live tail until settle;
-    // it is never frozen mid-turn — see frozen.cpp). The value only
-    // depends on two immutable timestamps (this head's + the prior
-    // user message's), so once computed it never changes. Cache it
-    // here keyed on the head message's id and skip the scan on every
-    // subsequent frame. `elapsed_valid` distinguishes "cached
-    // nullopt" (no prior user turn / out-of-range dt) from "not yet
-    // computed".
+    // assistant_elapsed()将-scans
+    // m.d.current.messages反转到先前的用户消息以计算回合的wall-clock持续时间。
+    // 该扫描是O(自上次用户转弯以来的sub-turns)=O(
+    // 转弯长度)，在转弯飞行时为运行头运行EVERY 帧——真正的
+    // 每-frame成本随着转弯深度而增长(整个in
+    // -flight转弯停留在实时末尾中直到稳定；它永远不会在
+    // -turn中期冻结——参见frozen.cpp)。该值仅取决于
+    // 两个 不可变 时间戳（此头 + 先前的用户消息），因此一旦计算出来，
+    // 它就不会改变。 缓存 它在这里键入标题消息的 ID，
+    // 并跳过对每个后续 帧 的扫描。 `elapsed_valid` 将
+    // "cached nullopt"（无先前用户转/出
+    // -of-range dt）与 "not yet computed"
+    // 区分开来。
     bool                 elapsed_valid = false;
     std::optional<float> elapsed_cached{};
 };
 
-// Per-(thread, msg) render cache, partitioned by LIFECYCLE.
+// Per-(线程，msg)渲染缓存，由LIFECYCLE分区。
 //
-// The cache wears two hats that have genuinely different invariants, and
-// conflating them under a single LRU is what produced the whole class of
-// "typewriter stalls on a deep run" bugs. So they are split:
+// 缓存 具有两层含义，它们具有真正不同的 不变量，并且将它们合并在单个
+// LRU 下是产生全类 "typewriter stalls on a deep run"
+// 错误的原因。所以他们是分裂的：
 //
 //   ┌─────────────┬──────────────────────────┬───────────────────────────┐
 //   │             │  LIVE (pinned)           │  SETTLED (staged)         │
 //   ├─────────────┼──────────────────────────┼───────────────────────────┤
-//   │ holds       │  animation state — the   │  a pure render memo — the │
-//   │             │  StreamingMarkdown +     │  built Element / md state  │
-//   │             │  reveal cursor + defer   │  of a fully-drained sub-   │
-//   │             │  machine bookkeeping     │  turn still in the live   │
+//   │ 保存内容      │ 动画状态                 │ 纯渲染缓存               │
+//   │               │ StreamingMarkdown        │ 已构建的 Element 与      │
+//   │               │ 逐字显示光标、延迟状态   │ 已显示完成但仍在实时     │
+//   │               │ 机的记账信息             │ 尾部的子轮次 Markdown    │
 //   │             │                          │  tail (not yet frozen)    │
-//   │ evicting is │  a CORRECTNESS BUG       │  a cheap rebuild — but    │
-//   │             │  (destroys the reveal    │  never happens: the entry │
-//   │             │  widget mid-glide →      │  is DROPPED at freeze, the│
-//   │             │  the typewriter stalls)  │  last frame it is read    │
-//   │ count       │  bounded by the ACTIVE   │  bounded by the ACTIVE    │
-//   │             │  turn (≈1 streaming edge │  turn (drained sub-turns  │
-//   │             │  + its live sub-turns)   │  awaiting the freeze Tick)│
-//   │ policy      │  NEVER evicted           │  dropped at freeze        │
+//   │ 淘汰影响      │ 正确性缺陷               │ 可以低成本重建，但实际   │
+//   │               │ 滑动期间销毁逐字显示     │ 不会淘汰：条目在冻结时   │
+//   │               │ 组件，导致打字机动画     │ 移除，而冻结也是最后一   │
+//   │               │ 停住                     │ 次读取该条目的时刻       │
+//   │ 数量          │ 受当前活动轮次约束       │ 受当前活动轮次约束       │
+//   │               │ 约一个流式边界及其       │ 已显示完成、等待冻结     │
+//   │               │ 实时子轮次               │ Tick 的子轮次            │
+//   │ 策略          │ 绝不淘汰                 │ 冻结时移除               │
 //   └─────────────┴──────────────────────────┴───────────────────────────┘
 //
-// The caller declares which hat an access wants: `message_md_live()`
-// pins the entry; `message_md()` / `turn_config()` stage it as a settled
-// memo. A message is "live" exactly while its reveal widget is
-// live/finalizing/revealing/parsing OR its tool-panel defer machine is
-// running — i.e. while evicting it would corrupt on-screen output. The
-// view already computes that predicate (see turn.cpp
-// `subturn_stably_keyable`, whose negation IS liveness).
+// 调用者声明访问想要哪个帽子：`message_md_live()`固定该条目；
+// `message_md()` / `turn_config()` 将其作为固定的
+// 记忆缓存 上演。消息是 "live"，而其 逐步显示 小部件是
+// 对 live/finalizing/revealing/parsing 进行逻辑或判断，
+// 其工具-panel 延迟机器正在运行 — i.e。驱逐它会损坏 -screen 输出。
+// 视图已经计算了该谓词（参见 turn.cpp
+// `subturn_stably_keyable`，其否定 IS 活跃度）。
 //
-// ── Why there is NO cap ──
+// ── 为什么是 NO 顶端 ──
 //
-// The old design capped the settled side under an LRU, trading
-// correctness against RAM: too small and the live edge got evicted
-// (stall); too large and settled prose trees hoarded gigabytes. Both the
-// dilemma AND the cap are gone, because a settled entry has a PROVABLE
-// death instant: the frame its message freezes.
+// 旧设计将固定边限制在 LRU 下，
+// 与 RAM 进行交易的正确性：太小并且活动边被驱逐
+// （失速）；太大而稳定的散文 源码树 囤积了千兆字节。
+// 和 的困境和上限都消失了，因为已解决的条目有
+// PROVABLE 死亡瞬间：帧 其消息冻结。
 //
-// Every settled-accessor call site (cached_markdown_for,
-// assistant_elapsed, settle_message_md, the error/cancel salvage) reads
-// a message in the LIVE TAIL — the range [frozen_through, size()). The
-// moment finalize_turn settles a run and the next Tick calls
-// freeze_through(), those messages move ABOVE frozen_through: their rows
-// are sealed into m.ui.frozen (the maya ledger, blitted from its own
-// component cache) and NO code path ever reads their ViewCache entry
-// again — not on the next frame, not on scroll-back (scroll-back is the
-// terminal's native scrollback, never a ViewCache rebuild). The entry is
-// dead the instant its turn freezes.
+// 每个定居的-accessor 调用站点(cached_markdown_for、
+// assistant_elapsed、settle_message_md、
+// error/cancel抢救)读取LIVE TAIL——范围[frozen_through、
+// size())中的消息。当 finalize_turn 完成一次运行
+// 和下一个 Tick 调用 freeze_through() 时，这些消息会移动
+// 上方 frozen_through：它们的行被密封到 m.ui.frozen（
+// maya 账本，从其自己的组件 缓存 中位块传输）中，并且 NO 代码路径会
+// 再次读取它们的 ViewCache 条目 - 不是在下一个 帧，也不是在scroll
+// -back上（scroll-back是终端的原生回滚缓冲区，从来不是ViewCache重建）。
+// 该条目在轮到冻结的那一刻就死了。
 //
-// So freeze_range() DROPS the entry for every message it seals (see its
-// settle-to-drop loop). The settled map therefore only ever holds
-// entries for the current, not-yet-frozen tail — bounded by ONE turn,
-// exactly like the pinned set. There is nothing to cap: the map is
-// self-emptying at every freeze, and a session of ten thousand turns
-// carries the same handful of settled entries as a session of one.
+// 因此，freeze_range()DROPS是其密封的每条消息
+// 的条目（参见其settle-to-drop循环）。因此，
+// 已确定的地图仅保存当前的条目，而不是 -yet-frozen
+// 末尾 — 以 一个 回合为界，与固定集完全相同。
+// 没有什么可以限制的：地图在每次冻结时都是 self-emptying，
+// 并且一万回合的会话与一回合的会话携带相同数量的已确定条目。
 //
-// A settle is a single migration: the one frame the widget finishes
-// draining, the caller stops passing the live flag and the entry moves
-// from the pinned map into the settled map (message_md() after a run of
-// message_md_live() calls performs that migration, payload preserved);
-// a few frames later freeze drops it.
+// 结算是一次迁移：小部件完成耗尽的一个帧，
+// 调用者停止传递实时标志，并且条目从固定映射移动到已
+// 结算映射（在运行message_md_live()之后，
+// message_md()调用执行该迁移，保留载荷)；
+// 几个帧之后冻结掉落它。
 //
 class ViewCache {
 public:
     ViewCache() = default;
 
-    // Move-only: copy semantics are nonsensical for a render cache and
-    // would deep-copy the entire Element graph. Move is cheap (the
-    // unordered_map and list have noexcept moves).
+    // Move-only：复制语义对于渲染 缓存来说是无意义的，
+    // 并且会使整个元素图深入-copy。移动很便宜（
+    // unordered_map和列表没有除了移动）。
     ViewCache(const ViewCache&)            = delete;
     ViewCache& operator=(const ViewCache&) = delete;
     ViewCache(ViewCache&&) noexcept            = default;
     ViewCache& operator=(ViewCache&&) noexcept = default;
 
-    // ── Settled accessor (staged, dropped at freeze) ──
-    // For an entry whose animation state is fully drained: a pure render
-    // memo for a sub-turn still in the live tail. freeze_range() drops it
-    // the frame its message freezes (its last read), so the settled map
-    // stays bounded by the active turn — no cap, no LRU.
+    // ── 已解决的接入器(分阶段,冻结时投放) ──
+    // 对于动画状态被完全耗尽的条目：对于仍然处于实时末尾中的子-turn，
+    // 纯渲染 记忆缓存。 freeze_range() 在其消息
+    // 冻结（最后一次读取）的 帧 处将其丢弃，因此已确定的地图
+    // 保持受活动回合限制 — 无上限，无 LRU。
     [[nodiscard]] MessageMdCache&  message_md (const ThreadId& tid,
                                                const MessageId& mid);
 
-    // ── Live accessors (pinned — never evicted) ──
-    // For entries holding load-bearing animation state (a live reveal
-    // widget or an active defer machine). Pinning lives OUTSIDE the
-    // settled map, so no run depth can evict the streaming edge
-    // mid-glide. Calling a live accessor on a settled key MIGRATES it to
-    // the pinned map (and a settled accessor migrates it back), so a
-    // message's slot follows its lifecycle with its payload intact.
+    // ── 现场接驳者(被绑住——从未被逐出) ──
+    // 对于保存加载-bearing动画状态的条目（实时逐步
+    // 显示小部件或活动延迟机器）。固定住 OUTSIDE
+    // 固定地图，因此没有运行深度可以驱逐 流式传输 边缘
+    // mid-glide。在固定键 MIGRATES 上调用实
+    // 时访问器将其转移到固定映射（并且固定访问器将其迁移回来），
+    // 因此消息的槽遵循其生命周期，其 载荷 完好无损。
     [[nodiscard]] MessageMdCache&  message_md_live (const ThreadId& tid,
                                                     const MessageId& mid);
 
-    // Introspection for probes / assertions: is this key currently
-    // pinned (i.e. structurally exempt from eviction)?
+    // 探测/断言的内省：该密钥当前是否被
+    // 固定（i.e.结构上免于驱逐）？
     [[nodiscard]] bool is_pinned(const ThreadId& tid,
                                  const MessageId& mid) const noexcept;
     [[nodiscard]] std::size_t pinned_count()  const noexcept { return pinned_.size(); }
     [[nodiscard]] std::size_t settled_count() const noexcept { return entries_.size(); }
 
-    // Drop a message's entry from BOTH homes (pinned and settled),
-    // reclaiming its payload immediately. No-op if absent. This is the
-    // death instant of a settled entry: freeze_range() calls it on every
-    // message it seals, because once a message is frozen its rows live in
-    // m.ui.frozen (the maya ledger) and no code path ever reads its
-    // ViewCache entry again — so keeping it is pure leak. Dropping from
-    // the pinned side too closes the mirror hazard (a widget that stopped
-    // animating but never re-entered the render seam to be down-migrated,
-    // e.g. error/cancel mid-reveal): a frozen message is, by
-    // construction, in NEITHER map. This is what makes the settled map
-    // self-emptying and the cap unnecessary.
+    // 从 两者 家庭（固定和固定）中删除消息条目，立即收回其 载荷。
+    // 如果不存在则为 -op。这是一个已确定条目的死亡时刻：
+    // freeze_range() 调用在它密封的每条消息上，
+    // 因为一旦消息被冻结，它的行就存在于m.ui.frozen（
+    // maya账本）中，并且没有代码路径再次读取它的ViewCache
+    // 条目——所以保留它纯粹是泄漏。从固定侧掉落太关闭了镜子危险（
+    // 一个停止动画但从未将 -entered 渲染 接口边界 向下
+    // -migrated、e.g.error/cancel mid
+    // -reveal 的小部件）：通过构造，冻结消息位于
+    // NEITHER 地图中。这就是为什么固定地图 self
+    // -emptying 和上限变得不必要的原因。
     void drop(const ThreadId& tid, const MessageId& mid);
 
-    // Non-migrating, non-touching const peek. Returns the message's md
-    // slot from whichever home it lives in (pinned or settled), or
-    // nullptr if absent. Unlike message_md() / message_md_live(), it
-    // does NOT create, migrate, or reorder anything — it is a pure
-    // read. Use it for read-only STATE PROBES ("is this widget still
-    // animating?") that must not perturb the partition or the LRU
-    // order: routing such a probe through a mutating accessor would
-    // migrate a live entry down into the LRU (un-pinning the edge) or
-    // bump LRU recency spuriously. The pointer is valid until the next
-    // mutating cache call.
+    // const 查看操作，不迁移条目，也不更新访问记录。
+    // 从消息所在的位置（固定或固定）返回消息的 md 槽，如果不存在则
+    // 返回 nullptr。与 message_md() /
+    // message_md_live() 不同，不 会创建、
+    // 迁移或重新排序任何内容 - 它是纯粹的读取。将其用于 read-only
+    // 状态探测：此组件是否仍在播放动画？
+    // 不得扰乱分区或 LRU 顺序：通过变异访问器路由此类探针
+    // 会将实时条目向下迁移到 LRU（un-pinning 边缘）
+    // 或虚假地提高 LRU 新近度。该指针在下一次变异 缓存 调
+    // 用 之前一直有效。
     [[nodiscard]] const MessageMdCache* peek(const ThreadId& tid,
                                              const MessageId& mid) const noexcept;
 
-    // Drop EVERYTHING — both maps, all threads. Called on a wholesale
-    // conversation swap (NewThread / ThreadLoaded / CheckpointRestored),
-    // where m.d.current is replaced and every cached (tid,msg) entry
-    // belongs to a conversation that is no longer on screen. Without this
-    // the previous thread's settled entries would linger forever: freeze
-    // only drops entries for the CURRENT thread's messages as they
-    // freeze, and a swapped-away thread's messages never freeze again.
-    // Since the keys embed thread_id there is no correctness bug (no
-    // collision) — only an unbounded-over-session-of-many-threads leak,
-    // which this closes. The new thread repopulates from scratch on its
-    // first render.
+    // 掉落 EVERYTHING — 两张地图，都是 线程。
+    // 调用批量对话交换 (NewThread / ThreadLoaded
+    // / CheckpointRestored)，
+    // 其中 m.d.current 被替换，每个缓存的 (tid,
+    // msg) 条目都属于不再出现在屏幕上的对话。如果没有这个，
+    // 之前的 线程 的已确定条目将永远保留：冻结只会在 当前 线程 的
+    // 消息冻结时删除条目，而交换的 -away 线程 的消息永远不会再次冻结。
+    // 由于密钥嵌入了 thread_id，因此不存在正确性错误（无冲突）
+    // ——只有无界-over-session-of-many-threads 泄漏，
+    // 该泄漏将被关闭。新的 线程 在其第一个 渲染 上从头开始
+    // 重新填充。
     void clear() noexcept { entries_.clear(); pinned_.clear(); }
 
-    // Drop the SETTLED memos only, leaving pinned entries untouched.
+    // 仅删除 SETTLED 备忘录，保持固定条目不变。
     //
-    // For invalidating rendered appearance without disturbing the stream.
-    // A settled entry is a pure memo — `finalized` is a built Element with
-    // its colours already resolved — so after a theme change it is simply
-    // wrong, and dropping it costs one rebuild. A PINNED entry is the
-    // opposite: it holds load-bearing animation state (the live reveal
-    // widget, an active defer machine) that cannot be reconstructed from
-    // the message, and dropping it mid-stream would restart the reveal of
-    // the turn currently being written. Those entries are rebuilt from
-    // their widget every frame anyway, so they follow a new theme on their
-    // own without being destroyed.
+    // 用于在不干扰数据流的情况下使渲染的外观无效。
+    // 已确定的条目是纯粹的 记忆缓存 —`finalized`
+    // 是一个内置元素，其颜色已经解析 — 因此在主题更改后，
+    // 它完全是错误的，并且删除它需要一次重建。
+    // PINNED 条目则相反：它保存无法从消息中重建的
+    // 加载-bearing 动画状态（实时 逐步显示 小部件，
+    // 活动的延迟机器），并且在 -stream 中删除它会
+    // 重新启动当前正在写入的回合的 逐步显示。无论如何，
+    // 这些条目每隔 帧 就会从它们的小部件中重建，因此它们自己
+    // 遵循新的主题而不会被破坏。
     void clear_settled() noexcept { entries_.clear(); }
 
-    // (There is deliberately no invalidate_colours() here any more.)
+    // （这里故意不再有invalidate_colours()。）
     //
-    // It used to drop each settled entry's built Element on a theme change,
-    // because that Element had the outgoing palette RESOLVED into it and
-    // nothing else would ever invalidate it — a theme switch changes no
-    // bytes, so no content-keyed cache notices.
+    // 它过去常常在主题改变时删除每个已确定条目的内置元素，
+    // 因为该元素将传出调色板RESOLVED放入其中，
+    // 并且没有其他东西会使它无效——主题切换不会改变字节，
+    // 因此没有内容-keyed 缓存通知。
     //
-    // Colours are late-bound now (docs/LATE_BINDING.md): a built Element
-    // carries symbolic slots and resolves at PAINT, so it is simply not
-    // stale under a new theme and there is nothing to invalidate. If you
-    // find yourself wanting this function back, the real question is which
-    // value got resolved too early — MAYA_ASSERT_LATE_BOUND in
-    // maya/style/binding.hpp is where that gets caught.
+    // 颜色现在已晚-bound (docs/LATE_BINDING.md)：
+    // 构建的元素携带符号槽并在PAINT处解析，因此它根本不是新
+    // 主题下的过期并且没有什么可以无效的。如果您发现自己想要恢复此功能，
+    // 那么真正的问题是哪个值被过早解析 -
+    // maya/style/binding.hpp 中的
+    // MAYA_ASSERT_LATE_BOUND 就是被捕获的地方。
 
 private:
-    // One payload type, two homes. A key lives in AT MOST ONE of these at
-    // a time; migrate_() moves the Entry between them, preserving the
-    // MessageMdCache payload (the reveal widget, block cache, defer
-    // state) so a settle never drops animation state. Both are bounded by
-    // the ACTIVE turn: pinned by the live sub-turns, settled by
-    // drained-but-not-yet-frozen sub-turns — freeze drops from settled,
-    // so neither grows over a session. No LRU, no cap: the death instant
-    // (freeze) is explicit, not amortised.
-    //   • entries_ — settled memo, dropped at freeze.
-    //   • pinned_  — live state, never evicted, drained → migrates down.
+    // 一台载荷型，两户。一个密钥同时存在于其中的 AT MOST 一个 中；
+    // migrate_() 在它们之间移动 Entry，
+    // 保留 MessageMdCache 载荷（逐步显示 小部件，
+    // 块 缓存，延迟状态），因此结算永远不会丢失动画状态。两者都受到 活动
+    // 回合的限制：由实时 sub-turns 固定，
+    // 由排空的 -but-not-yet-frozen sub-turns
+    // 结算——从结算中冻结掉落，因此在一个会话中两者都不会增长。无 LRU，
+    // 无上限：死亡瞬间（冻结）是明确的，不摊销。
+    //   ·entries_-结算记忆缓存，冻结时掉落。
+    //   · pinned_-活动状态，从未被逐出，耗尽→向下迁移。
     struct Entry {
         MessageMdCache md;
         bool           pinned = false;
     };
-    std::unordered_map<std::string, Entry> entries_;   // settled
-    std::unordered_map<std::string, Entry> pinned_;    // live (never evict)
+    std::unordered_map<std::string, Entry> entries_;   // 落户
+    std::unordered_map<std::string, Entry> pinned_;    // 居住（永不驱逐）
 
-    // Access `key` on the SETTLED side: find-or-insert in entries_. If
-    // the key was pinned, migrate it down first (payload preserved).
+    // 访问SETTLED侧的`key`：在entries_中查找-or-insert。
+    // 如果密钥已固定，请先将其向下迁移（保留 载荷）。
     Entry& touch_settled_(const std::string& key);
-    // Access `key` on the LIVE side: find-or-insert in pinned_. If the
-    // key was settled, migrate it up (payload preserved). Never evicts.
+    // 访问LIVE侧的`key`:find-or-insert in
+    // pinned_。如果密钥已解决，则将其向上迁移（保留载荷）。从不驱逐。
     Entry& touch_pinned_(const std::string& key);
-    // Move an existing key from one home to the other, carrying its
-    // payload. Returns a reference to the entry in its new home.
+    // 将现有钥匙从一个家庭移至另一个家庭，
+    // 携带其载荷。返回对新家中条目的引用。
     Entry& migrate_to_pinned_(const std::string& key);
     Entry& migrate_to_settled_(const std::string& key);
 

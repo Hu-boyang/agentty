@@ -11,7 +11,7 @@
 namespace agentty::attachment {
 
 std::string make_placeholder(std::size_t idx) {
-    // \x01ATT:N\x01 — see header for layout rationale.
+    // \x01ATT:N\x01 — 排版原理见头文件.
     std::string out;
     out.reserve(8);
     out.push_back(kSentinel);
@@ -22,13 +22,13 @@ std::string make_placeholder(std::size_t idx) {
 }
 
 std::size_t placeholder_len_at(std::string_view text, std::size_t pos) noexcept {
-    // Shape: \x01 A T T : <digits> \x01
-    // Minimum length 7 (one digit). Bail early on the cheap mismatches.
+    // 形状:\x01 A T T :
+    // <digits>\x01 最小长度7(一个数字). bail早期在廉价错配上.
     if (pos >= text.size() || text[pos] != kSentinel) return 0;
     if (pos + 7 > text.size()) return 0;
     if (text[pos + 1] != 'A' || text[pos + 2] != 'T'
         || text[pos + 3] != 'T' || text[pos + 4] != ':') return 0;
-    // Walk digits.
+    // 步行数字。
     std::size_t p = pos + 5;
     if (p >= text.size() || text[p] < '0' || text[p] > '9') return 0;
     while (p < text.size() && text[p] >= '0' && text[p] <= '9') ++p;
@@ -37,23 +37,23 @@ std::size_t placeholder_len_at(std::string_view text, std::size_t pos) noexcept 
 }
 
 std::size_t placeholder_len_ending_at(std::string_view text, std::size_t pos) noexcept {
-    // pos is the byte AFTER the closing sentinel; placeholder occupies
-    // [start, pos). Walk backwards to find the opening \x01.
+    // 公子是,我们是 字节 之后 关闭的哨; 占位符占用 [sart,
+    // pos]。 向后走以找到打开的\ x01。
     if (pos == 0) return 0;
     if (text[pos - 1] != kSentinel) return 0;
-    // The token ends with: <digits>\x01. Step back past digits.
+    // 标志结尾为: <digits> \x01 退后, 过数字。
     if (pos < 2) return 0;
     std::size_t p = pos - 2;
     while (p > 0 && text[p] >= '0' && text[p] <= '9') --p;
-    // Now p should point at ':' of "ATT:".
+    // 现在p应指第"ATT:"的':'.
     if (text[p] != ':') return 0;
-    // Need exactly the prefix \x01ATT.
+    // 需要完全的前缀\x01ATT。
     if (p < 4) return 0;
     if (text[p - 1] != 'T' || text[p - 2] != 'T' || text[p - 3] != 'A'
         || text[p - 4] != kSentinel) return 0;
     std::size_t start = p - 4;
-    // Confirm forward shape (digits + closing sentinel) since the
-    // backward walk above already established the suffix.
+    // 确认前方形状(数字+关闭的哨兵),
+    // 因为上面的后方行走已经建立了后缀.
     auto fwd = placeholder_len_at(text, start);
     if (fwd != pos - start) return 0;
     return fwd;
@@ -62,7 +62,7 @@ std::size_t placeholder_len_ending_at(std::string_view text, std::size_t pos) no
 std::size_t placeholder_index(std::string_view text, std::size_t pos) noexcept {
     auto len = placeholder_len_at(text, pos);
     if (len == 0) return static_cast<std::size_t>(-1);
-    // Digits live at [pos+5, pos+len-1).
+    // 数字活在[pos+5,pos+len-1].
     std::size_t value = 0;
     for (std::size_t p = pos + 5; p + 1 < pos + len; ++p) {
         value = value * 10 + static_cast<std::size_t>(text[p] - '0');
@@ -72,26 +72,26 @@ std::size_t placeholder_index(std::string_view text, std::size_t pos) noexcept {
 
 namespace {
 
-// Truncation cap on a single FileRef expansion. 256 KiB covers
-// essentially every real source file while preventing a careless @ on
-// a build artefact / log / asset from drowning the prompt.
+// 单曲上的截断盖 FileRef 256 扩大
+// KiB 基本上覆盖每个真实源文件,
+// 同时防止一个不小心的@在建筑动画/日志/资产上淹死 提示词.
 inline constexpr std::size_t kFileRefMaxBytes = 256 * 1024;
 
 std::string render_attachment_body(const Attachment& a) {
     if (a.kind == Attachment::Kind::FileRef) {
-        // Lazy body load. Caller may have pre-filled `body` (test
-        // harness, paste-of-a-file path, etc.); honour that. Otherwise
-        // resolve the path against the workspace root and slurp it.
+        // 惰性 正文 加载。来电者可能有预 -filled
+        // `body` (试带,贴贴) -of-a-file 以其他
+        // 方式解决与“未来道路”相对应的路径。 工作区 根并捣烂.
         std::string body = a.body.bytes();
         if (body.empty() && !a.path.empty()) {
             namespace fs = std::filesystem;
             fs::path p{a.path};
             if (p.is_relative()) p = tools::util::workspace_root() / p;
-            // Gate through promote_to_workspace_path: an attachment
-            // whose absolute path escapes the workspace (model fed us
-            // `/etc/passwd` as @file) MUST be refused, not silently
-            // dereferenced. Pre-WorkspacePath, the relative-vs-absolute
-            // branch above let absolute escapees through.
+            // 门通 promote_to_workspace_path
+            // : 绝对路径逃脱 工作区 (模型喂我们) `/etc/passwd`
+            // 作为 @ file) 必须 拒绝,而不是默默地贬低。
+            // -WorkspacePath ,
+            // 相对 -vs-absolute 上面的树枝让绝对的逃生通过。
             tools::util::NormalizedPath np{p.string()};
             auto wp = tools::util::promote_to_workspace_path(
                 std::move(np), "@file attachment");
@@ -99,9 +99,9 @@ std::string render_attachment_body(const Attachment& a) {
         }
         std::string out;
         out.reserve(body.size() + a.path.size() + 32);
-        // Path header keeps the model anchored to which file the
-        // following block came from — same pattern Cursor / Claude
-        // Code use for inline file references.
+        // 路径 头文件 保持锁定以下块来自的文件的模型
+        // – 相同的图案 Cursor / Claude
+        // 内置文件引用的代码使用。
         out.append("// path: ");
         out.append(a.path);
         out.push_back('\n');
@@ -116,18 +116,18 @@ std::string render_attachment_body(const Attachment& a) {
         return out;
     }
     if (a.kind == Attachment::Kind::Symbol) {
-        // Excerpt 20 lines centred on the symbol's declaration line so
-        // the model gets immediate signature context plus a few lines
-        // of body without loading the whole file. The caller (transport
-        // / submit-time wire-up) sees this as a code-fenced excerpt
-        // with a `// symbol:` header so it's clearly anchored.
+        // 摘录以 符号 声明行,使模型立即获得签名上下文,
+        // 加上几行 正文 调用者( 包含全部文件 )
+        // 传输层 / 提交 -time 传输-up ) 将它
+        // 视为一个代码 -fenced 节录,
+        // 带 `// symbol:` 头文件 很明显是锚定的
         constexpr int kSymbolWindow = 20;
         std::string body = a.body.bytes();
         if (body.empty() && !a.path.empty()) {
             namespace fs = std::filesystem;
             fs::path p{a.path};
             if (p.is_relative()) p = tools::util::workspace_root() / p;
-            // Same containment gate as the FileRef branch above.
+            // 和上面的FileRef分支一样的封存门.
             tools::util::NormalizedPath np{p.string()};
             auto wp = tools::util::promote_to_workspace_path(
                 std::move(np), "@symbol attachment");
@@ -142,7 +142,7 @@ std::string render_attachment_body(const Attachment& a) {
         out.push_back(':');
         out.append(std::to_string(a.line_number));
         out.append(")\n");
-        // Walk the body, count lines, splice the window.
+        // 继续走 正文 数线, 切开窗户。
         int target = a.line_number > 0 ? a.line_number : 1;
         int start = std::max(1, target - kSymbolWindow / 4);
         int end   = target + (kSymbolWindow * 3 / 4);
@@ -161,13 +161,13 @@ std::string render_attachment_body(const Attachment& a) {
         return out;
     }
     if (a.kind == Attachment::Kind::Image) {
-        // Transport-level wiring (Anthropic image content blocks) is
-        // handled outside this text-flatten path — the messages-API
-        // builder pulls Image attachments directly off the composer
-        // before the prose is serialised. We still emit a textual
-        // marker so the prose around the chip stays anchored to where
-        // the user dropped the image, and so debugging logs (which
-        // print the flattened user.text) name the file.
+        // 传输层-level 线条( 4) Anthropic
+        // 图像内容块)在此文本之外处理 -flatten
+        // 路径——消息 -API 构建者在流言语被串行之前
+        // 直接将图像附件拉下作曲家。我们仍然发出文字标记,
+        // 这样,流言语就绕着流言语绕了。 标签 继续锁定到
+        // 用户丢弃图像的地方, 从而调试日志( 打印平面的
+        // 日志) user.text ) 命名文件。
         std::string out;
         out.reserve(a.path.size() + 24);
         out.append("[image: ");
@@ -176,12 +176,12 @@ std::string render_attachment_body(const Attachment& a) {
         return out;
     }
     if (a.kind == Attachment::Kind::Output) {
-        // Captured local run. Present it to the model exactly the way
-        // the user would have pasted it after running by hand: the
-        // command line, then a fenced block of the (possibly huge)
-        // output. No truncation here — the whole log is what the user
-        // chose to attach; the composer already shows it as a compact
-        // chip, so the size cost is a deliberate, visible act.
+        // 捕获本地运行。 把它提交到模型中,
+        // 完全按照用户在手动运行后粘贴的方式: 命令行,
+        // 然后是( 可能很大) 输出的栅栏块。
+        // 这里没有切换, 整个日志是用户选择附加的;
+        // 作曲家已经显示为 标签 的紧凑,
+        // 所以大小成本是故意的, 可见的动作。
         std::string out;
         out.reserve(a.body.bytes().size() + a.name.size() + 32);
         out.append("I ran:\n```sh\n");
@@ -196,7 +196,7 @@ std::string render_attachment_body(const Attachment& a) {
     return a.body.bytes();
 }
 
-} // namespace
+} // 命名空间结束。
 
 std::string expand(std::string_view text,
                    const std::vector<Attachment>& attachments) {
@@ -209,38 +209,38 @@ std::string expand(std::string_view text,
             if (len > 0) {
                 auto idx = placeholder_index(text, i);
                 if (idx < attachments.size()) {
-                    // Wrap the spliced body in paragraph breaks so
-                    // surrounding prose doesn't run into it. Adjacent
-                    // chips collapse to a single \n\n via the
-                    // post-pass below.
+                    // 包扎图案 正文 段落中断断,
+                    // 所以周围的传言不会碰到它。 标签 崩溃到
+                    // 单个\ nn\ n 通过帖子
+                    // -pass 下图。
                     if (!out.empty() && out.back() != '\n') out.push_back('\n');
                     if (!out.empty() && (out.size() < 2 || out[out.size() - 2] != '\n'))
                         out.push_back('\n');
                     out.append(render_attachment_body(attachments[idx]));
-                    // Ensure the body ends on its own line so following
-                    // content doesn't run into it.
+                    // 确保正文在自己的线路上结束,
+                    // 这样跟随内容不会碰到它.
                     if (out.empty() || out.back() != '\n') out.push_back('\n');
                 }
                 i += len;
-                // Add a blank-line separator ONLY when more content
-                // (text or another chip) follows this placeholder.
-                // Without this guard a paste-as-only-message ends with
-                // a trailing \n\n that renders as ghost blank rows
-                // below the body — visible as `┃` / `┃` rows at the
-                // bottom of the user-turn box.
+                // 添加空白 -line 分隔符 仅 当内容更多
+                // (文本或其它) 标签 ) 跟着这个占位符。
+                // 没有这名警卫,就贴上贴纸 -as-only-message
+                // 结尾为尾随 \ nn 渲染 以幽灵的空白行排列
+                // 正文 ——可见于 `┃` / `┃` 用户底部的行
+                // -turn 框中选择一个选项。
                 if (i < text.size()) out.push_back('\n');
                 continue;
             }
-            // Stray sentinel byte (corrupted or user-typed control
-            // char). Drop silently — the message body shouldn't carry
-            // C0 control bytes anyway.
+            // 草条哨兵 字节 (被腐蚀或用户) -typed 控制字符。
+            // 静默地放下。 — 消息 正文 不应该携带 C0 控制
+            // 字节 反正我还是会去的
             ++i;
             continue;
         }
         out.push_back(text[i++]);
     }
-    // Collapse runs of 3+ '\n' to exactly two so back-to-back chips
-    // don't produce visible blank-paragraph stacks.
+    // 3+ 的折叠运行 '\n' 回到两个这么深的地方 -to-back
+    // 标签 不要产生明显的空白 -paragraph 堆叠。
     std::string collapsed;
     collapsed.reserve(out.size());
     int run = 0;
@@ -257,19 +257,19 @@ std::string expand(std::string_view text,
 
 namespace {
 
-// "src/runtime/foo.cpp" → "foo.cpp". The chip caption in the inline
-// composer is space-constrained — full paths take 30-70 cols and
-// dominate the visible row. The user just picked the file from the
-// @-picker (where they saw the full path), so the filename alone is
-// enough to remind them which one's attached. Submit-time expansion
-// still uses the full path.
+// "src/runtime/foo.cpp" → "foo.cpp"。
+// 该词 标签 内线作曲中的标题是空格 -constrained
+// – 完整路径需要30- 70 col 并主导可见行。
+// 用户刚刚从 @ -picker 故你应当只以文件写着,
+// 以便他记起他所附着的。 -time 扩展
+// 仍然使用全路径.
 std::string filename_only(const std::string& path) {
     auto slash = path.find_last_of('/');
     if (slash == std::string::npos) return path;
     return path.substr(slash + 1);
 }
 
-} // namespace
+} // 命名空间结束。
 
 std::string chip_label(const Attachment& a) {
     char buf[256];
@@ -284,9 +284,9 @@ std::string chip_label(const Attachment& a) {
         return buf;
     }
     if (a.kind == Attachment::Kind::Output) {
-        // ⌘ <command> · N lines · K KB — a compact pill even when the
-        // captured log is enormous. Command is clipped so a long
-        // pipeline doesn't blow the caption width.
+        // ⌘ <command> · 线条: K KB 紧凑的药丸,
+        // 即使捕获的原木巨大。命令被剪断,
+        // 所以长长的管道不会吹断标题宽度。
         std::string cmd = a.name;
         constexpr std::size_t kCmdMax = 32;
         bool clip = cmd.size() > kCmdMax;
@@ -306,9 +306,9 @@ std::string chip_label(const Attachment& a) {
     }
     if (a.kind == Attachment::Kind::Image) {
         const char* type = a.media_type.empty() ? "image" : a.media_type.c_str();
-        // <clipboard> / <paste> get their pseudo-name through; a
-        // real path gets just the filename for the same compactness
-        // reason as FileRef.
+        // <clipboard> / <paste> 让他们的假象
+        // -name 通; 一个真实路径只获得文件名, 原因与 QX
+        // 相同 FileRef.
         bool sentinel = !a.path.empty() && a.path.front() == '<';
         std::string where = sentinel ? a.path : filename_only(a.path);
         if (a.byte_count >= 1024) {
@@ -322,9 +322,9 @@ std::string chip_label(const Attachment& a) {
         }
         return buf;
     }
-    // Paste:
-    //   – An image or file sent as text: while it's still arriving, show how
-    //     far along it is. If it stopped short, say so, not a wall of base64.
+    // 粘贴 :
+    //   — 图像或文件作为文本发送: 当它仍然到达时, 请显示它沿途有多远。
+    //     如果它停止了短, 请说, 而不是 base64 的墙。
     if (a.byte_count >= 12 && a.body.bytes().starts_with("richpaste:1:")) {
         const auto p = armored_progress(a.body.bytes());
         if (p.arriving && !a.stalled && p.need > 0) {
@@ -343,13 +343,13 @@ std::string chip_label(const Attachment& a) {
                           a.byte_count / 1024);
         return buf;
     }
-    //   – A short single line → caption shows the actual text (up to
-    //     ~50 cols) so the user can see what they pasted without
-    //     having to undo and retype. Newlines / tabs collapse to
-    //     spaces for readability.
-    //   – A long single line (base64, minified code, a token dump) or
-    //     multi-line content → "lines · bytes" summary; a preview of
-    //     that is noise.
+    //   – 短单行 ~ 标题显示实际文本( 最多~ 50 cols) ,
+    //     这样用户就可以看到它们粘贴的, 而无需撤销和重排。
+    //     Newlines / tabs 崩溃到
+    //     空格中以备读取。
+    //   - 一条长的单线( base64 , 简化代码, 符号堆) 或多
+    //     -line 内容 __ "lines · bytes" 摘要;
+    //     预览是噪音。
     if (a.line_count <= 1 && a.byte_count <= 200) {
         std::string preview;
         preview.reserve(60);

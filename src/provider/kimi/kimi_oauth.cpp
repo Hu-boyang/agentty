@@ -1,10 +1,10 @@
-// agentty::provider::kimi — Kimi Code OAuth (device flow). See kimi_oauth.hpp.
+// agentty::provider::kimi — Kimi代码OAuth(设备流程)。参见 kimi_oauth.hpp。
 //
-// The simpler sibling of copilot_oauth: Kimi's device-flow access_token is the
-// API bearer directly (no proxy exchange), and it refreshes via the standard
-// `refresh_token` grant. Three form-encoded POSTs to `auth.kimi.com`:
-//   /api/oauth/device_authorization,
-//   /api/oauth/token (grant_type=urn:ietf:params:oauth:grant-type:device_code),
+// copilot_oauth的更简单的兄弟：Kimi的设备-flow access_token
+// 直接是API承载者(无代理交换)，并且它通过标准`refresh_token` 授权刷新。
+// 三个表单 -encoded POST 到 `auth.kimi.com`：
+//   /api/oauth/device_authorization、
+//   /api/oauth/token (grant_type=urn:ietf:params:oauth:授权-type:device_code)、
 //   /api/oauth/token (grant_type=refresh_token)
 
 #include "agentty/provider/kimi/kimi_oauth.hpp"
@@ -45,14 +45,14 @@ using auth::OAuthError;
 using auth::OAuthErrorKind;
 namespace fs = std::filesystem;
 
-// ── Verified constants (packages/oauth/src/constants.ts, e22479a6) ──────────
+// ── 验证常数(packages/oauth/src/constants.ts,e22479a6) ──────────
 constexpr const char* kOAuthHost  = "auth.kimi.com";
 constexpr const char* kClientId   = "17e5f671-d194-4dfb-9706-5516cb48c098";
 constexpr const char* kDevicePath = "/api/oauth/device_authorization";
 constexpr const char* kTokenPath  = "/api/oauth/token";
-// User-Agent "kimi_code_cli/<agentty version>", built at the request.
-// X-Msh-Platform: Kimi's server routes the device-flow (device-approval page,
-// not a bare login) on this identifier. Must be exactly "kimi_code_cli".
+// User-Agent "kimi_code_cli/<agentty version>"，根据请求构建。
+// X-Msh-Platform:Kimi的服务器在此标识符上路由设备-flow(设备
+// -approval页面，不是裸登录)。必须正好是 "kimi_code_cli"。
 constexpr const char* kMshPlatform = "kimi_code_cli";
 
 std::int64_t now_ms_impl() {
@@ -60,11 +60,11 @@ std::int64_t now_ms_impl() {
                std::chrono::system_clock::now().time_since_epoch()).count();
 }
 
-// ASCII-clean a header value (Kimi rejects non-ASCII; drop it, fall back).
+// ASCII-clean一个头文件值（Kimi拒绝非-ASCII；丢弃它，后退）。
 std::string ascii_header(std::string_view v, const char* fallback = "unknown") {
     std::string out;
     for (unsigned char c : v) if (c >= 0x20 && c <= 0x7E) out.push_back(static_cast<char>(c));
-    // trim
+    // 修剪
     while (!out.empty() && out.back() == ' ') out.pop_back();
     std::size_t b = out.find_first_not_of(' ');
     if (b != std::string::npos) out = out.substr(b);
@@ -103,8 +103,8 @@ std::string device_model() {
 #endif
 }
 
-// A stable per-machine device id (RFC 4122 v4 UUID), minted once and persisted
-// next to the credentials so the same device is recognized across sessions.
+// 稳定的每-machine设备ID(RFC 4122 v4 UUID)，
+// 被铸造一次并保留在凭据旁边，因此跨会话识别相同的设备。
 std::string device_id() {
     const fs::path path = auth::config_dir() / "kimi_device_id";
     {
@@ -117,7 +117,7 @@ std::string device_id() {
             if (!id.empty()) return id;
         }
     }
-    // Mint a v4 UUID.
+    // 铸造 v4 UUID。
     std::random_device rd;
     std::mt19937_64 gen(((std::uint64_t)rd() << 32) ^ rd() ^
                         (std::uint64_t)now_ms_impl());
@@ -129,8 +129,8 @@ std::string device_id() {
     };
     std::string id = h(8) + "-" + h(4) + "-4" + h(3) + "-" +
                      std::string(1, "89ab"[gen() & 0x3]) + h(3) + "-" + h(12);
-    // Publish once: the first process to link the file wins and every other
-    // one (now or later) reads the winner, so the id never changes.
+    // 发布一次：对链接文件的第一个进程获胜，并且每个其他进程
+    // （现在或以后）读取获胜者，因此id永远不会改变。
     (void)persistence::create_exclusive(::agentty::IoAccess::grant(), path, id);
     if (auto disk = persistence::read_file(::agentty::IoAccess::grant(), path);
         disk && !disk->empty())
@@ -138,9 +138,9 @@ std::string device_id() {
     return id;
 }
 
-// The X-Msh-* device-identity header block Kimi requires on every OAuth (and
-// API) request. Without it the auth server treats the caller as a generic web
-// client and serves a plain login page instead of the device-approval flow.
+// Kimi在每个OAuth(和API)请求上需要X-Msh-*设备-identity
+// 头文件块。如果没有它，身份验证服务器会将调用者视为通用 Web 客户端，
+// 并提供简单的登录页面而不是 device-approval 流程。
 std::vector<std::pair<std::string, std::string>> device_headers_impl() {
     return {
         {"x-msh-platform",     kMshPlatform},
@@ -180,7 +180,7 @@ std::string form_encode(const std::vector<std::pair<std::string, std::string>>& 
 
 struct HttpResult { int status = 0; std::string body; std::string transport_error; };
 
-// One HTTPS POST to the OAuth host, form-encoded body, JSON response.
+// 一个HTTPS POST到OAuth主机，形成-encoded 正文、JSON响应。
 HttpResult post_form(std::string_view path, std::string body) {
     HttpResult r;
     http::Request req;
@@ -212,13 +212,13 @@ HttpResult post_form(std::string_view path, std::string body) {
     return r;
 }
 
-// ── Credential store ────────────────────────────────────────────────────────
-// The creds file. Every read and write runs inside store().with.
+// ── 凭据 存储 ────────────────────────────────────────────────────────
+// 信用文件。每次读写都在 store().with 内运行。
 struct CredsFile {};
 maya::guarded<CredsFile>& store() { static maya::guarded<CredsFile> f; return f; }
 
-// signed_in() cache, keyed on the file's (mtime, size). Lock-free so views
-// (which can't hold capabilities) may call it.
+// signed_in()缓存，以文件的(mtime，大小)为关键字。
+// 锁-free 因此视图（不能容纳功能）可能会 调用 它。
 struct SignedInCache {
     long long      mtime     = -1;
     std::uintmax_t size      = 0;
@@ -265,7 +265,7 @@ bool save_unlocked(const KimiToken& t) {
     std::string payload = j.dump();
     std::string to_write = payload;
     if (auto sealed = auth::crypt::seal(payload)) to_write = std::move(*sealed);
-    // Born 0600, so even a plaintext fallback is never world-readable.
+    // 出生于0600，因此即使是明文回退也绝不是world-readable。
     return persistence::write_atomic(::agentty::IoAccess::grant(), creds_path(), to_write,
                                      {.durability = persistence::Durability::Durable,
                                       .mode = 0600});
@@ -273,7 +273,7 @@ bool save_unlocked(const KimiToken& t) {
 
 std::atomic<bool> g_force_refresh{false};
 
-// ── Wire parsing ─────────────────────────────────────────────────────────────
+// ── 传输 解析 国 务 院 ─────────────────────────────────────────────────────────────
 std::optional<KimiToken> parse_token_body(std::string_view body, std::int64_t now_ms) {
     try {
         auto j = json::parse(body);
@@ -284,15 +284,15 @@ std::optional<KimiToken> parse_token_body(std::string_view body, std::int64_t no
         t.refresh_token = j.value("refresh_token", std::string{});
         t.token_type    = j.value("token_type", std::string{"Bearer"});
         t.scope         = j.value("scope", std::string{});
-        // expires_in is server seconds; keep a small slack so we refresh before
-        // the real expiry rather than eating a 401 mid-turn.
+        // expires_in为服务器秒；保持一点宽松，以便我们在真正到期
+        // 之前刷新，而不是吃 401 mid-turn。
         const std::int64_t expires_in = j.value("expires_in", std::int64_t{0});
         t.expires_at_ms = expires_in > 0 ? now_ms + (expires_in - 60) * 1000 : 0;
         return t;
     } catch (...) { return std::nullopt; }
 }
 
-// ── Device flow ─────────────────────────────────────────────────────────────
+// ── 设备流 ─────────────────────────────────────────────────────────────
 std::expected<DeviceCode, OAuthError>
 request_device_code(std::string& out_device_code, int& out_interval) {
     auto r = post_form(kDevicePath, form_encode({{"client_id", kClientId}}));
@@ -303,11 +303,11 @@ request_device_code(std::string& out_device_code, int& out_interval) {
             "Kimi device-code request failed (HTTP " + std::to_string(r.status) + ")"});
     try {
         auto j = json::parse(r.body);
-        // The device-auth server still returns verification URLs on the
-        // DEPRECATED www.kimi.com host, which now shows only a "Kimi has been
-        // rebranded as Kimi.ai" dead-end page (no device-approval UI). The
-        // working device page lives on www.kimi.ai. Rewrite the host so the
-        // opened/displayed URL actually approves the device.
+        // device-auth服务器仍然返回DEPRECATED
+        // www.kimi.com主机上的验证URL，其现在仅显示
+        // "Kimi has been rebranded as Kimi.ai" dead-end页面
+        // （没有device-approval UI）。工作设备页面位于 www.kimi.ai。
+        // 重写主机，以便 opened/displayed URL 实际上批准该设备。
         auto to_kimi_ai = [](std::string u) {
             for (std::string_view from : {"https://www.kimi.com/", "https://kimi.com/"}) {
                 if (u.rfind(from, 0) == 0)
@@ -341,7 +341,7 @@ poll_for_token(const maya::unlocked& cap, const std::string& device_code, int in
     while (std::chrono::steady_clock::now() < deadline) {
         if (cancelled.stop_requested())
             return std::unexpected(OAuthError{OAuthErrorKind::Network, "login cancelled"});
-        // The server's interval, cut short the moment the login is cancelled.
+        // 服务器的间隔，在登录时刻缩短为已取消。
         if (maya::delay_for(cap, cancelled, std::chrono::seconds(interval)))
             return std::unexpected(OAuthError{OAuthErrorKind::Network, "login cancelled"});
         auto r = post_form(kTokenPath,
@@ -358,8 +358,8 @@ poll_for_token(const maya::unlocked& cap, const std::string& device_code, int in
                     "empty access_token"});
             }
             const std::string err = j.value("error", std::string{});
-            if (err == "authorization_pending") continue;         // keep waiting
-            if (err == "slow_down") { interval += 5; continue; }  // back off
+            if (err == "authorization_pending") continue;         // 继续等待
+            if (err == "slow_down") { interval += 5; continue; }  // 退后
             if (err == "expired_token")
                 return std::unexpected(OAuthError{OAuthErrorKind::ApiError,
                     "the device code expired — start sign-in again for a new code"});
@@ -371,13 +371,13 @@ poll_for_token(const maya::unlocked& cap, const std::string& device_code, int in
                 return std::unexpected(OAuthError{OAuthErrorKind::ApiError,
                     desc.empty() ? err : err + ": " + desc});
             }
-        } catch (...) { /* transient parse blip — keep polling */ }
+        } catch (...) { /* 瞬态 解析 光点 — 继续轮询 */ }
     }
     return std::unexpected(OAuthError{OAuthErrorKind::Network,
         "device-code login timed out; start sign-in again for a new code"});
 }
 
-// ── refresh_token grant ──────────────────────────────────────────────────────
+// ── refresh_token 授权 国 务 院 ──────────────────────────────────────────────────────
 std::expected<KimiToken, OAuthError> refresh(const KimiToken& cur) {
     if (cur.refresh_token.empty())
         return std::unexpected(OAuthError{OAuthErrorKind::MissingToken,
@@ -399,14 +399,14 @@ std::expected<KimiToken, OAuthError> refresh(const KimiToken& cur) {
     if (!t)
         return std::unexpected(OAuthError{OAuthErrorKind::MissingToken,
             "no token in Kimi refresh response"});
-    // Servers may omit refresh_token on refresh — keep the current one.
+    // 服务器可以在刷新时省略refresh_token——保留当前的。
     if (t->refresh_token.empty()) t->refresh_token = cur.refresh_token;
     return *t;
 }
 
-} // namespace
+} // 命名空间结束。
 
-// ── Public API ────────────────────────────────────────────────────────
+// ── 公共 API ────────────────────────────────────────────────────────
 std::int64_t KimiToken::now_ms() noexcept { return now_ms_impl(); }
 
 std::vector<std::pair<std::string, std::string>> device_headers() {
@@ -431,10 +431,10 @@ bool clear_credentials(Io, const maya::below<maya::leaf>& cap) {
 }
 
 bool signed_in() {
-    // Called by the picker VIEW once per rendered frame — cache the boolean
-    // keyed on the file's (mtime, size) so a fresh stat (~1µs) invalidates on
-    // sign-in / sign-out / cross-process change without unseal+parse per frame.
-    // Lock-free: the read needs no lock because writers use atomic renames.
+    // 每次渲染的 帧 — 缓存 被 选择面板 VIEW 调用一次，
+    // 布尔值键入文件的(mtime，大小)，因此新的统计数据(～1μs)
+    // 使sign-in/sign-out/cross-process改变无效，而无需根据帧解封+解析。
+    // 锁-free：读取不需要锁，因为写入器使用原子重命名。
     std::error_code ec;
     auto st = fs::last_write_time(creds_path(), ec);
     if (ec) { signed_in_cache().store(SignedInCache{}); return false; }
@@ -478,7 +478,7 @@ std::optional<KimiToken> fresh_token_locked(const maya::held<locks::auth_refresh
 }
 
 std::optional<KimiToken> fresh_token(const locks::below_auth_refresh& cap) {
-    // One refresh at a time; the store is never held across the network call.
+    // 一次刷新一次；该商店从未在网络 调用 上举行。
     struct RefreshLane {};
     static maya::guarded<RefreshLane, locks::auth_refresh> one_at_a_time;
     return one_at_a_time.with(cap, [](const maya::held<locks::auth_refresh>& h, RefreshLane&) {
@@ -489,8 +489,8 @@ std::optional<KimiToken> fresh_token(const locks::below_auth_refresh& cap) {
 namespace {
 std::optional<KimiToken> refresh_in_section(const maya::held<locks::cred_file>& h,
                                             bool cross, bool force, KimiToken cur) {
-    // Kimi rotates refresh tokens: a peer that refreshed while we waited has
-    // saved a new one, and ours is now dead. Adopt the peer's.
+    // Kimi轮换刷新令牌：在我们等待时刷新的对端有一个新的已保存，
+    // 而我们的现在已经死了。采用 对端。
     if (cross) {
         auto disk = load_token(h);
         if (!disk) return std::nullopt;
@@ -499,7 +499,7 @@ std::optional<KimiToken> refresh_in_section(const maya::held<locks::cred_file>& 
     }
     auto refreshed = refresh(cur);
     if (!refreshed) {
-        // A transient blip with a still-valid token: use it, don't block the turn.
+        // 带有 still-valid 标记的瞬态光点：使用它，不要阻挡转弯。
         if (!force && cur.valid() && !cur.expired()) return cur;
         return std::nullopt;
     }
@@ -519,6 +519,6 @@ std::optional<KimiToken> fresh_token_locked(const maya::held<locks::auth_refresh
             return refresh_in_section(c, held.cross_process, f, std::move(t));
         }, force, *cur);
 }
-} // namespace
+} // 命名空间结束。
 
 } // namespace agentty::provider::kimi

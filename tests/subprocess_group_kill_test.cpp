@@ -1,9 +1,9 @@
-// subprocess_group_kill_test — timeout/cancel must kill the whole tree.
+// subprocess_group_kill_test——timeout/cancel必须杀死整个源码树.
 //
-// Subprocess::run used to signal only the `sh -c` leader. A backgrounded
-// child (`sleep 60 &`) or a pipeline stage survived the timeout and kept
-// running after the tool had returned. The runner now spawns the child
-// in its own session/process group and signals the group.
+// Subprocess::run 用于仅表示 `sh -c`
+// 儿童的背景 `sleep 60 &` 或管道阶段幸存
+// 下来 超时 工具返回后,他继续运行,跑者现在生下孩子
+// session/process 组和信号组。
 
 #include "agtest.hpp"
 
@@ -31,7 +31,7 @@ fs::path pid_file(const char* tag) {
             + std::to_string(::getpid()));
 }
 
-// Wait up to ~2 s for `pid` to disappear. ESRCH = gone.
+// 等到~2秒时 `pid` 以消失为目的 ESRCH 不见了。
 bool gone(pid_t pid) {
     for (int i = 0; i < 40; ++i) {
         if (::kill(pid, 0) != 0 && errno == ESRCH) return true;
@@ -47,7 +47,7 @@ pid_t read_pid(const fs::path& p) {
     return static_cast<pid_t>(v);
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("subprocess timeout kills backgrounded children") {
     const auto pf = pid_file("timeout");
@@ -55,12 +55,12 @@ TEST_CASE("subprocess timeout kills backgrounded children") {
     fs::remove(pf, ec);
 
     SubprocessOptions opts;
-    // The background sleep holds the pipe open and never writes, so the
-    // idle timeout fires. Before the fix the sleep outlived the timeout.
-    // 3s, not 1s: under a parallel ctest the shell can take longer than a
-    // second just to fork the sleep and write its pid, and a timeout that
-    // fires first leaves no pid to check (REQUIRE(bg > 0) -- a flake, not a
-    // finding). The assertion is about WHO dies, not how fast.
+    // 睡着就把烟斗打开,从来不写,所以闲着 超时 火,
+    // 在修补睡眠之前, 时间已经过长 超时.
+    // 3s,不是1s:在平行测试下,贝壳需要更长的时间,
+    // 仅仅叉开睡眠并写出它的皮德,a 超时 火力首先没有爆炸,
+    // REQUIRE (bg > 0) -- -- 片面,而不是结论。
+    // WHO 死,不是多快,是多快,我快死了,我快疯了
     opts.command = SubprocessOptions::Shell{
         "sleep 60 & echo $! > '" + pf.string() + "'; wait"};
     opts.timeout = std::chrono::seconds{3};
@@ -70,7 +70,7 @@ TEST_CASE("subprocess timeout kills backgrounded children") {
     REQUIRE(bg > 0);
     CHECK(r.timed_out);
     const bool dead = gone(bg);
-    if (!dead) ::kill(bg, SIGKILL);   // don't leak it into the test run
+    if (!dead) ::kill(bg, SIGKILL);   // 别把它泄露到测试中
     CHECK_MESSAGE(dead, "the backgrounded sleep must die with its group");
     fs::remove(pf, ec);
 }
@@ -113,29 +113,29 @@ TEST_CASE("subprocess normal exit is unaffected") {
 #endif
 
 #if !defined(_WIN32)
-// ── the wall-clock ceiling ───────────────────────────────────────────────
+// ── 墙壁 -clock 上限 ───────────────────────────────────────────────
 //
-// The idle watchdog caps SILENCE, so a child that never stops printing
-// rolls it forward forever and is never reaped. Past the output cap the
-// reader discards what it reads, so memory doesn't bound it either: one
-// `yes` left a spinning process and a stuck worker for the rest of the
-// session. agentty installs its runner as mcp-cpp's host sandbox whenever
-// the sandbox is on, so mcp-cpp's own ceiling was bypassed in the default
-// configuration -- this one has to exist here too.
+// 闲着的 看门狗 盖子 SILENCE ,所以一个从未停止
+// 印刷的孩子会永远地滚滚,并且永远没有收获。通过输出封顶,
+// 读者会抛弃它所读的内容,所以 内存 也不绑起来: 一
+// `yes` 留下一个旋转的过程和一个卡住了 工作线程 其余时间。
+// agentty 安装其运行器为 mcp-cpp 东道主 沙箱
+// 任何时候 沙箱 已经开始了,所以 mcp-cpp 默认配置
+// 中绕过自己的上限——这个也在这里存在.
 //
-// The balance that matters: this must NOT make long sessions worse. A job
-// that legitimately runs for ages while printing is the normal case and has
-// to survive.
+// 重要的平衡:这不得 工作在印刷过程中合法
+// 地持续了很长时间,这是正常的情况,
+// 必须生存下去。
 
 TEST_CASE("subprocess: a chatty runaway is reaped by the wall clock") {
     SubprocessOptions opts;
-    // Never silent, so the idle watchdog can never fire: without the
-    // ceiling this call does not return.
+    // 永不沉默,因此闲置的看门狗永远不能开火:没有这个XX00120
+    // 的天花板,这个调用就不会返回.
     opts.command = SubprocessOptions::Shell{
         "while :; do echo spinning; done"};
-    opts.timeout      = std::chrono::seconds{30};   // idle: never trips
+    opts.timeout      = std::chrono::seconds{30};   // 闲置: 永远不旅行
     opts.hard_timeout = std::chrono::seconds{2};
-    opts.max_bytes    = 4096;                       // cap hit almost at once
+    opts.max_bytes    = 4096;                       // 几乎一击即中
 
     const auto t0 = std::chrono::steady_clock::now();
     auto r = Subprocess::run(std::move(opts));
@@ -151,14 +151,14 @@ TEST_CASE("subprocess: a chatty runaway is reaped by the wall clock") {
 }
 
 TEST_CASE("subprocess: a long chatty job is NOT cut off") {
-    // The convenience guarantee. Output every 100 ms for ~1.2 s, with an
-    // idle window far shorter than the total runtime: a build that keeps
-    // printing must finish no matter how long it takes.
+    // 方便保证。 每100 ms 输出一次, 输出为 ~1.2 s,
+    // 闲置窗口比 运行时 总窗口短得多 : 保持打印
+    // 的建筑无论需要多长时间都必须完成。
     SubprocessOptions opts;
     opts.command = SubprocessOptions::Shell{
         "for i in 1 2 3 4 5 6 7 8 9 10 11 12; do echo step $i; "
         "sleep 0.1; done; exit 0"};
-    opts.timeout   = std::chrono::seconds{1};   // shorter than the runtime
+    opts.timeout   = std::chrono::seconds{1};   // 短于运行时
     opts.max_bytes = 64 * 1024;
 
     auto r = Subprocess::run(std::move(opts));
@@ -174,17 +174,17 @@ TEST_CASE("subprocess: a long chatty job is NOT cut off") {
 }
 
 TEST_CASE("subprocess: the derived ceiling is generous, not tight") {
-    // 20x the idle budget, floored at 10 minutes. Pinned because the whole
-    // point is that it never fires on real work -- if someone tunes this
-    // down to "something reasonable", long sessions start dying.
+    // 20x闲置预算, 10分钟就铺平了。 这是因为它从来不会向
+    // 真正的工作开火 -- 如果有人调调下这个调子
+    // "something reasonable" 长会开始死亡。
     SubprocessOptions opts;
     opts.command   = SubprocessOptions::Shell{"echo quick"};
-    opts.timeout   = std::chrono::seconds{60};   // the common default
+    opts.timeout   = std::chrono::seconds{60};   // 常见默认
     opts.max_bytes = 4096;
     auto r = Subprocess::run(std::move(opts));
     CHECK(r.started);
     CHECK_FALSE(r.hard_capped);
-    // 60s idle would derive max(1200s, 600s) = 20 minutes.
+    // 闲置的60s将得出最大值(1 200s,600s)=20分钟。
     static_assert(60 * 20 > 600, "the floor must not be the binding term here");
 }
 #endif

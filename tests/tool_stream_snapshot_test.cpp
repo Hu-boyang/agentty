@@ -1,4 +1,4 @@
-// tool_stream_snapshot_test — canonical ID-addressed append/snapshot semantics.
+// tool_stream_snapshot_test - 犬科动物 ID-addressed append/snapshot 语义学.
 
 #include <chrono>
 #include <string>
@@ -16,11 +16,11 @@ namespace A = agentty;
 namespace D = agentty::app::detail;
 
 static A::Model apply(A::Model m, A::msg::StreamMsg event) {
-    m.now = agentty::app::kTestEpoch;   // the fold's time
+    m.now = agentty::app::kTestEpoch;   // 编号 归并 时间
     auto [next, cmd] = D::step(::agentty::app::detail::stream_update, std::move(m), std::move(event));
     (void)cmd;
-    // `next` is a structured binding: no implicit move-on-return before C++23,
-    // and Model's copy ctor is deleted.
+    // `next`是结构化的绑定:在C++23之前没有暗含的移动-on-return,
+    // Model的复制cr被删除.
     return std::move(next);
 }
 
@@ -51,7 +51,7 @@ TEST_CASE("tool stream snapshot") {
     m.d.current.messages.push_back(std::move(assistant));
     A::phase::Active active;
     active.transient_retries = 3;
-    // apply() folds at kTestEpoch, so "now" for the reducer is that.
+    // kTestepoch的apply() 归并,因此第状态更新函数号的"now"就是这个.
     active.last_event_at = agentty::app::kTestEpoch - std::chrono::seconds{119};
     m.s.phase = A::phase::Streaming{std::move(active)};
 

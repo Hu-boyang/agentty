@@ -1,13 +1,13 @@
-// persistence_proactive_test — the proactive-context marker + confidence
-// survive a real save→disk→load round-trip.
+// persistence_proactive_test - 主动性强 -context 标记 +
+// 信心在真实中存活 保存 盘子 加载 圆形 -trip.
 //
-// Regression lock for the persistence fix in src/io/persistence.cpp:
-// proactive_context was previously NOT serialized, so a reloaded thread
-// surfaced the raw <retrieved-context> block as a plain user turn. Now the
-// flag AND the retrieval confidence (which drives the transcript card's
-// bar) round-trip. This test drives the PUBLIC persistence API (save_thread
-// + flush_pending_saves + load_thread_file) against an isolated $HOME so it
-// touches real disk, not a mock.
+// 递归 锁 财务报告和审定财务报表 持久化 固定在 src/io/persistence.cpp:
+// proactive_context 原为 不 序列化,所以重新装入 线程 将
+// 生的浮出水面 <retrieved-context> 块作为普通用户转动。
+// 现在 标志 和 检索信心(驱动记录卡的栏) -trip。这个测试驱动 PUBLIC
+// 持久化 API (save_thread + flush_pending_saves
+// + load_thread_file )针对孤立的 $HOME 所以它接触了
+// 真正的磁盘,而不是一个模拟器。
 
 #include "agtest.hpp"
 
@@ -17,33 +17,33 @@
 #include <filesystem>
 #include <string>
 
-#include <unistd.h>   // getpid
+#include <unistd.h>   // 发作
 
 namespace fs = std::filesystem;
 using namespace agentty;
 
 
 TEST_CASE("persistence proactive") {
-    // Isolate the data dir: persistence::data_dir() resolves $HOME/.agentty.
+    // 隔离数据目录 : persistence::data_dir () 决 定 $HOME/.agentty.
     auto tmp = fs::temp_directory_path()
              / ("agentty_persist_test_" + std::to_string(::getpid()));
     fs::remove_all(tmp);
     fs::create_directories(tmp);
     ::setenv("HOME", tmp.c_str(), 1);
-    ::unsetenv("USERPROFILE");   // data_dir() prefers this on Windows; clear it
+    ::unsetenv("USERPROFILE");   // data_dir () 更喜欢这个 Windows 清除它
 
     Thread t;
     t.id    = persistence::new_id();
     t.title = "round-trip";
 
-    // A normal user turn.
+    // 普通用户转动。
     Message user;
     user.id   = MessageId{"m-user"};
     user.role = Role::User;
     user.text = "how does retry backoff work?";
     t.messages.push_back(user);
 
-    // The proactive context turn — the thing under test.
+    // 积极的背景正在转变——正在经受考验。
     Message ctx;
     ctx.id                   = MessageId{"m-ctx"};
     ctx.role                 = Role::User;
@@ -52,17 +52,17 @@ TEST_CASE("persistence proactive") {
                "exponential backoff with full jitter\n</retrieved-context>";
     t.messages.push_back(ctx);
 
-    // Assistant reply (proactive_context must NOT leak onto normal turns).
+    // 助理答复( proactive_context 不得 漏入正常转弯。
     Message reply;
     reply.id   = MessageId{"m-reply"};
     reply.role = Role::Assistant;
     reply.text = "It uses exponential backoff with full jitter, capped at 30s.";
     t.messages.push_back(reply);
 
-    // A fork-provenance note — same marker-message shape (Role::User +
-    // wire-inert flag). fork_note + fork_transcript must round-trip so a
-    // reloaded fork still renders the "\u2443 Forked" card and still points the
-    // model at the parent transcript.
+    // 叉子 -provenance 注释——同一标记 -message 形状( 5)
+    // Role::User + 传输-inert 标志). fork_note +
+    // fork_transcript 一定要绕 -trip 故复装叉子仍 渲染 编号 "\u2443 Forked" 牌照,
+    // 并仍然在母版记录中指向模型.
     Message fnote;
     fnote.id   = MessageId{"m-fork"};
     fnote.role = Role::User;
@@ -72,12 +72,12 @@ TEST_CASE("persistence proactive") {
                  "transcript is saved at:\n  /tmp/threads/parent.transcript.md";
     t.messages.push_back(fnote);
 
-    // ── Round-trip through real disk ────────────────────────────────────
+    // ── 回合-trip 通过真实磁盘 ────────────────────────────────────
     persistence::save_thread(::agentty::IoAccess::grant(), agtest::cap(), t);
     persistence::flush_pending_saves(::agentty::IoAccess::grant(), agtest::cap());
 
-    // Through the store seam: a saved thread now lives in the log format
-    // and <id>.json is retired once it verifies.
+    // 穿过店里 接口边界: a 已保存 线程 现在以日志格式存在,
+    // <id>.JSON 核查完毕后就退休了
     auto log_path = persistence::threads_dir() / (t.id.value + ".jsonl");
     check(fs::exists(log_path), "thread written to disk");
 
@@ -89,7 +89,7 @@ TEST_CASE("persistence proactive") {
     check(msgs.size() == 4, "all four messages survived");
     if (msgs.size() != 4) { REQUIRE(msgs.size() == 4); return; }
 
-    // The proactive turn kept its identity.
+    // 主动性的转弯保持了自己的身份。
     check(msgs[1].is_proactive_context(),
           "proactive-context identity survived reload");
     check(msgs[1].proactive && msgs[1].proactive->confidence
@@ -97,17 +97,17 @@ TEST_CASE("persistence proactive") {
        && *msgs[1].proactive->confidence < 0.83,
           "proactive confidence (0.82) survived reload");
 
-    // Neither the plain user nor the assistant turn picked up the marker.
-    // A normal turn simply has no proactive block — there is no sentinel to
-    // preserve, which is the point: "not a proactive message" and "a
-    // proactive message with an odd confidence" are no longer the same
-    // shape.
+    // 普通用户和助手都没有找到标记。
+    // 正常的转弯根本就没有主动的阻力——没有哨兵可以保护,这就是重点:
+    // "not a proactive message" 财务报告和已审计财务报表
+    // "a proactive message with an odd confidence" 已经不再是
+    // 相同的形状。
     check(!msgs[0].is_proactive_context() && !msgs[2].is_proactive_context(),
           "proactive identity did not leak onto normal turns");
     check(!msgs[0].proactive && !msgs[2].proactive,
           "normal turns carry no proactive block at all");
 
-    // The fork note kept its identity and its transcript pointer.
+    // 叉子笔记保留了自己的身份和笔录指针.
     check(msgs[3].fork_note, "fork_note flag survived reload");
     check(msgs[3].fork_transcript == "/tmp/threads/parent.transcript.md",
           "fork_transcript path survived reload");
@@ -120,20 +120,20 @@ TEST_CASE("persistence proactive") {
 }
 
 TEST_CASE("persistence: a tool in flight does not fail log verification") {
-    // save_thread_sync writes the log, re-reads it, and compares. Only if
-    // that verification passes does it delete the legacy <id>.json. The
-    // comparison used to check tool output unconditionally — but the reader
-    // deliberately coerces a pending/running call to Failed{"interrupted"},
-    // so output() is "" in memory and "interrupted" on disk.
+    // save_thread_sync 写入日志, 重新 -reads 并比较。
+    // 只有核查成功,它才会删除遗留下来的 <id>.JSON。用于无条件检查工具输出的
+    // 比较——但读者故意强迫一种工具输出。 pending/running 调用 失败{
+    // "interrupted" ~ 所以,这样吧 ~ output() 谓 "" 输入
+    // 内存 财务报告和已审计财务报表 "interrupted" 磁盘上。
     //
-    // A save fires on EVERY turn, so any turn with a tool still running hit
-    // that difference, logged "log verification FAILED", and kept the legacy
-    // document alive. Seen on a live 2400-message thread: 37 failures in
-    // bursts that healed the moment the tool finished. Nothing was lost, but
-    // the migration never completed and the error said nothing usable.
+    // A 保存 着火了 每个 转弯,所以任何转弯 工具仍在运行
+    // 击中的区别,记录 "log verification FAILED" ,
+    // 并保存遗存文件。 -message 线程 : 37次故障,
+    // 使工具完成的那一刻愈合。 什么都没有丢失,
+    // 但迁移从未完成, 错误也说不出什么有用的内容。
     //
-    // This drives the REAL save path with a tool mid-flight and asserts the
-    // migration completes anyway.
+    // 这驱动器 真实 保存 带有工具中间的路径 -flight
+    // 并声称迁移完成反正。
     auto tmp = fs::temp_directory_path()
              / ("agentty_inflight_test_" + std::to_string(::getpid()));
     fs::remove_all(tmp);
@@ -151,7 +151,7 @@ TEST_CASE("persistence: a tool in flight does not fail log verification") {
     user.text = "run something";
     t.messages.push_back(user);
 
-    // The assistant turn the reducer saves while the tool is STILL RUNNING.
+    // 助理转过身来 状态更新函数 保存 工具为 仍然 RUNNING.
     Message asst;
     asst.id   = MessageId{"m-asst"};
     asst.role = Role::Assistant;
@@ -170,13 +170,13 @@ TEST_CASE("persistence: a tool in flight does not fail log verification") {
     const auto legacy_path = persistence::threads_dir() / (t.id.value + ".json");
 
     check(fs::exists(log_path), "log written with a tool in flight");
-    // THE ASSERTION THAT WAS FAILING IN PRODUCTION: verification passed, so
-    // the legacy document was retired rather than kept forever.
+    // 该 ASSERTION 该 WAS FAILING IN PRODUCTION
+    // : 核查通过,所以遗留文件被退役而不是永远保存.
     check(!fs::exists(legacy_path),
           "legacy document retired despite the in-flight tool");
 
-    // And the turn still reloads intact, with the call made terminal so a
-    // reload never waits on a tool whose process is gone.
+    // 转弯仍然 装满完好,与 调用 已制作 终端 所以重装
+    // 从不等待 在一个工具 它的进程已经消失。
     auto loaded = persistence::load_thread_by_id(::agentty::IoAccess::grant(), t.id);
     REQUIRE(loaded.has_value());
     REQUIRE(loaded->messages.size() == 2u);

@@ -1,22 +1,22 @@
 #pragma once
 
-// ── Internal ACP backend boundary ────────────────────────────────────────────
+// ── 内部 ACP 后端边界 ────────────────────────────────────────────
 //
-// The unification layer. Every model backend — a native in-process HTTP+SSE
-// adapter (Anthropic / OpenAI / Ollama / Codex-Responses) OR an external ACP
-// agent subprocess (codex-acp, claude-agent-acp) — implements ONE contract:
-// drive a round, stream normalized `acp::SessionUpdate` events, settle with a
-// `TurnResult`. The runtime consumes only that, so a provider's quirks
-// (reasoning replay, thinking-signature replay, SSE-vs-NDJSON framing, the
-// terminal-event "cancelled" trap) live inside exactly one adapter and never
-// leak into the core.
+// 统一层。每个模型后端 - 本机 in-process HTTP+SSE 适配器 (Anthropic
+// / OpenAI / Ollama / Codex-Responses) OR 外部 ACP
+// 代理子进程 (codex-acp, claude-agent-acp) - 实现 一个 合约：
+// 驱动一轮，数据流归一化`acp::SessionUpdate` 事件，
+// 以`TurnResult`结算。 运行时 仅消耗这一点，因此提供者的怪癖
+// （推理重播、思考 -signature 重播、SSE-vs-NDJSON 帧、
+// 终端-event "cancelled" 陷阱）恰好存在于一个适配器内，
+// 并且永远不会泄漏到核心中。
 //
-// This is the SAME `acp::SessionUpdate` vocabulary agentty already emits
-// OUTBOUND from `src/acp/server.cpp` (agentty-as-ACP-agent for Zed). Adopting
-// it INBOUND makes the engine speak ACP on both seams.
+// 这是 相同 `acp::SessionUpdate` 词汇 agentty 已经从
+// `src/acp/server.cpp` 发出 OUTBOUND (agentty-as-ACP-agent
+// 对于 Zed)。采用 INBOUND 使引擎在 接口边界 上都可以说 ACP。
 //
-// See docs/internal-acp-backends.md for the full design, mapping tables, and
-// migration plan. This header is §5 of that doc.
+// 完整的设计、映射表和迁移计划参见docs/internal-acp-backends.md。
+// 此 头文件 是该文档的第 5 节。
 
 #include <chrono>
 #include <functional>
@@ -31,12 +31,12 @@
 
 namespace agentty::provider {
 
-// ── The single streaming sink ────────────────────────────────────────────────
-// One normalized event, in ACP's `session/update` vocabulary. Callers pass a
-// closure; the adapter fires it once per streamed delta (text, thought, tool
-// call, tool-call update, usage). It never carries the terminal event — that is
-// the return value of `prompt`, so "emit the terminal exactly once" is
-// structural, not a convention four transports must each remember.
+// ── 单方的 流式传输 沉没 ────────────────────────────────────────────────
+// ACP的`session/update`词汇表中的一个标准化事件。
+// 调用者传递一个闭包；适配器针对每个流式增量（文本、想法、工具 调用、
+// 工具-call 更新、使用）触发一次。它永远不会携带 终端 事件 — 这是
+// `prompt` 的返回值，因此 "emit the terminal exactly once"
+// 是结构性的，而不是四个 传输层 必须各自记住的约定。
 struct TurnSink {
     std::function<void(acp::SessionUpdate)> update;
 
@@ -45,27 +45,27 @@ struct TurnSink {
     }
 };
 
-// ── Terminal failure detail ──────────────────────────────────────────────────
-// A round can fail. `user_cancel` distinguishes an Esc (not a fault — the HTTP
-// layer reports the intentional abort as "cancelled", and only the adapter
-// knows whether that abort was user-driven or its own early read-stop).
-// `auth_expired` routes a 401/403 into the OAuth-refresh retry path.
+// ── 终端 失败细节 ──────────────────────────────────────────────────
+// 一轮可能会失败。 `user_cancel` 区分 Esc（不是故障 —
+// HTTP 层将有意中止报告为 "cancelled"，并且只有适配器知道该
+// 中止是 user-driven 还是其自己的早期 read-stop）。
+// `auth_expired`将401/403路由到OAuth-refresh 重试路径中。
 struct TurnError {
     std::string                          message;
-    std::optional<std::chrono::seconds>  retry_after;   // server Retry-After hint
+    std::optional<std::chrono::seconds>  retry_after;   // 服务器重试-After提示
     bool                                 auth_expired = false;
     bool                                 user_cancel  = false;
     bool                                 from_stall   = false;
 };
 
-// ── How a round ended ────────────────────────────────────────────────────────
-// `stop` is agentty's ROUND-level StopReason (keeps `ToolUse`) — the agent loop
-// reads it to decide continue-vs-finish. ACP's own turn-level StopReason is
-// applied only at the OUTBOUND server seam, where N rounds have already been
-// folded into one user-visible turn.
+// ── 一轮怎么结束 ────────────────────────────────────────────────────────
+// `stop`是agentty的ROUND-level StopReason(保留
+// `ToolUse`)-代理循环读取它以决定继续-vs-finish。 ACP自己的回合
+// -level StopReason仅在OUTBOUND服务器接口边界上应用，其中N回合已
+// 被合并到一个用户-visible回合中。
 struct TurnResult {
     StopReason               stop = StopReason::EndTurn;
-    std::optional<TurnError> error;   // engaged → the round failed
+    std::optional<TurnError> error;   // 订婚→本轮失败
 
     [[nodiscard]] bool ok() const noexcept { return !error.has_value(); }
 
@@ -77,20 +77,20 @@ struct TurnResult {
     }
 };
 
-// ── The contract every backend satisfies ─────────────────────────────────────
-// Type-erased (not a concept) because backends are pluggable and heterogeneous:
-// an in-process HTTP adapter and an out-of-process ACP subprocess sit behind the
-// same handle. One virtual call per round is free next to a network round-trip.
+// ── 每一个后端都满足了合同要求 ─────────────────────────────────────
+// Type-erased (不是概念)，因为后端是可插拔的且异构的：
+// in-process HTTP适配器和out-of-process ACP子进程
+// 位于同一句柄后面。每轮一个虚拟 调用 在网络轮 -trip 旁边是免费的。
 class AcpBackend {
 public:
     virtual ~AcpBackend() = default;
 
-    // Drive ONE provider round-trip (one model completion). Streams
-    // `acp::SessionUpdate`s through `sink`; returns the round's `TurnResult`.
-    // agentty's agent loop (kick_pending_tools) turns N rounds into one turn and
-    // executes any requested tools itself — a `SU_ToolCall` is only the model
-    // ASKING for a tool; execution, sandboxing, and permission stay agentty's.
-    // Runs on a turn worker holding no lock, and blocks: `unlocked`.
+    // 驱动ONE提供者round-trip (一个模型完成）。
+    // 数据流 `acp::SessionUpdate` 至 `sink`；返回回合的 `TurnResult`。
+    // agentty的代理循环(kick_pending_tools)将N轮
+    // 变成一轮并且本身执行任何请求的工具——`SU_ToolCall`只是
+    // 工具的型号ASKING；执行时，沙箱隔离和权限保持agentty的。
+    // 在没有持有 锁 的回合 工作线程 上运行，并阻止：`unlocked`。
     virtual TurnResult prompt(const maya::unlocked&       cap,
                               const Request&              req,
                               const TurnSink&             sink,

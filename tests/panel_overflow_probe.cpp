@@ -1,39 +1,39 @@
-// panel_overflow_probe — does any panel paint past its own frame?
+// panel_overflow_probe 任何面板是否画过自己的画 帧?
 //
-// THE FLAW THIS MEASURES
+// 该 FLAW 此 MEASURES
 // =====================
-// maya's Panel composes its body as
+// maya 其小组组成 正文 以
 //
-//     Element scrollable = vstack()(lines) | scroll(s, vh) | grow(1.0f);
-//     if (content > vh)
-//         stack.push_back(h(scrollable, scrollbar_y(...)).build());
+//     可滚动元素 = vstack() (行数) | 滚动(s, vh) | 增长( 1.0f);
+//     如果( 内容 > vh)
+//         stack.push_back (h(可滚动, scrollbar_y(...)).build());
 //
-// The scrollbar is appended AFTER the content has been laid out. grow(1.0f)
-// tells the content to claim the full width; an h() sibling then takes a
-// column back. Any child that sized itself from `avail_w` -- every
-// component(), which is what plots, bands and donuts are -- has already
-// committed to a geometry one column too wide.
+// 滚动条附后 之后 grow(1.0f)
+// 告诉内容要求全宽; a h() 哥哥
+// 们然后拿回一列 `avail_w`
+// – 计 component()
+// 已经承诺过宽的几何体。
 //
-// So the contract a panel offers its content is "use all the width, except
-// for the parts I have not told you about". agentty's stats panel is the
-// only caller that compensates, and the compensation is a hand-counted
-// magic number (`sheet.reserve_right(7)`) that is circular by construction:
-// the scrollbar is conditional on content > vh, and vh depends on the width
-// the reserve determines.
+// 所以,一个小组提供的内容是
+// 使用全部宽度，只扣除已经明确说明的占用部分。
+// agentty 统计小组是唯一的 赔偿者, 赔偿是手 -counted
+// 魔法号码( O) `sheet.reserve_right(7)` 循环建筑:
+// 滚动栏以内容 > vh为条件,vh取决于保留
+// 地确定的宽度.
 //
-// THE FIX, AND WHY THIS IS NOW A TEST
+// 修复方案及将其保留为测试的原因。
 // ===================================
-// Panel subtracts its own chrome instead of asking callers to. It clamps
-// min_width to the terminal (a floor wider than the screen is an overflow,
-// not a floor), reserves the scrollbar gutter unconditionally (a body that
-// reflows when content crosses the viewport shifts under the reader, and
-// the conditional made correct compensation impossible), and truncates its
-// note row rather than trusting a caller-supplied hint to fit.
+// 面板会减去自己的铬, 而不是要求呼叫者。
+// 它会夹住 min_width 编号 终端 (
+// 比屏幕宽的一层是溢出层,而不是一层),
+// 无条件保留滚动条沟(a) 正文 当内容跨越时,
+// 该流 可视区域 将笔记排短,而不是信任一个
+// 呼叫者 -supplied 提示要适应。
 //
-// This started as a NO_TEST probe printing a table, because asserting the
-// numbers before the fix would have enshrined the overdraw. It measured
-// 30 broken panel/width combinations across 13 of 14 panels. It now
-// measures 0, so the measurement becomes the guarantee.
+// 开始于 NO_TEST 探测器打印一个表格,
+// 因为如果在固定器前坚持数字, 就会显示超标。
+// 它测量了 30 个破损。 panel/width 共
+// 13个面板,现在它测量0,所以测量成为保证。
 
 #include "agtest.hpp"
 
@@ -65,9 +65,9 @@ struct Case {
     std::function<maya::Element(const Model&)> build;
 };
 
-// Every panel kind, opened with enough content to be representative. Same
-// list as the escape-guarantee table -- these two should stay in step, and
-// the fact that they are separate lists is its own smell.
+// 每个面板类型,打开后内容足够具有代表性。
+// 与逃逸的-guarantee表格相同的列表-这两个列表应该保持步调,
+// 它们都是单独的列表这一事实就是它自己的味道。
 const std::vector<Case>& cases() {
     static const std::vector<Case> v = {
         {"command palette",   [](Model& m) { m.ui.panel.descend(pn::Palette{{}}); },
@@ -121,8 +121,8 @@ void install_stub_deps() {
     });
 }
 
-// A thread with enough turns that the tally panels have real content and
-// the scrolling panels actually overflow their viewport.
+// A 线程 足够让盘点面板 具有真实内容
+// 滚动面板实际上溢出 可视区域.
 Model with_history() {
     Model m;
     m.d.current.id = ThreadId{"probe"};
@@ -149,8 +149,8 @@ Model with_history() {
     return m;
 }
 
-// The rightmost column carrying a non-blank cell. The panel's own frame is
-// what SHOULD be there; anything beyond it is content that escaped.
+// 带非的右栏 -blank 存储单元。小组本身 帧 是什么 说吧
+// SHOULD 在那里;除了它之外,其他任何东西都是逃避的。
 int rightmost_ink(const Case& c, const Model& m, int w, int h) {
     maya::StylePool pool;
     maya::Canvas canvas(w, h, &pool);
@@ -165,48 +165,48 @@ int rightmost_ink(const Case& c, const Model& m, int w, int h) {
     return worst;
 }
 
-// How many rows END without their right border.
+// 有多少行END没有他们的右边框.
 //
-// This is the symptom that actually reaches a user. A Canvas CLIPS, so
-// content laid out too wide never paints past the edge -- it overwrites
-// the frame's own right border and then stops. "Ink past the frame" can
-// therefore never be observed on a canvas; the visible damage is a row
-// whose border is MISSING, which is what a broken frame looks like on
-// screen.
+// 这是一种症状,它实际上到达用户。 CLIPS ,
+// 所以内容铺得太宽 永远不要画过边缘-- 它覆盖了 帧 自己有边界,
+// 然后就停下来 "Ink past the frame" 因此,
+// 永远无法在帆布上看到;可见的破坏是一排其边界是
+// MISSING ,这就是什么破碎 帧 看起来像在
+// 屏幕上。
 //
-// Counting the rows that lost their border is the same measurement taken
-// from the only side it is observable from.
-// What a panel had CLIPPED AWAY, and how many rows lost their border.
+// 计算失去边界的行数,是从唯一可观察
+// 到的一侧进行的测量。
+// 有个小组 CLIPPED AWAY ,有多少行失去了边界。
 //
-// Two measurements of one fault, taken from opposite sides.
+// 一次断层的两个测量,从对面进行.
 //
-// The border count is the SYMPTOM, and this probe was built around it for
-// a good reason stated above: a Canvas clips, so content laid out too wide
-// cannot be observed past the edge — it overwrites the frame's own border
-// and stops. Counting rows that lost their border was the only way to see
-// overflow from the outside.
+// 边框是 SYMPTOM ,这个探测器围绕它建造的
+// 原因就如上面所说的: 一种Canvas的剪辑,
+// 所以所铺设的太宽的内容不能被观察到在边缘上——它
+// 覆盖了 帧 自己边界和停留。 数数失去边界的行是
+// 唯一能看到外溢的路。
 //
-// The clip report is the CAUSE, and it is strictly better where it
-// applies: it names the text, the column it started at, the width it
-// wanted and the edge that cut it, at the moment the cells are discarded.
-// "Three rows are broken at width 40" becomes "'transport health —
-// retries, stalls, throughput' wanted 48 columns and the edge was at 40".
+// 剪辑报告是 CAUSE ,严格来说,
+// 它更适合它的适用: 它命名文本, 它开始的列,
+// 它想要的宽度和剪切它的边缘, 在此时 存储单元 被丢弃。
+// "Three rows are broken at width 40" 变成
+// 传输健康状态说明需要 48 列，但边界只有 40 列。
 //
-// Both are kept because neither subsumes the other. A row can lose its
-// border to content that fits exactly and leaves no clip; content can be
-// clipped inside a frame whose borders are all intact. Two questions, two
-// answers.
+// 两者都保留,因为两者都不包含。 一行会失去其边界,
+// 使其内容完全适合,而不会留下任何剪辑;
+// 内容可以剪辑在边界完全完整的帧内。 两个问题,
+// 两个答案。
 struct Damage {
     int broken_rows = 0;
     std::vector<std::string> clipped;
 };
 
 Damage measure(const Case& c, const Model& m, int w, int h) {
-    // Panel clamps its own min_width to the terminal, and with no tty it
-    // reads COLUMNS. Tell it the width we are actually rendering at, or it
-    // clamps against a fallback and the probe measures the wrong geometry.
+    // 面板夹住自己的 min_width 编号 终端 ,
+    // 没有tty 它读 COLUMNS 告诉它我们实际上的
+    // 宽度 渲染 或它夹住一个 回退 探测器测量到的几何错位
     const std::string cols = std::to_string(w);
-    setenv("COLUMNS", cols.c_str(), /*overwrite=*/1);
+    setenv("COLUMNS", cols.c_str(), /*覆盖=*/1);
 
     Damage d;
     maya::StylePool pool;
@@ -220,8 +220,8 @@ Damage measure(const Case& c, const Model& m, int w, int h) {
     maya::render_tree(c.build(m), canvas, pool, maya::theme::native,
                       /*auto_height=*/true);
 
-    // Which rows belong to the frame at all: those whose LEFT edge carries
-    // the border glyph. Rows outside the panel are not its problem.
+    // 属于哪个行 帧 完全没有: LEFT
+    // 边缘带有边框。面板外的行不是它的问题。
     for (int y = 0; y < h; ++y) {
         const auto left = canvas.get(0, y).character;
         const bool framed = left == U'\u2502' || left == U'\u256d'
@@ -239,13 +239,13 @@ int rows_missing_border(const Case& c, const Model& m, int w, int h) {
     return measure(c, m, w, h).broken_rows;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("panel: no panel paints over its own frame, at any width") {
     install_stub_deps();
 
-    // From a phone-sized split pane to an ultrawide terminal. The narrow
-    // end is where every one of these broke.
+    // 从电话上 -sized 拆分( E) 面板 超宽度
+    // 终端 狭长的一端是每个破碎的地方
     const int widths[] = {40, 50, 60, 68, 76, 90, 120, 160, 200};
     constexpr int kRows = 60;
 
@@ -260,41 +260,41 @@ TEST_CASE("panel: no panel paints over its own frame, at any width") {
         }
 }
 
-// What every panel throws away, reported.
+// 每个面板都丢掉的,报告。
 //
-// The companion to the check above, asking the other half of the
-// question. That one measures what LANDED — a frame whose border survived
-// is a frame nothing overflowed into. This one asks the renderer what it
-// DISCARDED, which is the part no examination of the painted cells can
-// recover: clipped text leaves a frame that looks finished and is missing
-// information, and the reader has no reason to doubt it.
+// 上面的支票的同伴问了另一半问题,
+// 那一个衡量什么 LANDED — a 帧 其
+// 边界幸存下来的 帧 什么都没有被淹没,
+// 这只狗问 渲染器 或 DISCARDED ,
+// 这是不检查画 存储单元 可恢复: 已剪辑的文本
+// 留下一个 帧 读者没有理由怀疑它。
 //
-// REPORTED, not asserted, and the distinction is deliberate. Its first
-// run found ten real defects — four panels whose empty-state hint is cut
-// mid-word on a narrow terminal ("indexing workspace… (type to filter as
-// it f") — and none of them has a fix I have been able to prove. Three
-// candidates were tried and reverted: TruncateEnd at the call site, a
-// measured width for the prebuilt path, and a max_width bound on header
-// rows. Each was locally reasonable, each left the count at ten.
+// REPORTED 第一次检查发现有十种真正的缺陷——四个板块,
+// 它们空着。 -state 提示切换到中间 -word 在一个狭长
+// 的 终端 ("indexing workspace… (type to filter as it f"
+// ————他们中没有一个有我无法证明的修补.
+// 3名候选人被试并被退回: TruncateEnd 现场
+// 调用 站点,预建路径的测量宽度,以及 max_width
+// 绑定在 头文件 每一行都合理,每行都以十分计数
 //
-// So the count is printed rather than enforced. An assertion nobody can
-// currently satisfy gets commented out within a week and takes the
-// diagnostic with it; a number in the log stays honest and makes the day
-// somebody fixes it visible as a drop. Turn the CHECK back on when the
-// count reaches zero.
+// 因此,这个统计是印刷的而不是强制的。
+// 目前没有人能够满足的断言在一周内得到评论,
+// 并用它来进行诊断;日志中的数字保持诚实,
+// 让人们能够把它看成一个下降。当统计达到零时,
+// 将CHECK恢复。
 //
-// What IS known, written down so the next attempt does not re-derive it:
+// 或 IS ,写下,所以下次尝试不会重新 -derive 其内容:
 //
-//   * the clip edge is 36 in a 40-column panel, and the text lands at
-//     row 4-5 col 3 — inside the body, past the header rows
-//   * the prebuilt measure loop reports ZERO rows for these panels, so
-//     whatever path renders that line, it is not the one measure_body
-//     accounts for
-//   * the panels set cfg.prebuilt when their list is empty, which is
-//     exactly the case the probe opens
+//   * 剪贴边为36, 在一个40-column面板,文本落在
+//     第4-5栏第3行—— 正文 ,通过 头文件 行数
+//   * 预建的度量环报告 ZERO 行,用于这些面板,所以
+//     无论什么路径 渲染 这条线,不是一条 measure_body
+//     会计核算
+//   * 当表单为空时, 面板设置为 cfg.prebuilt, 即
+//     探测器打开的箱子
 //
-// Those three cannot all be true at once, and the contradiction is the
-// thread to pull.
+// 这三者不可能一时都是真的,矛盾在于 线程
+// 来拉。
 TEST_CASE("panel: report anything clipped away without an ellipsis") {
     install_stub_deps();
 
@@ -327,7 +327,7 @@ TEST_CASE("panel: report anything clipped away without an ellipsis") {
                  "\npanels: %zu clipped write(s) across %zu panels x %zu widths\n",
                  total, cases().size(), std::size(widths));
 
-    // A ratchet, not a gate. It cannot go UP without someone noticing,
-    // and the day the remaining ten are fixed this becomes == 0.
+    // 门不是门,不能开 UP 剩下的
+    // 十人被整好的日子 就会变成0
     CHECK(total <= 10);
 }

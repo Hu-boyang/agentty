@@ -1,9 +1,9 @@
-// Does the model-facing catalog honour trust?
+// 模型是否为 -facing 目录 荣誉信任?
 //
-// Run standalone so skills::all()'s mtime cache is cold and HOME is ours
-// from the first call — inside the shared test binary another case has
-// usually already populated it, which is what made the first version of
-// this check fail for the wrong reason.
+// 运行独立 所以skills::all()的mtime 缓存是冷的,
+// HOME是我们从第一个调用开始的——在共享测试的二进制程序中,
+// 另一个案例通常已经将它包含在内,这就是这个检查的第一个
+// 版本因为错误的原因失败的原因.
 
 #include "agentty/tool/skills.hpp"
 
@@ -59,7 +59,7 @@ int main() {
     check(payload.find("agentty skill approve risky") != std::string::npos,
           "refusal tells the model what the user should run");
 
-    // A prose skill still activates normally.
+    // 传言技巧仍然正常地激活.
     const auto prose = find(::agentty::IoAccess::grant(), "prose");
     check(prose && activation_payload(::agentty::IoAccess::grant(), *prose).find("Short sentences")
                    != std::string::npos,

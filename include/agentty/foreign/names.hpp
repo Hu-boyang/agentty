@@ -1,6 +1,6 @@
 #pragma once
-// agentty::foreign — names for the tools whose sessions agentty can open.
-// Pure: safe for views and reducers.
+// agentty::foreign-其会话agentty可以打开的工具的名称。
+// 纯：对于视图和状态更新函数来说是安全的。
 
 #include <optional>
 #include <string>
@@ -21,7 +21,7 @@ enum class Source : std::uint8_t { Codex, ClaudeCode };
     if (k == "claude") return Source::ClaudeCode;
     return std::nullopt;
 }
-// Display name for a stored key, or the key itself when unknown.
+// 存储的密钥的显示名称，或者当未知时密钥本身。
 [[nodiscard]] inline std::string display_name(std::string_view k) {
     if (auto s = parse_source(k)) return std::string{name_of(*s)};
     return std::string{k};

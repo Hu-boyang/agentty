@@ -1,22 +1,22 @@
 #!/bin/sh
-# cli_arg_order_test.sh — `agentty run` accepts its arguments in any order.
+# cli_arg_order_test.sh-`agentty run`按任何顺序接受其论点.
 #
-# The parser used to scan only the LEADING run of arguments after `run` and
-# stop at the first option it didn't own, so the prompt was claimed only when
-# nothing global preceded it:
+# 电话 解析器 用于扫描 LEADING 参数运行于 `run`
+# 并且停止在第一种选择, 它没有,所以 提示词 只有在没有全球范围的
+# 情况发生时,才提出索赔:
 #
 #     agentty run --agent coder "prompt"        worked
 #     agentty run -w dir "prompt"               "unknown arg: prompt"
 #     agentty run --agent coder -w dir "prompt" "unknown arg: prompt"
 #
-# Reported as "agent flag positioning only accepts one version". The rule was
-# real but invisible, because the error named the PROMPT rather than the
-# ordering — so it read as a rejected prompt, not a rejected position.
+# 报告为"agent flag positioning only accepts one version".
+# 该规则是真实的,但不可见的,因为错误将XX00120命名为PROMPT
+# 而不是命令——所以它被读作一个被否决的提示词,而不是一个被否决的立场.
 #
-# This is a shell test because parse_args is internal to main.cpp; the thing
-# worth pinning is the BINARY's contract, which is what a user actually hits.
+# 这是壳试验 因为 parse_args 内部为 main.cpp
+# 值得倾注的是 BINARY 合同,这是用户实际点击的。
 #
-#   sh tests/cli_arg_order_test.sh [path/to/agentty]
+#   嘘 tests/cli_arg_order_test.sh [path/to/agentty]
 
 set -u
 BIN="${1:-./build/agentty}"
@@ -24,8 +24,8 @@ BIN="${1:-./build/agentty}"
 
 fails=0
 
-# Accepts: parsing must not report an unknown argument. --help keeps this
-# fast and side-effect free — it exercises the same parse_args and exits.
+# 接受: 接受请求 解析 不得报告未知的论据。 --help 保持这个快速和侧面
+# -effect 免费的——它同样锻炼 parse_args 和出口,我们离开。
 ok() {
     desc="$1"; shift
     out=$("$BIN" "$@" --help 2>&1 | head -1)
@@ -35,8 +35,8 @@ ok() {
     esac
 }
 
-# Rejects: a genuinely bad argument must still fail. Without this the test
-# would pass just as well against a parser that accepts everything.
+# 反对:真正的糟糕论点必须仍然失败。 没有这种论点,检验标准就会通过,
+# 对一个真正的错误论点也必须通过。 解析器 接受一切的事物 接受一切 接受一切
 rejects() {
     desc="$1"; shift
     out=$("$BIN" "$@" 2>&1 | head -1)
@@ -46,11 +46,11 @@ rejects() {
     esac
 }
 
-# Says: the output CONTAINS this message. Used for the empty-prompt case,
-# where the point is WHICH error you get, not merely that parsing
-# succeeded — `run ""` used to report a blank `unknown arg:`. Matched
-# against the whole output because a banner (e.g. the sandbox line) may
-# precede it.
+# 说: 输出 CONTAINS 此信件。 用于空信件 -prompt ,
+# 则 对应的 错误,不只是 解析 成功 ——
+# `run ""` 用于报告空白 `unknown arg:`。
+# 与整个产出匹配,因为横幅( e.g。该 沙箱 可能
+# 在此之前。
 says() {
     desc="$1"; want="$2"; shift 2
     out=$("$BIN" "$@" 2>&1)
@@ -74,8 +74,8 @@ ok 'run - (stdin)'                    run -
 
 echo
 echo "empty prompt:"
-# An empty positional is still a prompt the scan CLAIMED: it must produce
-# the real "no prompt" error, never `unknown arg:` with a blank name.
+# 空位仍是 提示词 扫描 CLAIMED : 它必须产生真实的 "no prompt" 错误,
+# 永远不要 `unknown arg:` 名字是空白的 名字是空的 名字写着"我"
 says 'run ""'        'no prompt'      run ""
 says 'run "" -w DIR' 'no prompt'      run "" -w /tmp
 

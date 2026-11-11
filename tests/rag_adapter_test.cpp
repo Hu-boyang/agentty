@@ -1,26 +1,26 @@
-// rag_adapter_test — locks the agentty↔rag-cpp adapter contract.
+// rag_adapter_test — 锁 编号 agentty↔rag-cpp 适配器合同.
 //
-// agentty's retrieval engine is the external rag-cpp library (rag::Engine),
-// driven through the compact agentty::rag::Retriever boundary in
-// include/agentty/rag/rag_adapter.hpp. This test drives that REAL boundary
-// end to end, fully OFFLINE: an unreachable Ollama endpoint is probed once and
-// the adapter runs BM25 without repeated network timeouts.
+// agentty 其检索引擎是外部 rag-cpp 库 (rag::Engine )),
+// 通过契约驱动. agentty::rag::Retriever 边界
+// include/agentty/rag/rag_adapter.hpp.
+// 测试驱动器 真实 边界结束至结束,完全结束 OFFLINE : 无法获取 Ollama
+// 终点被探测一次,适配器运行 BM25 无需重复网络 超时.
 //
-// It pins the properties the rest of agentty depends on:
-//   1. A docs folder is indexed and a relevant query returns ranked passages
-//      whose `source` is "docs" and whose `path` is the file (provenance
-//      survives the uri round-trip).
-//   2. The top passage for a pointed query is the file that actually contains
-//      the answer (ranking is not random).
-//   3. An empty knowledge set reports the "no knowledge configured" error
-//      instead of throwing or returning garbage.
-//   4. warm()/retrieve() are safe to call repeatedly (idempotent reindex).
-//   5. retrieve_code() indexes the cwd source tree and finds a symbol.
+// 将其余的属性固定在身上 agentty 取决于:
+//   1. 索引文件文件夹,相关查询返回的段落排序
+//      其 人 名 `source` 谓 "docs" 以及其国家 `path` 是文件(
+//      证明在尿液圆中幸存) -trip).
+//   2. 尖端查询的顶端段落是实际包含
+//      答案( 排名不是随机的 )。
+//   3. 空知识集报告"no knowledge configured"错误
+//      而不是扔垃圾或运回垃圾
+//   4. warm()/retrieve() 安全无虞 调用 重复( 次数) 幂等 )),"("新指数").
+//   5. retrieve_code () 索引 cwd 源码树 找到一个 符号.
 
 #include "agtest.hpp"
 
 #include "agentty/rag/rag_adapter.hpp"
-#include "agentty/tool/util/fs_helpers.hpp"   // workspace_root / set_workspace_root
+#include "agentty/tool/util/fs_helpers.hpp"   // workspace_root / set_workspace_root 数据
 
 #include <chrono>
 #include <atomic>
@@ -77,8 +77,8 @@ void close_socket(socket_t s) noexcept {
 
 class LoopbackEmbeddingServer {
 public:
-    // `delay`: how long each request takes, so a test can see requests
-    // overlap (and what else is possible meanwhile).
+    // `delay`:每个请求需要多长时间,因此测试可以
+    // 看到请求重叠(以及同时可能的其他什么).
     explicit LoopbackEmbeddingServer(std::chrono::milliseconds delay = std::chrono::milliseconds{0})
         : delay_(delay) {
 #if defined(_WIN32)
@@ -129,7 +129,7 @@ public:
             }
         }
         if (worker_.joinable()) worker_.join();
-        // Each connection runs on its own thread; wait for the ones in flight.
+        // 每个连接都以自己的线程运行;等待飞行中的那些.
         for (auto& t : handlers_)
             if (t.joinable()) t.join();
         close_socket(listener_);
@@ -144,10 +144,10 @@ public:
     [[nodiscard]] bool valid() const noexcept { return listener_ != kInvalidSocket; }
     [[nodiscard]] std::uint16_t port() const noexcept { return port_; }
     [[nodiscard]] int requests() const noexcept { return requests_.load(std::memory_order_acquire); }
-    // Most requests ever being answered at the same moment.
+    // 多数请求在同一个时刻得到答复。
     [[nodiscard]] int peak_in_flight() const noexcept { return peak_.load(std::memory_order_acquire); }
-    // Ollama-style model check: when set, only `only_model` answers and
-    // other models get a 404. Set before any request.
+    // Ollama-style 模式检查: 设定时, 只检查 `only_model`
+    // 答案和其他模型在任何请求之前获得一个 404. 设定。
     void serve_only(std::string m) { only_model_ = std::move(m); }
     [[nodiscard]] int refused() const noexcept { return refused_.load(std::memory_order_acquire); }
 
@@ -170,7 +170,7 @@ private:
                                              0.0, 0.0, 0.0, 0.0}}});
             matrix.push_back({1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
         }
-        // Both wires: OpenAI reads data[], Ollama reads embeddings.
+        // 两条线: OpenAI 读取数据[], Ollama 读取嵌入。
         const std::string payload = json{{"object", "list"}, {"data", std::move(data)},
                                          {"embeddings", std::move(matrix)}}.dump();
         return "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n"
@@ -208,7 +208,7 @@ private:
             if (header_end == std::string::npos) {
                 header_end = request.find("\r\n\r\n");
                 if (header_end != std::string::npos) {
-                    // Header names are case-insensitive (agentty sends lowercase).
+                    // 头文件 名称为例 -insensitive (agentty 发送小写).
                     std::string headers = request.substr(0, header_end);
                     for (auto& ch : headers) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
                     const auto marker = headers.find("content-length:");
@@ -242,9 +242,9 @@ private:
                 if (stop_.load(std::memory_order_acquire)) break;
                 continue;
             }
-            // A client that connects and never sends (or a kept-alive socket
-            // the client forgot) must not wedge this thread: the destructor
-            // joins it, and a stuck join hangs ctest instead of failing.
+            // 连接且从未发送(或保存)的客户端 -alive
+            // 套接字客户机忘了) 切勿绕过此选项 线程 :破坏者加入,
+            // 一个卡住的加入会吊死cest而不是失败.
 #if defined(_WIN32)
             const DWORD ms = 5000;
             (void)::setsockopt(client, SOL_SOCKET, SO_RCVTIMEO,
@@ -257,8 +257,8 @@ private:
                 close_socket(client);
                 break;
             }
-            // A real embedding server answers requests side by side; so does
-            // this one, so a test can see the client's concurrency.
+            // 一个真正的嵌入服务器的回答并排请求;这个也一样,
+            // 这样一个测试就可以看到客户端的货币.
             handlers_.emplace_back([this, client] {
                 handle(client);
                 close_socket(client);
@@ -269,7 +269,7 @@ private:
     socket_t listener_ = kInvalidSocket;
     std::uint16_t port_ = 0;
     std::thread worker_;
-    std::vector<std::thread> handlers_;   // touched only by worker_, joined after it
+    std::vector<std::thread> handlers_;   // 被工人摸过,然后加入
     std::atomic<bool> stop_{false};
     std::atomic<int> requests_{0};
     std::atomic<int> in_flight_{0};
@@ -317,7 +317,7 @@ void set_test_env(const char* name, const std::string& value) {
 #endif
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("rag auto embedder prefers qwen3-embedding when ollama has it") {
     ScopedEnvSandbox sandbox;
@@ -341,7 +341,7 @@ TEST_CASE("rag auto embedder prefers qwen3-embedding when ollama has it") {
     check(without.state == agentty::rag::Retriever::EmbedStatus::State::Ready
               && without.describe.find("nomic-embed-text") != std::string::npos,
           "auto falls back to nomic when qwen3 isn't there");
-    // A model the user named is used as is, never swapped.
+    // 用户名的模型被使用到现在,从未互换过。
     set_test_env("AGENTTY_EMBED_MODEL", "nomic-embed-text");
     LoopbackEmbeddingServer server;
     REQUIRE(server.valid(), "loopback embedding server starts");
@@ -365,9 +365,9 @@ TEST_CASE("rag cold retrieval serializes fan-out under the index lock") {
         "AGENTTY_RAG_CORRECT", "AGENTTY_RAG_GRAPH", "AGENTTY_RAG_EXPAND",
         "AGENTTY_RAG_HYDE", "AGENTTY_RAG_PERSIST", "AGENTTY_RAG_LEARN",
         "AGENTTY_RAG_ADAPTIVE", "AGENTTY_RAG_PROACTIVE", "AGENTTY_RAG_FUSION"});
-    // 150 ms a request: long enough that requests visibly overlap when the
-    // batches run side by side, and that a reader can get in between while
-    // they're in flight; short enough to keep the test under a second or two.
+    // 150 ms a request: 足够长的时间,
+    // 当批次同时运行时,请求明显重叠,一个读者可以在飞行时进入;
+    // 短的时间,可以让测试保持在一秒或两秒内.
     LoopbackEmbeddingServer server{std::chrono::milliseconds{150}};
     REQUIRE(server.valid(), "loopback embedding server starts");
 
@@ -380,9 +380,9 @@ TEST_CASE("rag cold retrieval serializes fan-out under the index lock") {
                    "This document exercises the cold embedding path while the "
                    "RAG index lock is held. fixture-token-" + std::to_string(i) + "\n");
     }
-    // cwd and the workspace root are process-global: put both back on every
-    // way out, before TempDir removes the directory they point into, or the
-    // next test in this binary runs from a deleted directory.
+    // 阴性 工作区 root 是进程 -global : 将两者都
+    // 放回所有出路,之前 TempDir 删除他们指向的目录,
+    // 或者在此的下一个测试 二进制程序 从已删除的目录中运行。
     struct RestoreWorkspace {
         fs::path cwd = fs::current_path();
         fs::path ws  = ::agentty::tools::util::workspace_root();
@@ -392,7 +392,7 @@ TEST_CASE("rag cold retrieval serializes fan-out under the index lock") {
             ::agentty::tools::util::set_workspace_root(::agentty::IoAccess::grant(), ws);
         }
     };
-    // Declared after `tmp`, so it runs first on the way out.
+    // 于 `tmp` 所以它首先在出门时运行。
     RestoreWorkspace restore;
     std::error_code ec;
     fs::current_path(tmp.path(), ec);
@@ -419,17 +419,17 @@ TEST_CASE("rag cold retrieval serializes fan-out under the index lock") {
     set_test_env("AGENTTY_RAG_PERSIST", "0");
 
     agentty::rag::Retriever retriever;
-    // While the cold retrieve runs, another thread keeps asking a lock-free
-    // question that reads the index (the UI's status row does this every
-    // frame). With the embedding done under the lock, every one of those
-    // would wait out the whole pass.
+    // 寒冷的回流中,又来了 线程 一直问一个 锁-free 问题,
+    // 读取索引(英文) UI '状态行这样做的每
+    // 一个 帧。在“嵌入”下完成嵌入。
+    // 锁 每一个都等着离开整个通道
     std::atomic<bool> done{false};
     std::atomic<int>  answered_during{0};
     std::thread prober([&] {
         while (!done.load(std::memory_order_acquire)) {
             if (server.requests() >= 2) {
-                // snapshot_config() takes the index lock for a (blocking)
-                // read, so it answers only when no pass holds the lock.
+                // snapshot_config () 取索引 锁 以
+                // 一个经文为首,所以它只在没有通过的情况下才回答。 锁.
                 const auto t0 = std::chrono::steady_clock::now();
                 (void)retriever.snapshot_config();
                 if (std::chrono::steady_clock::now() - t0 < std::chrono::milliseconds{100})
@@ -451,15 +451,15 @@ TEST_CASE("rag cold retrieval serializes fan-out under the index lock") {
     check(answered_during.load() > 0,
           "the index stays readable while the corpus is being embedded");
 
-    // Warm: nothing new to embed, so one query vector at most.
+    // 温暖:没有新内容可以嵌入,所以最多只能有一个查询向量.
     const int before = server.requests();
     const auto again = retriever.retrieve("fixture token cold retrieval", 5);
     check(again.error.empty() && !again.passages.empty(), "a warm retrieval answers");
     check(server.requests() - before <= 1, "a warm retrieval embeds nothing but the query");
 
-    // Switch to another embedder (same model name, another server): the old
-    // vectors must not be reused, the index rebuilds on the new one, and the
-    // whole cold path runs again without touching the old server.
+    // 切换到另一个嵌入器(同型号名称,
+    // 另一个服务器):旧向量不能被重复使用,
+    // 索引重建在新的上,整个冷路运行时不接触旧服务器.
     LoopbackEmbeddingServer other{std::chrono::milliseconds{20}};
     REQUIRE(other.valid(), "second embedding server starts");
     auto cfg = retriever.snapshot_config();
@@ -473,15 +473,15 @@ TEST_CASE("rag cold retrieval serializes fan-out under the index lock") {
     check(server.requests() == old_before, "the old embedder is not asked again");
 }
 
-// Persisted indexes are named `<stem><8-hex-identity>.ragdb`, where the hash
-// identifies the EMBEDDER's vector space (see rag/embed_backend.hpp). Tests
-// must not hardcode a name: the identity changes with the embedder, which is
-// the whole point — switching backends switches between warm indexes instead
-// of silently reopening one built with incompatible geometry.
+// 已设定索引名称 `<stem><8-hex-identity>.ragdb` ,
+// 在散列识别 EMBEDDER 矢量空间( 请参见
+// rag/embed_backend.hpp ) 测试决不能硬编码
+// 一个名称:身份随嵌入器而变化,这是整个点——在温暖指数之间切换后端开关,
+// 而不是默默地重新打开一个与不兼容几何学构建的开关.
 static fs::path find_index(const fs::path& root, std::string_view stem) {
     std::error_code ec;
-    // Indexes live under .agentty/cache/ (derived data, sweepable). The old
-    // flat location is checked too so this still passes mid-migration.
+    // 指数低于 .agentty/cache/ (生成的数据,
+    // 可扫描) 旧的平面位置也检查过了,所以仍然在中途 -migration.
     for (const auto& dir : {root / ".agentty" / "cache", root / ".agentty"}) {
         if (!fs::is_directory(dir, ec)) continue;
         for (const auto& e : fs::directory_iterator(dir, ec)) {
@@ -498,7 +498,7 @@ static fs::path find_index(const fs::path& root, std::string_view stem) {
 TEST_CASE("rag adapter") {
     std::printf("rag_adapter_test\n");
 
-    // Isolated temp workspace: a docs/ folder + an env pointing at it.
+    // 隔离的暂时性 工作区: a docs/ 文件夹 + 一条内存指向它。
     auto nonce = std::chrono::steady_clock::now().time_since_epoch().count();
     fs::path tmp = fs::temp_directory_path() /
                    ("agentty_rag_" + std::to_string(nonce));
@@ -530,44 +530,44 @@ TEST_CASE("rag adapter") {
     write_file(tmp / "src" / "auth_guard.cpp",
                "bool validate_bearer_token(const std::string& token) {\n"
                "  return token == \"valid\";\n}\n");
-    // Make the sandbox a PROJECT, not just a directory.
+    // 做一个 沙箱 a PROJECT 不仅仅是目录
     //
-    // Persisted indexes resolve through dirs::Root::Project, which walks up
-    // from the cwd to the nearest project marker (.git/.agentty/.hg/.svn) --
-    // that walk is what gives one checkout one index no matter which subdir
-    // you launch from (#61). A markerless temp dir has no marker to find, so
-    // the walk ran all the way up and anchored on whatever real repo the test
-    // binary happened to be launched from: the 33 MB rag_code.*.ragdb landed
-    // in agentty's OWN .agentty/ instead of here, find_index(tmp, ...) found
-    // nothing, and the next block threw on `fs::path{""} + ".meta.json"`.
+    // 模糊的索引解析度 dirs::Root::Project ,从 cwd
+    // 向上走到最近的项目标记( .git/.agentty/.hg/.svn )
+    // — 步行就是让一个检查结果有一个索引,不管你从哪一个子目录(#61)中发射。
+    // 一个无标记的临时目录没有标记可找到,所以步行一路跑到上面,并扎根于任何真实
+    // 的目录上。 仓库 测试 二进制程序 恰巧从: MB rag_code *.
+    // ragdb 登陆 agentty's 自身 .agentty/ 而不是在这里,
+    // find_index (tmp,...) 什么都没有发现, 下一个街区
+    // 扔上 `fs::path{""} + ".meta.json"`.
     //
-    // That is why this only failed in a FULL run: alone, ctest's cwd already
-    // sat inside the repo whose .agentty the index went to, so find_index
-    // happened to see a pre-existing one and the assertions passed by
-    // accident. The marker makes the sandbox self-contained either way.
+    // 所以这才失败了 完整 运行:独自一人,Ctest的cwd已经坐在
+    // 里面 仓库 是谁的? agentty 指数去,
+    // 所以 find_index 碰巧看到一个预告 -existing 和
+    // 意外通过的说法 标记使 沙箱 自己 -contained 不管是哪种方式。
     fs::create_directories(tmp / ".git");
     auto old_cwd = fs::current_path();
     fs::current_path(tmp);
-    // chdir alone is NOT enough. project_anchor() starts its marker walk at
-    // util::project_root(), which is the WORKSPACE ROOT clamp, not the live
-    // cwd -- and the workspace root is process-global state that any earlier
-    // test in the binary may have pinned somewhere else (several call
-    // set_workspace_root and never restore it). So this sandbox has to claim
-    // the boundary explicitly, or the anchor resolves into whatever directory
-    // the last test left behind and the index lands there.
+    // 单是chdir就不是 够了。 project_anchor
+    // ()开始标记行走 util::project_root (,
+    // 即 WORKSPACE ROOT 夹子,不是活的cwd -
+    // 和 工作区 root 是进程 -global 说明
+    // 在 二进制程序 可能已经钉在别的地方(若干 调用
+    // set_workspace_root 永远不要恢复它。
+    // 沙箱 或锚定在任何目录中 留下的最后测试和索引着陆
     const auto old_ws = ::agentty::tools::util::workspace_root();
     ::agentty::tools::util::set_workspace_root(::agentty::IoAccess::grant(), tmp);
 
 #if defined(_WIN32)
     _putenv_s("AGENTTY_DOCS_DIR", docs.string().c_str());
-    // Force the offline path: one bounded probe, then BM25-only retrieval.
+    // 强制离线路径: 一条有界探测器, 然后 BM25-only 检索。
     _putenv_s("AGENTTY_OLLAMA_HOST", "127.0.0.1:1");
-    // Isolate ranking from the AMBIENT environment: the developer's installed
-    // skills and learned memory would otherwise be indexed alongside the tiny
-    // temp docs and can out-rank them, and a stale .ragdb / feedback TSV under
-    // the repo's own .agentty/ would perturb results. Disable both knowledge
-    // sources, persistence, and the learning loop for the deterministic
-    // ranking assertions.
+    // 与排名隔离 AMBIENT 环境:开发者安装的技能和学到
+    // 的知识 内存 否则会和小临时文件一起索引,然后可以退出
+    // -rank 和A类 过期 .ragdb/反馈 TSV 下
+    // 划线 仓库 属于自己的 .agentty/ 将破坏结果,
+    // 使两个知识来源都失效, 持久化 ,以及决定排名
+    // 断言的学习循环.
     _putenv_s("AGENTTY_RAG_SKILLS", "0");
     _putenv_s("AGENTTY_RAG_MEMORY", "0");
     _putenv_s("AGENTTY_RAG_PERSIST", "1");
@@ -576,7 +576,7 @@ TEST_CASE("rag adapter") {
     _putenv_s("AGENTTY_RAG_PRF", "0");
 #else
     ::setenv("AGENTTY_DOCS_DIR", docs.string().c_str(), 1);
-    ::setenv("AGENTTY_OLLAMA_HOST", "127.0.0.1:1", 1);   // bounded probe, then BM25
+    ::setenv("AGENTTY_OLLAMA_HOST", "127.0.0.1:1", 1);   // 定界探测器,然后 BM25
     ::setenv("AGENTTY_RAG_SKILLS", "0", 1);
     ::setenv("AGENTTY_RAG_MEMORY", "0", 1);
     ::setenv("AGENTTY_RAG_PERSIST", "1", 1);
@@ -588,7 +588,7 @@ TEST_CASE("rag adapter") {
     {
         agentty::rag::Retriever r;
 
-        // (1)+(2): a pointed query returns docs-sourced, well-ranked passages.
+        // (1)+(2):一个点查询返回文件 -sourced 说得没错 -ranked 段落。
         auto res = r.retrieve("how do I log in / authenticate", 5, /*skip_docs=*/false);
         check(res.error.empty(), "retrieve() succeeds on a populated docs folder");
         check(!res.passages.empty(), "retrieve() returns at least one passage");
@@ -601,7 +601,7 @@ TEST_CASE("rag adapter") {
             check(!res.mode.empty(), "mode/provenance string is populated");
         }
 
-        // (4): repeat calls are safe and stay warm (no reindex churn / crash).
+        // (4):重复调用是安全的,保持温暖(没有重新索引churn / crash).
         auto res2 = r.retrieve("filesystem sandbox workspace root", 3);
         check(res2.error.empty(), "second retrieve() succeeds");
         check(!res2.passages.empty(), "second query returns passages");
@@ -610,9 +610,9 @@ TEST_CASE("rag adapter") {
                   "sandbox query ranks sandbox.md first");
         check(r.warm(), "index reports warm after a build");
 
-        // Full-power features engage: the mode string advertises the rich
-        // pipeline as a readable FUNNEL (fusion method + per-stage counts) and
-        // CRAG produced a confidence.
+        // 满 -power 特性 使用: 模式字符串 广告丰富的
+        // 管道为可读 FUNNEL (聚变方法+每 -stage 和 数
+        // CRAG 产生了信心。
         {
             auto q = r.retrieve("how do I log in / authenticate", 5);
             check(q.mode.find("convex-fusion") != std::string::npos,
@@ -625,15 +625,15 @@ TEST_CASE("rag adapter") {
                   "confidence is a well-formed [0,1] signal");
         }
 
-        // A real persisted index and validation manifest must be written.
+        // 需要写出一份真实的、持续的索引和验证清单。
         //
-        // The filename carries the EMBEDDER IDENTITY hash (see
-        // embed_backend.hpp): a .ragdb is only reusable by an embedder that
-        // produces the same vector geometry, and keying the path on that
-        // means switching backends switches between warm indexes instead of
-        // silently reopening one built by a different embedder. So this
-        // asserts the SHAPE (rag_docs.<8 hex>.ragdb + its manifest) rather
-        // than a fixed name.
+        // 文件名带有 EMBEDDER IDENTITY
+        // 散列( 见 embed_backend.hpp :
+        // a.ragdb 只能由一个产生相同矢量几何的嵌入器重用,
+        // 而按键路径意味着在温暖指数之间切换后端开关,而不是默默地
+        // 重新打开由不同嵌入器所建的开关。 SHAPE (
+        // rag_docs.<8 hex> .ragdb + 其表),
+        // 而不是固定名称.
         {
             std::error_code ec;
             const auto ragdb = find_index(tmp, "rag_docs.");
@@ -646,16 +646,16 @@ TEST_CASE("rag adapter") {
             }
         }
 
-        // Requested breadth is honored; corrective retrieval must not silently
-        // collapse a broad k=8 request to its old three-strip default.
+        // 要求的宽度被尊重;纠正性检索决不能默默地崩溃一个宽k=
+        // 8的请求,以达到它原先的3-strip默认值.
         {
             auto broad = r.retrieve("orion broad survey shared topic", 8);
             check(broad.error.empty(), "broad retrieval succeeds");
             check(broad.passages.size() >= 6, "broad retrieval is not capped at three passages");
         }
 
-        // Aggregate body output is bounded near 12 KiB and keeps the relevant
-        // span from the tail of a giant source.
+        // 正文总产出范围在12 KiB附近,
+        // 并且从一个巨型来源的末尾保持相关跨度.
         {
             auto bounded = r.retrieve("needle-budget exact relevant sentence", 6);
             std::size_t bytes = 0;
@@ -668,7 +668,7 @@ TEST_CASE("rag adapter") {
             check(kept_needle, "query-focused compression keeps the relevant span");
         }
 
-        // Generator seam is callable and drives HyDE when enabled.
+        // 发电机 接口边界 可调用和驱动器 HyDE 启用时。
         {
 #if defined(_WIN32)
             _putenv_s("AGENTTY_RAG_HYDE", "1");
@@ -694,8 +694,8 @@ TEST_CASE("rag adapter") {
 #endif
         }
 
-        // Learning is intentionally opt-in: merely surfacing results must not
-        // create feedback that systematically penalizes skills/memory.
+        // 学习是故意选择 -in :仅仅表面显示的结果不得
+        // 产生系统惩罚的反馈 skills/memory.
         {
             std::error_code ec;
             auto fb = tmp / ".agentty" / "rag_feedback.tsv";
@@ -705,16 +705,16 @@ TEST_CASE("rag adapter") {
             check(!fs::exists(fb, ec), "implicit learning is disabled by default");
         }
 
-        // Source-aware code index returns a definition-shaped chunk and updates
-        // one changed file without discarding the whole corpus.
+        // 来源 -aware 代码索引返回定义 -shaped 块
+        // 并更新一个更改的文件,而不丢弃整个程序表。
         {
-            // Gate for OPPORTUNISTIC retrieval (structural zero-hit leads):
-            // cold — no in-memory index, no persisted ragdb — must report NOT
-            // warm so a side-effect query can't trigger the cold build…
+            // 门 OPPORTUNISTIC 检索(结构零) -hit 线索( E) :
+            // 冷——没有 -memory 指数,没有持续的破烂,
+            // 必须报告 不 暖和的一面 -effect 查询无法触发冷建...
             check(!r.code_warm(), "code index reports cold before first build");
             auto code = r.retrieve_code("validate bearer token credentials", 5);
             check(code.error.empty() && !code.passages.empty(), "search_code finds source");
-            // …and warm right after the explicit build.
+            // 明清之后就热身了
             check(r.code_warm(), "code index reports warm after explicit build");
             if (!code.passages.empty()) {
                 check(code.passages.front().path.find("auth_guard.cpp") != std::string::npos,
@@ -732,25 +732,25 @@ TEST_CASE("rag adapter") {
                 check(updated.passages.front().text.find("rotate_session_nonce") != std::string::npos,
                       "edited definition replaces stale code content");
 
-            // Disk-verification: the returned passage text must be exactly what
-            // is on disk RIGHT NOW — read_disk_lines re-reads the cited range, so
-            // even after an edit the result is correct-on-bytes, never a stale
-            // or mangled index chunk. Prove it by confirming the passage body
-            // is a verbatim substring of the current file.
+            // 磁盘 -verification :返回的段落文本必须是磁盘上
+            // 的内容 RIGHT 当前 — read_disk_lines
+            // 内容 -reads 引用范围,所以即使编辑后结果也是正确的
+            // -on-bytes ,从来没有 过期 或 粘结的索引块。
+            // 通过确认通过来证明它。 正文 是当前文件的逐字记录。
             if (!updated.passages.empty()) {
                 std::ifstream in(tmp / "src" / "auth_guard.cpp", std::ios::binary);
                 std::string disk((std::istreambuf_iterator<char>(in)),
                                  std::istreambuf_iterator<char>());
                 const auto& body = updated.passages.front().text;
-                // Take the first non-empty line of the passage and require it
-                // to appear verbatim on disk (guards against stale/garbled text).
+                // 吃第一个不吃 -empty 并需要将其逐字显示在磁盘上
+                // (防控器) stale/garbled 文本),将删除。
                 std::string first = body.substr(0, body.find('\n'));
                 check(!first.empty() && disk.find(first) != std::string::npos,
                       "search_code passage is verified against live disk");
             }
         }
-        // A single documentation edit is refreshed in place and replaces the
-        // stale document without rebuilding unrelated sources.
+        // 更新了单一文件编辑,并替换了过期文件,
+        // 而无需重建不相关的来源。
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
             write_file(docs / "auth.md",
@@ -762,13 +762,13 @@ TEST_CASE("rag adapter") {
             if (!updated.passages.empty())
                 check(updated.passages.front().text.find("lattice-refresh-marker") != std::string::npos,
                       "edited docs content replaces the stale passage");
-            // The code index also covers .md, so refresh it too. Otherwise the
-            // warm open below would rightly rewrite a stale code index.
+            // 代码索引也覆盖 . md, 所以也刷新它。
+            // 否则下面的温暖打开会正确地重写一个 过期 代码索引。
             (void)r.retrieve_code("rotate session nonce", 5);
         }
     }
 
-    // A fresh Retriever opens the persisted corpus without rewriting it.
+    // 新的Retriever打开了恒定的体格,而不重写它。
     {
         auto db = find_index(tmp, "rag_docs.");
         std::error_code ec;
@@ -784,12 +784,12 @@ TEST_CASE("rag adapter") {
                   "warm-opened index preserves ranking");
 
         auto code_db = find_index(tmp, "rag_code.");
-        // Never let a MISSING index degrade into a filesystem exception. The
-        // whole suite used to abort here with "cannot create directories:
-        // Invalid argument" whenever the index resolved outside `tmp`, which
-        // reported as a crash in an unrelated place instead of naming the
-        // real problem. A check() says which index is missing and keeps the
-        // remaining assertions running.
+        // 绝不让一个MISSING索引降解为文件系统例外。
+        // 用于在此中止的套件有“ 无法创建目录 :
+        // 无效的参数“ 当索引在外部解决时 `tmp` ,
+        // 它报告在一个无关的地方发生坠机事件,而不是点出真正的问题。
+        // check() 说明缺少哪个索引,
+        // 并保持其余的断言运行。
         REQUIRE(!code_db.empty(),
                 "rag_code index exists under the sandbox anchor");
         auto code_before = fs::last_write_time(code_db, ec);
@@ -800,9 +800,9 @@ TEST_CASE("rag adapter") {
         check(code_before == code_after, "warm code open does not rewrite its index");
     }
 
-    // Files edited while agentty was closed: a fresh Retriever loads the saved
-    // index and updates just those files, so new text is found and the rest
-    // of the corpus (survey docs here) is still there.
+    // 文件编辑时 agentty 关闭: 新的 Retriever
+    // 加载 编号 已保存 索引和更新文件,所以找到新的文本,
+    // 其余的(这里的调查文件)仍然在那里。
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
         write_file(docs / "sandbox.md",
@@ -829,24 +829,24 @@ TEST_CASE("rag adapter") {
         check(!stale_hit, "the old text of an edited code file is gone");
     }
 
-    // Corrupt/truncated .meta.json must not crash a fresh Retriever: the load
-    // path parses meta inside try/catch and falls back to a clean rebuild. This
-    // guards the persistence hardening (atomic meta writes) — even a half-
-    // written meta from a killed process is recovered from, never fatal.
+    // Corrupt/truncated .meta.json 不可崩溃
+    // 新 Retriever: 加载 路径 解析 内置元 try/catch
+    // 回到一个干净的重建中,这个守护着... 持久化 硬化(原子元
+    // 写作)——即使是半写元从一个被杀死的过程中恢复,也永远不会致命.
     {
         std::error_code ec;
         const auto docs_db = find_index(tmp, "rag_docs.");
         REQUIRE(!docs_db.empty(),
                 "rag_docs index exists before the corrupt-meta probe");
         auto meta = fs::path{docs_db.string() + ".meta.json"};
-        // Truncated JSON object: exactly what an interrupted write could leave
-        // if writes were not atomic.
+        // 截断的 JSON 对象: 如果写作不是原子,
+        // 被中断的写作会留下什么。
         write_file(meta, "{\"version\": 3, \"root\": \"/tmp\", \"docs_fp\":");
         agentty::rag::Retriever r;
         auto res = r.retrieve("encrypted OAuth keystore", 5);
         check(res.error.empty(), "corrupt .meta.json recovers via rebuild, no crash");
         check(!res.passages.empty(), "rebuild after corrupt meta still returns results");
-        // The rebuild must rewrite a VALID meta (parseable JSON object).
+        // 重建必须重写 VALID 元a( 可分割 JSON 对象).
         std::ifstream in(meta);
         std::string body((std::istreambuf_iterator<char>(in)),
                          std::istreambuf_iterator<char>());
@@ -854,24 +854,24 @@ TEST_CASE("rag adapter") {
               "rebuild republishes a complete .meta.json");
     }
 
-    // Very-large-corpus bounds: a docs root with more than the file cap,
-    // plus vendored/build dirs and an oversized blob, must index a BOUNDED
-    // corpus and never crash. This guards the OOM that unbounded DirOptions
-    // (max_files=0, 4 MB files, no _deps/build exclusion) caused on large
-    // codebases when AGENTTY_DOCS_DIR pointed at a repo root.
+    // 甚处是. -large-corpus 边框: 超过文件盖的文档根,
+    // 加上 vendored/build 双倍和超大小的块,必须指数a BOUNDED
+    // 绝对不会坠毁,这保护着... OOM 即无约束 DirOptions (max_files=0,
+    // 4 MB 文件,没有 _deps/build )在大代码库中引起,
+    // 但 AGENTTY_DOCS_DIR 指向一个 仓库 根节。
     {
         fs::path big = tmp / "big_corpus";
         fs::remove_all(big);
-        // 7000 tiny docs (> the 6000 cap) so the walk must truncate.
+        // 7000个小的docs( > 6000盖),所以行走必须切换.
         for (int i = 0; i < 7000; ++i)
             write_file(big / ("doc" + std::to_string(i) + ".md"),
                        "# Doc " + std::to_string(i) +
                        "\n\nalpha beta gamma delta term" + std::to_string(i) + "\n");
-        // Vendored + build output that MUST be skipped, not indexed.
+        // 销售商+ 构建输出, 省略 必须 , 不编制索引。
         write_file(big / "_deps" / "vendored.md", "should not be indexed\n");
         write_file(big / "build" / "generated.md", "should not be indexed\n");
         write_file(big / "node_modules" / "pkg.md", "should not be indexed\n");
-        // An oversized blob that exceeds the 1 MB per-file cap.
+        // 超大小的块数超过 1 个 MB 百分比 -file 盖子。
         std::string blob = "# Huge\n";
         blob.reserve(3 * 1024 * 1024);
         while (blob.size() < 3u * 1024 * 1024) blob += "filler filler filler\n";
@@ -893,7 +893,7 @@ TEST_CASE("rag adapter") {
         }
     }
 
-    // (3): empty knowledge ⇒ graceful "no knowledge" error, not a crash.
+    // (3):空知 QQ优雅的"no knowledge"错误,不是崩溃.
     {
         fs::path empty_dir = tmp / "empty";
         fs::create_directories(empty_dir);
@@ -913,17 +913,17 @@ TEST_CASE("rag adapter") {
     }
 
     fs::current_path(old_cwd);
-    // Hand the process-global workspace boundary back exactly as we found it:
-    // leaving a deleted temp dir pinned is what broke the NEXT test, and this
-    // test should not propagate the hazard it just worked around.
+    // 将进程交接 -global 工作区 边界 准确的回 因为我们找到了它:
+    // 留下一个被删除的临时标记是打破了NEXT测试,
+    // 而这个测试不应该传播它刚刚产生的危害.
     ::agentty::tools::util::set_workspace_root(::agentty::IoAccess::grant(), old_ws);
     fs::remove_all(tmp);
 }
 
-// Regression: Retriever::shutdown() must interrupt an in-flight background
-// warm PROMPTLY. Before the cooperative-cancel fix, the warm jthread ignored
-// its stop_token (captured [state], not [stop_token]) and was only joined at
-// static destruction, blocking ^C for 4–10 s while the embed pass finished.
+// 退转 : Retriever::shutdown () 必须中断一个 -flight
+// 暖和的背景 PROMPTLY。合作社之前 -cancel 修补,温暖的Jthread
+// 忽略了它 stop_token (抓获[ ⁇ ],不作[ ⁇ ]. stop_token ),
+// 并且只在静态破坏时加入,阻断. ^C 4 -10 s, 嵌入式通行证完成时。
 TEST_CASE("rag shutdown interrupts warm promptly") {
     namespace fs = std::filesystem;
     auto nonce = std::chrono::steady_clock::now().time_since_epoch().count();
@@ -931,24 +931,24 @@ TEST_CASE("rag shutdown interrupts warm promptly") {
                ("agentty_rag_shutdown_" + std::to_string(nonce));
     fs::remove_all(tmp);
     fs::create_directories(tmp);
-    // Same project marker as the main sandbox above: without it this cwd has
-    // no anchor, so anything persisted here resolves into the enclosing real
-    // repo's .agentty/ instead.
+    // 与主项目标记相同 沙箱 上面:没有它,这个cwd就没有锚,
+    // 所以任何坚持在这里的 解决了 周围的真 仓库's
+    // .agentty/ 换成是的
     fs::create_directories(tmp / ".git");
     auto old_cwd = fs::current_path();
     fs::current_path(tmp);
-    // chdir alone is NOT enough. project_anchor() starts its marker walk at
-    // util::project_root(), which is the WORKSPACE ROOT clamp, not the live
-    // cwd -- and the workspace root is process-global state that any earlier
-    // test in the binary may have pinned somewhere else (several call
-    // set_workspace_root and never restore it). So this sandbox has to claim
-    // the boundary explicitly, or the anchor resolves into whatever directory
-    // the last test left behind and the index lands there.
+    // 单是chdir就不是 够了。 project_anchor
+    // ()开始标记行走 util::project_root (,
+    // 即 WORKSPACE ROOT 夹子,不是活的cwd -
+    // 和 工作区 root 是进程 -global 说明
+    // 在 二进制程序 可能已经钉在别的地方(若干 调用
+    // set_workspace_root 永远不要恢复它。
+    // 沙箱 或锚定在任何目录中 留下的最后测试和索引着陆
     const auto old_ws = ::agentty::tools::util::workspace_root();
     ::agentty::tools::util::set_workspace_root(::agentty::IoAccess::grant(), tmp);
 
-    // A large-ish corpus so a real warm has work to do (and thus a window in
-    // which cancellation matters).
+    // 一大块 -ish 如此温暖的体格需要工作(因此,一个窗口,
+    // 其中 取消 问题。
     fs::create_directories(tmp / "docs");
     for (int f = 0; f < 8; ++f) {
         std::ofstream o(tmp / "docs" / ("doc" + std::to_string(f) + ".md"));
@@ -963,19 +963,19 @@ TEST_CASE("rag shutdown interrupts warm promptly") {
         cfg.docs_root = (tmp / "docs").string();
         r.apply_config(cfg);
 
-        // Kick the background warm, then immediately ask it to stop. The join
-        // inside shutdown() must return quickly because the worker now polls
-        // the cancel flag between files / before the embed build.
+        // 将背景打得暖和,然后立刻要求它停止。
+        // shutdown() 一定要快点回来 因为 工作线程
+        // 现在投票 取消 标志 / 在嵌入式构建之前。
         r.warm_async();
         const auto t0 = std::chrono::steady_clock::now();
         r.shutdown();
         const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - t0).count();
-        // Generous ceiling: even one in-flight embed batch is well under this;
-        // the OLD bug blocked for the whole multi-second corpus embed.
+        // 优雅的天花板:甚至一个英寸 -flight 嵌入的批量在此之下;
+        // 旧 整个多块被屏蔽 -second 装着炸弹
         check(ms < 2500, "shutdown() returns promptly, not after a full warm");
 
-        // shutdown() is idempotent and leaves the retriever usable.
+        // shutdown() 谓 幂等 并让回收机可用。
         r.shutdown();
         r.warm_async();
         r.shutdown();
@@ -983,9 +983,9 @@ TEST_CASE("rag shutdown interrupts warm promptly") {
     }
 
     fs::current_path(old_cwd);
-    // Hand the process-global workspace boundary back exactly as we found it:
-    // leaving a deleted temp dir pinned is what broke the NEXT test, and this
-    // test should not propagate the hazard it just worked around.
+    // 将进程交接 -global 工作区 边界 准确的回 因为我们找到了它:
+    // 留下一个被删除的临时标记是打破了NEXT测试,
+    // 而这个测试不应该传播它刚刚产生的危害.
     ::agentty::tools::util::set_workspace_root(::agentty::IoAccess::grant(), old_ws);
     fs::remove_all(tmp);
 }

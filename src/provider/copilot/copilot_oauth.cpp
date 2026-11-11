@@ -1,17 +1,17 @@
-// copilot_oauth.cpp — GitHub Copilot device-flow login + proxy-token exchange.
+// copilot_oauth.cpp —GitHub副驾驶设备-flow登录+代理-token交换。
 //
-// See copilot_oauth.hpp. Structure mirrors chatgpt/codex_oauth.cpp; the flow is
-// simpler (GitHub's plain device flow: no PKCE, no loopback callback server).
+// 参见copilot_oauth.hpp。结构镜chatgpt/codex_oauth.cpp；
+// 流程更简单（GitHub的普通设备流程：没有PKCE，没有环回回调服务器）。
 //
-// Constants and quirks are cross-referenced against VS Code's own
-// vscode-copilot-chat token manager and the failure reports of a dozen
-// third-party integrations (see docs/design/copilot-provider.md):
-//   • CLIENT_ID MUST be VS Code's GitHub App id — the exchange only accepts
-//     App (ghu_) tokens, and the server keys its MODEL ALLOWLIST to this id.
-//   • Route inference to the token response's `endpoints.api`, never a
-//     hardcoded host (Individual/Business/Enterprise differ; guessing 404s).
-//   • Editor-Version + Copilot-Integration-Id headers are mandatory on every
-//     call — but those live on the transport Endpoint, not here.
+// 常量和怪癖是针对 VS Code 自己的 vscode-copilot-chat
+// 令牌管理器的 cross-referenced 以及十几个third-party 集成的
+// 失败报告（参见 docs/design/copilot-provider.md）：
+//   • CLIENT_ID 必须 为 VS 代码的 GitHub 应用 ID — 交易所仅接受
+//     应用程序(ghu_)令牌，并且服务器将其MODEL ALLOWLIST键入到该id。
+//   ·将推断路由到令牌响应的`endpoints.api`，绝不是
+//     硬编码主机(Individual/Business/Enterprise不同；猜测404s)。
+//   • Editor-Version + Copilot-Integration-Id 头文件 对每个
+//     调用 — 但那些存在于 传输层 端点上，而不是在这里。
 
 #include "agentty/provider/copilot/copilot_oauth.hpp"
 #include "agentty/util/lock_levels.hpp"
@@ -25,7 +25,7 @@
 #include <thread>
 
 #ifndef _WIN32
-#include <unistd.h>   // getpid — unique temp name per process
+#include <unistd.h>   // getpid — 每个进程的唯一临时名称
 #else
 #include <process.h>  // _getpid
 #define getpid _getpid
@@ -36,7 +36,7 @@
 #include "agentty/auth/auth.hpp"
 #include "agentty/auth/cred_crypt.hpp"
 #include "agentty/util/base64.hpp"
-#include "agentty/util/user_root.hpp"   // user_cache_dir — the support cache
+#include "agentty/util/user_root.hpp"   // user_cache_dir——支撑缓存
 #include "agentty/io/http.hpp"
 #include "agentty/io/shared_file.hpp"
 #include "agentty/util/dbglog.hpp"
@@ -56,8 +56,8 @@ using auth::OAuthError;
 using auth::OAuthErrorKind;
 namespace fs = std::filesystem;
 
-// ── Verified constants (docs/design/copilot-provider.md §2) ───────────────
-constexpr const char* kClientId    = "Iv1.b507a08c87ecfe98";   // VS Code GitHub App
+// ── 核实的常数(docs/design/copilot-provider.md§2) ───────────────
+constexpr const char* kClientId    = "Iv1.b507a08c87ecfe98";   // VS 代码 GitHub 应用程序
 constexpr const char* kGithubHost  = "github.com";
 constexpr const char* kApiHost     = "api.github.com";
 constexpr const char* kDevicePath  = "/login/device/code";
@@ -65,11 +65,11 @@ constexpr const char* kTokenPath   = "/login/oauth/access_token";
 constexpr const char* kExchangePath= "/copilot_internal/v2/token";
 constexpr const char* kScope       = "read:user";
 constexpr const char* kGrantType   = "urn:ietf:params:oauth:grant-type:device_code";
-// Editor/plugin/user-agent identity now lives in copilot_oauth.hpp as runtime-
-// overridable accessors (client_editor_version() etc.) — Copilot gates model
-// rollout on these, so they must be tunable without a rebuild.
+// Editor/plugin/user-agent身份现在作为运行时-可重写访问器（
+// client_editor_version()等）存在于copilot_oauth.hpp
+// 中——副驾驶门模型在这些访问器上的推出，因此它们必须是可调整的而无需重建。
 constexpr const char* kIntegration = "vscode-chat";
-// Fallback inference base when the token response omits endpoints.api.
+// 当令牌响应省略endpoints.api时回退推理基础。
 constexpr const char* kDefaultApi  = "https://api.githubcopilot.com";
 
 std::int64_t now_ms_impl() {
@@ -99,8 +99,8 @@ std::string form_encode(const std::vector<std::pair<std::string, std::string>>& 
 
 struct HttpResult { int status = 0; std::string body; std::string transport_error; };
 
-// One HTTPS request. `host` is github.com (device/token) or api.github.com
-// (exchange). GitHub wants Accept: application/json to get JSON not form bodies.
+// 一个HTTPS请求。 `host` 是 github.com (device/token) 或
+// api.github.com（交换）。 GitHub 希望接受：application/json 以获得 JSON，而不是形成 正文。
 HttpResult request(http::HttpMethod method, std::string_view host,
                    std::string_view path,
                    std::vector<std::pair<std::string, std::string>> headers,
@@ -137,12 +137,12 @@ HttpResult request(http::HttpMethod method, std::string_view host,
 }
 
 // ── Persistence ───────────────────────────────────────────────────────────
-// The creds file. Every read and read-modify-write runs inside store().with,
-// so two threads never interleave on it.
+// 信用文件。每次读取和读取-modify-write都在store().with内部运行，
+// 因此两个线程永远不会在其上交错。
 struct CredsFile {};
 maya::guarded<CredsFile>& store() { static maya::guarded<CredsFile> f; return f; }
 
-// signed_in() cache, keyed on the file's (mtime, size). Lock-free.
+// signed_in()缓存，以文件的(mtime，大小)为关键字。 锁-free。
 struct SignedInCache {
     long long      mtime      = 0;
     std::uintmax_t size       = static_cast<std::uintmax_t>(-1);
@@ -155,7 +155,7 @@ maya::snapshot<SignedInCache>& signed_in_cache() {
 
 struct Stored {
     GithubToken github;
-    // Cached proxy token (best-effort; re-exchanged if missing/stale).
+    // 缓存的代理令牌(best-effort；re-exchanged，如果missing/stale)。
     CopilotToken proxy;
 };
 
@@ -212,7 +212,7 @@ bool save_unlocked(const Stored& s) {
                                       .mode = 0600});
 }
 
-// ── Device flow ─────────────────────────────────────────────────────────────
+// ── 设备流 ─────────────────────────────────────────────────────────────
 std::expected<DeviceCode, OAuthError> request_device_code(std::string& out_device_code,
                                                           int& out_interval) {
     auto r = request(http::HttpMethod::Post, kGithubHost, kDevicePath,
@@ -248,7 +248,7 @@ poll_for_token(const maya::unlocked& cap, const std::string& device_code, int in
     while (std::chrono::steady_clock::now() < deadline) {
         if (cancelled.stop_requested())
             return std::unexpected(OAuthError{OAuthErrorKind::Network, "login cancelled"});
-        // The server's interval, cut short the moment the login is cancelled.
+        // 服务器的间隔，在登录时刻缩短为已取消。
         if (maya::delay_for(cap, cancelled, std::chrono::seconds(interval)))
             return std::unexpected(OAuthError{OAuthErrorKind::Network, "login cancelled"});
         auto r = request(http::HttpMethod::Post, kGithubHost, kTokenPath,
@@ -271,8 +271,8 @@ poll_for_token(const maya::unlocked& cap, const std::string& device_code, int in
                 return t;
             }
             const std::string err = j.value("error", std::string{});
-            if (err == "authorization_pending") continue;         // keep waiting
-            if (err == "slow_down") { interval += 5; continue; }  // back off
+            if (err == "authorization_pending") continue;         // 继续等待
+            if (err == "slow_down") { interval += 5; continue; }  // 退后
             if (err == "expired_token")
                 return std::unexpected(OAuthError{OAuthErrorKind::ApiError,
                     "the device code expired — start sign-in again for a new code"});
@@ -281,15 +281,15 @@ poll_for_token(const maya::unlocked& cap, const std::string& device_code, int in
                     "sign-in was denied"});
             if (!err.empty())
                 return std::unexpected(OAuthError{OAuthErrorKind::ApiError, err});
-        } catch (...) { /* transient parse blip — keep polling */ }
+        } catch (...) { /* 瞬态 解析 光点 — 继续轮询 */ }
     }
     return std::unexpected(OAuthError{OAuthErrorKind::Network,
         "device-code login timed out; start sign-in again for a new code"});
 }
 
-// ── Token exchange (ghu_ → proxy token) ─────────────────────────────────────
+// ── 托肯交换( ghu_ 代理代用符) ─────────────────────────────────────
 std::expected<CopilotToken, OAuthError> exchange(const GithubToken& gh) {
-    // NOTE: GitHub wants `Authorization: token <ghu_>` here (NOT "Bearer").
+    // NOTE:GitHub想要这里的`Authorization: token <ghu_>` (不 "Bearer")。
     auto r = request(http::HttpMethod::Get, kApiHost, kExchangePath,
         {{"authorization", "token " + gh.access_token},
          {"copilot-integration-id", kIntegration}});
@@ -316,7 +316,7 @@ std::expected<CopilotToken, OAuthError> exchange(const GithubToken& gh) {
 
 std::atomic<bool> g_force_refresh{false};
 
-} // namespace
+} // 命名空间结束。
 
 std::int64_t CopilotToken::now_ms() noexcept { return now_ms_impl(); }
 
@@ -327,15 +327,15 @@ parse_token_envelope(std::string_view json_body, std::int64_t now_ms) {
         CopilotToken t;
         t.token = j.value("token", std::string{});
         if (t.token.empty()) return std::nullopt;
-        // Skew-safe LOCAL expiry: prefer refresh_in (VS Code's own strategy)
-        // and add slack; fall back to expires_at; else a conservative default.
+        // Skew-safe LOCAL到期：偏好refresh_in(VS
+        // Code自己的策略)并添加松弛；回退到expires_at；否则是保守的默认值。
         if (const auto refresh_in = j.value("refresh_in", std::int64_t{0}); refresh_in > 0)
             t.expires_at_ms = now_ms + (refresh_in + 60) * 1000;
         else if (const auto exp = j.value("expires_at", std::int64_t{0}); exp > 0)
             t.expires_at_ms = exp * 1000;
         else
             t.expires_at_ms = now_ms + 25 * 60 * 1000;
-        // Authoritative inference host — Individual/Business/Enterprise differ.
+        // 权威推理主机-Individual/Business/Enterprise不同。
         if (j.contains("endpoints") && j["endpoints"].is_object())
             t.endpoint_api = j["endpoints"].value("api", std::string{});
         if (t.endpoint_api.empty()) t.endpoint_api = kDefaultApi;
@@ -347,7 +347,7 @@ parse_token_envelope(std::string_view json_body, std::int64_t now_ms) {
     } catch (...) { return std::nullopt; }
 }
 
-// ── Public API ──────────────────────────────────────────────────────────────
+// ── 公共 API ──────────────────────────────────────────────────────────────
 fs::path credentials_path() { return creds_path(); }
 
 std::optional<GithubToken> load_github_token(const maya::below<maya::leaf>& cap) {
@@ -363,7 +363,7 @@ bool save_github_token(const maya::below<maya::leaf>& cap, const GithubToken& gh
         Stored s;
         if (auto cur = load_unlocked()) s = *cur;
         s.github = std::move(g);
-        s.proxy = {};   // a new sign-in invalidates any cached proxy token
+        s.proxy = {};   // 新的标志-in使任何缓存的代理令牌无效
         return save_unlocked(s);
     }, gh);
 }
@@ -376,18 +376,18 @@ bool clear_credentials(Io, const maya::below<maya::leaf>& cap) {
 }
 
 bool signed_in() {
-    // Called by the provider-picker VIEW once per rendered frame. The naive
-    // implementation (read file → unseal → JSON parse) costs disk + AES/KDF
-    // work per frame while the picker is open. Cache the boolean keyed on
-    // the file's (mtime, size): a stat is ~1µs and invalidates correctly on
-    // sign-in, sign-out, and cross-process credential changes alike.
-    // Lock-free (views can't hold capabilities): the read of the file needs
-    // no lock because writers replace it with an atomic rename.
+    // 每次呈现的帧由提供者-picker VIEW调用一次。幼稚的实现（读取
+    // 文件 → 解封 → JSON 解析）在 选择面板 打开时，
+    // 每个 帧 都会消耗磁盘 + AES/KDF 工作量。 缓存 文件的布尔值
+    // （mtime、大小）：统计数据约为 1μs，并且在 sign-in、
+    // sign-out 和 cross-process 凭据 更改上正确无效。
+    // 锁-free（视图不能容纳能力）：文件的读取不需要锁，
+    // 因为写入者用原子重命名来替换它。
     std::error_code ec;
     const auto p = creds_path();
     const auto t = fs::last_write_time(p, ec);
     const auto size = ec ? 0 : fs::file_size(p, ec);
-    if (ec) {   // missing/unreadable → signed out; remember that cheaply
+    if (ec) {   // missing/unreadable→已注销；记得便宜
         signed_in_cache().store(SignedInCache{});
         return false;
     }
@@ -402,23 +402,23 @@ bool signed_in() {
 
 void invalidate_cached_token() { g_force_refresh.store(true); }
 
-// ── Per-account model-support learning ─────────────────────────────────
+// ── 人数 -account 模型 -support 学习 ─────────────────────────────────
 namespace {
-// The support file; its read-modify-writes run inside support_file().with.
+// 支持文件；它的 read-modify-writes 在 support_file().with 内部运行。
 struct SupportFile {};
 maya::guarded<SupportFile>& support_file() { static maya::guarded<SupportFile> f; return f; }
-// cache/, NOT credentials/.
+// cache/、不 credentials/.
 //
-// This is refetchable learning state -- which models this account was told it
-// may use -- and it was landing in the secrets directory purely because this
-// file already had auth::config_dir() in scope. Two things wrong with that:
-// it is the one directory where a 0600 audit should find no exceptions (this
-// file sat at 0644 among seven 0600 siblings), and "delete your cache" should
-// never mean "go near your tokens".
+// 这是可重新获取的学习状态——该状态模型被告知该帐户可以
+// 使用——并且它登陆到秘密目录中纯粹是因为该文件已经在范围
+// 内具有auth::config_dir()。有两点错误：
+// 这是 0600 审计应该没有发现异常的一个目录（该文件位于七个 0600 同级文件
+// 中的 0644），并且 "delete your cache" 绝不应该意味着
+// "go near your tokens"。
 //
-// Nothing migrates the old copy: it is a cache, so a missing file costs one
-// relearn on the next request, and leaving the stale one behind in a 0700
-// directory harms nothing. The blob holds model ids, never a credential.
+// 没有任何东西迁移旧副本：它是缓存，因此丢失的文件需要在下
+// 一个请求时重新学习，并且将过期留在0700目录中不会有
+// 任何损害。该 blob 保存模型 ID，而不是 凭据。
 fs::path support_path() {
     return ::agentty::util::user_cache_dir() / "copilot_model_support.json";
 }
@@ -449,11 +449,11 @@ void save_support(const SupportSets& s) {
     j["supported"] = json::array();
     for (auto& id : s.supported) j["supported"].push_back(id);
     const std::string payload = j.dump();
-    // A cache: a lost write just relearns the set, so no fsync.
+    // A 缓存：丢失的写入只是重新学习该集合，因此没有 fsync。
     (void)persistence::write_atomic(::agentty::IoAccess::grant(), support_path(), payload,
                                     {.durability = persistence::Durability::Atomic});
 }
-} // namespace
+} // 命名空间结束。
 
 void note_unsupported_model(const maya::below<maya::leaf>& cap, const std::string& model_id) {
     if (model_id.empty()) return;
@@ -499,8 +499,8 @@ login(const maya::unlocked& cap, int timeout_s, DeviceCodeSink on_device_code,
     auto tok = poll_for_token(cap, device_code, interval, timeout_s, cancelled);
     if (!tok) return std::unexpected(tok.error());
 
-    // Persist the durable GitHub token; the proxy token is exchanged lazily on
-    // first use via fresh_token().
+    // 保留持久的GitHub令牌；代理令牌在首次使用时通过 fresh_token
+    // () 进行延迟交换。
     save_github_token(cap, *tok);
     return *tok;
 }
@@ -510,9 +510,9 @@ std::optional<CopilotToken> fresh_token_locked(const maya::held<locks::auth_refr
 }
 
 std::optional<CopilotToken> fresh_token(const locks::below_auth_refresh& cap) {
-    // One refresh at a time. The store (a leaf) is only held for the file
-    // IO, never across the network call. Lock order, checked by the
-    // compiler: the refresh lane (auth.refresh), then the store (leaf).
+    // 一次刷新一次。存储（叶子）仅保存文件 IO，
+    // 从不跨网络保存 调用。 锁顺序，由编译器检查：刷新
+    // 通道（auth.refresh），然后是存储（叶子）。
     struct RefreshLane {};
     static maya::guarded<RefreshLane, locks::auth_refresh> one_at_a_time;
     return one_at_a_time.with(cap, [](const maya::held<locks::auth_refresh>& h, RefreshLane&) {
@@ -523,12 +523,12 @@ std::optional<CopilotToken> fresh_token(const locks::below_auth_refresh& cap) {
 namespace {
 std::optional<CopilotToken> exchange_in_section(const maya::held<locks::cred_file>& h,
                                                 bool cross, bool force, Stored loaded) {
-    // Under the lock a peer may have exchanged already; adopt its token.
+    // 在锁下，对端可能已经被交换；采用其代币。
     if (cross && !force) {
         auto disk = store().with(h, [](CredsFile&) { return load_unlocked(); });
         if (disk && disk->proxy.valid()
             && !disk->proxy.expired(/*skew_ms=*/5 * 60 * 1000)) {
-            return disk->proxy;   // a peer refreshed while we waited
+            return disk->proxy;   // 对端 在我们等待时刷新
         }
     }
 
@@ -536,7 +536,7 @@ std::optional<CopilotToken> exchange_in_section(const maya::held<locks::cred_fil
     if (!exchanged) return std::nullopt;
 
     store().with(h, [](CredsFile&, Stored s) {
-        if (auto cur = load_unlocked()) s.github = cur->github;   // adopt newest ghu_
+        if (auto cur = load_unlocked()) s.github = cur->github;   // 采用最新ghu_
         (void)save_unlocked(s);
     }, Stored{loaded.github, *exchanged});
     return *exchanged;
@@ -556,12 +556,12 @@ std::optional<CopilotToken> fresh_token_locked(const maya::held<locks::auth_refr
             return exchange_in_section(c, held.cross_process, f, std::move(s));
         }, force, *loaded);
 }
-} // namespace
+} // 命名空间结束。
 
 Entitlement account_entitlement(const maya::below<maya::leaf>& cap) {
-    // Short in-process cache: the picker may call this repeatedly while open.
-    // A leaf, held only to copy in or out: the network fetch runs between
-    // the read and the write, never under the lock.
+    // 短于-process 缓存:选择面板可在调用此重复打开时。
+    // 叶，仅被保持以复制入或复制出：网络获取在读取和
+    // 写入之间运行，从不在锁下运行。
     struct Cached { Entitlement e; std::int64_t fetched_at = 0; };
     static maya::guarded<Cached> cache;
     if (auto hit = cache.read(cap, [](const Cached& c) -> std::optional<Entitlement> {
@@ -569,12 +569,12 @@ Entitlement account_entitlement(const maya::below<maya::leaf>& cap) {
             return std::nullopt;
         }))
         return *hit;
-    Entitlement e;   // known=false by default → permissive fallback
+    Entitlement e;   // 默认情况下已知 = false → 允许 回退
     auto gh = load_github_token(cap);
     if (!gh) return e;
 
-    // GET api.github.com/copilot_internal/user with the ghu_ token — the
-    // authoritative per-account plan + quota snapshot.
+    // GET api.github.com/copilot_internal/user，使用 ghu_ 令牌获取
+    // 每个账号的权威套餐与配额快照。
     auto r = request(http::HttpMethod::Get, kApiHost, "/copilot_internal/user",
         {{"authorization", "token " + gh->access_token},
          {"copilot-integration-id", kIntegration}});
@@ -585,10 +585,10 @@ Entitlement account_entitlement(const maya::below<maya::leaf>& cap) {
         e.plan         = j.value("copilot_plan", "");
         e.sku          = j.value("access_type_sku", "");
         e.chat_enabled = j.value("chat_enabled", true);
-        // Premium models (Claude/Gemini/GPT-5.x/o-series) draw from the
-        // premium_interactions quota. entitlement==0 && !unlimited && no quota
-        // ⇒ this account can't run them (free tier). Any positive entitlement,
-        // unlimited, or permitted overage ⇒ premium available.
+        // 高级型号(Claude/Gemini/GPT-5.x/o-series)
+        // 从premium_interactions配额中抽取。 entitlement
+        // ==0 && !unlimited && 无配额 ⇒ 此帐户无法运行它们（
+        // 免费层）。任何积极的权利，无限制或允许的超额⇒可用保费。
         e.premium_available = true;
         if (j.contains("quota_snapshots") && j["quota_snapshots"].is_object()) {
             const auto& qs = j["quota_snapshots"];
@@ -611,8 +611,8 @@ Entitlement account_entitlement(const maya::below<maya::leaf>& cap) {
 }
 
 namespace {
-// Pull the `exp` (unix seconds) claim out of a JWT without verifying it (the
-// server signs it; we only need the expiry to know when to refresh).
+// 在不验证的情况下从 JWT 中提取 `exp` (unix 秒)
+// 声明（服务器对其进行签名；我们只需要到期时间来知道何时刷新）。
 std::int64_t jwt_exp_ms(const std::string& jwt) {
     auto a = jwt.find('.');
     if (a == std::string::npos) return 0;
@@ -631,26 +631,26 @@ std::int64_t jwt_exp_ms(const std::string& jwt) {
     return 0;
 }
 
-// The Auto session cache and its failure backoff. auto_session() holds this
-// across its network call on purpose, so concurrent turns share one probe.
+// 自动会话缓存及其失败退避。 auto_session()
+// 故意在其网络 调用 上保留这一点，因此并发轮次共享一个探针。
 //
-// Lock order: copilot.auto_session (12), then fresh_token's refresh lane
-// (auth.refresh, 15), then the creds store (leaf). The body takes the
-// refresh lane, so this lock MUST rank below it -- it used to be a default
-// leaf, and taking auth.refresh from a leaf body was the startup abort.
-// That shape is now a compile error: auto_session_locked can only call
-// fresh_token with the held<copilot_auto> it is given, which converts to
-// below<auth_refresh> only because 12 < 15.
+// 锁顺序：copilot.auto_session(12)，
+// 然后是fresh_token的刷新通道(auth.refresh，15)，
+// 然后是信用存储(叶)。 正文 占用刷新通道，因此 锁 必须 排名低于它 - 它
+// 曾经是默认叶子，从叶子 正文 中取出 auth.refresh 是启动中止。
+// 该形状现在是编译错误：auto_session_locked只能与给定的hold
+// <copilot_auto>一起调用 fresh_token，仅因为12
+// < 15才转换为低于<auth_refresh>。
 struct AutoState {
     AutoSession  cache;
-    std::int64_t failed_until_ms = 0;   // 0 = no backoff armed
+    std::int64_t failed_until_ms = 0;   // 0 = 未配备 退避
 };
 using AutoLock = maya::guarded<AutoState, locks::copilot_auto>;
 AutoLock& auto_state() { static AutoLock s; return s; }
 
 std::optional<AutoSession> auto_session_locked(const maya::held<locks::copilot_auto>& h,
                                                AutoState& st);
-} // namespace
+} // 命名空间结束。
 
 std::optional<AutoSession> auto_session(const locks::below_copilot_auto& cap) {
     return auto_state().with(cap, [](const maya::held<locks::copilot_auto>& h, AutoState& st) {
@@ -663,23 +663,23 @@ std::optional<AutoSession> auto_session_locked(const maya::held<locks::copilot_a
                                                AutoState& st) {
     if (st.cache.valid()) return st.cache;
 
-    // NEGATIVE CACHE. Everything below is blocking network I/O held under
-    // the auto lock, and a FAILED attempt used to cache nothing — so an account
-    // that can't open an Auto session (no entitlement, org policy, a flaky
-    // 5xx) re-dialled /models/session on EVERY turn, and every turn paid a
-    // full TLS handshake + round-trip before the first token. That is the
-    // "weirdly hangs for a second" report.
+    // NEGATIVE CACHE。下面的所有内容都阻止在自动 锁 下举行的网络
+    // I/O，并且 FAILED 尝试用于 缓存 没有任何内容 - 因此无法打开自动会话
+    // 的帐户（无权利，组织政策，片状 5xx）在 每个 轮上 re-dialled
+    // /models/session，并且每次轮次都在第一次之前支付了完整的
+    // TLS 握手 + round-trip令牌。
+    // 那就是 "weirdly hangs for a second" 报告。
     //
-    // Back off instead: remember the last failure and answer nullopt straight
-    // from memory for a short window. Long enough that a turn never waits on a
-    // known-bad endpoint, short enough that a user who fixes their plan or
-    // waits out a blip recovers without restarting. invalidate_auto_session()
-    // clears it, so an explicit account switch or a 401 retry re-probes at once.
+    // 相反，后退：记住上次失败并直接从 内存 回答空选择以获得短窗口。
+    // 足够长的时间使得轮次永远不会在已知的-bad端点上等待，
+    // 足够短的时间使得修复计划或等待突发事件的用户无需重新启动即可恢复。
+    // invalidate_auto_session() 会清除它，
+    // 因此立即进行显式帐户切换或 401 重试 re-probes。
     const auto now = CopilotToken::now_ms();
     if (now < st.failed_until_ms) return std::nullopt;
     constexpr std::int64_t kBackoffMs = 60'000;
-    // Any early return below is a failure; arm the backoff up front so no
-    // path can forget it.
+    // 任何低于以下的提前返回均属失败；将 退避 放在前面，
+    // 这样任何路径都不会忘记它。
     st.failed_until_ms = now + kBackoffMs;
 
     auto tok = fresh_token(h);
@@ -695,7 +695,7 @@ std::optional<AutoSession> auto_session_locked(const maya::held<locks::copilot_a
     if (auto slash = host.find('/'); slash != std::string::npos) host = host.substr(0, slash);
 
     // POST {api}/models/session with the CAPI api-version — the server returns
-    // the per-account available models + a signed session token.
+    // 每个账号可用的模型，以及签名后的会话令牌。
     auto r = request(http::HttpMethod::Post, host, "/models/session",
         {{"authorization", "Bearer " + tok->token},
          {"copilot-integration-id", kIntegration},
@@ -703,10 +703,10 @@ std::optional<AutoSession> auto_session_locked(const maya::held<locks::copilot_a
          {"content-type", "application/json"}},
         R"({"auto_mode":{"model_hints":["auto"]}})");
     if (!r.transport_error.empty() || r.status < 200 || r.status >= 300) {
-        // This failure arms the negative cache (see above) — the account
-        // will silently run WITHOUT an Auto session for the backoff window,
-        // which changes which dialect/models are reachable. That state
-        // switch must be visible in a shared log, with the server's reason.
+        // 该故障会带来负面的缓存（见上文）——账户将默默
+        // 地为退避窗口运行WITHOUT自动会话，
+        // 这改变了哪些dialect/models是可到达的。
+        // 该状态切换必须在共享日志中可见，并附有服务器的原因。
         AGT_LOG(Auth, Warn, "copilot.auto_session.failed",
                 "host={} status={} transport={} body={}", host, r.status,
                 r.transport_error.empty() ? "-" : r.transport_error,
@@ -730,18 +730,18 @@ std::optional<AutoSession> auto_session_locked(const maya::held<locks::copilot_a
         }
         s.expires_at_ms = jwt_exp_ms(s.session_token);
         st.cache = s;
-        st.failed_until_ms = 0;   // succeeded — disarm the backoff
+        st.failed_until_ms = 0;   // 成功 — 解除 退避 的武装
         return s;
     } catch (const std::exception& e) {
         AGT_LOG(Auth, Warn, "copilot.auto_session.parse", "err={}", e.what());
         return std::nullopt;
     } catch (...) { return std::nullopt; }
 }
-} // namespace
+} // 命名空间结束。
 
 void invalidate_auto_session(const locks::below_copilot_auto& cap) {
-    // Also clears the negative cache: an explicit invalidation (account
-    // switch, 401 retry) means the world changed, so re-probe at once.
+    // 还清除负缓存:显式失效(账户切换，401重试)
+    // 意味着世界改变了，所以立即重新-probe。
     auto_state().with(cap, [](AutoState& st) { st = {}; });
 }
 

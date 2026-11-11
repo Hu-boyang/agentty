@@ -12,11 +12,11 @@ namespace agentty::app {
 
 namespace {
 Deps* g_deps = nullptr;
-// The live auth header. Written by the host's InstallAuth effect on the loop
-// thread, read by workers (subagents, the catalog fetch, every stream). A
-// snapshot, not a lock: it is read far more than written and from inside
-// other locks' bodies (provider caches), so a lock here would need a rank
-// above all of them. Lock-free, it ranks nowhere and can't deadlock.
+// 现场认证头文件。由主机的 InstallAuth 副作用 在循环
+// 线程 上写入，由 工作线程 读取（子代理，目录 获取，
+// 每个 数据流）。 快照，而不是 锁：它的读取次数远远多于写入次数，
+// 并且来自其他 锁' 正文（提供者 缓存），因此这里的 锁 需要
+// 高于所有这些的排名。 锁-free，它没有排名，也不能死锁。
 maya::snapshot<auth::AuthHeader>& g_auth() {
     static maya::snapshot<auth::AuthHeader> a;
     return a;
@@ -38,17 +38,17 @@ void install_deps(Deps d) {
 }
 
 auth::AuthHeader auth_snapshot(Io io, const provider::Selection& sel) {
-    // Resolve from the given provider through the central credential layer,
-    // so the credential can never drift from the provider it is for. This is
-    // the single source of truth for "what auth goes on the wire": if a switch
-    // changed the active provider/model but a code path forgot to reinstall
-    // the header, this still returns the RIGHT provider's credential (the
-    // class of bug behind Anthropic's OAuth token being sent to Mistral → 401).
+    // 通过中央凭据层从给定提供者解析，因此凭据永远不会偏离它
+    // 所针对的提供者。这是 "what auth goes on the wire"
+    // 的唯一事实来源：如果交换机更改了活动的
+    // provider/model 但代码路径忘记重新安装
+    // 头文件，这仍然返回 RIGHT 提供商的 凭据（
+    // 这类缺陷曾使 Anthropic 的 OAuth 令牌被发给 Mistral，导致 401。
     //
-    // Anthropic and hosted-key/custom-host providers resolve a real header
-    // here; oauth_native (ChatGPT/Copilot/Kimi) and local resolve empty and
-    // their transports supply the token — identical to update_auth's cache,
-    // which we keep as a fast/fallback path for those.
+    // Anthropic和hosted-key/custom-host提供商在此解析真实的头文件；
+    // oauth_native (ChatGPT/Copilot/Kimi) 和本地
+    // 解析为空，它们的 传输层 提供令牌 - 与 update_auth 的 缓存 相同，
+    // 我们将其保留为 fast/fallback 路径。
     const std::string pid =
         sel.kind == provider::Kind::OpenAI ? sel.openai_endpoint.label
                                            : std::string{provider::default_provider_id()};
@@ -56,13 +56,13 @@ auth::AuthHeader auth_snapshot(Io io, const provider::Selection& sel) {
     if (!auth::bearer_token(resolved).empty()
         || std::holds_alternative<auth::BearerHeader>(resolved))
         return resolved;
-    // Empty resolve (oauth_native / local) — fall back to the cached header the
-    // login/switch flow installed (used by those providers' transports).
+    // 空解析(oauth_native/本地)
+    // -回退到安装的login/switch流的缓存的头文件(由那些提供商的传输层使用)。
     return live_auth();
 }
 
-// Off the loop (a worker with no Model): resolve against the PUBLISHED copy of
-// the selection, which the dispatch seam keeps equal to the Model's.
+// 脱离循环(没有Model的工作线程):针对选择的PUBLISHED
+// 副本进行解析，其中分派 接口边界保持等于Model的副本。
 auth::AuthHeader auth_snapshot(Io io) {
     return auth_snapshot(io, provider::active());
 }

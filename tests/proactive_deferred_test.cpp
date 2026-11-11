@@ -1,23 +1,23 @@
-// proactive_deferred_test — the DEFERRED same-turn grounding reducer path.
+// proactive_deferred_test - 电话 DEFERRED 相同 -turn 地面定位 状态更新函数 路径。
 //
-// The proactive pre-turn RAG "retrieve-then-launch" design: when the
-// synchronous hedge in submit_message misses (a large/slow corpus whose
-// dense query-embed round-trip can't clear the small budget), submit_message
-// leaves the phase in Streaming{ctx} (so the status-bar spinner is live — the
-// UI never feels hung) and HOLDS the stream launch behind an isolated
-// retrieval task. When that lands it dispatches ProactiveContextReady, whose
-// reducer arm (stream.cpp) must:
+// 主动的预告 -turn RAG "retrieve-then-launch"
+// 设计: 当同步套期在 submit_message 错失(a) large/slow
+// 密探的体 -embed 圆形 -trip 无法清理小预算, submit_message
+// 离开阶段进入 流式传输 {ctx}(所以状态) -bar 加载动画 活的—— UI 从来没有
+// 感觉挂),和 HOLDS 编号 数据流 在一个孤立的检索任务后面发射。当它降落时,
+// 它会发出 ProactiveContextReady ,其名称为 状态更新函数 臂 (双臂)
+// stream.cpp ——必须:
 //
-//   1. inject the <retrieved-context> block into THIS turn, right before the
-//      trailing empty assistant placeholder (wire order:
-//      User(question) → User(context) → Assistant(reply)),
-//   2. NOT freeze the live placeholder (only the inserted context msg),
-//   3. clear the "retrieving context…" status,
-//   4. return a non-none Cmd (the held-back launch_stream), and
-//   5. DROP a stale arrival if the user cancelled to Idle meanwhile.
+//   1. 注射该物质 <retrieved-context> 块进入 此 转身,就在前方
+//      跟踪空助手占位符( 传输 顺序 :
+//      用户(问题) —— 用户(文稿) ——助理(reply)),
+//   2. 不 冻结活的占位符(仅插入上下文 msg),
+//   3. 清除"retrieving context…"状态,
+//   4. 返回一个非 -none Cmd (举行) -back launch_stream ),以及
+//   5. DROP a 过期 如果用户到达 已取消 暂时不动
 //
-// This drives the REAL stream_update reducer with stub deps (no provider I/O;
-// the returned launch Cmd is inspected, never executed).
+// 这驱动了 真实 stream_update 状态更新函数 的 stub dips(
+// 没有 I/O 的提供者;返回的 Cmd 被检查过,从未执行).
 
 #include <optional>
 #include <string>
@@ -42,9 +42,9 @@ namespace provider = agentty::provider;
 
 static int g_checks = 0;
 
-// A Model shaped exactly as submit_message leaves it on a hedge MISS: the
-// user turn + trailing empty assistant placeholder, phase Streaming, and the
-// "retrieving context…" status sticky.
+// A Model 形状完全为 submit_message 把它丢在树篱上 MISS
+// : 用户转动 + 后面的空助手占位符, 相位 流式传输 ,
+// 并显示 "retrieving context…" 状态粘着。
 static Model make_deferred_model() {
     Model m;
     m.d.current.id = ThreadId{"deferred"};
@@ -55,7 +55,7 @@ static Model make_deferred_model() {
     user.text = "how does the retry backoff work in the http client";
     m.d.current.messages.push_back(std::move(user));
 
-    Message placeholder;   // the live assistant tail submit_message pushes
+    Message placeholder;   // 现场助理 末尾 submit_message 推开
     placeholder.role = Role::Assistant;
     m.d.current.messages.push_back(std::move(placeholder));
 
@@ -68,9 +68,9 @@ static Model make_deferred_model() {
 }
 
 TEST_CASE("proactive deferred") {
-    // Stub deps — launch_stream (built inside the handler) reads deps() and
-    // walks the tool registry; it must not touch the network. The returned
-    // Cmd is inspected, never run.
+    // 软垫... launch_stream (在建筑内部) 处理函数 )
+    // 读作 deps() 并走工具 注册表 ; 它不能触摸网络。
+    // 返回 Cmd 被检查,永远不要跑。
     agentty::app::install_deps(agentty::app::Deps{
         .stream        = [](const maya::unlocked&, provider::Request, provider::EventSink) {},
         .save_thread   = [](const agentty::Thread&) {},
@@ -88,7 +88,7 @@ TEST_CASE("proactive deferred") {
         "<retrieved-context>\n[docs:http/retry.md:12]\nexponential backoff "
         "with full jitter, capped at 30s\n</retrieved-context>";
 
-    // ── 1. Happy path: a real block injects same-turn + launches ────────
+    // ── 1. 快乐路径:一个真正的块注入相同的-turn+发射 ────────
     {
         Model m = make_deferred_model();
         const std::size_t before = m.d.current.messages.size();
@@ -99,7 +99,7 @@ TEST_CASE("proactive deferred") {
         check(msgs.size() == before + 1,
               "deferred: block inserted as one new message");
 
-        // Order must be User(question) → User(context) → Assistant(placeholder)
+        // 命令必须是用户(问题) + 用户( 内容) +助理( 位置持有人)
         check(msgs.size() >= 3, "deferred: at least 3 messages");
         const auto& ctx = msgs[msgs.size() - 2];
         const auto& tail = msgs.back();
@@ -114,25 +114,25 @@ TEST_CASE("proactive deferred") {
         check(tail.role == Role::Assistant && tail.text.empty(),
               "deferred: trailing placeholder preserved (live tail)");
 
-        // The live placeholder must NOT be frozen (its stream reveal would be
-        // sealed). frozen_through counts the frozen prefix; it must stop
-        // before the placeholder.
+        // 现场占位者不得 被冻结( 数量) 数据流 逐步显示 将予封印。
+        // frozen_through 计算被冻结的前缀;
+        // 它必须在占位符之前停止。
         check(m2.ui.frozen_through < msgs.size(),
               "deferred: placeholder left unfrozen");
         check(m2.ui.frozen_through == msgs.size() - 1,
               "deferred: frozen prefix covers the inserted context msg");
 
-        // Status cleared; a launch Cmd was issued.
+        // 状况已清理完毕;发布了Cmd号发射。
         check(m2.s.status.empty(),
               "deferred: 'retrieving context…' status cleared");
         check(!cmd.is_none(),
               "deferred: a stream-launch Cmd is returned");
-        // Phase still active (launch_stream needs the live ctx).
+        // 阶段仍然活跃(launch_stream需要活的ctx).
         check(!m2.s.is_idle(), "deferred: phase stays active for launch");
     }
 
-    // ── 2. Empty block (retrieval cleared no confidence bar) still ──────
-    //    launches the turn — just with no context injected.
+    // ── 2. 空块(清除了无信任栏) ──────
+    //    发射转弯——只是没有注入上下文。
     {
         Model m = make_deferred_model();
         const std::size_t before = m.d.current.messages.size();
@@ -147,11 +147,11 @@ TEST_CASE("proactive deferred") {
               "deferred(empty): stream still launches (no grounding, no hang)");
     }
 
-    // ── 3. Stale arrival after cancel: user hit Esc → Idle while the ────
-    //    retrieval was in flight. The block must be DROPPED, no launch.
+    // ── 3. 过期 抵达后 取消 : 用户点击 Esc ~ 闲着时, ────
+    //    检索在飞行中 一定是 DROPPED ,没有发射。
     {
         Model m = make_deferred_model();
-        m.s.phase = phase::Idle{};   // user cancelled
+        m.s.phase = phase::Idle{};   // 用户 已取消
         const std::size_t before = m.d.current.messages.size();
 
         auto [m2, cmd] = ::agentty::app::detail::step(agentty::app::detail::stream_update, std::move(m), msg::StreamMsg{agentty::ProactiveContextReady{block, 0.5, 7}});
@@ -164,12 +164,12 @@ TEST_CASE("proactive deferred") {
               "deferred(stale): phase stays Idle");
     }
 
-    // ── 4. Stale arrival into a NEWER turn: Esc, then a new submit, then the
-    //    first retrieval lands. It must not ground or launch the new turn.
+    // 4. 旧结果抵达更新轮次：先 Esc，再提交，再收到
+    //    不得降落或发动新的转弯
     {
         Model m = make_deferred_model();
         auto* c = agentty::active_ctx(m.s.phase);
-        c->awaiting_retrieval = m.s.retrieval_seq = 8;   // the newer turn
+        c->awaiting_retrieval = m.s.retrieval_seq = 8;   // 新的转弯
         const std::size_t before = m.d.current.messages.size();
 
         auto [m2, cmd] = ::agentty::app::detail::step(agentty::app::detail::stream_update, std::move(m), msg::StreamMsg{agentty::ProactiveContextReady{block, 0.9, 7}});

@@ -1,5 +1,5 @@
-// agentty::provider — external ACP agent registry (config surface).
-// See acp_agents.hpp for the format + resolution rules.
+// agentty::provider-外部ACP代理注册表(配置表面)。
+// 格式+解析规则参见acp_agents.hpp。
 
 #include "agentty/provider/acp_agents.hpp"
 #include "agentty/util/user_root.hpp"
@@ -21,13 +21,13 @@ using json = nlohmann::json;
 
 namespace {
 
-// External ACP agents are entirely config-driven (Zed's `agent_servers`
-// model). ACP is the generic transport; agentty does not privilege or install
-// a particular agent implementation. Users opt into any external agent by
-// naming its command in acp-agents.json.
+// 外部ACP代理完全是config-driven (Zed的
+// `agent_servers`模型）。 ACP 是通用的 传输层； agentty
+// 不授予或安装特定代理实现的权限。用户通过将其命令命名为 acp-agents.json
+// 来选择使用任何外部代理。
 
-// Resolve the config file path + whether it's workspace-local (untrusted).
-// Mirrors mcp::resolve_config: $AGENTTY_ACP_AGENTS > ~/.agentty > ./.agentty.
+// 解析配置文件路径+是否为工作区-local（不可信）。
+// 镜子mcp::resolve_config:$AGENTTY_ACP_AGENTS > ~/.agentty > ./.agentty.
 fs::path resolve_config(bool& out_project_local) {
     out_project_local = false;
     std::error_code ec;
@@ -49,17 +49,17 @@ fs::path resolve_config(bool& out_project_local) {
     return e && (e[0] == '1' || e[0] == 't' || e[0] == 'T' || e[0] == 'y' || e[0] == 'Y');
 }
 
-// Parse the whole config file into `out` keyed by id. Returns false (and leaves
-// out untouched) on a missing / untrusted / malformed config — a built-in
-// default can still satisfy the lookup.
+// 解析将整个配置文件放入由id键入的`out`中。
+// 在丢失/不受信任/格式错误的配置上返回 false（并保持不变）
+// -built-in 默认值仍然可以满足查找。
 bool load_config_uncached(std::vector<AcpAgentSpec>& out) {
     bool project_local = false;
     fs::path cfg = resolve_config(project_local);
     if (cfg.empty()) return false;
 
-    // Untrusted-workspace spawn gate (same policy as .agentty/mcp.json): a
-    // project-local config can ride in on a cloned repo and spawn arbitrary
-    // commands, so require an explicit opt-in.
+    // 不受信任的-workspace生成门（与.agentty/mcp.json相同的策略）：
+    // 项目-local配置可以骑在克隆的仓库上并生成任意命令，
+    // 因此需要显式的opt-in。
     if (project_local && !env_truthy("AGENTTY_ACP_ALLOW_PROJECT")) {
         std::fprintf(stderr,
             "acp: ignoring workspace-local %s (it can spawn arbitrary\n"
@@ -110,13 +110,13 @@ bool load_config_uncached(std::vector<AcpAgentSpec>& out) {
     return true;
 }
 
-// Cached front-door. The provider-picker VIEW calls enumerate_acp_agents()
-// once per rendered frame, and is_acp_agent_id() sits on parse_selection's
-// path — re-reading + JSON-parsing acp-agents.json each time is disk work
-// per frame. Key the parsed vector on (resolved path, mtime, size): a stat
-// is ~1µs and picks up edits, deletion, and env-var retargeting alike.
-// Keyed on plain values (path string, mtime ticks). Read from view code, so
-// a lock-free snapshot: no capability needed.
+// 缓存了front-door。 Provider-picker VIEW 调用
+// enumerate_acp_agents() 每次渲染 帧 一次，is_acp_agent_id
+// () 位于 parse_selection 的路径上 — re-reading + JSON
+// -parsing acp-agents.json 每次都是每个 帧 的磁盘工作。将解析的向量键入（解析路径、
+// mtime、大小）：统计数据约为 1μs，并进行编辑、删除和 env-var 重定向等操作。
+// 以纯值（路径字符串、实时时间刻度）为关键字。从视图代码中读取，
+// 因此 锁-free 快照：不需要任何功能。
 struct ConfigCache {
     std::vector<AcpAgentSpec> agents;
     bool                      ok = false;
@@ -140,7 +140,7 @@ bool load_config(std::vector<AcpAgentSpec>& out) {
         mtime = fs::last_write_time(cfg, ec);
         size  = ec ? 0 : fs::file_size(cfg, ec);
     }
-    // Hit: copy the cached list out of the current snapshot.
+    // 命中：将缓存列表复制出当前快照。
     const std::string  key_path  = cfg.string();
     const std::int64_t key_mtime = mtime.time_since_epoch().count();
     std::optional<std::pair<bool, std::vector<AcpAgentSpec>>> hit;
@@ -150,7 +150,7 @@ bool load_config(std::vector<AcpAgentSpec>& out) {
             hit = std::pair{c->ok, c->agents};
     }
     if (!hit) {
-        // Miss: parse (disk + JSON), then publish.
+        // 小姐：解析(盘+JSON)，则发布。
         ConfigCache fresh;
         fresh.ok    = load_config_uncached(fresh.agents);
         fresh.path  = key_path;
@@ -164,7 +164,7 @@ bool load_config(std::vector<AcpAgentSpec>& out) {
     return true;
 }
 
-} // namespace
+} // 命名空间结束。
 
 std::optional<AcpAgentSpec> resolve_acp_agent(std::string_view id) {
     std::vector<AcpAgentSpec> cfg;

@@ -1,35 +1,35 @@
-// Does the Sandbox pane actually control the sandbox?
+// 沙箱 面板实际上控制了沙箱吗?
 //
-// The pane existed before this test did, and it was wired to nothing: no
-// palette door, no reducer, no view. Every row it drew configured a struct
-// that the spawn path never read. That is the bug class this file exists to
-// prevent -- a security control that looks configured and enforces nothing.
+// 电话 面板 测试之前就已经存在了,而且没有线:
+// 没有调色板门,没有 状态更新函数 ,没有视图。
+// 它绘制的每行都配置了产卵路径从未读过的结构。
+// 这是这个文件存在的防止错误的类——一个看起来配置不全的安全控制。
 //
-// So these checks follow the whole chain rather than any one link:
+// 因此,这些检查遵循整个链而不是任何一条链接:
 //
-//   door     the General list offers a row that opens the pane
-//   open     the pane seeds from the policy IN FORCE, not from defaults
-//   edit     a keystroke changes a row and the preview tracks it
-//   save     ^S installs the config AND stages it for persistence
-//   discard  Esc leaves the policy alone
+//   打开“普通”列表的一行 面板 打开 面板
+//   种子从策略中 IN FORCE ,而不是从默认
+//   编辑键盘更改行并预览跟踪它 保存
+//   ^S 安装配置 和 阶段 持久化 丢弃
+//   Esc 离开政策独自一人
 //
-// What this does NOT check is whether the kernel then enforces it -- that
-// needs real namespaces and lives in sandbox_live_check (a hand-run target,
-// see cmake/AgenttyTests.cmake). Between the two there is no gap: this proves
-// the pane reaches the config, that proves the config reaches the child.
+// 这会有什么作用 不 检查是内核是否执行它 - 这需要真实的命名空间并
+// 生活在 sandbox_live_check (手) 手(手) 双手(手,
+// 手) -run 目标,见 cmake/AgenttyTests.cmake。
+// 两者之间没有差距:这证明 面板 到达了配置,这证明配置到达了孩子。
 
 #include <doctest/doctest.h>
 
 #include "agentty/runtime/app/update.hpp"
 #include "agentty/io/persistence.hpp"
-#include "agtest_cap.hpp"   // agtest::cap() for save_settings
+#include "agtest_cap.hpp"   // agtest::cap() 用于第XX00120(第save_settings)号
 #include "agentty/runtime/model.hpp"
 #include "agentty/runtime/msg.hpp"
 #include "agentty/runtime/panel/sandbox.hpp"
 #include "agentty/runtime/panel/settings/items.hpp"
-#include "agentty/runtime/view/form_panel.hpp"   // form_config — the render checks
-#include "agentty/i18n/i18n.hpp"                   // the translated-pane check
-#include "agentty/i18n/startup.hpp"                // the shipped-catalog check
+#include "agentty/runtime/view/form_panel.hpp"   // form_config - 电话 渲染 检查
+#include "agentty/i18n/i18n.hpp"                   // 翻译的-pane 检查
+#include "agentty/i18n/startup.hpp"                // 已运出-catalog 检查
 #include "agentty/tool/util/sandbox.hpp"
 
 #include <cstdlib>
@@ -52,8 +52,8 @@ const pn::Sandbox& pane(const Model& m) {
     return *o;
 }
 
-// Find a row by id, so a test never depends on row ORDER -- reordering the
-// form is a legitimate edit and must not fail a behavioural check.
+// 以 id 查找一行,所以测试从不依赖于 ORDER 列
+// ——重排表单是正当的编辑,决不能不进行行为检查.
 int row_of(const form::Form& f, std::string_view id) {
     for (std::size_t i = 0; i < f.fields.size(); ++i)
         if (f.fields[i].id == id) return static_cast<int>(i);
@@ -64,8 +64,8 @@ const form::field::Choice& choice_at(const form::Form& f, int i) {
     return std::get<form::field::Choice>(f.fields[static_cast<std::size_t>(i)].value);
 }
 
-// Memory / procs / cpu / tmp are Number rows, not Text -- a cap is a
-// quantity with bounds, and the form layer clamps it for us.
+// 内存 / Procs / 输入/ 输入 CPU / tmp是数字行,
+// 而不是文本——一个盖子是带有界限的数量,形式层为我们夹住它.
 form::field::Number& num_at(form::Form& f, int i) {
     return std::get<form::field::Number>(f.fields[static_cast<std::size_t>(i)].value);
 }
@@ -76,12 +76,12 @@ const form::field::Number& num_at(const form::Form& f, int i) {
 
 Msg key(form::keys::Intent i) { return Msg{SandboxKey{form::keys::Action{i, 0}}}; }
 
-// Host facts for a capable machine, with the RUNNING engine stated explicitly.
+// Host 能够制造的机器的事实 RUNNING 引擎明确声明。
 //
-// Defaults to "running what the config selects", because most cases are about
-// a row's content rather than about the selection/reality split. The cases
-// that ARE about that split pass `running` by hand -- and that asymmetry is
-// the point: claiming a wall is up is now something a test has to ask for.
+// 默认为 "running what the config selects" ,
+// 因为大多数案件都是关于一行的内容,而不是关于 selection/reality。
+// 将案件 ARE 有关分路通行证 `running` ——
+// 不对称就是问题所在:声称墙已经竖起,现在必须进行测试。
 pn::HostFacts facts_for(const sandbox_cfg::Config& cfg,
                         bool claybin_available = true,
                         std::uint32_t landlock_abi = 10) {
@@ -95,23 +95,23 @@ pn::HostFacts facts_for(const sandbox_cfg::Config& cfg,
     return f;
 }
 
-// Install a policy as if this were startup.
+// 安装一个策略, 仿佛它是启动的。
 //
-// set_config() is SEALED after its first call, which is the property most of
-// this file exists to pin -- so a test that wants to start from a known
-// policy has to break the seal first. Every case below arranges its own
-// starting state through this, rather than depending on which case ran
-// before it.
+// set_config ( ) 系 , ( ) SEALED
+// 第一次之后 调用 ,这是大多数文件存在的地方,
+// 所以要从已知的政策开始,首先必须打破封印。下面的每个案例
+// 都通过这个来安排自己的起始状态,而不是取决于它之前的
+// 哪个案例。
 void install(const sandbox_cfg::Config& cfg) {
     sb::reset_config_for_test();
     sb::set_config(cfg);
 }
 
-}  // namespace
+}  // 命名空间结束。
 
-// Whether this host has a sandbox backend for these cases. Linux and macOS;
-// Windows previews through claybin too, but these cases pin POSIX paths, so
-// it has its own case below.
+// 此主机是否有一个 沙箱 这些案件的后端。 Linux 财务报告和已审计财务报表 macOS;
+// Windows 预览通过 claybin 也一样,但是这些案子 POSIX 路径,
+// 所以它有 自己的案例下面。
 #if defined(__linux__) || defined(__APPLE__)
 #define AGENTTY_TEST_SANDBOX_BACKEND 1
 #else
@@ -120,9 +120,9 @@ void install(const sandbox_cfg::Config& cfg) {
 
 #if defined(_WIN32)
 TEST_CASE("sandbox pane: windows previews through claybin") {
-    // It used to fall through to "no sandbox backend on this platform" while
-    // commands really were confined. The preview has to report the walls the
-    // spawn path puts up.
+    // 它曾经掉到 "no sandbox backend on this platform"
+    // 而命令真的被限制。预览必须报告产卵路径
+    // 设置的墙壁。
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -141,7 +141,7 @@ TEST_CASE("sandbox pane: windows previews through claybin") {
 #endif
 
 TEST_CASE("sandbox pane: the General list has a door that opens it") {
-    // The gap that made the pane dead code: it was reachable from nothing.
+    // 导致面板死码的缺口:它从无到有是能够达到的.
     Model m;
     const auto items = settings::items_for(m, settings::Category::General);
 
@@ -149,21 +149,21 @@ TEST_CASE("sandbox pane: the General list has a door that opens it") {
     for (const auto& i : items)
         if (i.action == settings::Action::OpenSandbox) {
             found = true;
-            // A door must SAY it is a door, or the row reads as inert.
+            // 门必须打开 SAY 门,或者排读为惰。
             CHECK(settings::opens_pane(i.action));
             CHECK(!i.primary.empty());
-            // The secondary line names the enforcing backend. That is the
-            // one fact worth carrying out here: it decides whether the rows
-            // inside do anything, and a pane that configures an inert policy
-            // has to admit it before you open it.
+            // 次要行命名执行后端。 这是值得在此
+            // 执行的一个事实: 它决定了里面的行是否做
+            // 任何事情, 而一个配置惰性政策的面板
+            // 必须在打开它之前承认它。
             CHECK(!i.secondary.empty());
         }
     CHECK(found);
 }
 
 TEST_CASE("sandbox pane: opens onto the policy in force, not defaults") {
-    // If the pane seeded from a default-constructed config, the first thing
-    // a user saw would be a lie about their own boundary.
+    // 如果 面板 默认种子 -constructed 配置,
+    // 用户看到的第一个东西是 对自己边界的谎言。
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.net_mode   = sandbox_cfg::NetMode::None;
@@ -175,14 +175,14 @@ TEST_CASE("sandbox pane: opens onto the policy in force, not defaults") {
 
     const int net = row_of(f, pn::kSbNetMode);
     REQUIRE(net >= 0);
-    // The row shows "none", because that is what is enforcing.
+    // 显示行 "none" 因为这才是执行的
     CHECK(choice_at(f, net).id() == "none");
 
     const int mem = row_of(f, pn::kSbMemoryMb);
     REQUIRE(mem >= 0);
     CHECK(num_at(f, mem).value == 4096);
 
-    // And the cursor lands on a real setting, not a section header.
+    // 光标降落在真实的环境下,而不是第头文件节。
     REQUIRE(f.cursor >= 0);
     CHECK(!f.fields[static_cast<std::size_t>(f.cursor)].is_header());
 }
@@ -194,34 +194,34 @@ TEST_CASE("sandbox pane: Esc discards, so walking away changes nothing") {
     install(cfg);
 
     Model m = opened();
-    // Move a row, then leave without saving.
+    // 移动一行,然后不存钱就离开.
     const int net = row_of(pane(m).pane.form, pn::kSbNetMode);
     REQUIRE(net >= 0);
     m.ui.panel.get<pn::Sandbox>()->pane.form.cursor = net;
     auto [m2, _] = app::update(std::move(m), key(form::keys::Intent::AdjustUp));
     auto [m3, __] = app::update(std::move(m2), Msg{CloseSandbox{}});
 
-    // The pane is gone and the live policy is untouched. A boundary changed
-    // by pressing Esc would be a boundary changed by giving up on the screen.
+    // 电话 面板 并且没有执行实际操作政策。
+    // Esc 将会是改变边界,放弃屏幕。
     CHECK(m3.ui.panel.get<pn::Sandbox>() == nullptr);
     CHECK(sb::config().net_mode == sandbox_cfg::NetMode::Full);
 }
 
 TEST_CASE("sandbox pane: save persists but does NOT touch the live boundary") {
-    // The security property, stated as a test: saving writes the policy for
-    // the next launch and leaves the running sandbox exactly as it was.
+    // 安全财产,作为测试,声明:为下一次发射写保单,
+    // 运行的沙箱完全照原样.
     //
-    // Why this is the right behaviour, since it is the opposite of every
-    // other pane: a boundary that can move mid-session only moves usefully
-    // in the WEAKENING direction, the weakening is invisible and cannot be
-    // undone (re-tightening does not un-read a key that already left), and
-    // two commands in one session under two different policies makes the
-    // sandbox unauditable.
+    // 为什么这是正确的行为,因为它是相反的 面板 :
+    // 能够移动中段的边界 -session 只在
+    // WEAKENING 方向,弱化是无形的,
+    // 不能被抵消(re -tightening 显示 -read ),
+    // 在两种不同政策下,一个会话中有两个命令使
+    // 沙箱 不可审.
     sandbox_cfg::Config live;
     live.configured   = true;
     live.memory_mb    = 512;
     live.syscall_mode = sandbox_cfg::SyscallMode::Compiler;
-    install(live);   // arranges the sealed starting state
+    install(live);   // 安排密封的起始状态
     REQUIRE(sb::config_sealed());
 
     Model m = opened();
@@ -231,27 +231,27 @@ TEST_CASE("sandbox pane: save persists but does NOT touch the live boundary") {
 
     auto [saved, cmd] = app::update(std::move(m), Msg{SandboxSave{}});
 
-    // Staged for the next launch...
+    // 准备下一轮发射...
     CHECK(saved.d.persisted.sandbox.memory_mb == 2048);
     CHECK(saved.d.persisted.sandbox.configured);
 
-    // ...and the LIVE policy is untouched. This is the assertion that
-    // matters: if it ever flips, a prompt-injected agent that can reach the
-    // settings reducer can lower the walls of the session it is running in.
+    // .还有... LIVE 政策是没有改变的。
+    // 这是一个很重要的说法:如果它翻转,就 提示词-injected
+    // 能够到达设置的代理 状态更新函数 可以降低它正在运行的会话的墙壁。
     CHECK(sb::config().memory_mb == 512);
 
-    // And the pane says so, rather than letting the user believe the wall
-    // went up. An unsaid "applies on restart" is the same class of lie as
-    // "sandbox: active" on a host that cannot sandbox.
+    // 还有 面板 而不是让用户相信墙壁上翻了
+    // "applies on restart" 谎言的同一类
+    // "sandbox: active" 无法在主机上 沙箱.
     const auto* o = saved.ui.panel.get<pn::Sandbox>();
     REQUIRE(o != nullptr);
     CHECK(o->pane.saved_pending_restart);
 }
 
 TEST_CASE("sandbox config: the policy is sealed after the first install") {
-    // Enforced in code, not by comment. It WAS a comment ("call before
-    // init()") and the settings pane broke it within a day of existing, so
-    // the invariant now refuses rather than trusts.
+    // 以守则执行,而不是通过评论执行。 WAS 评论意见(
+    // "call before init()" 和设置 面板 在一个存在
+    // 一天之内就破了 所以 不变量 拒绝而不是信任。
     sandbox_cfg::Config first;
     first.configured = true;
     first.memory_mb  = 111;
@@ -260,24 +260,24 @@ TEST_CASE("sandbox config: the policy is sealed after the first install") {
     REQUIRE(sb::config_sealed());
     REQUIRE(sb::config().memory_mb == 111);
 
-    // Every later call is a no-op, whichever direction it goes.
+    // 以后的每一个月 调用 是一个不 -op 不论往哪走
     sandbox_cfg::Config weaker;
     weaker.configured   = true;
-    weaker.memory_mb    = 0;      // no cap
+    weaker.memory_mb    = 0;      // 无盖
     weaker.syscall_mode = sandbox_cfg::SyscallMode::Off;
     sb::set_config(weaker);
     CHECK(sb::config().memory_mb == 111);
     CHECK(sb::config().syscall_mode == sandbox_cfg::SyscallMode::Compiler);
 
-    // Including the ENGINE. Downgrading claybin -> bwrap silently drops the
-    // seccomp filter, the cgroup caps AND the non-configurable secret masks
-    // (measured: the same workspace .env reads back empty under claybin and
-    // in full under bwrap), so the backend has to be sealed with the rest of
-    // the policy rather than alongside it.
+    // 包括联合国 ENGINE 降级 claybin - > 隔板静静地
+    // 放下 seccomp 过滤器, croup 盖 和 非 国 家
+    // -configurable 秘密口罩(测量:相同) 工作区 .
+    // env 读回空在 claybin 并且完全在包里,所以后端必须和保险
+    // 的其余部分一起密封,而不是与之并存。
 
-    // Tightening is refused too. Not because tightening is dangerous, but
-    // because "the policy can change, but only in ways we judge safe" is a
-    // rule with a judgement call in it, and this one is worth having none.
+    // 紧紧的也被拒绝了 不是因为紧紧很危险 而是因为
+    // 策略只能按我们判断为安全的方式变化。
+    // 是一种有判决的规则 调用 里面,这个值得一个也没有。
     sandbox_cfg::Config tighter;
     tighter.configured   = true;
     tighter.memory_mb    = 64;
@@ -287,21 +287,21 @@ TEST_CASE("sandbox config: the policy is sealed after the first install") {
 }
 
 TEST_CASE("sandbox pane: every row round-trips into the config") {
-    // The bug class this catches, three times over in this subsystem:
+    // 捕捉到的虫类, 三次在这个子系统中:
     //
-    //   kSbMode                 a row id for a row that must not exist
-    //   Observation/BlockedEvent  types with a reducer arm and no producer
-    //   the Masked row           configured nothing under bwrap
+    //   kSbMode 一定不存在的行的行 ID
+    //   Observation/BlockedEvent 类型,
+    //   带有 状态更新函数 手臂和没有制片人 蒙面行配置了 brap 下的任何内容
     //
-    // Each read as a shipped feature and enforced nothing. The shape is always
-    // the same: a control exists at one layer and is dead at another, and no
-    // single-layer test notices.
+    // 每个读作运算特性, 而执行的则无。 形状总是一样: 控制
+    // 存在于一个层次, 而在另一个层次上是死, 并且没有单独的
+    // -layer测试通知。
     //
-    // So: build the form, MUTATE every editable row away from its current
-    // value, read it back, and require the config actually changed. A row that
-    // does not survive that is either dead or misspelled at one of its two
-    // sites -- which is exactly what the kSb* constants exist to prevent and
-    // cannot prevent on their own.
+    // 如此:构建表格,MUTATE每个可编辑行从当前
+    // 值中切换,读回,并且要求配置实际改变。一个无法存活的行,
+    // 要么在它的两个站点中一个站点死亡,
+    // 要么拼写错误——这正是 kSb* 常数存在的原因,
+    // 可以自行预防和阻止。
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend    = sandbox_cfg::LinuxBackend::Claybin;
@@ -314,44 +314,44 @@ TEST_CASE("sandbox pane: every row round-trips into the config") {
     for (std::size_t i = 0; i < f.fields.size(); ++i) {
         auto& fld = f.fields[i];
         if (fld.is_header() || fld.is_action() || fld.is_pick()) continue;
-        // A LOCKED row is not dead, it is honestly unavailable: the backend or
-        // the kernel cannot enforce it, and the pane says so. read_sandbox_form
-        // still reads it (a locked row keeps its value through a round trip,
-        // which is its own test above), but on a host where claybin cannot
-        // start every claybin row is locked, so requiring them to move here
-        // would make this case fail for a property of the machine.
+        // A LOCKED 行不是死,它真的没有:后端或内核不能执行它,
+        // 面板 说得没错 read_sandbox_form 仍然
+        // 读它(锁在墙上的一行通过往返来保持其价值,
+        // 这是它自己的测试以上),但在一个主机上, claybin
+        // 无法启动每集 claybin 排在锁上,所以要求他们搬
+        // 来这里 会使这个案子失败 对于机器的某个财产。
         if (fld.locked) continue;
-        // The POSTURE row is an action, not a value: it is applied by the
-        // reducer when it moves and deliberately not read back (see
-        // read_sandbox_form). Moving it here changes nothing by design, and
-        // its real behaviour has its own two cases above.
+        // 电话 POSTURE 行是一个动作,而不是一个值:它由
+        // 状态更新函数 当它移动而刻意不读(参看
+        // read_sandbox_form )移动到这里,没有任何设计改变,
+        // 它的真正行为有它自己的两个案例以上.
         if (fld.id == pn::kSbPosture) continue;
 
         const auto before = pn::read_sandbox_form(f, cfg);
 
-        // Move the row off whatever it holds. Each kind has one obvious way.
+        // 不管它持有什么,都把排移开,每种都有一条明显的方式
         if (auto* c = std::get_if<form::field::Choice>(&fld.value)) {
             if (c->count() < 2) continue;
             c->index = c->normalized(c->index + 1);
         } else if (auto* t = std::get_if<form::field::Toggle>(&fld.value)) {
             t->on = !t->on;
         } else if (auto* n = std::get_if<form::field::Number>(&fld.value)) {
-            // Move to a value that is inside the row's bounds AND cannot
-            // coincide with what the config already holds.
+            // 移动到行内值 和 无法与
+            // 配置已经持有的值重合。
             //
-            // `(value == min) ? max : min` was wrong and failed only under
-            // ctest: read_sandbox_form falls back to `base` for some rows, so
-            // landing on the base value makes the read a no-op and the check
-            // reports a dead row that is fine. Order-dependent, which is the
-            // worst kind of flake -- it passed standalone and failed in the
-            // suite. Stepping off the CURRENT value by one, clamped into
-            // range, cannot collide with anything.
+            // `(value == min) ? max : min` 错误,
+            // 仅在测试中失败 : read_sandbox_form
+            // 倒车 `base` 某些行,所以在基值上着陆,
+            // 读取值为否 -op 检查报告一列死尸是好的。
+            // -dependent ,这是最糟糕的片段--它单独通过,
+            // 在套房中失败。 当前 值乘以一个,被夹在范围中,
+            // 不能与任何东西相撞。
             n->value = (n->value < n->max) ? n->value + 1 : n->value - 1;
         } else if (auto* tx = std::get_if<form::field::Text>(&fld.value)) {
             tx->value = tx->value.empty() ? std::string{"/tmp/roundtrip"}
                                           : std::string{};
         } else {
-            continue;   // Secret, or a kind with no value to move
+            continue;   // 秘密,或者没有价值移动的
         }
 
         const auto after = pn::read_sandbox_form(f, cfg);
@@ -360,21 +360,21 @@ TEST_CASE("sandbox pane: every row round-trips into the config") {
         ++checked;
     }
 
-    // And the sweep actually ran. A loop that skipped everything would report
-    // zero failures, which is the failure mode this whole file is about.
+    // 扫描实际上运行了。一个跳过一切的循环会报告零失败,
+    // 这就是整个文件的失败模式。
 #if AGENTTY_TEST_SANDBOX_BACKEND
     CHECK(checked >= 10);
 #else
-    // No backend: every claybin row is locked, leaving only the handful of
-    // agentty-side rows -- still require the sweep ran over them.
+    // 无后端: 每 claybin 排队被锁住了,只剩下几只
+    // agentty-side 排队——仍然需要扫射他们。
     CHECK(checked >= 1);
 #endif
 }
 
 TEST_CASE("sandbox pane: the wall report tracks the rows") {
-    // The pane's whole reason to exist: a boundary you cannot observe is one
-    // you cannot trust. So the report must never describe a config the rows
-    // no longer say.
+    // 面板 存在的全部理由:你不能观察到的边界是
+    // 不能信任的。因此,报告决不能描述行中不再
+    // 说的配置。
     Model m = opened();
     const auto before = pane(m).pane.preview;
 
@@ -382,36 +382,36 @@ TEST_CASE("sandbox pane: the wall report tracks the rows") {
     REQUIRE(sys >= 0);
     m.ui.panel.get<pn::Sandbox>()->pane.form.cursor = sys;
 
-    // Cycle the syscall profile and let the reducer re-price.
+    // 循环调用配置文件并让 状态更新函数 内容 -price.
     auto [m2, _] = app::update(std::move(m), key(form::keys::Intent::AdjustUp));
     auto [m3, __] = app::update(std::move(m2), Msg{SandboxRefreshPreview{}});
 
     const auto& after = pane(m3).pane.preview;
-    // Either it compiled and said something, or it refused and said why.
-    // What it must never be is silent -- that is the "active, enforcing
-    // nothing" state this pane was built to make impossible.
+    // 要么编成书并说些什么,要么拒绝并说为什么。
+    // 永远不能沉默的 -- -- 这就是 "active, enforcing nothing"
+    // 声明 面板 建造它是为了让不可能。
     CHECK((after.compiled || !after.error.empty()));
     if (after.compiled) CHECK(!after.walls.empty());
     (void)before;
 }
 
-// ── Postures ─────────────────────────────────────────────────────────────
+// ── 安全预设 ─────────────────────────────────────────────────────────────
 //
-// The pane had 28 individually-correct rows and no way to express intent. Every
-// row was real and enforced; assembling a security boundary out of 28
-// primitives is still the wrong question, and a control nobody can reason about
-// is a control nobody touches -- which for a security setting means off.
+// 电话 面板 28个人 -correct 排行和表达意图的
+// 方法都是真实的,并且是强制的;在28个原始人中
+// 拼凑安全界限仍然是个错误的问题,没有人能解释的控制是任何人
+// 不能触及的控制,对于安全环境来说,这意味着关闭。
 //
-// The presets are only safe if two properties hold, and both are checked here:
-// the label can never be wrong (it is DERIVED, not stored), and picking one
-// cannot stomp a row the user edited afterwards.
+// 预设只有在两个属性都持有的情况下才安全,且在此检查两种属性: 预设是否具有安全性?
+// 标签永远不能出错(它是DERIVED,没有存储),
+// 选择一个不能踩住用户之后编辑的行。
 
 TEST_CASE("sandbox posture: apply then detect round-trips for every preset") {
-    // The property the whole feature rests on. detect_posture() asks
-    // apply_posture() rather than re-encoding what a posture means in a second
-    // place -- so this also guards the real hazard: ADD a field to Config, and
-    // if detect had its own hand-written comparison it would start claiming
-    // "Hardened" for a config that is not.
+    // 整个特征所依赖的财产。 detect_posture( ) 问
+    // apply_posture( )、 而不是re-encoding( 姿势在第二位
+    // 意味着什么) -- -- 因此, 这也保护着真正的危险: ADD 是一个场到Config( ),
+    // 如果探测器有自己的手-written 比较, 它就会开始对一个非配置
+    // 提出"Hardened" 的要求。
     for (auto p : {sandbox_cfg::Posture::Permissive,
                    sandbox_cfg::Posture::Balanced,
                    sandbox_cfg::Posture::Hardened,
@@ -423,8 +423,8 @@ TEST_CASE("sandbox posture: apply then detect round-trips for every preset") {
 }
 
 TEST_CASE("sandbox posture: the four presets are genuinely different") {
-    // A preset list where two entries mean the same thing is a menu that lies
-    // about having four options.
+    // 预设列表中,两个条目意为相同的东西,
+    // 是关于拥有四个选项的菜单.
     sandbox_cfg::Config base;
     const auto perm = sandbox_cfg::apply_posture(base, sandbox_cfg::Posture::Permissive);
     const auto bal  = sandbox_cfg::apply_posture(base, sandbox_cfg::Posture::Balanced);
@@ -435,9 +435,9 @@ TEST_CASE("sandbox posture: the four presets are genuinely different") {
     CHECK(!(bal == hard));
     CHECK(!(hard == air));
 
-    // And they are ordered the way their names claim. Permissive really has no
-    // filter; airgapped really has no network. A preset called "airgapped" that
-    // left the network on would be the worst bug in this file.
+    // 并且他们被命令使用他们的名字要求的方式。允许的确实没有过滤器;
+    // 被空降的确实没有网络。一个名为"airgapped"的
+    // 预设离开网络将是这个文件中最糟糕的缺陷。
     CHECK(perm.syscall_mode == sandbox_cfg::SyscallMode::Off);
     CHECK(bal.net_mode == sandbox_cfg::NetMode::Full);
     CHECK(hard.syscall_mode == sandbox_cfg::SyscallMode::Strict);
@@ -445,9 +445,9 @@ TEST_CASE("sandbox posture: the four presets are genuinely different") {
 }
 
 TEST_CASE("sandbox posture: a preset keeps the user's paths and engine") {
-    // A posture is a statement about how tight the walls are. Wiping the
-    // project-specific path list because someone tried Hardened would make the
-    // presets hostile -- you would lose work by exploring.
+    // 一个姿态就是关于墙壁有多紧的表态。
+    // 给-specific工程的路径列表打个比方,因为有人尝试过Hardened
+    // 会让预设变得充满敌意,你会因为探索而失去工作。
     sandbox_cfg::Config base;
     base.read_paths  = {"/opt/weird-sdk"};
     base.write_paths = {"/var/cache/project"};
@@ -461,43 +461,43 @@ TEST_CASE("sandbox posture: a preset keeps the user's paths and engine") {
         CHECK(out.read_paths == base.read_paths);
         CHECK(out.write_paths == base.write_paths);
         CHECK(out.deny_paths == base.deny_paths);
-        // The engine especially: picking Hardened must not silently switch
-        // engines on a host where claybin cannot start. The pane locks and
-        // reports that instead.
+        // 特别是引擎: 选Hardened 决不能默默地在
+        // 主机上切换引擎 claybin 无法开始。
+        // 面板 锁 并报告,相反。
         CHECK(out.backend == base.backend);
     }
 }
 
 TEST_CASE("sandbox posture: the label covers the walls it sets, not the grants you add") {
-    // THE SCOPE OF THE CLAIM, pinned so nobody has to infer it.
+    // 该 SCOPE OF 该 CLAIM 被钉住 所以没人能推断出来
     //
-    // detect_posture is a FIXPOINT test: `probe == apply_posture(probe, p)`.
-    // That is what makes the label impossible to drift (§preset invariant 2) --
-    // but it has a consequence worth stating out loud, because it is the kind
-    // of thing a reader assumes one way or the other and is never told.
+    // detect_posture 是一个 FIXPOINT 测试 : `probe == apply_posture(probe, p)`.
+    // 这使得标签无法漂移(§preset 不
+    // 变量 2)——但后果值得大声声明,
+    // 因为读者总是这样,而且从未被告知。
     //
-    // A field apply_posture does not WRITE cannot make the comparison fail, so
-    // it is outside the posture's definition. Two such fields are genuinely
-    // enforced at the boundary: `write_paths` (claybin binds them writable) and
-    // `allow_ports` (claybin opens them). So a config can read "Hardened" while
-    // carrying extra grants the user added.
+    // 字段 apply_posture 没有 WRITE 无法使比较失败,
+    // 因此它超出了姿态的定义。 `write_paths` (
+    // claybin 约束他们可写)和 `allow_ports` (
+    // claybin 打开它们。所以一个配置可以读取 "Hardened"
+    // 并带有额外 授权 用户添加。
     //
-    // That is CORRECT and deliberate -- invariant 3 says "a preset never
-    // touches your path lists", because wiping a project's read_paths when you
-    // tried a preset would make presets hostile to explore. The label means
-    // "the walls this preset sets are in force", not "this is all there is".
-    // The pane shows all 28 rows precisely so the grants stay visible
-    // (invariant 1): the label summarises, the rows are the truth.
+    // 这是CORRECT,是不变量 3 的 "a preset never touches your path lists" ,
+    // 因为当您尝试一个预设时, 擦掉一个项目的 read_paths 会使预设变得对探索不利。
+    // 标签表示 "the walls this preset sets are in force" ,
+    // 不是 "this is all there is"。
+    // 电话 面板 显示所有28行的精确度 授权 保持
+    // 可见( E) 不变量 1):标签总结,行是真.
     //
-    // This test exists so that reading is a decision on the record rather than
-    // an accident, and so a future change that makes apply_posture start
-    // clearing path lists has to come here and argue for it.
+    // 这个测试的存在,这样阅读是记录上的决定,而不是偶然的,
+    // 因此,将来的改变使得apply_posture
+    // 开始清除路径列表,必须来到这里论证.
     sandbox_cfg::Config base;
     const auto hard = sandbox_cfg::apply_posture(base, sandbox_cfg::Posture::Hardened);
     REQUIRE(sandbox_cfg::detect_posture(hard) == sandbox_cfg::Posture::Hardened);
 
-    // The WALLS are what the label asserts, and changing any of them drops the
-    // label to Custom rather than lying.
+    // WALLS是标签所声称的,其中任何一种改变都会将标签降为
+    // Custom,而不是撒谎.
     {
         auto c = hard;
         c.net_mode = sandbox_cfg::NetMode::Full;
@@ -519,10 +519,10 @@ TEST_CASE("sandbox posture: the label covers the walls it sets, not the grants y
         CHECK(sandbox_cfg::detect_posture(c) != sandbox_cfg::Posture::Hardened);
     }
 
-    // The GRANTS are yours, and survive a preset -- so the label stays.
-    // Documented here as the expected behaviour, not asserted as a security
-    // property: the rows, not the chip, are what you read before trusting a
-    // boundary.
+    // 电话 GRANTS 是你的,在预设中幸存下来,所以标签就留下了。
+    // 这里记录的是预期的行为,而不是一个安全财产:行,
+    // 而不是标签,是您在信任边界之前所读到
+    // 的。
     {
         auto c = hard;
         c.write_paths.push_back("/srv/scratch");
@@ -536,71 +536,71 @@ TEST_CASE("sandbox posture: the label covers the walls it sets, not the grants y
 }
 
 TEST_CASE("sandbox posture: applying a preset twice changes nothing") {
-    // Idempotence. apply_posture is run on every pane save and on the Posture
-    // row's ←/→, so a non-idempotent preset would drift a config a row at a
-    // time while the label kept claiming it was stable -- the exact failure
-    // mode the fixpoint detect was built to rule out, reintroduced from the
-    // other side.
+    // 释迦牟尼经. apply_posture 运行在每 面板
+    // 保存 和在姿势列的QQ/ ,所以一个不 -idempotent
+    // 预设会同时漂移一个一行的配置,而标签却一直声称它是稳定
+    // 的——固定点检测器的精确故障模式是用来排除,
+    // 从另一边重新提出.
     //
-    // It is also what makes detect_posture's own definition well-founded: a
-    // fixpoint test against a non-idempotent function would be asking a
-    // question with no stable answer.
+    // 这也是我们所要做的 detect_posture 自己定义的好
+    // -founded : 对照非的固定点试验 -idempotent
+    // 函数将是一个没有稳定答案的问题。
     sandbox_cfg::Config base;
     for (auto p : {sandbox_cfg::Posture::Permissive, sandbox_cfg::Posture::Balanced,
                    sandbox_cfg::Posture::Hardened, sandbox_cfg::Posture::Airgapped}) {
         const auto once  = sandbox_cfg::apply_posture(base, p);
         const auto twice = sandbox_cfg::apply_posture(once, p);
         CHECK(once == twice);
-        // And still detects as itself after the second application.
+        // 并且仍然在第二次应用后检测到自身.
         CHECK(sandbox_cfg::detect_posture(twice) == p);
     }
 }
 
 TEST_CASE("sandbox posture: the ladder only ever tightens") {
-    // Permissive <= Balanced <= Hardened <= Airgapped on every wall that has an
-    // order. A preset that loosened an axis while tightening another would make
-    // "move one step up the ladder" an unsafe action -- the user would have to
-    // diff 28 rows to find out what they gave up, which is what the ladder
-    // exists to spare them.
+    // 允许 QQ 平衡 QQ 在每面有命令的墙上都空置。
+    // 打开轴线而收紧另一轴的预设将使
+    // "move one step up the ladder" 成为不安全
+    // 的动作 — 用户必须抖动28行才能发现他们放弃了什么, 这就是梯子的
+    // 存在来让他们幸免的。
     sandbox_cfg::Config base;
     const auto perm = sandbox_cfg::apply_posture(base, sandbox_cfg::Posture::Permissive);
     const auto bal  = sandbox_cfg::apply_posture(base, sandbox_cfg::Posture::Balanced);
     const auto hard = sandbox_cfg::apply_posture(base, sandbox_cfg::Posture::Hardened);
     const auto air  = sandbox_cfg::apply_posture(base, sandbox_cfg::Posture::Airgapped);
 
-    // Process ceiling: never rises as you climb, and NEVER goes to 0.
+    // 过程天花板:从不随攀升,NEVER进入0.
     //
-    // 0 means UNLIMITED at the boundary (claybin sets no rlimit and no
-    // pids.max when pids is unlimited), so a posture that zeroed it would ship
-    // an unbounded fork bomb -- which is precisely what Permissive used to do.
-    // That is the finding tests/sandbox_audit.cpp exists for, reintroduced via
-    // a preset, so it gets an explicit floor rather than only an ordering.
+    // 0 表示 UNLIMITED 边界( 边界) claybin
+    // 设置无 r 限制和没有 pids.max 当皮兹是无限的,
+    // 所以一个将它零化的姿态,会运送一个无约束的叉子炸弹——这正是允许者过去所做的.
+    // 即第tests/sandbox_audit.cpp号结论存在,
+    // 通过预设重新提出,因此它得到一个明确的地板,而不仅仅是一个订单。
     for (const auto* c : {&perm, &bal, &hard, &air})
         CHECK(c->max_procs > 0);
     CHECK(bal.max_procs  <= perm.max_procs);
     CHECK(hard.max_procs <= bal.max_procs);
     CHECK(air.max_procs  <= hard.max_procs);
 
-    // Secret masking: never shallower as you climb.
+    // 秘密面具:爬山时从未如此浅薄.
     CHECK(bal.mask_scan_depth  >= perm.mask_scan_depth);
     CHECK(hard.mask_scan_depth >= bal.mask_scan_depth);
     CHECK(air.mask_scan_depth  >= hard.mask_scan_depth);
 
-    // W^X and IPC scoping: once on, they stay on.
-    CHECK((!bal.wx_protect  || perm.wx_protect || true));   // perm may be off
+    // W^X 财务报告和已审计财务报表 IPC 范围:一旦打开,他们就继续。
+    CHECK((!bal.wx_protect  || perm.wx_protect || true));   // 电压可能关闭
     CHECK(hard.wx_protect);
     CHECK(air.wx_protect);
     CHECK(hard.scope_ipc);
     CHECK(air.scope_ipc);
 
-    // Network: airgapped is the only one with no sockets at all, and nothing
-    // above balanced is fully open.
+    // 网络:空载是唯一一个没有套接字的,任何高于平衡的
+    // 部分都没有完全开放.
     CHECK(air.net_mode == sandbox_cfg::NetMode::None);
     CHECK(hard.net_mode != sandbox_cfg::NetMode::Full);
     CHECK(perm.net_mode == sandbox_cfg::NetMode::Full);
 
-    // The handoff gate is never given away by climbing (§14): every posture
-    // refuses, including Permissive.
+    // 交接门从不通过攀登方式(§14):每个姿态都拒绝,
+    // 包括允许.
     CHECK(perm.handoff == sandbox_cfg::HandoffPolicy::Refuse);
     CHECK(bal.handoff  == sandbox_cfg::HandoffPolicy::Refuse);
     CHECK(hard.handoff == sandbox_cfg::HandoffPolicy::Refuse);
@@ -608,51 +608,51 @@ TEST_CASE("sandbox posture: the ladder only ever tightens") {
 }
 
 TEST_CASE("sandbox posture: permissive still masks secrets and refuses handoffs") {
-    // Permissive exists so a user whose toolchain breaks has somewhere to go
-    // that is not `--sandbox off`. It would be worthless if it also gave up the
-    // two protections that cost nothing in compatibility.
+    // 允许性的存在使得工具链断裂的用户所在的地方不是
+    // `--sandbox off`。 如果它也放弃了两个不花
+    // 任何兼容性费用的保护措施,那就毫无意义了。
     sandbox_cfg::Config base;
     const auto perm = sandbox_cfg::apply_posture(base, sandbox_cfg::Posture::Permissive);
 
-    // Secrets stay masked REGARDLESS: a mask is a bind, it breaks nothing.
+    // 秘密会蒙上面子 REGARDLESS :面具是束缚,它什么也打不开.
     CHECK(perm.mask_scan_depth > 0);
-    // And the handoff gate is a different question from the walls (§14) -- a
-    // loose sandbox is a choice, letting the agent author your git hooks as a
-    // side effect of that choice is not one anybody made.
+    // 交接门是和墙壁不同的问题(§14)——松散的
+    // 沙箱 是一个选择,让代理作者 把你的钩子作为
+    // 一个 副作用 选择的不是任何人
     CHECK(perm.handoff == sandbox_cfg::HandoffPolicy::Refuse);
 }
 
 TEST_CASE("sandbox posture: balanced is exactly the unconfigured default") {
-    // So a user who picks Balanced explicitly gets the same boundary as one who
-    // never opened the pane. If these drift, the pane's own default row is
-    // describing a policy nobody runs.
+    // 所以,一个选择平衡的用户会明确得到与从未打开过
+    // 面板 如果这些漂移, 面板 自己的默认行描述
+    // 的是无人运行的政策。
     sandbox_cfg::Config fresh;             // configured = false
     const auto bal = sandbox_cfg::apply_posture(fresh, sandbox_cfg::Posture::Balanced);
 
     sandbox_cfg::Config expected = fresh;
-    expected.configured = true;            // the only legitimate difference
+    expected.configured = true;            // 唯一合法差异
     CHECK(bal == expected);
 
-    // And an untouched config already reads as Balanced, so the pane opens on a
-    // name rather than on "Custom".
+    // 和未触及的配置 已经读为平衡,所以 面板 打开名称而不是
+    // 打开 "Custom".
     CHECK(sandbox_cfg::detect_posture(fresh) == sandbox_cfg::Posture::Balanced);
 }
 
 TEST_CASE("sandbox posture: editing one row off a preset reports Custom") {
-    // The honesty property. A STORED posture field would still say "Hardened"
-    // here, and the pane would be claiming a boundary the config no longer
-    // describes -- the same lie as "sandbox: active".
+    // 诚实财产 A STORED 姿势战地仍然会说 "Hardened" 这儿,
+    // 还有... 面板 将主张一个不再描述的边界 -- --
+    // 与 "sandbox: active".
     auto hard = sandbox_cfg::apply_posture(sandbox_cfg::Config{},
                                            sandbox_cfg::Posture::Hardened);
     REQUIRE(sandbox_cfg::detect_posture(hard) == sandbox_cfg::Posture::Hardened);
 
-    hard.memory_mb = 2048;   // one row, by hand
+    hard.memory_mb = 2048;   // 一行,手边
     CHECK(sandbox_cfg::detect_posture(hard) == sandbox_cfg::Posture::Custom);
 }
 
 TEST_CASE("sandbox posture: selecting Custom changes nothing") {
-    // Custom is a label the row REPORTS, not a command. Applying it has to be a
-    // no-op or the row would destroy the config it is describing.
+    // 自定义是行的标签 REPORTS 命令,
+    // 应用它必须是不 -op 或该行会破坏它描述的配置。
     const auto hard = sandbox_cfg::apply_posture(sandbox_cfg::Config{},
                                                  sandbox_cfg::Posture::Hardened);
     const auto after = sandbox_cfg::apply_posture(hard, sandbox_cfg::Posture::Custom);
@@ -660,10 +660,10 @@ TEST_CASE("sandbox posture: selecting Custom changes nothing") {
 }
 
 TEST_CASE("sandbox pane: the posture row writes every other row") {
-    // Through the REDUCER, because that is where a preset is applied: picking
-    // one is an action, and only the reducer knows an action happened. See the
-    // kSbPosture arm in update/sandbox.cpp for why readback cannot do it.
-    sandbox_cfg::Config cfg;   // balanced
+    // 通过 REDUCER ,因为这就是应用预设的地方: 选择一个是动作,
+    // 只有 状态更新函数 发现有动作,请看KSbPosture手臂
+    // update/sandbox.cpp 为何回信不能做
+    sandbox_cfg::Config cfg;   // 平衡
     cfg.configured = true;
     install(cfg);
 
@@ -672,16 +672,16 @@ TEST_CASE("sandbox pane: the posture row writes every other row") {
     REQUIRE(p >= 0);
     m.ui.panel.get<pn::Sandbox>()->pane.form.cursor = p;
 
-    // Drive the row to Hardened from wherever it actually starts, rather than
-    // assuming an index. The pane seeds from `m.d.persisted` (so a fresh Model
-    // opens on its defaults, not on what install() sealed), and a test that
-    // hard-codes "one step down" silently tests a different preset the moment
-    // that seed changes.
+    // 将行从实际开始的地方驱动到硬化,而不是假设一个索引。 面板 种子
+    // 来源 `m.d.persisted` (所以一个新鲜的) Model
+    // 打开默认的,而不是什么 install() 和如此艰难的考验,
+    // -codes "one step down" 默默测试种子改变的
+    // 时刻 不同的预设
     const auto start = std::get<form::field::Choice>(
         pane(m).pane.form.fields[static_cast<std::size_t>(p)].value).index;
     const int want = static_cast<int>(sandbox_cfg::Posture::Hardened);
-    // AdjustUp is +1 on a Choice (form_keys.cpp), so stepping toward a HIGHER
-    // index is Up, not Down.
+    // AdjustUp 选择时为+1( form_keys.cpp 所以,踏进一个 HIGHER
+    // 索引是上,而不是下。
     for (int i = start; i < want; ++i) {
         auto [next, _] = app::update(std::move(m), key(form::keys::Intent::AdjustUp));
         m = std::move(next);
@@ -691,35 +691,35 @@ TEST_CASE("sandbox pane: the posture row writes every other row") {
         m = std::move(next);
     }
 
-    // The row really is where we drove it -- otherwise the checks below would
-    // pass or fail for a reason that has nothing to do with presets.
+    // 排行实际上是我们开的地方-- 否则下面的
+    // 支票会通过或失败, 原因与预设无关。
     REQUIRE(std::get<form::field::Choice>(
         pane(m).pane.form.fields[static_cast<std::size_t>(p)].value).index == want);
 
     const auto out = pn::read_sandbox_form(pane(m).pane.form, cfg);
-    // The preset wrote the OTHER rows, which is the whole point.
+    // 预设写了OTHER行,即是整点.
     CHECK(out.syscall_mode == sandbox_cfg::SyscallMode::Strict);
     CHECK(out.memory_mb == 8192);
     CHECK(sandbox_cfg::detect_posture(out) == sandbox_cfg::Posture::Hardened);
 
-    // ...AND IT REACHED THE RECORD THAT GETS SAVED.
+    // 并且修改已经进入最终保存的记录。
     //
-    // THE BUG THIS PINS. Everything above passed while picking a preset
-    // persisted NOTHING: the kSbPosture arm repainted the rows and then
-    // `return Cmd::none()`, so it was the one row that never reached the
-    // autosave every other row goes through. The pane showed Hardened, the
-    // footer said "applies on restart", and the next launch loaded the old
-    // config -- where the posture row, derived by comparison, correctly
-    // reported Custom.
+    // 该 BUG 此 PINS 上面所有的东西在选择预设时都
+    // 经过 无内容 : kSbPosture臂重新刷漆了行,
+    // 然后 `return Cmd::none()` ,
+    // 所以是一行从未到达自动保存 其它各行都经过。 面板 脚印上显示为硬化,
+    // 脚印上说 "applies on restart" ,
+    // 下一次发射 已加载 旧配置——通过比较得出的姿态行
+    // 正确报告自定义。
     //
-    // Reported as "I changed the preset to Hardened, restarted, it was Custom
-    // again". The derivation was right the whole time; the config really was
-    // unchanged on disk.
+    // 报告为 "I changed the preset to Hardened, restarted, it was Custom again"。
+    // 数据源一直是正确的; 磁盘上的配置确实
+    // 没有变化。
     //
-    // Checking the FORM is not enough and that is the lesson: the form is
-    // what the user sees, m.d.persisted is what survives. A test that only
-    // reads the form cannot tell those apart, which is why this one failed to
-    // catch a bug it was otherwise perfectly placed to catch.
+    // 检查 FORM 还不够,这就是教训:形式是用户
+    // 所看到的, m.d.persisted 只能读
+    // 出表格的测试无法区分这些, 这就是为什么这个测试
+    // 没有抓住一个错误 它被完全安排在了捕捉。
     CHECK(m.d.persisted.sandbox.syscall_mode == sandbox_cfg::SyscallMode::Strict);
     CHECK(m.d.persisted.sandbox.memory_mb == 8192);
     CHECK(m.d.persisted.sandbox.fake_hostname);
@@ -727,23 +727,23 @@ TEST_CASE("sandbox pane: the posture row writes every other row") {
     CHECK(sandbox_cfg::detect_posture(m.d.persisted.sandbox)
           == sandbox_cfg::Posture::Hardened);
 
-    // The seal still holds: persisting is not applying. A preset must not move
-    // the boundary under a process that is already running, same as every
-    // other row (see "sandbox pane: a save persists but does NOT touch the
-    // live boundary").
+    // 封条仍然保留: 持续不适用。 预设不能像其他行一样, 在已经运行的进程中
+    // 移动边界( 见
+    // "sandbox pane: a save persists but does NOT touch the live boundary")。（保存沙箱设置会持久化，但不得改变当前实际边界。）
+    //
     CHECK(sb::config().syscall_mode != sandbox_cfg::SyscallMode::Strict);
 }
 
 TEST_CASE("sandbox pane: a preset picked in the pane is still picked after a restart") {
-    // The whole path, for EVERY preset: drive the Preset row in the real
-    // reducer, take what it persisted, write it through the real settings
-    // file, load it back as a fresh launch would, and open the pane on it.
-    // The row must show the preset that was picked.
+    // 整个路径,为 每个 预设: 驱动真实中的预设行
+    // 状态更新函数 , 取它坚持的, 写在真实的设置文件中,
+    // 加载 重新做为新的发射机 打开 面板 来,就来
+    // 行必须显示所选预设。
     //
-    // The earlier test stopped at m.d.persisted -- in memory -- which is why
-    // it could not see the second half of the bug: the loader's range check
-    // turned every positive 64-bit field (memory_mb) into its default, so
-    // Hardened and Airgapped reloaded with memory_mb 0 and read as Custom.
+    // 之前的测试停止了 m.d.persisted 单位 内存 ——
+    // 所以它看不到下半部错误:装填器的射程检查使每个正 64 转弯
+    // -bit 字段( 字段) ( memory_mb ) 进入默认状态,
+    // 因此 硬化和空载重装 memory_mb 0,读作自定义.
     namespace fs = std::filesystem;
     char tmpl[] = "/tmp/agentty_pane_preset_XXXXXX";
     const fs::path dir = ::mkdtemp(tmpl);
@@ -775,10 +775,10 @@ TEST_CASE("sandbox pane: a preset picked in the pane is still picked after a res
             m = std::move(next);
         }
         {
-            // Picked in the pane == what the preset produces, before any restart.
-            // A locked row (Scope IPC under seatbelt) displayed the ENGINE's
-            // fact and readback wrote it into the config, so Permissive came
-            // out with scope_ipc=true and read as Custom straight away.
+            // 选在 面板 的  ⁇  中预设 产生, 任何重启之前。
+            // 锁定行( 范围) IPC 安全带下显示 ENGINE
+            // 事实和回信写进 配置,所以Permissive
+            // 出来 scope_ipc 正确并读为自定义。
             const auto& got = m.d.persisted.sandbox;
             const auto ref = sandbox_cfg::apply_posture(got, want_p);
             INFO("scope_ipc " << got.scope_ipc << "/" << ref.scope_ipc
@@ -788,14 +788,14 @@ TEST_CASE("sandbox pane: a preset picked in the pane is still picked after a res
             REQUIRE(sandbox_cfg::detect_posture(got) == want_p);
         }
 
-        // "restart": through the file, and back.
+        // "restart":通过文件,然后返回.
         auto s = persistence::load_settings(::agentty::IoAccess::grant());
         s.sandbox = m.d.persisted.sandbox;
         persistence::save_settings(::agentty::IoAccess::grant(), agtest::cap(), s);
         const auto loaded = persistence::load_settings(::agentty::IoAccess::grant()).sandbox;
         CHECK(loaded == m.d.persisted.sandbox);
 
-        // and the pane, opened on what loaded, shows the preset by name.
+        // 编辑 面板 打开 已加载 ,显示名称的预设。
         const auto form = pn::build_sandbox_form(loaded, facts_for(loaded));
         const int r = row_of(form, pn::kSbPosture);
         REQUIRE(r >= 0);
@@ -809,36 +809,36 @@ TEST_CASE("sandbox pane: a preset picked in the pane is still picked after a res
 }
 
 TEST_CASE("sandbox pane: a preset does not re-stamp a row edited after it") {
-    // The failure this design exists to avoid, and the test that caught it.
+    // 这种设计之所以存在是为了避免失败,也是为了抓住它。
     //
-    // read_sandbox_form runs on EVERY keystroke and every reprice. The first
-    // version applied the posture there, comparing the row against
-    // detect_posture() -- which cannot work, because the row still displays the
-    // posture the config USED to be. So editing Memory after choosing Hardened
-    // put 8192 straight back on the next repaint: the user's edit vanishing
-    // with no message, which is worse than refusing it.
+    // read_sandbox_form 运行 每个 键盘和
+    // 每一次重价。第一个版本应用了那里的位置,
+    // 将行与 detect_posture () - 无法工作,
+    // 因为行仍然显示配置的姿态 USED 编辑 内存 选择
+    // Hardend后,将8192直接放回下一个 重绘 :
+    // 用户编辑消失,没有消息,这比拒绝更糟糕.
     //
-    // Applying in the reducer instead makes this exact, because the reducer
-    // knows WHICH row moved.
+    // 应用于 状态更新函数 而不是说准确,因为 状态更新函数 懂了吗?
+    // 对应的 排行移动。
     auto hard = sandbox_cfg::apply_posture(sandbox_cfg::Config{},
                                            sandbox_cfg::Posture::Hardened);
     hard.backend = sandbox_cfg::LinuxBackend::Claybin;
     install(hard);
 
     auto form = pn::build_sandbox_form(hard, facts_for(hard));
-    // The row shows Hardened, as it should.
+    // 列显示哈定,如其应.
     const int p = row_of(form, pn::kSbPosture);
     REQUIRE(p >= 0);
     CHECK(std::get<form::field::Choice>(form.fields[static_cast<std::size_t>(p)].value).index
           == static_cast<int>(sandbox_cfg::Posture::Hardened));
 
-    // Now edit a resource row by hand, exactly as the user would.
+    // 现在按用户的用法,逐个编辑资源行。
     const int mem = row_of(form, pn::kSbMemoryMb);
     REQUIRE(mem >= 0);
     std::get<form::field::Number>(form.fields[static_cast<std::size_t>(mem)].value).value = 2048;
 
-    // Read back REPEATEDLY -- the repaint loop. The edit must survive all of
-    // them, and the posture must settle on Custom rather than fighting back.
+    // 回读 REPEATEDLY —— 数据 重绘 循环。
+    // 编辑必须幸存所有编辑,姿态必须稳定在自定义上,而不是反击。
     auto out = pn::read_sandbox_form(form, hard);
     for (int i = 0; i < 3; ++i) out = pn::read_sandbox_form(form, out);
 
@@ -862,12 +862,12 @@ TEST_CASE("sandbox pane: the posture row scores the walls") {
 #if AGENTTY_TEST_SANDBOX_BACKEND
     CHECK(!origin.empty());
 #else
-    (void)origin;   // no backend: annotate_sandbox_form scores nothing
+    (void)origin;   // 无后端 : annotate_sandbox_form 评分无
 #endif
 #if defined(__linux__)
     if (preview.compiled) {
-        // "N/M strong" -- the number is what makes two postures comparable at a
-        // glance, where four safe-sounding names are not.
+        // "N/M strong" 数字是两个姿态可以比较的,
+        // 四个安全 -sounding 名字没有。
         CHECK(origin.find('/') != std::string::npos);
         CHECK(origin.find("strong") != std::string::npos);
     }
@@ -875,18 +875,18 @@ TEST_CASE("sandbox pane: the posture row scores the walls") {
 }
 
 TEST_CASE("sandbox pane: a cap nobody asked for is not reported as a gap") {
-    // From a screenshot: the footer read `resource.memory: none (none) ·
-    // resource.cpu: none (none)` on a policy where nothing was wrong. Those
-    // rows ship at 0 = "no cap", deliberately -- sandbox_config.hpp says the
-    // right ceiling is a property of the machine and picking one for someone
-    // else's laptop turns a working build into an OOM kill.
+    // 从截图:页脚读
+    // `resource.memory: none (none) · resource.cpu: none (none)`
+    // 保险单上没有问题,0分就划船 "no cap" 故意的 故意的... 故意的吗?
+    // sandbox_config.hpp 说右边的天花板是机器的地产 选一个
+    // 给别人的笔记本电脑 将一个工作楼变成一个 OOM 杀人
     //
-    // Reporting them beside real degradations is how a wall report teaches the
-    // user to ignore it.
+    // 报告这些与真实退化
+    // 无关的,
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
-    cfg.memory_mb = 0;      // no cap wanted
+    cfg.memory_mb = 0;      // 不需要盖帽
     cfg.cpu_percent = 0;
     cfg.max_procs = 0;
 
@@ -901,8 +901,8 @@ TEST_CASE("sandbox pane: a cap nobody asked for is not reported as a gap") {
     }
 #endif
 
-    // And asking for one flips it back: the flag tracks the REQUEST, not the
-    // capability, so a cap that was asked for and failed is still a gap.
+    // 并且要求一个翻回来: 标志 跟踪 REQUEST
+    // 而不是能力 所以要求的和失败的上限 仍然是个漏洞
     cfg.memory_mb = 4096;
     const auto asked = pn::preview_sandbox(cfg);
 #if defined(__linux__)
@@ -928,8 +928,8 @@ TEST_CASE("sandbox pane: an unset cap row says so instead of showing none") {
     const auto& origin = form.fields[static_cast<std::size_t>(mem)].origin;
 #if defined(__linux__)
     if (preview.compiled) {
-        // "none (none)" is accurate and useless -- it reads as a failure. The
-        // row has to say the cap is unset, which is a choice.
+        // "none (none)"是准确的,也是无用的——它读起来是失败的。
+        // 行必须说盖子是未设置的,这是一个选择。
         CHECK(origin.find("no cap") != std::string::npos);
         CHECK(origin.find("none") == std::string::npos);
     }
@@ -937,10 +937,10 @@ TEST_CASE("sandbox pane: an unset cap row says so instead of showing none") {
 }
 
 TEST_CASE("sandbox pane: empty path rows say they are empty") {
-    // These rows used to be a Text field holding "a, b, c", and an empty one
-    // rendered as a blank line that read as broken. They are Picks now -- they
-    // show a count and open the list editor -- so the emptiness has to be
-    // visible in the PICK's placeholder instead.
+    // 这些行曾经是文本字段控件 "a, b, c" ,
+    // 而空的一行则被解读为断开。它们现在就是Picks -- -
+    // - 它们显示一个数并打开列表编辑器 -- -- 所以,
+    // 空的必须可见于 PICK 换成占位符
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -958,14 +958,14 @@ TEST_CASE("sandbox pane: empty path rows say they are empty") {
         const auto& fld = form.fields[static_cast<std::size_t>(i)];
         const auto* p = std::get_if<form::field::Pick>(&fld.value);
         REQUIRE(p != nullptr);
-        // Empty list => no count, and a placeholder that says how to add.
+        // 空列表 QQ 不计数, 并有一个占位符, 说明如何添加。
         CHECK(p->label.empty());
         CHECK(!p->placeholder.empty());
     }
 
-    // And a NON-empty list reports its size rather than its contents: three
-    // truncated paths in a narrow column tell you less than "3 paths" while
-    // looking like they tell you more.
+    // 还有 NON-empty 列表中报告其大小而不是内容:
+    // 狭小列中的三条短路告诉你小于 "3 paths" 却
+    // 看起来像他们告诉你的更多
     cfg.read_paths = {"/opt/a", "/opt/b"};
     auto filled = pn::build_sandbox_form(cfg, facts_for(cfg));
     const int i = row_of(filled, pn::kSbReadPaths);
@@ -976,37 +976,37 @@ TEST_CASE("sandbox pane: empty path rows say they are empty") {
     CHECK(p->label == "2 paths");
 }
 
-// ── The path list editor ────────────────────────────────────────
+// ── 路径列表编辑器 ────────────────────────────────────────
 //
-// Comma-separated text was a serialisation format pretending to be an
-// interface. These pin the list behaving like a list.
+// 逗号-separated文本是一种串行格式, 假扮为接口。
+// 这些封条将列表像列表一样运行。
 
 TEST_CASE("sandbox list: round-trips its entries") {
     const std::vector<std::string> paths{"/opt/sdk", "/var/cache/x"};
     auto ed = pn::build_sandbox_list(pn::kSbReadPaths, "Also readable", "help",
-                                     paths, /*numeric=*/false);
+                                     paths, /*数字=*/false);
 
-    // One row per entry, plus the trailing blank that IS the add affordance.
+    // 每条条目一行,加上后面的空白 IS 额外负担。
     CHECK(ed.form.fields.size() == paths.size() + 1);
     CHECK(pn::read_sandbox_list(ed) == paths);
 }
 
 TEST_CASE("sandbox list: a blank entry is an absent entry") {
-    // This is what makes add and remove the same gesture: typing into the
-    // trailing blank adds, and clearing a line removes. No separate delete key
-    // to discover, and no way to end up storing an empty path.
+    // 这使得添加和删除相同的手势: 输入后缀的空白添加,
+    // 清除行会删除。 没有单独的删除键可以发现,
+    // 也没有任何方法保存空路径。
     auto ed = pn::build_sandbox_list(pn::kSbReadPaths, "t", "h",
                                      {"/a", "/b", "/c"}, false);
-    // Clear the middle one.
+    // 清净中道.
     std::get<form::field::Text>(ed.form.fields[1].value).value.clear();
     const std::vector<std::string> want{"/a", "/c"};
     CHECK(pn::read_sandbox_list(ed) == want);
 }
 
 TEST_CASE("sandbox list: entries are trimmed") {
-    // A path with a stray space does not error, it silently fails to match --
-    // the exact failure mode the comma format had, and the reason this editor
-    // exists.
+    // 一条带有偏移空间的路径不会出错,它默默地无法匹配
+    // ——逗号格式的准确失败模式,以及这个编辑器存在的
+    // 原因.
     auto ed = pn::build_sandbox_list(pn::kSbReadPaths, "t", "h", {"x"}, false);
     std::get<form::field::Text>(ed.form.fields[0].value).value = "  /opt/sdk  ";
     const std::vector<std::string> want{"/opt/sdk"};
@@ -1015,40 +1015,40 @@ TEST_CASE("sandbox list: entries are trimmed") {
 
 TEST_CASE("sandbox list: a port list validates on readback") {
     auto ed = pn::build_sandbox_list(pn::kSbPorts, "Allowed ports", "h",
-                                     {"443", "80"}, /*numeric=*/true);
+                                     {"443", "80"}, /*数字=*/true);
     CHECK(ed.numeric());
-    // TEXT rows, even for ports. maya's Number control has no caret field at
-    // all, so a list you type into cannot use one -- "I don't see a caret in
-    // the port list" was exactly that. The digit rule moves to readback.
+    // TEXT 连港口都行 maya '数字控件没有' 光标 字段,
+    // 所以您输入的列表不能使用 --
+    // "I don't see a caret in the port list" 数字规则是用来回转的
     CHECK(std::holds_alternative<form::field::Text>(ed.form.fields[0].value));
 
     const std::vector<std::string> want{"443", "80"};
     CHECK(pn::read_sandbox_list(ed) == want);
 
-    // Blank is absent, same rule as a path.
+    // 空虚是不存在的, 与一条路径一样的规则。
     std::get<form::field::Text>(ed.form.fields[0].value).value.clear();
     const std::vector<std::string> after{"80"};
     CHECK(pn::read_sandbox_list(ed) == after);
 }
 
 TEST_CASE("sandbox list: a non-port is dropped, not guessed at") {
-    // Enforced on readback now that the widget cannot enforce it. Dropping
-    // beats clamping: silently turning "8O80" (letter O) into 8080 would be
-    // inventing a rule the user never asked for, on a security control.
+    // 已执行到回读, 部件无法执行。 丢弃会击打夹击:
+    // 默默地将 "8O80"( 字母 O) 转换为
+    // 8080 将会在安全控制上产生用户从未要求的规则。
     auto ed = pn::build_sandbox_list(pn::kSbPorts, "t", "h",
                                      {"443", "8O80", "99999", "0", "0443"},
                                      true);
-    // 8O80 (letter O), 99999 (out of range) and 0 are dropped. "0443"
-    // normalises to 443, which is then a DUPLICATE of the first entry and
-    // collapses -- so one port survives, not two.
+    // 8O80(O),999999(超出范围)和0被放弃.
+    // "0443" 正常为443,然后是a DUPLICATE 第一次
+    // 进入和崩溃,所以一个港口生存,而不是两个。
     const std::vector<std::string> want{"443"};
     CHECK(pn::read_sandbox_list(ed) == want);
 }
 
 TEST_CASE("sandbox list: opening one from the pane carries the current values") {
-    // End to end: the Pick row hands off, and the editor is seeded from the
-    // config the FORM describes rather than from the saved policy -- so an
-    // unsaved posture change is not silently discarded by editing a list.
+    // End 结束: 将“选行”手摘掉,编辑器从配置中
+    // 引出 FORM 描述而不是从 已保存 策略 - 因此,
+    // 未保存的姿态变化不会被默默地通过编辑列表而放弃.
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -1078,7 +1078,7 @@ TEST_CASE("sandbox list: closing commits back into the pane") {
     auto [m2, _] = app::update(std::move(m),
                                Msg{SandboxEditList{std::string{pn::kSbReadPaths}}});
 
-    // Type a path into the trailing blank row.
+    // 键入一条路径, 输入后缀的空白行。
     {
         auto* ed = m2.ui.panel.get<pn::SandboxList>();
         REQUIRE(ed != nullptr);
@@ -1088,26 +1088,26 @@ TEST_CASE("sandbox list: closing commits back into the pane") {
 
     auto [m3, __] = app::update(std::move(m2), Msg{SandboxListClose{}});
 
-    // Back on the sandbox pane, with the value in the config and the row
-    // showing a count.
+    // 回到沙箱XXXX 面板,在配置和行中显示值为
+    // 一个计数.
     const auto* o = m3.ui.panel.get<pn::Sandbox>();
     REQUIRE(o != nullptr);
 
-    // Read back against the pane's WORKING config, not the sealed policy: the
-    // path lists live outside the form (the row is a Pick showing a count), so
-    // read_sandbox_form passes them through from its base. Using sb::config()
-    // here would be asking the OLD policy what the new paths are.
+    // 背对着 面板's WORKING 配置,而不是密封策略:路径
+    // 列表在表单外存在(行是显示一个计数的 Pick),
+    // 所以 read_sandbox_form 由基地通过,
+    // 使用 sb::config ()这里是要求 旧 政策是什么新路径。
     const auto out = pn::read_sandbox_form(o->pane.form, o->pane.working);
     const std::vector<std::string> want{"/opt/sdk"};
     CHECK(out.read_paths == want);
 
-    // And it is already on disk. There is no ^S any more -- persisting and
-    // applying were two different things, and only applying had to wait for a
-    // restart (see the autosave note in the reducer).
+    // 已经放在磁盘上了 没有 ^S 任何其它 --
+    // -- 持续和应用是两个不同的事物,
+    // 而仅仅申请需要等待重启(见 状态更新函数).
     CHECK(m3.d.persisted.sandbox.read_paths == want);
 }
 
-// ── Allowed hosts ────────────────────────────────────────────────────────────
+// ── 允许访问的主机 ────────────────────────────────────────────────────────────
 
 TEST_CASE("sandbox hosts: the row exists and says what empty means") {
     sandbox_cfg::Config cfg;
@@ -1120,8 +1120,8 @@ TEST_CASE("sandbox hosts: the row exists and says what empty means") {
     }();
     REQUIRE(f != nullptr);
     const auto& pick = std::get<form::field::Pick>(f->value);
-    // empty is not "none": it is the widest setting, and the row must say so
-    // rather than reading like nothing is reachable.
+    // 空不是"none":这是最广泛的设定,行必须如此说,
+    // 而不是像什么也达不到一样阅读.
     CHECK(pick.label.empty());
     CHECK(pick.placeholder.find("any public host") != std::string::npos);
 }
@@ -1134,7 +1134,7 @@ TEST_CASE("sandbox hosts: readback canonicalises, drops junk, and dedupes") {
         K::Host);
     CHECK(ed.kind == K::Host);
     CHECK_FALSE(ed.numeric());
-    // the URL and the bare name are ONE host; the IP and "*" are dropped.
+    // 编号 URL 赤裸裸的名声 一个 宿主; 温和 IP 财务报告和已审计财务报表 "*" 被丢弃。
     const std::vector<std::string> want{"github.com", "*.npmjs.org", "pypi.org"};
     CHECK(pn::read_sandbox_list(ed) == want);
 }
@@ -1145,16 +1145,16 @@ TEST_CASE("sandbox hosts: every entry says what will happen to it") {
         {"https://github.com/x", "10.0.0.1", "*.github.com", "github.com"}, K::Host);
     pn::renumber_sandbox_list(ed);
     const auto& f = ed.form.fields;
-    // rewritten -> told what it is saved AS
+    // 重写 - > 告诉它是什么 已保存 AS
     CHECK(f[0].help.find("saved as github.com") != std::string::npos);
-    // rejected -> told WHY and that it is dropped
+    // 拒绝 - > 告诉 原因 , 并放弃它
     CHECK(f[1].error.find("IP address") != std::string::npos);
     CHECK(f[1].error.find("dropped on close") != std::string::npos);
-    // wildcard -> reminded of the apex rule, naming the apex
+    // 通配符 - > 提醒最高规则, 命名最高规则
     CHECK(f[2].help.find("add github.com too") != std::string::npos);
-    // already canonical -> silent
+    // 已隐形 - > 无声
     CHECK(f[3].help.empty());
-    // the add row teaches both forms
+    // 添加行中同时教授两个表单
     CHECK(f.back().label == "+");
     CHECK(f.back().help.find("*.github.com") != std::string::npos);
 }
@@ -1194,29 +1194,29 @@ TEST_CASE("sandbox hosts: settings that quietly mean something else are flagged"
         const int r = row_of(form, pn::kSbHosts);
         return r < 0 ? std::string{"<no row>"} : form.fields[std::size_t(r)].error;
     };
-    // only wildcards: the sites themselves are unreachable.
+    // 仅限通配符:站点本身无法通达.
     cfg.allow_hosts = {"*.github.com"};
     CHECK(err_of(cfg).find("the sites themselves") != std::string::npos);
-    // a hand-edited junk entry is named, not silently ignored.
+    // 手-edited 垃圾条目被命名,而不是默默忽略。
     cfg.allow_hosts = {"github.com", "not a host"};
     CHECK(err_of(cfg).find("`not a host`") != std::string::npos);
-    // a list under a mode that does not use it.
+    // 列表,不使用该列表。
     cfg.allow_hosts = {"github.com"};
     cfg.net_mode = sandbox_cfg::NetMode::Ports;
     CHECK(err_of(cfg).find("only enforced while Access is full") != std::string::npos);
-    // and the healthy case is quiet.
+    // 健康的案子很安静
     cfg.net_mode = sandbox_cfg::NetMode::Full;
     cfg.allow_hosts = {"github.com", "*.github.com"};
     CHECK(err_of(cfg).empty());
 }
 
 TEST_CASE("sandbox list: typing builds the entry in order") {
-    // Reported as "a always suffixed to list": typing "abc" came out reversed.
+    // 报为 "a always suffixed to list" : 输入 "abc" 倒过来了
     //
-    // Growing the list rebuilds the form (a new blank row has to appear after
-    // the one you just filled), and build_sandbox_list makes FRESH Text fields
-    // whose caret is 0. The value survived the rebuild and the caret did not,
-    // so every keystroke after the first inserted at the start.
+    // 列表的扩展重建了表格(在您刚刚填充的表格之后,需要出现一个
+    // 新的空白行),并且 build_sandbox_list 制造
+    // FRESH 文本字段中 光标 0. 重建中幸存的价值和 光标 没有,
+    // 所以在开始插入第一个键后,每个键盘都按住。
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -1228,17 +1228,17 @@ TEST_CASE("sandbox list: typing builds the entry in order") {
                                Msg{SandboxEditList{std::string{pn::kSbReadPaths}}});
     m = std::move(m1);
 
-    // Put the cursor on the trailing blank row and type.
+    // 将光标放在后面的空白行和类型上。
     {
         auto* ed = m.ui.panel.get<pn::SandboxList>();
         REQUIRE(ed != nullptr);
         ed->pane.form.cursor =
             static_cast<int>(ed->pane.form.fields.size()) - 1;
     }
-    // The real key sequence: translate() emits TypeToEdit for the first
-    // printable (it starts the session) and Insert for the rest. Sending
-    // TypeToEdit three times would test a sequence the router never produces --
-    // the later two would hit the !editing() guard and be dropped.
+    // 真正的键序列: translate() 发出TypeToEdit
+    // 用于第一个可打印( 它开始会话) , 插入其余的。
+    // 发送TypeToEdit 三次将测试路由器从未产生的序列 -- -
+    // - 后两次将击中 editing() 的守护器并被丢弃。
     {
         auto [next, __] = app::update(
             std::move(m),
@@ -1256,14 +1256,14 @@ TEST_CASE("sandbox list: typing builds the entry in order") {
     REQUIRE(ed != nullptr);
     const auto values = pn::read_sandbox_list(ed->pane);
     REQUIRE(values.size() == 1);
-    CHECK(values[0] == "abc");   // not "cba"
+    CHECK(values[0] == "abc");   // 否 "cba" 数据
 }
 
 TEST_CASE("sandbox list: Esc leaves the editor even from a live row") {
-    // Reported as "esc doesn't work always". While a row is EDITING, apply()
-    // turns Esc into LeaveField, which never reports `close` -- so the press
-    // only ended the edit and the editor stayed open with nothing visibly
-    // different.
+    // 报为 "esc doesn't work always"。当一行是 EDITING,
+    // apply() 转弯 Esc 输入 LeaveField ,
+    // 而从未报告 `close` 媒体只结束了编辑 编辑们却保持开放 没有
+    // 明显不同之处
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -1275,7 +1275,7 @@ TEST_CASE("sandbox list: Esc leaves the editor even from a live row") {
                                Msg{SandboxEditList{std::string{pn::kSbReadPaths}}});
     m = std::move(m1);
 
-    // Start editing the first entry.
+    // 开始编辑第一个条目.
     auto [m2, __] = app::update(
         std::move(m),
         Msg{SandboxListKey{form::keys::Action{form::keys::Intent::TypeToEdit, U'x'}}});
@@ -1283,14 +1283,14 @@ TEST_CASE("sandbox list: Esc leaves the editor even from a live row") {
     {
         const auto* ed = m.ui.panel.get<pn::SandboxList>();
         REQUIRE(ed != nullptr);
-        REQUIRE(ed->pane.form.editing());   // the session really started
+        REQUIRE(ed->pane.form.editing());   // 正在开始的会话
     }
 
-    // Two Escs, always. The first ends the edit AND dismisses any suggestions
-    // it opened -- they are one layer from the user's side. The second leaves
-    // the editor. That the count does NOT vary with whether you had typed is
-    // the fix: "esc doesn't work always" was a press being swallowed twice in
-    // some states and once in others.
+    // 总是两个 Esc。第一个结束编辑 和 拒绝它打开的任何建议,
+    // 它们是用户一方的一层。 第二层离开编辑器。 计数不是
+    // 随你是否拥有 带类型的 定点:
+    // "esc doesn't work always" 在一些州,有两次被吞噬,
+    // 在另一些州,有一次被吞噬。
     for (int i = 0; i < 2; ++i) {
         auto [next, ___] = app::update(
             std::move(m),
@@ -1299,13 +1299,13 @@ TEST_CASE("sandbox list: Esc leaves the editor even from a live row") {
     }
 
     CHECK(m.ui.panel.get<pn::SandboxList>() == nullptr);
-    CHECK(m.ui.panel.get<pn::Sandbox>() != nullptr);   // back on the pane
+    CHECK(m.ui.panel.get<pn::Sandbox>() != nullptr);   // 回到面板时
 }
 
 TEST_CASE("sandbox list: the caret starts at the END of an existing entry") {
-    // Reported as "the caret starts at the front". A Text field defaults its
-    // cursor to 0, so moving onto an entry that already read "/opt/sdk" and
-    // typing put the character BEFORE the path.
+    // 报为 "the caret starts at the front" 中,
+    // 文本字段默认光标为 0,因此移动到已读条目 "/opt/sdk"
+    // 输入字符 之前 道路。
     auto ed = pn::build_sandbox_list(pn::kSbReadPaths, "t", "h",
                                      {"/opt/sdk"}, false);
     const auto& t = std::get<form::field::Text>(ed.form.fields[0].value);
@@ -1313,14 +1313,14 @@ TEST_CASE("sandbox list: the caret starts at the END of an existing entry") {
 }
 
 TEST_CASE("sandbox list: backspacing to empty keeps the row and the session") {
-    // Reported as "backspace doesn't work sometimes", and the "sometimes" was
-    // the tell: it failed exactly when a row went empty.
+    // 报为 "backspace doesn't work sometimes" ,
+    // 并显示 "sometimes" 被告诉: 完全在一行空时失败了。
     //
-    // The grow logic used to REBUILD the form whenever the entry count
-    // disagreed with the row count. Backspacing a row to empty made it absent
-    // from read_sandbox_list(), so the rebuild deleted the row being edited --
-    // focus moved, the edit session ended, and the next backspace had no field
-    // to act on.
+    // 当条目数与行数不一致时, 将表单加到REBUILD 时,
+    // 其生长逻辑会使其在read_sandbox_list
+    // ( ) 中缺失, 因此重建删除了正在编辑的行 --
+    // 焦点移动, 编辑会话结束, 下一个后空格没有字段可
+    // 操作。
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -1335,7 +1335,7 @@ TEST_CASE("sandbox list: backspacing to empty keeps the row and the session") {
     const std::size_t rows_before =
         m.ui.panel.get<pn::SandboxList>()->pane.form.fields.size();
 
-    // Enter the field, then backspace the value away entirely.
+    // Enter 字段,然后将值完全回放。
     auto [m2, __] = app::update(
         std::move(m),
         Msg{SandboxListKey{form::keys::Action{form::keys::Intent::TypeToEdit, U'c'}}});
@@ -1349,17 +1349,17 @@ TEST_CASE("sandbox list: backspacing to empty keeps the row and the session") {
 
     const auto* ed = m.ui.panel.get<pn::SandboxList>();
     REQUIRE(ed != nullptr);
-    // The row survived every keystroke, so backspace always had a target.
+    // 排队幸存了每根键盘,所以后空格总是有目标.
     CHECK(ed->pane.form.fields.size() == rows_before);
     CHECK(ed->pane.form.editing());
-    // And it really is empty now -- the keystrokes landed.
+    // 现在真的空了 键盘杆落地了
     CHECK(std::get<form::field::Text>(ed->pane.form.fields[0].value).value.empty());
 }
 
 TEST_CASE("sandbox list: ^X removes the focused entry") {
-    // "no way to remove the entry". Clearing a line works (blanks are dropped
-    // on commit) but is not discoverable, so ^X -- which the form layer already
-    // routes as ResetField and leaves to the pane -- deletes the row.
+    // "no way to remove the entry" 清除
+    // 线条工程(在犯罪时空出),但无法发现,所以 ^X - 窗体层已经向
+    // 它移动 ResetField 和叶子 面板 -- 删除行。
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -1371,7 +1371,7 @@ TEST_CASE("sandbox list: ^X removes the focused entry") {
                                Msg{SandboxEditList{std::string{pn::kSbReadPaths}}});
     m = std::move(m1);
 
-    // Remove the middle one.
+    // 取中一门.
     m.ui.panel.get<pn::SandboxList>()->pane.form.cursor = 1;
     auto [m2, __] = app::update(
         std::move(m),
@@ -1383,11 +1383,11 @@ TEST_CASE("sandbox list: ^X removes the focused entry") {
     const std::vector<std::string> want{"/a", "/c"};
     CHECK(pn::read_sandbox_list(ed->pane) == want);
 
-    // The labels renumber, so the list does not read 1, 2, 2.
+    // 标签重新编号,所以列表不改为1,2,2.
     CHECK(ed->pane.form.fields[0].label == "1.");
     CHECK(ed->pane.form.fields[1].label == "2.");
-    // And the trailing add row is still there -- it is the affordance, not an
-    // entry, so it must never be what ^X deletes.
+    // 后面的加行仍然在那里, ——这是付得起的,而不是一个条目,
+    // 所以它绝对不是^X删除的。
     CHECK(ed->pane.form.fields.back().label == "+");
 }
 
@@ -1403,7 +1403,7 @@ TEST_CASE("sandbox list: ^X cannot delete the add row") {
                                Msg{SandboxEditList{std::string{pn::kSbReadPaths}}});
     m = std::move(m1);
 
-    // Park on the trailing "+" row and try to remove it.
+    // 停车在后方 "+" 划行并试着去掉它。
     {
         auto* ed = m.ui.panel.get<pn::SandboxList>();
         ed->pane.form.cursor =
@@ -1422,14 +1422,14 @@ TEST_CASE("sandbox list: ^X cannot delete the add row") {
 }
 
 TEST_CASE("sandbox pane: the ports row opens even when Access is not `ports`") {
-    // It used to be LOCKED unless the mode was already `ports`, which made it
-    // unreachable: lock_row makes activate() return Nothing, so Enter did not
-    // open the editor and there was no way to fill in ports at all. The row
-    // told you to set Access first and would not let you act.
+    // 它曾经是LOCKED,除非模式已经是`ports`,
+    // 这使得它无法到达:lock_row使得activate()返回什么也没有,
+    // 所以Enter没有打开编辑器,根本没有填充端口的方法.
+    // 排行告诉你先设置Access,不会让你采取行动.
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
-    cfg.net_mode = sandbox_cfg::NetMode::Full;   // NOT ports
+    cfg.net_mode = sandbox_cfg::NetMode::Full;   // 不 端口
     install(cfg);
 
     auto form = pn::build_sandbox_form(cfg, facts_for(cfg));
@@ -1439,9 +1439,9 @@ TEST_CASE("sandbox pane: the ports row opens even when Access is not `ports`") {
 }
 
 TEST_CASE("sandbox pane: adding a port switches Access to `ports`") {
-    // Adding a port is an unambiguous statement of intent, so it sets the mode
-    // rather than sitting inert under `full`. Otherwise the user fills in a
-    // port list that does nothing and nothing says why.
+    // 添加一个端口是明确的意图声明,所以它设定了模式而不是在
+    // `full`下坐惯。 否则用户会填写一个端口列表,
+    // 它将不做任何事情, 也不会说原因。
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -1470,9 +1470,9 @@ TEST_CASE("sandbox pane: adding a port switches Access to `ports`") {
 }
 
 TEST_CASE("sandbox pane: emptying the port list does not open the network") {
-    // It used to jump to `full`, which silently turned "allow these ports"
-    // into "allow everything". Now it stays on `ports` (deny all) and the
-    // row's error says so.
+    // 曾经跳到 `full` ,默默地转动 "allow these ports"
+    // 输入 "allow everything" 继续 `ports` (
+    // 否定全) 且行误说.
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -1485,7 +1485,7 @@ TEST_CASE("sandbox pane: emptying the port list does not open the network") {
                                Msg{SandboxEditList{std::string{pn::kSbPorts}}});
     m = std::move(m1);
 
-    // Clear the one entry (blank is absent, same as a path).
+    // 清除一个条目(空白不见,与路径相同).
     {
         auto* ed = m.ui.panel.get<pn::SandboxList>();
         REQUIRE(ed != nullptr);
@@ -1530,16 +1530,16 @@ TEST_CASE("sandbox list: a bad port is flagged while typing") {
 }
 
 TEST_CASE("sandbox pane: the form teaches itself") {
-    // The standard: a user should be able to learn this pane FROM the pane.
-    // Nobody arrives knowing what W^X is, what `toolchain` grants, or what
-    // turning Scope IPC off costs them -- and a security control you cannot
-    // reason about is one you leave at its default forever, which makes every
-    // row below the first one dead weight.
+    // 标准:用户应该能够学习到这个 面板 FROM 编号 面板.
+    // 沒人知道W的到來 ^X 是什么,这是...
+    // `toolchain` 授权 ,或者什么转动范围
+    // IPC 安全控制是永远的 永远的离开,
+    // 这使得每行都低于第一个死体重。
     //
-    // So this is a completeness check, not a spelling check: every settable
-    // row explains itself, and every ENUM OPTION explains itself separately,
-    // because "which of these three" is a different question from "what is
-    // this row".
+    // 所以这是完整的检查,不是拼写检查 每条固定的行都会解释自己,
+    // 每条 ENUM OPTION 分别解释自己,
+    // 因为 "which of these three" 是一个与
+    // "what is this row".
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -1552,20 +1552,20 @@ TEST_CASE("sandbox pane: the form teaches itself") {
         if (f.is_header()) continue;
         ++rows;
 
-        // Every row says what it is. A label alone is a name, not an
-        // explanation -- "W^X" means nothing to someone who has not met it.
+        // 每行都说它是什么。一个标签就是一个名字,
+        // 而不是解释——"W^X"对于一个没有遇到它的人来说毫无意义。
         //
-        // Messages are built COMPLETELY before the macro: doctest streams its
-        // argument into a MessageBuilder, so any `+` inside the call tries to
-        // concatenate onto the builder instead of onto a string.
+        // 消息在宏前是建 COMPLETELY :doctest 数据
+        // 流 其论据为 MessageBuilder,所以调用 内的
+        // 任何 `+` 试图将信息连接到构建器上而不是串上.
         const std::string who = "row '" + f.id + "'";
         const std::string no_help = who + " has no help text";
         CHECK_MESSAGE(!f.help.empty(), no_help);
 
-        // Every option of a pick-one row says what IT does. Without this the
-        // row explains the question and leaves the answers as bare words:
-        // "toolchain / minimal / host-readable" names three things and
-        // defines none of them.
+        // 选择选择 -one 排队
+        // 说 IT 答案是空的:
+        // "toolchain / minimal / host-readable"命名了三件东西,
+        // 并且定义了其中的任何一个.
         if (const auto* c = std::get_if<form::field::Choice>(&f.value)) {
             const std::string miss = who + " is missing per-option hints";
             CHECK_MESSAGE(c->hints.size() == c->labels.size(), miss);
@@ -1576,16 +1576,16 @@ TEST_CASE("sandbox pane: the form teaches itself") {
             }
         }
     }
-    // And the sweep actually ran -- a loop that skipped everything would
-    // report zero failures, which is the failure mode this file is about.
+    // 扫描结果实际上运行了—— 跳过一切的循环
+    // 会报告零故障,这就是这个文件的故障模式。
     CHECK(rows >= 15);
 }
 
 TEST_CASE("sandbox pane: a toggle says what its CURRENT state does") {
-    // A toggle renders as nothing but on/off, so a single help line can only
-    // describe the row, never the choice. Without state-dependent help the
-    // only way to learn what turning something off costs is to turn it off --
-    // the wrong way round for a security control.
+    // A 切换 渲染 只不过是 on/off ,
+    // 所以单行帮助线只能描述行,永远不能选择。
+    // 没有状态 -dependent 帮助了解什么是关闭成本的唯一
+    // 方法 就是关闭成本 安全控制的错误方式
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -1597,26 +1597,26 @@ TEST_CASE("sandbox pane: a toggle says what its CURRENT state does") {
     REQUIRE(i >= 0);
     const auto help_on = on.fields[static_cast<std::size_t>(i)].help;
 
-    // build_sandbox_form is pure over (config, facts), so flipping the config
-    // and rebuilding is the whole test -- no reinstall needed.
+    // build_sandbox_form 完全结束(配置,事实),
+    // 所以翻转配置和重建是整个测试——不需要重新安装。
     cfg.wx_protect = false;
     const auto off = pn::build_sandbox_form(cfg, facts_for(cfg));
     const auto help_off = off.fields[static_cast<std::size_t>(i)].help;
 
-    // The two states read differently, and each names its own consequence.
+    // 两国解读不同,各取其后果.
     CHECK(help_on != help_off);
     CHECK(help_on.find("on:") != std::string::npos);
     CHECK(help_off.find("off:") != std::string::npos);
 }
 
 TEST_CASE("sandbox list: backspace works on the FIRST press after opening") {
-    // Reported as "backspace on the selected row doesn't work first".
+    // 报告编号为"backspace on the selected row doesn't work first".
     //
-    // Two bugs stacked. The router did not translate Backspace while browsing
-    // at all, so the key was lost before apply() ever saw it; and even once it
-    // arrived, apply() requires an edit session and the editor opens in
-    // Browsing. Typing a character auto-enters and Backspace did not, so the
-    // two ways of starting to edit the same row disagreed.
+    // 堆叠了两个错误。 路由器没有翻译 Backspace 浏览时,
+    // 键在之前丢失了 apply() 曾经见过它;即使它一到,
+    // apply() 需要编辑会话,编辑器在浏览中打开。
+    // 打入字符自动 -enters 财务报告和已审计财务报表 Backspace
+    // 并没有,所以开始编辑同一行的两种方式是不一致的。
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -1628,7 +1628,7 @@ TEST_CASE("sandbox list: backspace works on the FIRST press after opening") {
                                Msg{SandboxEditList{std::string{pn::kSbReadPaths}}});
     m = std::move(m1);
 
-    // Exactly ONE press, straight after opening, with no edit started.
+    // 完全按ONE,打开后直线,没有开始编辑.
     auto [m2, __] = app::update(
         std::move(m),
         Msg{SandboxListKey{form::keys::Action{form::keys::Intent::Backspace, 0}}});
@@ -1638,16 +1638,16 @@ TEST_CASE("sandbox list: backspace works on the FIRST press after opening") {
     REQUIRE(ed != nullptr);
     const std::vector<std::string> want{"ab"};
     CHECK(pn::read_sandbox_list(ed->pane) == want);
-    // And it left a live session, so the NEXT press continues rather than
-    // needing its own wake-up.
+    // 留下了现场直播,所以 下一个 新闻继续,
+    // 而不是需要自己的觉醒 -up.
     CHECK(ed->pane.form.editing());
 }
 
 TEST_CASE("sandbox list: backspace on an empty row is harmless") {
-    // The form layer's reason for not auto-entering on delete keys is that a
-    // stray Backspace must never destroy bytes the user cannot see a caret in.
-    // That still has to hold here: an empty row has nothing to delete, so the
-    // press must not start a session or disturb anything.
+    // 格式层在删除密钥上不使用自动-entering的原因是,
+    // 一个偏差的Backspace绝不能破坏字节,用户无法看到光标英寸.
+    // 这一点仍须在这里坚持:一行空的行没有东西可以删除,因此,
+    // 媒体不能开始一个会话或打扰任何东西.
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -1675,10 +1675,10 @@ TEST_CASE("sandbox list: backspace on an empty row is harmless") {
 }
 
 TEST_CASE("sandbox list: duplicates collapse, keeping the first position") {
-    // Two identical binds are one bind and two identical ports are one port,
-    // but a duplicate is easy to create by accident (type a path, scroll, type
-    // it again) and keeping both makes the row's count disagree with what the
-    // policy actually does.
+    // 两个相同的绑定是一绑定,两个相同的端口是一港,
+    // 但一个重复很容易偶然产生(键入路径,滚动,
+    // 再键入),并且保持这两个位置都使得行数与政策的
+    // 实际作用不相符.
     auto ed = pn::build_sandbox_list(pn::kSbReadPaths, "t", "h",
                                      {"/a", "/b", "/a", "/c", "/b"}, false);
     const std::vector<std::string> want{"/a", "/b", "/c"};
@@ -1686,13 +1686,13 @@ TEST_CASE("sandbox list: duplicates collapse, keeping the first position") {
 }
 
 TEST_CASE("sandbox pane: a path in two lists is flagged, not silently resolved") {
-    // The compiler cannot catch this: a grant and a mask are both valid
-    // mounts, so which wins comes down to emission order. The user asked for
-    // two incompatible things and the policy quietly picked one.
+    // 电话 编译器 无法抓取: a 授权 并且面具
+    // 是有效的,所以胜利的顺序是排放。 用户要求两个
+    // 不兼容的东西,而政策悄悄地选择了一个。
     //
-    // The pane REPORTS rather than resolves, deliberately -- "masked" and
-    // "writable" are equally plausible readings of the same two rows, so
-    // picking a winner would be inventing an intent.
+    // 电话 面板 REPORTS 而不是决心,故意的...
+    // "masked" 财务报告和已审计财务报表 "writable" 同样的
+    // 读数是两行的, 所以选一个赢家就是在制造一种意图。
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -1712,14 +1712,14 @@ TEST_CASE("sandbox pane: a path in two lists is flagged, not silently resolved")
     CHECK(err.find("/opt/shared") != std::string::npos);
     CHECK(err.find("writable") != std::string::npos);
 #else
-    CHECK(err.empty());   // no backend: the pane annotates nothing
+    CHECK(err.empty());   // 无后端: enfense 面板 说明什么
 #endif
 }
 
 TEST_CASE("sandbox pane: a relative path is flagged") {
-    // It compiles and it quietly does not do what it reads like: the sandbox
-    // resolves it against the CHILD's working directory, not the pane's, so
-    // `build` usually matches nothing at all.
+    // 来,来,来 编译 它不会悄悄地做它所写的: 沙箱 解决它
+    // 与 CHILD 工作目录,而不是 面板 是因为...
+    // `build` 通常完全没有匹配。
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -1733,15 +1733,15 @@ TEST_CASE("sandbox pane: a relative path is flagged") {
     const int r = row_of(form, pn::kSbReadPaths);
     REQUIRE(r >= 0);
 #if !AGENTTY_TEST_SANDBOX_BACKEND
-    // No backend: annotate_sandbox_form is a no-op, nothing to flag.
+    // 无后端 : annotate_sandbox_form 是一个不 -op ,无 标志.
     CHECK(form.fields[static_cast<std::size_t>(r)].error.empty());
     return;
 #endif
     CHECK(form.fields[static_cast<std::size_t>(r)].error.find("relative")
           != std::string::npos);
 
-    // An absolute path is fine, and so is ~ -- the shell expands it before the
-    // sandbox ever sees it.
+    // 绝对路径是好的,同样是~-- 贝壳在它之前扩张它 沙箱
+    // 从来没有见过它。
     cfg.read_paths = {"/opt/sdk", "~/.cargo"};
     auto ok = pn::build_sandbox_form(cfg, facts_for(cfg));
     pn::annotate_sandbox_form(ok, pn::preview_sandbox(cfg), cfg,
@@ -1752,13 +1752,13 @@ TEST_CASE("sandbox pane: a relative path is flagged") {
 }
 
 TEST_CASE("sandbox list: browsing past an entry does not open suggestions") {
-    // `completing` used to be computed from the row's TEXT alone, so arrowing
-    // onto an existing entry popped the completion list open for a row the
-    // user had not typed a character into -- and then stole their next Esc to
-    // dismiss a list they never asked for, which reads as Esc being swallowed.
+    // `completing` 从前是从行中计算出来的
+    // TEXT 单向已有条目箭头时, 打开了用户未打开的
+    // 完成列表 带类型的 字符输入 - 然后偷走他们的下一个
+    // Esc 以撤销他们从未要求过的名单,即 Esc 被吞没了
     //
-    // Completion is an affordance for the thing you are WRITING. Browsing past
-    // a value is not writing it.
+    // 完成是一份你应得的 WRITING。
+    // 浏览一个值不是写出来的。
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -1770,7 +1770,7 @@ TEST_CASE("sandbox list: browsing past an entry does not open suggestions") {
                                Msg{SandboxEditList{std::string{pn::kSbReadPaths}}});
     m = std::move(m1);
 
-    // Move down a row -- no typing anywhere.
+    // 下行移动——任何地方都不许打字.
     auto [m2, __] = app::update(
         std::move(m),
         Msg{SandboxListKey{form::keys::Action{form::keys::Intent::MoveNext, 0}}});
@@ -1783,13 +1783,13 @@ TEST_CASE("sandbox list: browsing past an entry does not open suggestions") {
 }
 
 TEST_CASE("sandbox list: accepting a suggestion settles instead of looping") {
-    // Tab writes the hit into the row and closes the list. But `completing` is
-    // recomputed on the NEXT keystroke from the row text, and the picker's
-    // query still held the half-typed prefix -- so the list reopened
-    // immediately, now matching the full accepted path. Tab had the effect of
-    // accepting a suggestion and being offered it straight back.
+    // Tab 将击打写入行并关闭列表。 `completing`
+    // 重算在 下一个 键从行文本中键入, 选择面板 查询
+    // 仍然保留了半个 -typed 前缀 - 因此
+    // 列表立即重新打开, 现在匹配完整接受的路径。
+    // Tab 拥有 副作用 接受一个建议,然后直接被提出来
     //
-    // Syncing the query to what was written is what makes accepting terminal.
+    // 将查询同步到所写的内容就是接受终端的原因.
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -1801,7 +1801,7 @@ TEST_CASE("sandbox list: accepting a suggestion settles instead of looping") {
                                Msg{SandboxEditList{std::string{pn::kSbReadPaths}}});
     m = std::move(m1);
 
-    // Type into the trailing blank row to open suggestions.
+    // 键入后缀的空白行以打开建议。
     {
         auto* ed = m.ui.panel.get<pn::SandboxList>();
         REQUIRE(ed != nullptr);
@@ -1813,8 +1813,8 @@ TEST_CASE("sandbox list: accepting a suggestion settles instead of looping") {
         Msg{SandboxListKey{form::keys::Action{form::keys::Intent::TypeToEdit, U's'}}});
     m = std::move(m2);
 
-    // Only meaningful if the workspace index actually produced candidates;
-    // otherwise there is nothing to accept and nothing to assert.
+    // 只有工作区指数真正产生候选人才有意义;否则,
+    // 没有什么可以接受的,也没有可以断言的。
     if (!m.ui.panel.get<pn::SandboxList>()->pane.completing) return;
 
     auto [m3, ___] = app::update(
@@ -1826,8 +1826,8 @@ TEST_CASE("sandbox list: accepting a suggestion settles instead of looping") {
     REQUIRE(ed != nullptr);
     CHECK_FALSE(ed->pane.completing);
 
-    // The query now matches the accepted value, so the next repaint-driving
-    // key cannot decide the user typed something and reopen the list.
+    // 查询现在符合接受的值, 所以下一个 重绘-driving
+    // 密钥无法决定用户 带类型的 重新打开名单
     const auto* row = ed->pane.form.focused();
     REQUIRE(row != nullptr);
     const auto& t = std::get<form::field::Text>(row->value);
@@ -1836,17 +1836,17 @@ TEST_CASE("sandbox list: accepting a suggestion settles instead of looping") {
 }
 
 TEST_CASE("sandbox list: no key sequence leaves the editor inconsistent") {
-    // A state sweep rather than another named case.
+    // 州检而不是另一个有名的案件
     //
-    // This pane now has three overlapping modes (browsing, editing,
-    // completing) and a dozen keys that each touch two of them. Every bug in
-    // the last several rounds was a SEAM between two of those -- a flag that
-    // outlived its cause, a key that meant different things depending on an
-    // invisible bit -- and naming them one at a time only ever finds the ones
-    // already reported.
+    // 这个 面板 现在有三个重叠模式(浏览、编辑、
+    // 完成)和十几个键,每个键可以触摸其中的两个。
+    // 过去几轮中的每个错误都是一个 SEAM 二者之间 --
+    // -- a 标志 超越了它的事业, 钥匙意味着不同的东西
+    // 取决于一个隐形的位点-- 一次命名它们 一个只发现已经
+    // 报告过的东西。
     //
-    // So: drive every intent from every reachable state and assert the
-    // invariants that must hold no matter what.
+    // 所以:从每个可达到的状态 推动所有意图,
+    // 并申明 不变量 不论怎样,这都得坚持下去。
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -1861,9 +1861,9 @@ TEST_CASE("sandbox list: no key sequence leaves the editor inconsistent") {
         I::Complete, I::ResetField, I::Activate, I::AdjustUp, I::AdjustDown,
     };
 
-    // A few deterministic orderings rather than a random walk: a seeded
-    // shuffle would make a failure depend on a seed nobody has, and these
-    // cover the interleavings the real bugs came from.
+    // 少数决定性命令而不是随机走动:种子
+    // 洗牌会让失败依赖于无人拥有的种子,
+    // 这些覆盖了真正的虫子来自的交替.
     for (std::size_t start = 0; start < std::size(keys); ++start) {
         Model m = opened();
         auto [m1, _] = app::update(
@@ -1878,50 +1878,50 @@ TEST_CASE("sandbox list: no key sequence leaves the editor inconsistent") {
             m = std::move(next);
 
             const auto* ed = m.ui.panel.get<pn::SandboxList>();
-            if (!ed) break;   // Esc-equivalent closed it; nothing left to check
+            if (!ed) break;   // Esc-equivalent 关闭; 已无任何可检查
 
-            // 1. Suggestions imply an edit session. The converse is false (you
-            //    can edit without suggestions), but a completion list floating
-            //    over a row nobody is writing is what ate the user's Esc.
+            // 1. 建议意味着编辑会话。反面是虚假的(您)
+            //    无需建议就可以编辑, 但一个漂浮在一行的完成
+            //    列表 没有人在写, 才是吃了用户的Esc。
             if (ed->pane.completing)
                 CHECK(ed->pane.form.editing());
 
-            // 2. The cursor is always on a real row. An erase that forgot to
-            //    clamp would index past the end on the next keystroke.
+            // 2. 光标总是在真实的行上。
+            //    夹子会通过下个键键键的尾部进行索引。
             CHECK(ed->pane.form.cursor >= 0);
             CHECK(ed->pane.form.cursor <
                   static_cast<int>(ed->pane.form.fields.size()));
 
-            // 3. There is always exactly one trailing add row, and it is the
-            //    last one. Lose it and the list can never grow again.
+            // 3. 总是有一条排行的,就是
+            //    最后一个,失去它,名单就再也不能长了。
             REQUIRE(!ed->pane.form.fields.empty());
             CHECK(ed->pane.form.fields.back().label == "+");
 
-            // 4. Entry labels stay in order: 1., 2., ... with no gaps. A
-            //    removal that skipped renumbering reads as the list having
-            //    lost an entry it still holds.
+            // 4. 条目标签按顺序排列:1.、2.、.无空白。
+            //    删除未更改编号的字段,则按照已丢失其
+            //    仍然持有的条目的列表。
             for (std::size_t i = 0; i + 1 < ed->pane.form.fields.size(); ++i)
                 CHECK(ed->pane.form.fields[i].label ==
                       std::to_string(i + 1) + ".");
 
-            // 5. Every row is a Text row. The port list uses them too, and a
-            //    stray Number would silently lose its caret.
+            // 5. 每行都是文字行。端口列表也使用它们,并且 a
+            //    流星数会悄悄地失去它 光标.
             for (const auto& f : ed->pane.form.fields)
                 CHECK(std::holds_alternative<form::field::Text>(f.value));
         }
     }
 }
 
-// ── What actually reaches the screen ──────────────────────────────
+// ── 实际到达屏幕的是什么 ──────────────────────────────
 //
-// Everything above tests the MODEL: the form, the reducer, the config it
-// produces. None of it proves a single pixel is painted correctly, and this
-// pane has already shipped two bugs that only existed at the render layer --
-// the subtitle describing the wrong engine, and a footer maya silently
-// replaced while a row was being edited.
+// 上面的一切都测试 MODEL : 形式,
+// 类型 状态更新函数 ,它所产生的配置。没有一种图像可以
+// 证明一个像素的画正确,这个 面板 已经运出两个只存在于
+// 渲染 层 - 描述错误引擎的字幕, 以及页脚
+// maya 编辑一行时静静替换.
 //
-// render_to_string paints the real Element tree at a real width, so these
-// assert on the bytes a user's terminal would receive.
+// render_to_string 绘制真实元素 源码树 以真实的宽度,
+// 所以这些断言 字节 用户的 终端 将会收到。
 
 TEST_CASE("sandbox render: the pane paints its rows, values and footer") {
     sandbox_cfg::Config cfg;
@@ -1936,37 +1936,37 @@ TEST_CASE("sandbox render: the pane paints its rows, values and footer") {
     const auto out = maya::render_to_string(
         maya::Panel{agentty::ui::form_config(form, maya::Color::blue())}.build(), 120);
 
-    // Framed like every other picker. A frameless overlay paints
-    // transparently over the thread and reads as "the key did nothing".
+    // 和其他的一样被设定 选择面板。无帧 覆盖面板 涂料透明地
+    // 覆盖 线程 并读作 "the key did nothing".
     CHECK(out.find("\xe2\x95\xad") != std::string::npos);   // ╭
     CHECK(out.find("Sandbox") != std::string::npos);
 
-    // Section headers and the rows under them.
+    // 第头文件节及其下各行.
     //
-    // Upper-cased: maya renders a header as caps plus a rule to the edge,
-    // which is what stops one section running into the next in a long form.
-    // Asserting the source-case label would pass on a pane that never painted
-    // a header at all.
+    // 上层 -cased: maya 渲染 a 头文件 以盖子加
+    // 一条规则到边缘, 也就是用长的形状阻止一个区域跑进另一个区域。
+    // 威胁源头 -case 标签会传递给一个 面板 从未画过 头
+    // 文件 一点都没有
     CHECK(out.find("FILESYSTEM") != std::string::npos);
     CHECK(out.find("Preset") != std::string::npos);
 
-    // The VALUE column, not just the labels. A row whose value never paints
-    // is a row you cannot read.
+    // 值 栏, 不仅仅是标签。 其价值从未画过的行是
+    // 您无法读取的行。
     CHECK(out.find("claybin") != std::string::npos);
 
-    // The list row renders its COUNT rather than a raw path list.
+    // 列表行 渲染 编号 COUNT 而不是原始路径列表。
     CHECK(out.find("1 path") != std::string::npos);
 }
 
-// The hosts row and its editor, painted. SB_DUMP=1 prints both so a human
-// can look at them -- the assertions pin what a user must be able to read.
+// 主持人排队和编辑,画。 SB_DUMP =1 印出两个字,
+// 这样人类就可以看它们-- 断言的钉子,一个用户必须能够读到的东西。
 TEST_CASE("sandbox render: Allowed hosts row and editor read correctly") {
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
     install(cfg);
-    // the real labels, as a user sees them (without this the rows paint
-    // their i18n KEYS, which is what an uninitialised catalog falls back to).
+    // 真实标签, 如用户所见( 没有此选项, 列会画他们的
+    // i18n) KEYS ,这就是一个未初始化的 目录 倒回去吧 说吧
     REQUIRE(agentty::i18n::init("en", ""));
     auto paint = [](const form::Form& f, int w) {
         return maya::render_to_string(
@@ -1982,7 +1982,7 @@ TEST_CASE("sandbox render: Allowed hosts row and editor read correctly") {
     };
     const bool dump = std::getenv("SB_DUMP") != nullptr;
 
-    // empty: the row must read as WIDE OPEN, not as "none".
+    // 空: 行必须读为 WIDE OPEN ,而不是作为 "none".
     {
         auto form = pn::build_sandbox_form(cfg, facts_for(cfg));
         pn::annotate_sandbox_form(form, pn::preview_sandbox(cfg), cfg, pn::EngineStatus::InForce);
@@ -1991,7 +1991,7 @@ TEST_CASE("sandbox render: Allowed hosts row and editor read correctly") {
         CHECK(out.find("Allowed hosts") != std::string::npos);
         CHECK(out.find("any public host") != std::string::npos);
     }
-    // set: a count, and the "via proxy" origin.
+    // 设置:一个计数,和"via proxy"的源头。
     cfg.allow_hosts = {"github.com", "*.github.com", "registry.npmjs.org"};
     {
         auto form = pn::build_sandbox_form(cfg, facts_for(cfg));
@@ -2001,39 +2001,39 @@ TEST_CASE("sandbox render: Allowed hosts row and editor read correctly") {
         CHECK(out.find("3 hosts") != std::string::npos);
         CHECK(out.find("via proxy") != std::string::npos);
     }
-    // the editor, mid-edit, with every kind of hint on screen at once.
+    // 编辑器,中-edit, 屏幕上立即有各种提示。
     {
         auto ed = pn::build_sandbox_list(pn::kSbHosts, "Allowed hosts",
             "commands may reach ONLY these names \xc2\xb7 empty = any public host",
             {"github.com", "*.github.com", "https://registry.npmjs.org/pkg", "10.0.0.1"},
             pn::SandboxListPane::ListKind::Host);
         pn::renumber_sandbox_list(ed);
-        ed.form.cursor = 2;   // on the pasted URL: its "saved as" note is help
+        ed.form.cursor = 2;   // 贴上 URL : 其类型 "saved as" 注释是帮助
         for (int w : {60, 100}) {
             const auto out = paint(ed.form, w);
             if (dump) std::printf("\n=== editor @%d ===\n%s\n", w, out.c_str());
             CHECK(out.find("saved as registry.npmjs.org") != std::string::npos);
             CHECK(out.find("dropped on close") != std::string::npos);
-            // nothing past the frame, at the narrowest width either.
+            // 没有什么经过 帧 宽度也最窄
             CHECK(widest(out) <= static_cast<std::size_t>(w));
         }
     }
 }
 
 TEST_CASE("sandbox render: nothing paints past the frame at any width") {
-    // The pane is the widest form in agentty -- long help lines, an origin
-    // column, and inline errors. A row that overflows does not wrap, it
-    // collides with the border and corrupts the frame.
+    // 电话 面板 是最宽的形态,以 agentty
+    // 长的帮助行、源列和内置错误。溢出一行不包,
+    // 它与边框相撞,并腐蚀 帧.
     //
-    // 60 is the practical floor (form_config clamps min-width against the
-    // terminal), 80 is the classic default, 200 is an ultrawide.
+    // 60是实际的一层(第1层) form_config 夹子分钟
+    // -width 反 对 终端 ),80是经典默认值,200是超宽值.
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
-    // Worst case for width: a long path, and an error on the same row.
+    // 宽度最差的例:一条长路,和同一行的错误.
     cfg.read_paths = {"/some/quite/long/path/to/a/vendored/dependency/tree"};
     cfg.net_mode = sandbox_cfg::NetMode::Ports;
-    cfg.allow_ports.clear();            // triggers the inline error
+    cfg.allow_ports.clear();            // 触发内在错误
     install(cfg);
 
     auto form = pn::build_sandbox_form(cfg, facts_for(cfg));
@@ -2045,14 +2045,14 @@ TEST_CASE("sandbox render: nothing paints past the frame at any width") {
             maya::Panel{agentty::ui::form_config(form, maya::Color::blue(),
                                                  nullptr, 0, width)}.build(),
             width);
-        // Every painted line must fit. render_to_string emits one line per
-        // row; a line longer than the terminal is the overflow bug.
+        // 每条画的线必须合身。 render_to_string
+        // 每行发出一行; 长于 终端 是溢出的错误。
         std::size_t start = 0, worst = 0;
         while (start <= out.size()) {
             const auto nl = out.find('\n', start);
             const auto end = (nl == std::string::npos) ? out.size() : nl;
-            // Count display columns, not bytes: the pane is full of UTF-8
-            // (·, ─, →) and a byte count would false-positive on every row.
+            // 计数显示列, 不 字节 : 数据 面板 充满 UTF -8(_、
+            // _、_)和a 字节 计数会错 -positive 每一行都一样
             std::size_t cols = 0;
             for (std::size_t i = start; i < end; ++i)
                 if ((static_cast<unsigned char>(out[i]) & 0xC0) != 0x80) ++cols;
@@ -2067,30 +2067,30 @@ TEST_CASE("sandbox render: nothing paints past the frame at any width") {
     }
 }
 
-// ── The same frame, under translation ────────────────────────────────
+// ── 同为帧,在翻译项下 ────────────────────────────────
 //
-// Prerequisite for docs/design/i18n.md. The claim that twenty languages can
-// share one TUI layout rests on two things being true, and neither is
-// obvious enough to assume:
+// 先决条件 docs/design/i18n.md.
+// 二十种语言可以分享的主张 TUI 排版基于两件事是真实的,
+// 而且两者都不足以假定:
 //
 //   1. a CJK label is DOUBLE-WIDTH -- `系统调用过滤` is 6 codepoints and 12
-//      columns -- so anything that counts characters will under-measure it by
-//      half and declare an overflowing row fine.
-//   2. German runs long. Measured on real agentty labels: `Applies on
-//      restart` (18 cols) becomes `Wird beim Neustart angewendet` (29), which
-//      is 1.61x -- well past the +30-40% rule of thumb.
+//      列 - 所以任何计算字符的都将在 -measure 一半,
+//      然后宣布溢出一排罚款。
+//   2. 德语长度较长。用真正的agentty标签测量:`应用
+//      重新启动` (18 cols) becomes `Wird beim Neustart angewendet '
+//      (29),即1.61x -- -- 已经远远超过+30-40%的拇指规则。
 //
-// So this paints the pane with the LONGEST translation we expect and the
-// WIDEST script we support, and measures in true display columns via
-// maya::string_width rather than by counting codepoints.
+// 因此,这描绘了面板与我们所期望的LONGEST翻译和我们所支持的
+// WIDEST脚本,以及通过maya::string_width
+// 来测量真实显示列,而不是通过计算代码点来进行.
 //
-// Note the deliberate difference from the test above: that one counts
-// non-continuation bytes, which equals the column count only while every
-// glyph is single-width. It is right for the English pane and would be
+// 注意与上述检验标准有故意的区别:其中一项标准是非。
+// -continuation 字节 ,它只等于列数,
+// 而每个格言都是单数 -width 英国人应该这样 面板 并且会是
 // WRONG here -- it would score 系统调用过滤 as 6 and pass a row that paints
-// 12 columns wide. Two measurements because they answer two questions.
+// 12列宽,两个测量,因为回答两个问题
 TEST_CASE("sandbox render: the frame survives translation") {
-    // Widest line, in display COLUMNS.
+    // 最宽的线路,显示为COLUMNS.
     const auto widest_cols = [](const std::string& out) {
         std::size_t start = 0, worst = 0;
         while (start <= out.size()) {
@@ -2107,8 +2107,8 @@ TEST_CASE("sandbox render: the frame survives translation") {
 
     struct Sample { const char* lang; const char* path; };
     const Sample samples[] = {
-        // A path is the longest free-form string a row can carry, and it is
-        // the one field a translation cannot shorten.
+        // 路径是一行可以携带的最长的自由-form字符串,
+        // 是翻译不能缩短的字段.
         {"de", "/ein/ziemlich/langer/pfad/zu/einem/abhängigkeitsbaum"},
         {"zh-CN", "/一个/相当/长的/路径/到/依赖/树"},
         {"ja", "/かなり/長い/パス/依存関係/ツリー"},
@@ -2122,7 +2122,7 @@ TEST_CASE("sandbox render: the frame survives translation") {
         cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
         cfg.read_paths = {s.path};
         cfg.net_mode = sandbox_cfg::NetMode::Ports;
-        cfg.allow_ports.clear();          // inline error on the same row
+        cfg.allow_ports.clear();          // 在同一行内嵌错误
         install(cfg);
 
         auto form = pn::build_sandbox_form(cfg, facts_for(cfg));
@@ -2142,10 +2142,10 @@ TEST_CASE("sandbox render: the frame survives translation") {
     }
 }
 
-// The measurement the whole design rests on: maya scores every script we
-// ship in true display columns. If this regresses, every width decision in
-// the renderer is wrong for 7 of the 20 languages and nothing else will say
-// so -- the layout just quietly corrupts.
+// 整个设计所依据的测量: maya 计算每个在
+// 真实显示列中传送的脚本。如果此选项退后,
+// 则在 渲染器 20种语言中,有7种是错的,
+// 其他的都说不出来——布局只是悄悄的腐败.
 TEST_CASE("i18n: maya measures every target script in display columns") {
     struct W { const char* text; int want; const char* note; };
     const W cases[] = {
@@ -2168,11 +2168,11 @@ TEST_CASE("i18n: maya measures every target script in display columns") {
 }
 
 TEST_CASE("sandbox render: the subtitle names the RUNNING engine") {
-    // Asserted on painted bytes rather than on the model: the subtitle has
-    // to describe what is actually in force. (This began as a screenshot
-    // bug where the pane claimed seccomp while a weaker engine ran. With one
-    // engine the mismatch is gone, but the pane must still name the engine
-    // rather than infer it from the config.)
+    // 被涂上画 字节 而不是在模型上:字幕必须描述
+    // 实际有效的内容。 (这开始于截图错误,
+    // 在那里 面板 索赔 seccomp 引擎变弱时,
+    // 引擎就变了,但引擎不匹配 面板 仍然必须命名引擎,
+    // 而不是从配置中推断它。 )
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -2197,7 +2197,7 @@ TEST_CASE("sandbox render: the list editor paints its entries and hint") {
     const auto out = maya::render_to_string(
         maya::Panel{agentty::ui::form_config(ed.form, maya::Color::blue())}.build(), 100);
 
-    // Both entries, numbered, plus the trailing add row.
+    // 这两条,编号,加上后面的加行.
     CHECK(out.find("/opt/sdk") != std::string::npos);
     CHECK(out.find("/var/cache/x") != std::string::npos);
     CHECK(out.find("1.") != std::string::npos);
@@ -2205,15 +2205,15 @@ TEST_CASE("sandbox render: the list editor paints its entries and hint") {
     CHECK(out.find("+") != std::string::npos);
 }
 
-// ── "applies on restart" has to be a checked claim ─────────────────────
+// ── "applies on restart"必须作核对的索赔 ─────────────────────
 //
-// The footer promised "saved · applies on restart" with NOTHING checking that
-// it would. Every ingredient of the answer was already computed -- the compile
-// result, the unenforceable list, the host probe -- and none of them was
-// joined into the claim being made.
+// 脚印向"saved · applies on restart"承诺,
+// 第NOTHING将进行核查。答案的每个成分都已经计算出来 — —
+// 第编译结果、无法执行的清单、主机探测器 — — 并且没有一个
+// 内容被并入正在提出的诉求中。
 //
-// Same bug as "sandbox: active" with no sandbox and as the subtitle naming
-// walls that were not up, only pointed at the future instead of the present.
+// 与 "sandbox: active" 没有 沙箱
+// 并且作为字幕,命名墙 还没有上, 仅仅指向未来而不是现在。
 
 TEST_CASE("sandbox restart: a clean policy promises plainly") {
     sandbox_cfg::Config cfg;
@@ -2223,16 +2223,16 @@ TEST_CASE("sandbox restart: a clean policy promises plainly") {
     const auto facts = facts_for(cfg);
     const auto preview = pn::preview_sandbox(cfg);
 
-    // Empty verdict == the restart really will deliver what the rows describe.
-    // The footer may then make its promise without qualification.
+    // 空的判断 \ \ 开始真的会提供 哪些行描述。
+    // 脚步者可以不附带任何条件地作出承诺。
     if (preview.compiled && preview.unenforceable.empty())
         CHECK(pn::restart_outcome(cfg, facts, preview).empty());
 }
 
 TEST_CASE("sandbox restart: a policy that will not compile says so") {
-    // The hard no. claybin refuses rather than degrading, so there is no
-    // "partly" here -- the next launch gets nothing from this config, and a
-    // footer saying "applies on restart" would be flatly false.
+    // 难者否. claybin 拒绝而不是侮辱,所以没有 "partly"
+    // 接下来的发射 从这个配置中没有任何结果 还有一个脚印说
+    // "applies on restart" 那样会完全是假的
     sandbox_cfg::Config cfg;
     cfg.configured = true;
 
@@ -2243,16 +2243,16 @@ TEST_CASE("sandbox restart: a policy that will not compile says so") {
     const auto out = pn::restart_outcome(cfg, facts_for(cfg), broken);
     REQUIRE(!out.empty());
     CHECK(out.find("NOT apply") != std::string::npos);
-    // And it carries the REASON, not just the refusal -- otherwise the user
-    // has no way to act on it.
+    // 并携带 REASON ,不仅仅是拒绝——否则用户
+    // 无法就此采取行动.
     CHECK(out.find("fabricated") != std::string::npos);
 }
 
 TEST_CASE("sandbox restart: a silently degraded capability is named") {
-    // The quiet case, and the reason the function exists. It compiles, the
-    // engine starts, and some wall still comes out weaker than asked. Without
-    // this the user believes in the part that degraded -- which is the whole
-    // failure mode this subsystem is built around.
+    // 静态的大小写, 以及函数存在的原因。
+    // 它的编译,引擎开始,一些壁仍然比要求的要弱。
+    // 没有这个,用户相信退化的部分,这就是这个子
+    // 系统围绕整个故障模式构建的。
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -2263,17 +2263,17 @@ TEST_CASE("sandbox restart: a silently degraded capability is named") {
 
     const auto out = pn::restart_outcome(cfg, facts_for(cfg), degraded);
     REQUIRE(!out.empty());
-    // It still applies -- so the verdict must not read as a refusal.
+    // 判决仍然有效 -- -- 因此,判决不能被理解为拒绝。
     CHECK(out.find("applies on restart") != std::string::npos);
-    // But the gap is named.
+    // 但间隙名曰.
     CHECK(out.find("network.isolation") != std::string::npos);
 }
 
 TEST_CASE("sandbox restart: the worst problem wins the one line the footer has") {
-    // Ordering is not cosmetic. The footer shows ONE line, so when several
-    // things are wrong the user needs the one that most invalidates the
-    // promise: a policy that will not compile makes the unenforceable list
-    // irrelevant, not merely less important.
+    // 点菜不是化妆品,脚印显示 一个 线条,
+    // 所以当有几件事出错时,用户需要最能使承诺
+    // 无效的:一个不会 编译 使无法执行的清单变得无关紧要,
+    // 而不仅仅是不重要。
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -2284,51 +2284,51 @@ TEST_CASE("sandbox restart: the worst problem wins the one line the footer has")
     worst.unenforceable.push_back("resource.cpu");
 
     pn::HostFacts facts;
-    facts.claybin_available = false;   // ALSO cannot start
+    facts.claybin_available = false;   // 无法启动 ALSO
     facts.sandbox_active = true;
 
     const auto out = pn::restart_outcome(cfg, facts, worst);
     CHECK(out.find("NOT apply") != std::string::npos);
-    // Not the lesser problems.
+    // 不是小问题
     CHECK(out.find("resource.cpu") == std::string::npos);
 }
 
 TEST_CASE("sandbox pane: the reducer keeps the restart verdict with the preview") {
-    // End to end through the pane: the verdict is computed in reprice(), with
-    // the preview that was built from the SAME config, so the two cannot
-    // disagree about the policy they are describing. The view only reads it --
-    // it cannot probe, and must not re-derive the config to find out.
+    // End 结束于 面板 : 判决计算为: reprice() ,
+    // 带有从 相同 配置,所以两人不能对他们所描述
+    // 的政策有分歧。观点只读到它——它不能探测,
+    // 并且不能重新 -derive 需要找到的配置。
     Model m = opened();
     const auto& p = pane(m).pane;
 
-    // Whatever the verdict is, it must be CONSISTENT with the preview beside
-    // it: a non-compiling policy cannot have an empty (all-clear) verdict.
+    // 不管判决是什么,它必须是 CONSISTENT 并附带预览:一个非
+    // -compiling 策略不能为空( 全部为 -clear 判决。
     if (!p.preview.compiled)
         CHECK(!p.restart_note.empty());
-    // And a clean compile with nothing unenforceable, on a host running the
-    // selected engine, must not invent a problem.
+    // 一个干净的编译,没有任何无法执行的东西,
+    // 在运行所选引擎的主机上,决不能发明一个问题.
     if (p.preview.compiled && p.preview.unenforceable.empty() &&
         pn::engine_status(sb::config(), p.facts) == pn::EngineStatus::InForce)
         CHECK(p.restart_note.empty());
 }
 
-// ── The subtitle must describe REALITY, not the selection ────────────────
+// ── 字幕必须描述REALITY,而不是选择 ────────────────
 //
-// Reported from a screenshot: selecting claybin while running under bwrap
-// instantly repainted the header to "claybin · landlock abi 10 · seccomp ·
-// cgroup2". None of those walls existed -- the policy is sealed at startup, so
-// the process was still bwrap and could not change.
+// 截图上报道: 选择 claybin 运行在包件下时,立即重新油漆 头
+// 文件 改为 "claybin · landlock abi 10 · seccomp · cgroup2" .
+// 这些墙都没有 -- -- 保险政策在启动时被封存,
+// 因此这一过程仍然是包扎的,无法改变。
 //
-// That is issue #21 re-entered through the front door, in the very pane built
-// to prevent it. The root cause was that the running engine was never a fact
-// the form could see: `SandboxPane::backend` held it and had no reader at all,
-// so the subtitle was derived from the SELECTED engine plus host capability.
+// 这是21号问题 -entered 从前门走来,就在 面板
+// 其根本原因是运行的引擎从来就不是形式所能看到的事实:
+// `SandboxPane::backend` 上面写着,
+// 没有读者,所以字幕来源于 SELECTED 引擎加主机能力。
 //
-// These cases pin the fix at every altitude it could regress.
+// 这些案子将固定点固定在每处高度上 可能倒退
 
 TEST_CASE("sandbox pane: running claybin DOES claim its walls") {
-    // The honesty has to cut both ways: a pane that never credits claybin is
-    // just as useless as one that always does.
+    // 诚实必须双管齐下:a 面板 永远没有信用 claybin
+    // 和总是这样没用的一样
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -2337,19 +2337,19 @@ TEST_CASE("sandbox pane: running claybin DOES claim its walls") {
     facts.claybin_available = true;
     facts.landlock_abi = 10;
     facts.sandbox_active = true;
-    facts.running = sandbox_cfg::LinuxBackend::Claybin;   // actually running
+    facts.running = sandbox_cfg::LinuxBackend::Claybin;   // 实际运行
 
     const auto form = pn::build_sandbox_form(cfg, facts);
     CHECK(form.subtitle.find("claybin") != std::string::npos);
     CHECK(form.subtitle.find("seccomp") != std::string::npos);
     CHECK(form.subtitle.find("landlock abi 10") != std::string::npos);
-    // Nothing pending, so no disclaimer.
+    // 没有待处理,所以没有免责声明。
     CHECK(form.subtitle.find("restart") == std::string::npos);
 }
 
 TEST_CASE("sandbox pane: an inactive sandbox never names an engine") {
-    // `running` is meaningless when nothing is enforcing (probe failed, or
-    // --sandbox off). Naming bwrap there would be the same lie in miniature.
+    // `running` 当无任何执行时( 检测失败,
+    // 或 --sandbox 命名包 微型的谎言也会存在
     sandbox_cfg::Config cfg;
     cfg.configured = true;
 
@@ -2363,10 +2363,10 @@ TEST_CASE("sandbox pane: an inactive sandbox never names an engine") {
 }
 
 TEST_CASE("sandbox pane: describe_running ignores the config entirely") {
-    // The structural guarantee, checked directly: this function takes no
-    // config, so no future edit can make the running description depend on
-    // what the user selected. Same facts, wildly different configs, identical
-    // answer.
+    // 结构保证, 直接检查: 此函数不使用配置,
+    // 因此未来的编辑无法让运行中的描述取决于用户选择的。
+    // 事实相同, 配置大不相同,
+    // 答案相同。
     pn::HostFacts facts;
     facts.claybin_available = true;
     facts.landlock_abi = 10;
@@ -2376,7 +2376,7 @@ TEST_CASE("sandbox pane: describe_running ignores the config entirely") {
     const auto baseline = pn::describe_running(facts);
     CHECK(baseline.find("claybin") != std::string::npos);
 
-    // Whatever the user picks, the running line cannot move.
+    // 无论用户选择什么,运行中的行都无法移动.
     for (auto p : {sandbox_cfg::Posture::Hardened, sandbox_cfg::Posture::Airgapped,
                    sandbox_cfg::Posture::Permissive}) {
         auto cfg = sandbox_cfg::apply_posture(sandbox_cfg::Config{}, p);
@@ -2387,10 +2387,10 @@ TEST_CASE("sandbox pane: describe_running ignores the config entirely") {
 }
 
 TEST_CASE("sandbox pane: engine_status separates configured from in force") {
-    // With one engine, "wanted != running" is unreachable -- but the other
-    // two states are not, and they are the ones that matter: a policy saved
-    // while the sandbox is off applies on the next run, and a host that
-    // cannot start the engine must say so rather than promise a restart.
+    // 只有一个引擎, "wanted != running"
+    // 无法到达,但另外两个州没有, 而它们才是最重要的:
+    // 一项政策 已保存 时 沙箱 关闭在下一轮运行时应用,
+    // 无法启动引擎的主机必须说出,而不是承诺重启。
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -2402,21 +2402,21 @@ TEST_CASE("sandbox pane: engine_status separates configured from in force") {
     facts.sandbox_active = true;
     CHECK(pn::engine_status(cfg, facts) == pn::EngineStatus::InForce);
 
-    // Saved now, applies next run.
+    // 已保存 现在,应用下一场运行。
     facts.sandbox_active = false;
     CHECK(pn::engine_status(cfg, facts) == pn::EngineStatus::AppliesOnRestart);
 
-    // Host refuses it. Outranks everything: "applies on restart" would be a
-    // promise nothing can keep.
+    // Host 拒绝,一切的超越 "applies on restart"
+    // 承诺是不会被任何东西所遵守的
     facts.claybin_available = false;
     CHECK(pn::engine_status(cfg, facts) == pn::EngineStatus::CannotStart);
 }
 
 TEST_CASE("sandbox pane: forecast walls are marked per row, not just in the header") {
-    // §15 moved the wall report onto the rows precisely because the footer is
-    // what people skip. That makes each row a place the same lie could appear:
-    // "strong via seccomp-bpf" in the present tense, beside a row, on a process
-    // with no seccomp filter.
+    // §15 将壁面报告移到行上, 完全因为页脚是人们跳过的地方。
+    // 这使得每行都成为同一谎言可能出现的地方 :
+    // "strong via seccomp-bpf" 在一个没有
+    // seccomp 过滤器。
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -2424,8 +2424,8 @@ TEST_CASE("sandbox pane: forecast walls are marked per row, not just in the head
     pn::HostFacts facts;
     facts.claybin_available = true;
     facts.landlock_abi = 10;
-    // Not yet active: the policy is a FORECAST, which is the state the
-    // per-row marking exists for.
+    // 尚未启用: 政策是 FORECAST ,则该状态为每
+    // -row 标记存在。
     facts.sandbox_active = false;
     facts.running = sandbox_cfg::LinuxBackend::Claybin;
 
@@ -2440,19 +2440,19 @@ TEST_CASE("sandbox pane: forecast walls are marked per row, not just in the head
         REQUIRE(sys >= 0);
         const auto& origin = form.fields[static_cast<std::size_t>(sys)].origin;
         REQUIRE(!origin.empty());
-        // It may still say what the wall WOULD be -- that is the forecast the
-        // pane exists to show -- but it must not read as present tense.
+        // 墙上可能还写着什么 WOULD 预测 面板 存在是
+        // 为了显示 -- -- 但决不能把它看成是当前紧张。
         CHECK(origin.find("restart") != std::string::npos);
     }
 #endif
 }
 
-// ── Per-row honesty ──────────────────────────────────────────────────────
+// ── 人数 -row 诚实 ──────────────────────────────────────────────────────
 //
-// The wall report was correct and unread: twelve capabilities folded into one
-// footer line, where the single `none` looked exactly like the eleven
-// `strong`s beside it. These pin the fix -- the report reaching the ROW the
-// user is editing, which is the only place the question gets asked.
+// 墙壁报告正确且不读:12个能力折叠成一个脚本线,
+// 其中单人 `none` 长得和十一号一样
+// `strong` 贴在旁边,这些钉子 报告到达了
+// ROW 用户正在编辑,这是被问到的唯一地方。
 
 TEST_CASE("sandbox pane: a row carries the wall that enforces it") {
     sandbox_cfg::Config cfg;
@@ -2466,10 +2466,10 @@ TEST_CASE("sandbox pane: a row carries the wall that enforces it") {
 
 #if defined(__linux__)
     if (preview.compiled) {
-        // The mechanism, not just the strength. "strong" alone is the same
-        // unfalsifiable claim as "sandbox: active"; "strong via landlock abi
-        // 10" has its receipt attached, and that distinction is the entire
-        // reason this annotation exists.
+        // 机制,不只是力量。 "strong" 单是索赔与不可伪造
+        // 索赔 "sandbox: active";
+        // "strong via landlock abi 10" 并且这种
+        // 区别是这一说明存在的全部原因。
         const int sys = row_of(form, pn::kSbSyscalls);
         REQUIRE(sys >= 0);
         const auto& origin = form.fields[static_cast<std::size_t>(sys)].origin;
@@ -2477,11 +2477,11 @@ TEST_CASE("sandbox pane: a row carries the wall that enforces it") {
         CHECK(origin.find("via") != std::string::npos);
     }
 #endif
-    // A row with no capability behind it must not borrow a neighbour's wall:
-    // "Also readable" is a bind list, and labelling it with filesystem.read
-    // would be a claim about the wrong thing. It may still carry a plain
-    // "none" to say the list is empty (see "empty path rows are labelled"),
-    // which is a statement about ITS OWN value rather than about a wall.
+    // 后面一排没有能力的人 绝不能借邻居的墙面
+    // "Also readable" 是一个绑定列表,并用它标签
+    // filesystem.read 可能还是会带着平原 "none"
+    // 以表示列表为空(参见 "empty path rows are labelled" ),
+    // 这是关于 ITS 自身 价值而不是墙。
     const int extra = row_of(form, pn::kSbReadPaths);
     REQUIRE(extra >= 0);
     const auto& extra_origin = form.fields[static_cast<std::size_t>(extra)].origin;
@@ -2490,10 +2490,10 @@ TEST_CASE("sandbox pane: a row carries the wall that enforces it") {
 }
 
 TEST_CASE("sandbox pane: per-port network with no ports says it denies all") {
-    // The dangerous shape: this COMPILES, and it does not mean what it reads
-    // like. The user asked to allow a specific set and allowed nothing, so
-    // claybin has nothing to refuse and the footer stays quiet. Only the row
-    // can catch it.
+    // 危险的形状: 这个 COMPILES ,而它并不意味着它读作的模样。
+    // 用户要求允许一个特定的集,而不允许任何东西,
+    // 所以 claybin 没有什么可以拒绝的,脚步保持安静 只有排
+    // 可以抓住它。
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -2510,8 +2510,8 @@ TEST_CASE("sandbox pane: per-port network with no ports says it denies all") {
     CHECK(!form.fields[static_cast<std::size_t>(ports)].error.empty());
 #endif
 
-    // And it goes away once the config is coherent -- an error that never
-    // clears is a label, and users learn to read past labels.
+    // 而一旦配置一致,它就会消失——一个永远无法清除的
+    // 错误就是标签,用户会学会读取过去的标签.
     cfg.allow_ports = {443};
     auto ok = pn::build_sandbox_form(cfg, facts_for(cfg));
     pn::annotate_sandbox_form(ok, pn::preview_sandbox(cfg), cfg, pn::EngineStatus::InForce);
@@ -2521,9 +2521,9 @@ TEST_CASE("sandbox pane: per-port network with no ports says it denies all") {
 }
 
 TEST_CASE("sandbox pane: turning the syscall filter off says brokering goes too") {
-    // Coupling the user cannot infer: the broker IS the filter deciding at
-    // runtime, so Off disables supervision of ptrace and kill as well. One row
-    // silently disarming another is exactly what a settings pane must not do.
+    // 无法推断用户的对接: 经纪人 IS 决定过滤器在
+    // 运行时 ,因此 Off 也禁用对跟踪和杀戮的监督。
+    // 一行静默解除另一行的功能,正是设置 面板 绝对不能这么做
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -2540,14 +2540,14 @@ TEST_CASE("sandbox pane: turning the syscall filter off says brokering goes too"
     CHECK(!err.empty());
     CHECK(err.find("brokering") != std::string::npos);
 #else
-    CHECK(err.empty());   // no backend: the pane annotates nothing
+    CHECK(err.empty());   // 无后端: enfense 面板 说明什么
 #endif
 }
 
 TEST_CASE("sandbox pane: loosening the handoff policy warns on the row") {
-    // The one setting here that WIDENS the blast radius, and it does so
-    // outside the sandbox where no wall reports on it -- the footer's wall
-    // report structurally cannot mention it. So the row has to carry it.
+    // 这儿那个 WIDENS 爆炸半径,
+    // 它这样做 在爆炸区外 沙箱 上面没有墙壁报告,
+    // 脚壁报告结构上不能提到它。所以,排队必须把它带回去。
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -2563,8 +2563,8 @@ TEST_CASE("sandbox pane: loosening the handoff policy warns on the row") {
     CHECK(!form.fields[static_cast<std::size_t>(h)].error.empty());
 #endif
 
-    // Refuse is the default and must be silent: a warning on the SAFE setting
-    // trains the user to ignore the warning on the unsafe one.
+    // 拒绝是默认的,必须保持沉默:SAFE设置上
+    // 的警告会让用户忽略不安全的警告.
     cfg.handoff = sandbox_cfg::HandoffPolicy::Refuse;
     auto safe = pn::build_sandbox_form(cfg, facts_for(cfg));
     pn::annotate_sandbox_form(safe, pn::preview_sandbox(cfg), cfg, pn::EngineStatus::InForce);
@@ -2574,9 +2574,9 @@ TEST_CASE("sandbox pane: loosening the handoff policy warns on the row") {
 }
 
 TEST_CASE("sandbox pane: host risks the audit found are said on the row") {
-    // Sandbox audit 2026-10-17: a port list under Full read as an allowlist,
-    // a workspace of $HOME left every dotfile writable, and handoff
-    // truncation only reached the log. Each now says so on its row.
+    // 沙箱 审计 2026-10-17: 完全读作a 允许清单,
+    // a 工作区 备注 $HOME 留下每个可写入的点文件,
+    // 手动切换只到达日志。 每一个文件现在都在日志的行上写着。
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -2603,7 +2603,7 @@ TEST_CASE("sandbox pane: host risks the audit found are said on the row") {
     (void)err_of;
 #endif
 
-    // The safe case is silent: no warning trains the user to skip warnings.
+    // 安全箱无声:没有警告训练用户跳过警告.
     cfg.net_mode = sandbox_cfg::NetMode::Ports;
     auto calm = facts_for(cfg);
     auto quiet = pn::build_sandbox_form(cfg, calm);
@@ -2616,9 +2616,9 @@ TEST_CASE("sandbox pane: host risks the audit found are said on the row") {
 }
 
 TEST_CASE("sandbox pane: a policy that will not compile annotates no walls") {
-    // The worst possible lie would be a confident per-row "strong" read off a
-    // stale preview. When the compile fails, every annotated row must say it
-    // does not know rather than repeat the last thing that worked.
+    // 最大的谎言是自信的 -row "strong"
+    // 读取 过期 预览。当 编译 失败了,每行注解必须
+    // 说它不知道而不是重复最后一件成功的事情.
     sandbox_cfg::Config cfg;
     cfg.configured = true;
     cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
@@ -2634,26 +2634,26 @@ TEST_CASE("sandbox pane: a policy that will not compile annotates no walls") {
         const int i = row_of(form, id);
         if (i < 0) continue;
         const auto& origin = form.fields[static_cast<std::size_t>(i)].origin;
-        // Not a strength claim. Either empty or the em-dash placeholder, but
-        // never "strong".
+        // 不是强权主张,不是空的就是空的 -dash 占位符,
+        // 但从未 "strong".
         CHECK(origin.find("strong") == std::string::npos);
     }
 }
 
-// ── The pane actually renders in another language ────────────────────────
+// ── 电话 面板 其实 渲染 以另一种语言进行 ────────────────────────
 //
-// The piece every other i18n test leaves out. The core test proves t()
-// returns German; the width test proves German fits. Neither proves the PANE
-// calls t() at all -- a row still holding a literal would pass both and ship
-// in English forever.
+// 其它的i18n测试都省掉了,核心测试证明了 t()
+// 返回德语;宽度测试证明德语适合。 PANE 调用
+// t() 毕竟,一排仍然持有文字的字句 将会永远通过
+// 英文的字句和字句
 //
-// So: install a German catalog, build the real form, and look at the painted
-// bytes. This is the gate that says the sweep actually happened.
+// 所以:安装一个德语 目录 ,构建真实的形式,
+// 并查看画 字节。这是门 说,扫荡是真实的。
 TEST_CASE("sandbox render: the pane paints the ACTIVE language") {
-    // The test binary does not run main()'s startup, so install English
-    // first. Only the ids this pane reads -- the real catalog lives in
-    // src/i18n/startup.cpp and the lint keeps the two from diverging (an id
-    // used here but absent there fails the build).
+    // 测试 二进制程序 不运行 main() 启动, 所以先安装英语。
+    // 只有 ID 才会这样。 面板 读 - 真实 目录 住在这里
+    // src/i18n/startup.cpp 和灯使两者不相冲突
+    // (此处使用但不存在的ID使建造失败).
     const char* en = R"({
         "sandbox.read_paths":  {"text": "Also readable"},
         "sandbox.write_paths": {"text": "Also writable"},
@@ -2666,9 +2666,9 @@ TEST_CASE("sandbox render: the pane paints the ACTIVE language") {
     })";
     REQUIRE(agentty::i18n::install_catalog(agentty::i18n::Lang::en, en));
 
-    // Only the ids the pane uses. A partial catalog on purpose: it proves the
-    // untranslated rows fall back to English rather than to raw ids, which is
-    // what every real translation looks like before it is finished.
+    // 只有身份证明 面板 部分用途 目录 目的:
+    // 它证明未翻译的行会回到英文而不是原始的ID,
+    // 这是每个真正的翻译在完成之前的样子.
     const char* de = R"({
         "sandbox.read_paths":  {"text": "Auch lesbar"},
         "sandbox.write_paths": {"text": "Auch beschreibbar"},
@@ -2696,68 +2696,68 @@ TEST_CASE("sandbox render: the pane paints the ACTIVE language") {
     const auto en_out = paint();
     CHECK(en_out.find("Also readable") != std::string::npos);
 
-    // THE LIVE SWAP, through the real pane. One store, rebuild, translated --
-    // no restart, which is the behaviour docs/design/i18n.md promises.
+    // 该 LIVE SWAP ,通过真实 面板。一个商店,重建,翻译 -- --
+    // 不重新启动,这是行为 docs/design/i18n.md 承诺。
     REQUIRE(agentty::i18n::set_active(agentty::i18n::Lang::de));
     const auto de_out = paint();
     CHECK(de_out.find("Auch lesbar") != std::string::npos);
     CHECK(de_out.find("Auch beschreibbar") != std::string::npos);
     CHECK(de_out.find("Maskiert") != std::string::npos);
-    // The English is GONE, not merely joined -- a row that painted both would
-    // mean the form was rebuilt against a stale catalog.
+    // 英国人是 GONE 不仅加入了 -- -- 画两幅画的
+    // 一行意味着形式重建时是针对 过期 目录.
     CHECK(de_out.find("Also readable") == std::string::npos);
 
-    // An id the German catalog lacks falls back to ENGLISH, never to the raw
-    // id. Every real translation is partial for a while, and a half-German
-    // pane showing "sandbox.ports" is worse than one showing English.
+    // 德意志的目录缺少的id会回到ENGLISH,永远不回到原始的id.
+    // 每一份真正的翻译都只是片段,半-German 面板显示
+    // "sandbox.ports"比一个显示英语要糟糕.
     CHECK(de_out.find("Allowed ports") != std::string::npos);
     CHECK(de_out.find("sandbox.ports") == std::string::npos);
 
     REQUIRE(agentty::i18n::set_active(agentty::i18n::Lang::en));
 }
 
-// ── The SHIPPED German catalog, in the real panes ────────────────────────
+// ── 电话 SHIPPED 德语 目录 ,真实的 面板 ────────────────────────
 //
-// The translated-pane test above uses a four-string fixture, which proves
-// the pane calls t() but says nothing about whether a real translation
-// FITS. This loads the shipped German catalog -- 100% complete, worst string
-// +32 columns over its English source -- and paints both panes at every
-// width agentty supports.
+// 翻译 -pane 上面的测试使用一个 4 -string 修补,
+// 这证明 面板 调用 t() 但对于真的翻译,却一字不提
+// FITS。这个 加载 运来的德语 目录 100%完成,
+// 最差弦+32列超过其英文来源,并同时涂装 面板 在每个宽度
+// agentty 支持。
 //
-// This is the gate docs/design/i18n.md promised before any translation
-// landed: "it must fail on a deliberately over-long string, or it is
-// decoration". It measures display COLUMNS via string_width rather than
-// counting bytes, because German is Latin-1-heavy (ü, ö, ß) and a byte count
-// over-measures it exactly as badly as it under-measures Chinese.
+// 这是大门 docs/design/i18n.md 任何翻译落地前承诺:
+// 刻意使用超长字符串时必须失败，否则检查只是摆设。
+// 它测量显示 COLUMNS 途经 string_width 而不是数
+// 字节 德语是拉丁语 1 -heavy 和a) 国家 字节 数到一
+// -measures 和它下面一样糟糕 -measures 中国人.
 TEST_CASE("sandbox render: the shipped catalogs fit every width") {
-    // Both extremes, because they fail in OPPOSITE directions.
+    // 两者都是极端,因为它们在OPPOSITE方向都失败了.
     //
-    //   de     1.1-2.83x English. Stresses the FRAME: a label that does not
-    //          fit is truncated and the row loses its meaning.
-    //   zh-CN  ~0.6x English in columns but DOUBLE-WIDTH per character.
-    //          Stresses the MEASUREMENT: sandbox.help.read_paths is 33
-    //          codepoints and 63 columns, so anything counting characters
-    //          scores it at half its true width and waves an overflow
-    //          through.
+    //   e 1.1-2.83x 英语。强调FRAME:
+    //          不合适的标签被截断,行失去意义。
+    //   日语 -CN ~0.6x 英语,列但 DOUBLE-WIDTH 每一个角色。
+    //          1. 强调 MEASUREMENT:
+    //          sandbox.help.read_paths 代码33个,
+    //          63个列, 所以任何计算字符的评分 都以它的一半真实宽度,
+    //          波浪流过。
     //
-    // A gate running only German would miss every Chinese bug and vice
-    // versa, which is why they share a case rather than having one each.
-    // Width of a PAINTED line, in terminal cells.
+    // 跑着只跑着德语的大门会错过每一个中国的虫子,反之亦然,
+    // 这就是为什么他们共用一个案件而不是每个案件一个的原因.
+    // 宽度( A) PAINTED 线条, 以 终端 存储单元.
     //
-    // NOT string_width on the emitted bytes, and the difference is the whole
-    // subtlety of measuring a CJK render. render_to_string writes one entry
-    // per CELL, so a double-width glyph appears as the glyph followed by a
-    // PAD SPACE for the column it also occupies. Re-measuring those bytes
+    // 不 string_width 所释放的 字节 ,区别是 整个微妙度度量
+    // 一个 CJK 渲染. render_to_string 每条写一个
+    // 条目 CELL 双倍 -width 格莱弗作为格莱弗出现,
+    // 后面是a PAD SPACE 用于其所在的栏。 -measuring 这些 字节
     // scores 额 as 2 and the pad as 1 -- three columns for a glyph the
-    // terminal draws in two -- and every Chinese line comes out ~3% over.
+    // 终端 画两条——每条中国线都出~3%的线.
     //
     // Measured: string_width("额 ") == 3 where the terminal shows 2. That
-    // reported a 206-column line at width 200 and looked exactly like a real
-    // overflow.
+    // 报告有206-column线宽200, 看上去完全像真正
+    // 的溢出。
     //
-    // So count CELLS: one per codepoint, pads included. That is what the
-    // terminal actually allocates, and it is right for both scripts -- a
-    // Latin line has no pads, so the two agree there.
+    // 数数吧 CELLS :每个代码点一个,包括垫。
+    // 这就是 终端 实际分配,这对两种脚本都是正确的——拉丁
+    // 语行没有垫子,所以两者就在那里达成一致.
     const auto widest_cells = [](const std::string& out) {
         std::size_t worst = 0, cur = 0;
         for (std::size_t i = 0; i < out.size(); ++i) {
@@ -2767,30 +2767,30 @@ TEST_CASE("sandbox render: the shipped catalogs fit every width") {
         return std::max(worst, cur);
     };
 
-    // EVERY shipped catalog, not a representative sample. A language that
-    // is not in this list is a language with no layout gate, and the whole
-    // point of a gate is that it covers the thing nobody is watching.
+    // 每个 已运出 目录 ,不是一个代表性的样本。
+    // 列表中未包含的语言是没有布局门的语言,
+    // 而一个门的整个点是它覆盖着无人在看的东西。
     //
-    // Each marker is a string from that catalog that MUST appear, which is
-    // what separates "the pane fit" from "the pane fell back to English and
-    // of course it fit".
+    // 每个标记都是MUST出现的目录的字符串,这是"the pane fit"与
+    // 面板回退到英文，因此文字自然能够放下。
+    // 的区别.
     struct Cat { agentty::i18n::Lang lang; const char* tag; const char* marker; };
     const Cat cats[] = {
         {agentty::i18n::Lang::de,    "de",    "Auch lesbar"},
         {agentty::i18n::Lang::es,    "es",    "Tambi\xc3\xa9n legible"},
         {agentty::i18n::Lang::fr,    "fr",    "Aussi lisible"},
         {agentty::i18n::Lang::pt_BR, "pt-BR", "Tamb\xc3\xa9m leg\xc3\xadvel"},
-        // Cyrillic: 2 bytes per char, ONE column. The opposite trap from
-        // CJK -- a byte count over-measures it by 2x where a codepoint
-        // count is exactly right.
+        // 西里尔语: 2 字节 每瓶Char,( 3) 一个。
+        // 从 CJK -- a 字节 数到一 -measures 以2x表示,
+        // 代码点数完全正确。
         {agentty::i18n::Lang::ru,    "ru",
          "\xd0\xa1\xd0\xba\xd1\x80\xd1\x8b\xd1\x82\xd0\xbe"},
         // 额外可读 -- "also readable". Spelled as bytes so the file stays
-        // greppable whatever an editor does to it.
+        // 编辑对它所做的一切都难忘
         {agentty::i18n::Lang::zh_CN, "zh-CN",
          "\xe9\xa2\x9d\xe5\xa4\x96\xe5\x8f\xaf\xe8\xaf\xbb"},
         // マスク済み -- katakana + kanji, proving the CJK path is not
-        // zh-specific.
+        // 日语 -specific.
         {agentty::i18n::Lang::ja,    "ja",
          "\xe3\x83\x9e\xe3\x82\xb9\xe3\x82\xaf\xe6\xb8\x88\xe3\x81\xbf"},
     };
@@ -2802,17 +2802,17 @@ TEST_CASE("sandbox render: the shipped catalogs fit every width") {
         sandbox_cfg::Config cfg;
         cfg.configured = true;
         cfg.backend = sandbox_cfg::LinuxBackend::Claybin;
-        // The worst case a row can carry: a long path AND an inline error on
-        // the same line, under the translation.
+        // 一行最差的可携带: 一条长路径AND 在同一
+        // 行的内含错误,在翻译下.
         cfg.read_paths = {"/ein/ziemlich/langer/pfad/zu/einem/abhaengigkeit"};
         cfg.net_mode = sandbox_cfg::NetMode::Ports;
         cfg.allow_ports.clear();
         install(cfg);
 
-        // Built INSIDE the loop: the form bakes its labels at build time, so
-        // a form built before the language changed is a form in the old
-        // language. (The first version of this test hoisted it and the
-        // Chinese pass silently rendered German.)
+        // 构建INSIDE 环:形式在构建时烘焙其标签,
+        // 因此语言变换前构建的一种形式是旧语言
+        // 中的一种形式(本测试的第一个版本将其竖起,
+        // 中文传译默化为德语).
         auto form = pn::build_sandbox_form(cfg, facts_for(cfg));
         pn::annotate_sandbox_form(form, pn::preview_sandbox(cfg), cfg,
                                   pn::EngineStatus::InForce);
@@ -2827,23 +2827,23 @@ TEST_CASE("sandbox render: the shipped catalogs fit every width") {
             CHECK(widest_cells(out) <= static_cast<std::size_t>(width));
         }
 
-        // ...and the translation really is on screen. A pane that fell back
-        // to English would pass every width check above without translating
-        // anything, which is the failure these checks cannot see.
+        // 翻译真的在屏幕上。 回到英文的面板 将通过
+        // 上面的每一个宽度检查, 而无需翻译任何内容,
+        // 也就是这些检查无法看到的失败。
         const auto out = maya::render_to_string(
             maya::Panel{agentty::ui::form_config(form, maya::Color::blue(),
                                                  nullptr, 0, 120)}.build(), 120);
-        // Searched with the SPACES STRIPPED, and that is not a convenience.
+        // 与"SPACES""STRIPPED"一同搜索,这不方便.
         //
-        // render_to_string emits one cell per column, so a double-width
+        // render_to_string 发出一个 存储单元 每列,所以双倍 -width
         // glyph occupies two and the second is written as a space: 额外可读
         // paints as "额 外 可 读". The bytes are all there and in order, but
-        // not contiguous, so a plain find() on the source string fails on
-        // every CJK language while passing on every Latin one.
+        // 并非毗连的,故它是平原, find() 源字符串上
+        // 每条都失败 CJK 语言在传递每个拉丁语时
         //
-        // That is exactly the shape of bug this whole gate exists to catch,
-        // and it caught the TEST first: the first version reported "Chinese
-        // never reached the pane" when the pane was rendering it correctly.
+        // 这正是虫的形状 整个大门存在 捕捉,它抓住 TEST 第一部分:
+        // 第一个版本已报告 "Chinese never reached the pane"
+        // 当 面板 曾经是 渲染 正确,没错。
         const auto despaced = [](std::string_view in) {
             std::string o;
             o.reserve(in.size());

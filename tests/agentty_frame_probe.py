@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Count frames agentty writes to its terminal over time.
+"""统计 agentty 随时间向终端写出的帧数。
 
-Usage: agentty_frame_probe.py BINARY [SECONDS]
-A frame is one synchronized-output block (ESC[?2026h ... ESC[?2026l), or,
-for terminals without it, one write burst. Prints frames and bytes per
-second so an idle redraw loop shows up as a nonzero rate.
+用法：agentty_frame_probe.py BINARY [SECONDS]
+一帧对应一个同步输出块（ESC[?2026h ... ESC[?2026l）；
+不支持同步输出的终端则以一次连续写入突发为一帧。
+输出每秒帧数和字节数，空闲时持续重绘会体现为非零速率。
 """
 import os, pty, sys, time, select, signal
 
@@ -18,7 +18,7 @@ if pid == 0:
 BEGIN, END = b"\x1b[?2026h", b"\x1b[?2026l"
 start = time.time()
 sent = False
-buckets = {}   # second -> [frames, bytes]
+buckets = {}   # 第二类 - > [ 帧, 字节]
 tail = b""
 while time.time() - start < total:
     r, _, _ = select.select([fd], [], [], 0.05)

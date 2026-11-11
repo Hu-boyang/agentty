@@ -1,37 +1,37 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// rehydrate_scrollback_test.cpp — a resumed thread leaves real history in
-// the terminal's native scrollback, and the live canvas stays small.
+// rehydrate_scrollback_test.cpp ——恢复.
+// 线程 留下真实的历史 终端 本地人 : 回滚缓冲区 ,活画布保持小。
 //
-// THE BUG THIS PINS. rehydrate_frozen() used ONE budget for two different
-// questions: how much transcript to paint when resuming a thread, and how
-// much to keep live for re-rendering. frozen.cpp justified the small
-// window by saying older rows were safe because they "live on disk (recall
-// via picker)" and were "committed to native scrollback when they
-// overflowed live".
+// 该 BUG 此 PINS. rehydrate_frozen () 使用过的 一个
+// 预算用于两个不同的问题:恢复时需要画多少记录片。 线程 以及多少 保持生活为 -rendering.
+// frozen.cpp 说老一行是安全的,
+// "live on disk (recall via picker)" 并且曾经是,
+// 内容在实时溢出时已提交到原生回滚缓冲区。
 //
-// Neither is true on a thread SWITCH. Nothing overflowed live -- the
-// thread was just read off disk -- and reset_inline() emits \x1b[3J first,
-// which wipes whatever scrollback was there. Measured on a real
-// 3326-message thread: the switch emitted one 3J and then 174 newlines,
-// and the canvas held 82 rows. Scrolling up showed nothing. The user had
-// one turn of context and no way to see more.
 //
-// The fix separates the budgets: rehydrate seeds rehydrate_row_budget()
-// (~10 viewports), and the existing post-paint trim walks it back down to
-// frozen_row_budget() (~3 viewports). The trim is what makes this work --
-// drop_front accrues each dropped block's paint-recorded height as
-// ScrollbackDebt and harvest() mints a commit_scrollback token, so the
-// rows physically scroll into the terminal's saved-lines instead of being
-// discarded.
+// 线程XXSWITCH也一样。 没有任何东西被溢出 -- --
+// 线程刚刚从磁盘上读出 -- -- 而reset_inline()
+// 首先发出\x1b[3J],它擦拭了那里的任何回滚缓冲区。
+// 用一个真正的3326-message 线程来衡量:开关释放了1个3J,
+// 然后是174条新线,画布则保留了82行。滚动显示没有显示任何东西。
+// 用户有一个上下文,没有办法看到更多。
 //
-// Three properties, and the test fails if any regresses:
-//   1. the seed is WIDER than the live budget (there is something to give
-//      to scrollback at all)
-//   2. the trim brings the live canvas back UNDER the live budget (resize
-//      and Ctrl-L cost what they cost before)
-//   3. the trim COMMITS the difference rather than dropping it (the rows
-//      are scrollable, not lost)
+// 固定分离预算:补水种子 rehydrate_row_budget () (~
+// 10个视图),以及现有帖子. -paint 修剪后,它会回到 frozen_row_budget
+// () (~3个景点) 修剪是这个工作的原因—— drop_front 积聚每
+// 个空地块的油漆 -recorded 高度为 ScrollbackDebt
+// 财务报告和已审计财务报表 harvest() 薄荷a commit_scrollback 符号,
+// 所以行物理滚动到 终端's 已保存-lines 而不是
+// 被抛弃。
+//
+// 3 个属性, 如果出现退缩, 测试失败 :
+//   1. 种子为: WIDER 而不是活的预算(有东西可以提供)
+//      至 回滚缓冲区) (千兆吨)
+//   2. 修剪使活画布回来 UNDER 实际预算(调整规模)
+//      财务报告和已审计财务报表 Ctrl-L 成本,如以前成本)
+//   3. 修饰 COMMITS 而不是放下它(各行)
+//      可滚动,而非丢失)
 
 #include "agentty/runtime/app/update/internal.hpp"
 #include "agentty/runtime/model.hpp"
@@ -54,9 +54,9 @@ using agentty::Model;
 using agentty::Message;
 using agentty::Role;
 
-// A transcript long enough to blow past even the wide budget, so the walk
-// and the trim both have real work. Bodies are multi-line so row counts
-// are driven by content rather than chrome.
+// 记录稿足够长,可以把预算都浪费掉 所以散步和修剪都有
+// 真正的工作 正文 具有多 -line 所以排数是由
+// 内容驱动的,而不是由铬驱动的.
 void build_long_thread(Model& m, int turns) {
     m.d.current.messages.clear();
     for (int i = 0; i < turns; ++i) {
@@ -75,16 +75,16 @@ void build_long_thread(Model& m, int turns) {
     }
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 int rehydrate_scrollback_test_main() {
     std::printf("=== rehydrate_scrollback_test ===\n");
 
     namespace detail = agentty::app::detail;
 
-    // 1. The two budgets are distinct, and the seed is the wider one.
-    //    Checked at a fixed row count so the assertion does not depend on
-    //    the terminal the test happens to run under.
+    // 1. 两种预算是不同的,种子是更广泛的。
+    //    检查了固定行数,所以断言不取决于终端,
+    //    测试恰好在下方运行.
     const std::size_t live = detail::frozen_row_budget(40);
     const std::size_t seed = detail::rehydrate_row_budget(40);
     std::printf("  live canvas budget: %zu rows,  rehydrate seed: %zu rows\n",
@@ -94,9 +94,9 @@ int rehydrate_scrollback_test_main() {
     check(seed >= live * 2,
           "the seed is wide enough to be worth committing (>= 2x)");
 
-    // 1b. The reducers' budgets read the terminal size from the Model, which
-    //     the host feeds as TerminalResized. So the answer is whatever the
-    //     Msg said, never what the test's own tty happens to be.
+    // 1b. 调用 状态更新函数 预算改为 终端 从 Model ,
+    //     主机作为种子提供 TerminalResized 答案是,
+    //     无论 Msg 说,从来没有什么测试 自己的tty碰巧是。
     {
         Model sized;
         (void)agentty::app::update(sized, agentty::msg::MetaMsg{agentty::TerminalResized{120, 40}});
@@ -109,8 +109,8 @@ int rehydrate_scrollback_test_main() {
               "a 0x0 report (detached tty) keeps the last good size");
     }
 
-    // 2. Seeding a long thread fills the canvas past the LIVE budget --
-    //    i.e. there is something for the trim to hand to scrollback.
+    // 2. 种子时间长 线程 填充画布 LIVE 预算 -- --
+    //    i.e 修剪时需要你帮忙 回滚缓冲区.
     Model m;
     build_long_thread(m, 400);
     detail::rehydrate_frozen(m);
@@ -120,31 +120,31 @@ int rehydrate_scrollback_test_main() {
                 m.ui.frozen.size(), seeded_rows);
     check(seeded_rows > live,
           "the seeded canvas exceeds the live budget (trim has work)");
-    // NOTE: pending_rehydrate_trim is armed by the ThreadLoaded reducer,
-    // not by rehydrate_frozen itself — this test calls the latter
-    // directly, so the flag is not part of its contract.
+    // NOTE:pending_rehydrate_trim由ThreadLoadedXX
+    // 状态更新函数武装,而不是rehydrate_frozen本身—
+    // —这一测试是调用直接的,所以标志不是其合同的一部分.
 
-    // 3. Stand in for the first paint.
+    // 3. 立于第一漆.
     //
-    //    The ledger's PROVABILITY GATE is the whole reason this works
-    //    safely, and it is why the test has to do this: drop_front() drops
-    //    only blocks whose height a real ledger-tagged paint has RECORDED,
-    //    stopping at the first unrecorded one. A freshly sealed block has
-    //    no recorded height, so dropping it would shed real wire rows
-    //    while accruing zero debt -- an under-commit, the stranded-
-    //    duplicate ghost. Hence agentty defers the trim to a post-paint
-    //    Tick rather than running it inline after rehydrate.
+    //    分类账的 PROVABILITY GATE 这也是
+    //    这个测试必须做到的原因: drop_front () 仅
+    //    减少一个真实分类账高度的区块 -tagged 颜料有
+    //    RECORDED ,在第一个没有记录的区块上停着。
+    //    新封的区块没有记录的高度,所以,放下它会真正地流出。
+    //    传输 累积零债务时行数 -- -- a -commit
+    //    被困在地上的 重复的鬼魂 agentty 将修剪工作推迟到
+    //    一个职位 -paint 滴答,不要在水分再放电
     //
-    //    Headless, nothing paints, so every block stays unrecorded and a
-    //    trim here would correctly drop nothing. record_paint() is what
-    //    the renderer calls per frame; calling it makes the prefix
-    //    droppable exactly as the first real frame would.
+    //    没有头,没有油漆, 所以每个街区都保持没有记录,
+    //    和这里的修剪会正确 掉任何。 record_paint
+    //    ( ) 何为 渲染器 调用 百分比 帧 ;
+    //    称它使前缀可以完全作为第一个真实的 帧 将会。
     for (std::size_t k = 0; k < m.ui.frozen.size(); ++k)
         m.ui.frozen.record_paint(k, static_cast<int>(m.ui.frozen.block_rows(k)));
 
-    // 4. The trim brings the canvas back under the live budget AND emits a
-    //    commit rather than silently dropping. A none() Cmd here would mean
-    //    the rows were discarded -- the exact failure this test exists for.
+    // 4. 修剪后,画布重新回到现场预算之下 和 发送 a
+    //    承诺而不是默默地放弃。 none() Cmd
+    //    这里意味着这些行被丢弃了—— 这个测试的准确失败。
     const auto cmd = detail::trim_frozen_if_oversized(m);
     const std::size_t trimmed_rows = m.ui.frozen.row_total();
     std::printf("  after trim:    %zu entries, %zu rows\n",
@@ -157,9 +157,9 @@ int rehydrate_scrollback_test_main() {
     check(trimmed_rows <= live * 2,
           "the live canvas is bounded after the trim");
 
-    // 5. Scrollback replay: after a width change wipes scrollback, the
-    //    history source must give back EVERY message the trim dropped, in
-    //    order, and nothing still in the live prefix (no duplicates).
+    // 5. 回滚缓冲区 重放: 宽度更改擦除后 回滚缓冲区 ,则
+    //    历史源必须还回EVERY消息, 裁掉的,
+    //    顺序, 并且没有在直播前缀中( 没有重复)。
     {
         const std::size_t live_start =
             static_cast<std::size_t>(m.ui.frozen.source(0)) - 1;
@@ -177,7 +177,7 @@ int rehydrate_scrollback_test_main() {
               && m.ui.frozen_turn == turn_before,
               "building history leaves the live prefix untouched");
 
-        // Render the history and find each message's text in order.
+        // 渲染 历史,并找到每个消息的文本顺序。
         std::string all;
         for (const auto& b : blocks) all += maya::render_to_string(b.element->front(), 100) + "\n";
         std::size_t at = 0;
@@ -199,7 +199,7 @@ int rehydrate_scrollback_test_main() {
             first_live.text.substr(0, first_live.text.find('\n'));
         check(all.find(live_needle) == std::string::npos,
               "nothing from the live prefix is duplicated in the history");
-        // Every turn block carries a cache key, so a second resize is cheap.
+        // 每个转弯块都搭载缓存键,因此第二次改码是便宜的.
         int keyed = 0;
         for (const auto& b : blocks) keyed += b.hash != 0 ? 1 : 0;
         check(keyed > 0, "history blocks are cache-keyed");

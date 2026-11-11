@@ -1,8 +1,8 @@
-// agentty::i18n — picking a language at startup, and the embedded catalogs.
+// agentty::i18n-在启动时选择语言，以及嵌入式目录。
 //
-// Separate from i18n.cpp because that file is pure storage and lookup: it has
-// no idea where catalogs come from or how a language gets chosen. This one
-// owns both, which keeps the testable core free of getenv and file IO.
+// 与i18n.cpp分开，因为该文件是纯粹的存储和查找：它
+// 不知道目录来自哪里或如何选择语言。这个拥有两者，
+// 这使得可测试核心不受 getenv 和文件 IO 的影响。
 
 #include "agentty/i18n/startup.hpp"
 
@@ -20,22 +20,22 @@ namespace agentty::i18n {
 
 namespace {
 
-// The English catalog, embedded.
+// 英文目录，嵌入式。
 //
-// Embedded rather than read from disk, and that is not just about shipping
-// one file. A catalog read at runtime is an injection surface: it decides
-// what every label says, including the ones on a permission prompt. A user
-// who can be talked into dropping a JSON file in the right directory can be
-// shown a dialog that says something other than what it does.
+// 嵌入而不是从磁盘读取，这不仅仅是传送一个文件。
+// 在 运行时 上读取的 目录 是一个注射表面：它决定
+// 每个标签的内容，包括 权限 提示词 上的标签。
+// 如果用户被告知将 JSON 文件放入正确的目录中，
+// 则会出现一个对话框，其中显示的内容与实际操作不同。
 //
-// Debug builds hot-reload from $AGENTTY_HOME/i18n/ (see load_overrides) so a
-// translator can iterate, and that path is debug-only for exactly this
-// reason.
+// 调试从 $AGENTTY_HOME/i18n/ (参见 load_overrides)构建
+// hot-reload，以便翻译器可以迭代，并且正是由于这个原因，该路径是 debug
+// -only。
 //
-// STARTING SMALL AND HONEST. These are the sandbox pane's rows -- the
-// densest user-facing surface in the app and the best-tested one. The sweep
-// continues pane by pane; the lint (tests/lint/i18n_lint.cmake) is what
-// proves nothing was dropped on the way.
+// STARTING SMALL 和 HONEST。这些是 沙箱 面板 的行
+// ——应用程序中最密集的用户-facing 表面和最好的-tested 表面。
+// 扫描从 面板 继续到 面板；棉绒（tests/lint/i18n_lint.cmake）
+// 证明途中没有掉落任何东西。
 constexpr std::string_view kEnglish = R"JSON({
   "_meta": { "lang": "en", "plurals": ["one", "other"] },
 
@@ -85,20 +85,20 @@ constexpr std::string_view kEnglish = R"JSON({
   "common.off":    { "text": "off",    "width_hint": 3 },
   "common.custom": { "text": "Custom", "width_hint": 17 }
 })JSON";
-// common.custom's width_hint is 17, not the English string's 6, and that is
-// the general rule rather than an exception: a width_hint is the column
-// count the LAYOUT must absorb, not the length of the English. German needs
-// 17 for "Benutzerdefiniert", which has no shorter form that is still the
-// word. The lint caught it at 2.83x over budget -- and the English hint was
-// what was wrong, because a one-word English label is no evidence that every
-// language has one.
+// common.custom的width_hint是17，
+// 而不是英文串的6，这是一般规则而不是例外：width_hint
+// 是LAYOUT必须吸收的列数，而不是英文的长度。德语需要 17
+// 来表示 "Benutzerdefiniert"，该词没有更短的形式。
+// lint 发现它超出了预算 2.83 倍，而英语提示就是
+// 错误所在，因为 one-word 英语标签并不能证明每种
+// 语言都有一个。
 
-// Read a locale from the environment, in POSIX precedence order.
+// 以 POSIX 优先顺序从环境中读取语言环境。
 //
-// LC_ALL overrides everything, LC_MESSAGES is the one that actually governs
-// program messages, LANG is the fallback. LANGUAGE (a GNU extension) is a
-// colon-separated PREFERENCE LIST -- we take its first entry, which is the
-// closest thing to "what this user would rather read".
+// LC_ALL覆盖一切，LC_MESSAGES是实际管理程序消息的消息，LANG是回退。
+// LANGUAGE（GNU 扩展名）是一个冒号-separated
+// PREFERENCE LIST——我们取它的第一个条目，
+// 它是最接近"what this user would rather read" 的。
 [[nodiscard]] bool from_environment(Lang& out) {
     const char* const vars[] = {"LC_ALL", "LC_MESSAGES", "LANGUAGE", "LANG"};
     for (const char* v : vars) {
@@ -106,67 +106,67 @@ constexpr std::string_view kEnglish = R"JSON({
         if (!raw || !*raw) continue;
 
         std::string_view s{raw};
-        // "C" and "POSIX" mean "no locale", not "a language named C". They
-        // must not fall through to a prefix match that finds Czech.
+        // "C"和"POSIX"表示"no locale"，
+        // 而不是"a language named C"。它们不能落入找到捷克语的前缀匹配。
         if (s == "C" || s == "POSIX" || s == "C.UTF-8") return false;
 
-        // LANGUAGE is a list: "de:en:fr". Take the first.
+        // LANGUAGE是列表："de:en:fr"。拿第一个。
         if (const auto colon = s.find(':'); colon != std::string_view::npos)
             s = s.substr(0, colon);
 
         if (parse_tag(s, out)) return true;
-        // A tag we recognise as a language but do not SHIP (ar, he, th) must
-        // stop here rather than falling through to the next variable --
-        // LANG=ar_EG with LC_MESSAGES unset means Arabic, and answering
-        // "English" is right while answering "whatever LANG says next" is
-        // not. parse_tag already returned false; the loop continuing is the
-        // bug this comment exists to prevent, so: do not add a `continue`
-        // that skips a VALID-but-unshipped tag.
+        // 我们识别为语言但不识别SHIP (ar、he、th)的标签必须在此
+        // 停止而不是落入下一个变量——LANG=ar_EG且LC_MESSAGES
+        // 未设置意味着阿拉伯语，并且回答"English"是正确的而
+        // 回答"whatever LANG says next"则不是。
+        // parse_tag 已经返回 false；继续循环是此注释要防止的错误，
+        // 因此：不要添加跳过 VALID-but-unshipped
+        // 标记的 `continue`。
         return false;
     }
     return false;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 Lang resolve_language(std::string_view cli_lang, std::string_view saved) {
     Lang l{};
 
-    // 1. The flag. A command always wins -- it is what the user typed THIS
-    //    run, and it must not be second-guessed by a setting or a locale.
+    // 1.标志。命令总是获胜——这就是用户 带类型的 此
+    //    运行，并且通过设置或区域设置它不能是第二个-guessed。
     if (!cli_lang.empty() && parse_tag(cli_lang, l)) return l;
 
-    // 2. The saved setting, when the user has made a choice. Empty means
-    //    "auto", which is why it is stored empty rather than as "en" (see
-    //    ui_prefs::Prefs::lang).
+    // 2.当用户做出选择时，已保存设置。空的意思是
+    //    "auto"，这就是它被存储为空而不是存储为"en"的原因（参见ui_prefs::
+    //    Prefs::lang)。
     if (!saved.empty() && parse_tag(saved, l)) return l;
 
-    // 3. The environment.
+    // 3.环境。
     if (from_environment(l)) return l;
 
-    // 4. English.
+    // 4.英语。
     return Lang::en;
 }
 
 bool init(std::string_view cli_lang, std::string_view saved) {
-    // English ALWAYS loads, whatever the choice. It is the fallback for a
-    // catalog that is only 70% translated, and completeness() measures
-    // against it -- so a missing en catalog would make every other language
-    // report 0% and fall back to raw ids.
+    // 英文ALWAYS 加载，无论选择哪个。 目录 的 回退
+    // 只翻译了 70%，而 completeness() 则
+    // 针对它采取措施——因此缺少 en 目录 将使所有其他语言
+    // 报告 0% 并回退到原始 ID。
     if (!install_catalog(Lang::en, kEnglish)) return false;
 
-    // Every OTHER catalog, unconditionally.
+    // 每OTHER 目录，无条件。
     //
-    // Loading all of them rather than just the active one costs a parse per
-    // language at startup (microseconds -- these are a few dozen short
-    // strings) and buys two things worth more than that: the picker can show
-    // real completeness percentages for languages you are not using, and
-    // switching language at runtime is a pointer store rather than a parse.
+    // 加载所有这些语言而不仅仅是活动语言在启动时要
+    // 花费 解析（微秒——这是几十个短字符串），
+    // 并且购买了两个更有价值的东西：选择面板 可以
+    // 显示您不使用的语言的真实完整性百分比，
+    // 并且 运行时 处的切换语言是指针存储而不是 解析。
     //
-    // Failures are IGNORED on purpose. A malformed translation must not stop
-    // agentty from starting; install_catalog leaves the slot empty,
-    // set_active refuses it, and the picker shows it at 0%. That is visible
-    // and recoverable, which a startup abort is not.
+    // IGNORED 故障是故意的。错误的翻译不得阻止 agentty
+    // 的启动； install_catalog 将插槽留空，
+    // set_active 拒绝它，选择面板 将其显示为 0%。
+    // 这是可见且可恢复的，而启动中止则不然。
     (void)install_catalog(Lang::de, catalogs::kGerman);
     (void)install_catalog(Lang::zh_CN, catalogs::kChineseSimplified);
     (void)install_catalog(Lang::es, catalogs::kSpanish);
@@ -178,10 +178,10 @@ bool init(std::string_view cli_lang, std::string_view saved) {
     const Lang want = resolve_language(cli_lang, saved);
     if (want == Lang::en) return set_active(Lang::en);
 
-    // A language with no catalog compiled in is not an error: it is a
-    // language nobody has translated yet. set_active refuses and leaves
-    // English in place, which is the right outcome and needs no message --
-    // the picker shows completeness so the gap is visible where it matters.
+    // 没有编译目录的语言不是错误：它是尚未有人翻译的语言。
+    // set_active 拒绝并保留英语，
+    // 这是正确的结果，不需要任何消息 - 选择面板
+    // 显示完整性，因此在重要的地方可以看到差距。
     if (!set_active(want)) return set_active(Lang::en);
     return true;
 }

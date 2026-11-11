@@ -1,19 +1,19 @@
 #pragma once
-// Uniform plumbing for the "parse json -> typed Args -> run(Args)" pattern
-// every tool follows. Each tool file defines:
+// 每个工具都遵循 "parse json -> typed Args -> run(Args)"
+// 模式的统一管道。每个工具文件定义：
 //
 //   struct FooArgs { ... fields ... };
-//   [[nodiscard]] std::expected<FooArgs, ToolError> parse_foo_args(const json&);
-//   [[nodiscard]] ExecResult run_foo(const FooArgs&);
+//   [[不丢弃]] std::expected<FooArgs, ToolError> parse_foo_args(const JSON&);
+//   [[不丢弃]] ExecResult run_foo(const FooArgs&);
 //
-//   ToolDef tool_foo() {
-//       ToolDef t; /* name, description, schema, needs_permission */
-//       t.execute = adapt<FooArgs>(parse_foo_args, run_foo);
+//   ToolDef tool_foo
+//       () { ToolDef t; /* 名称、描述、模式定义、needs_permission */
+//       t.execute = Adapt<FooArgs>(parse_foo_args、run_foo);
 //       return t;
 //   }
 //
-// `adapt` is the only place the raw `const json&` surface leaks into tool
-// dispatch — every tool body below it sees a typed struct.
+// `adapt`是原始`const json&`表面泄漏到工具分派中的
+// 唯一地方——其下面的每个工具正文都看到带类型的结构。
 
 #include "agentty/tool/registry.hpp"
 
@@ -22,14 +22,14 @@
 #include <functional>
 #include <utility>
 
-#include <nlohmann/json_fwd.hpp>  // adapt<> only forwards const json&; full type at instantiation sites
+#include <nlohmann/json_fwd.hpp>  // Adapt<>仅转发const JSON&;实例化站点的完整类型
 
 namespace agentty::tools::util {
 
-// Any struct that a tool's `parse` function emits and `run` consumes.
-// Stated as a concept so adapt's signature gives a sharp error at the
-// call site when a tool author wires up the wrong type — e.g. passes a
-// parser that returns `std::expected<Args, std::string>`.
+// 工具的`parse`函数发出并且`run`消耗的任何结构。
+// 作为概念表述，当工具作者连接错误的类型——e.g时，适配的签名在
+// 调用站点处给出严重错误。
+// 传递返回 `std::expected<Args, std::string>` 的 解析器。
 template <class T>
 concept ToolArgs = std::is_class_v<T> && std::movable<T>;
 
@@ -47,7 +47,7 @@ template <ToolArgs Args>
     };
 }
 
-// A tool body that blocks or takes locks gets the tool worker's capability.
+// 阻止或夺取锁的工具正文获得工具工作线程的能力。
 template <ToolArgs Args>
 [[nodiscard]] auto adapt(
         std::expected<Args, ToolError> (*parse)(const nlohmann::json&),

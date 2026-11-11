@@ -1,17 +1,17 @@
 // doom_loop_test — agent_loop_should_break (cmd_factory.cpp).
 //
-// Weak local models (qwen2.5-coder, codellama) fall into non-converging tool
-// loops: pick the wrong tool for a goal, get an error, re-issue a near-
-// identical call forever. With no native completion signal the main agent loop
-// would spin until the user hits Esc — the symptom behind the "tool usage is
-// fucked" reports. agent_loop_should_break is the pure circuit breaker that
-// the continuation point in kick_pending_tools consults before spending
-// another model completion. Two triggers:
-//   (1) REPEAT  — same (tool,args) failing call >= 3 times.
-//   (2) RUNAWAY — >= 25 tool-call turns in one run with no text answer.
+// 当地模式薄弱(qwen2.5) -coder 代码) -converging
+// 工具环:选择错误的工具进行目标、错误、重新 -issue 几乎
+// 完全相同的一个 调用 永远。 如果没有本地完成信号, 主代理循环会
+// 旋转到用户点击时 Esc —— 后遗症 .
+// "tool usage is fucked" 报告。
+// agent_loop_should_break 是继续点的纯断路器
+// kick_pending_tools 在使用另一个模型完成前先咨询。
+//   (1) REPEAT 相同(工具,args)失败 调用 3次了 3次 3次吗?
+//   (2) RUNAWAY —— 25种工具 -call 一次运行时没有文字回答。
 //
-// Asserts the breaker FIRES on a genuine doom loop and STAYS QUIET on healthy
-// progress, on success, and across a User-turn boundary (each run is fresh).
+// 显示断路器 FIRES 以真实的末日发誓, STAYS QUIET
+// 健康进展、成功和跨越用户 -turn 边界(每个运行是新鲜的)。
 
 #include <string>
 #include <vector>
@@ -69,9 +69,9 @@ Message user(std::string s = "go") {
     return m;
 }
 
-}  // namespace (helpers)
+}  // 名称空间 (帮助)
 
-// ── 1. REPEAT: same failing call 3x → break ─────────────────────────
+// ── 1. REPEAT : 相同的失败 调用 3x —— 间歇 ─────────────────────────
 TEST_CASE("repeat failing call breaks") {
     std::vector<Message> msgs;
     msgs.push_back(user());
@@ -86,7 +86,7 @@ TEST_CASE("repeat failing call breaks") {
           "break reason names the offending tool");
 }
 
-// ── 2. Two failures is below the limit → no break (give it a chance) ─────────
+// ── 2. 两个失败低于限度 —— 无间断(给机会) ─────────
 TEST_CASE("two failures no break") {
     std::vector<Message> msgs;
     msgs.push_back(user());
@@ -97,11 +97,11 @@ TEST_CASE("two failures no break") {
           "2x failing call does NOT break (1 retry allowed)");
 }
 
-// ── 3. Same call but SUCCEEDING → never break (legit re-read) ────────────────
+// ── 3. 相同 调用 不过 SUCCEEDING 永远不中断(合法) -read) ────────────────
 TEST_CASE("repeat succeeding tolerated below the limit") {
-    // A repeat that WORKS is weak evidence of a stuck model: re-reading a
-    // file after editing it, or re-running a test, is ordinary. So the
-    // threshold sits above the failure one and five is still fine.
+    // 再说一遍 WORKS 是一个卡住模型的薄弱证据: re
+    // -reading 编辑后的文件,或重新编辑 -running 测试,
+    // 是普通的,所以门槛 位于失败的1和5之上
     std::vector<Message> msgs;
     msgs.push_back(user());
     json a = {{"path", "log.txt"}};
@@ -112,18 +112,18 @@ TEST_CASE("repeat succeeding tolerated below the limit") {
 }
 
 TEST_CASE("repeat succeeding breaks at the limit") {
-    // The gap this closes. The failure breaker only counted FAILING calls,
-    // and the step cap that used to back it up was gated on a model-id
-    // heuristic (and has since been removed entirely). A model behind a
-    // private gateway (`igpu/laguna-xs-2.1`) is unrecognised by
-    // construction, so an identical-call loop that SUCCEEDED every time had
-    // no cap at all: measured at 80 repeats before the turn budget ran out,
-    // which on a 22GB resident is minutes of GPU time going nowhere.
+    // 断裂器只计算了FAILINGXXXX 调用,
+    // 并且用来支撑它的步盖被门套在-id Heuristic
+    // (后来被完全移除)模型上。 一个私人网关(
+    // `igpu/laguna-xs-2.1`)背后的
+    // 模型被建造所无法识别,所以一个相同的-call循环,
+    // 每一次SUCCEEDED都没有上限:在转弯预算用完前,测量到80次,
+    // 在22GB居民身上,这个时间是GPU时间的分钟。
     //
-    // Applies to EVERY model — and now that the step cap is gone, this IS
-    // the backstop for a loop that keeps succeeding. It keys on the call
-    // being IDENTICAL, which is evidence of being stuck rather than evidence
-    // of working hard.
+    // 适用于 每个 模型 - 而现在的步盖已经消失,
+    // 这个 IS 循环的后台,它继续成功。它按键在 调用 正在
+    // 执行中 IDENTICAL 而不是努力工作的证据 而不是
+    // 工作的证据 工作
     std::vector<Message> msgs;
     msgs.push_back(user());
     json a = {{"path", "log.txt"}};
@@ -136,8 +136,8 @@ TEST_CASE("repeat succeeding breaks at the limit") {
 }
 
 TEST_CASE("succeeding repeats with different args never break") {
-    // The discriminator: it is the IDENTICAL call that is evidence of a
-    // loop, not the tool. A model walking a directory reads many files.
+    // 歧视者: IDENTICAL 调用 是一个循环的证据,
+    // 而不是工具。一个走进目录的模型读取了许多文件。
     std::vector<Message> msgs;
     msgs.push_back(user());
     for (int i = 0; i < 12; ++i)
@@ -147,11 +147,11 @@ TEST_CASE("succeeding repeats with different args never break") {
           "distinct successful reads are a legitimate traversal");
 }
 
-// ── 4. Different args each time → not the same dead call ─────────────────────
+// ── 4. 死亡者不相同,每次死亡时不同 调用 ─────────────────────
 TEST_CASE("distinct failing calls no break") {
     std::vector<Message> msgs;
     msgs.push_back(user());
-    // 3 failing reads but each a DIFFERENT path — exploring, not stuck.
+    // 3个未读,但每个 不同 路径——探索,而不是卡住.
     msgs.push_back(asst_call("read", json{{"path", "a"}}, Term::Failed));
     msgs.push_back(asst_call("read", json{{"path", "b"}}, Term::Failed));
     msgs.push_back(asst_call("read", json{{"path", "c"}}, Term::Failed));
@@ -159,18 +159,18 @@ TEST_CASE("distinct failing calls no break") {
           "distinct failing args do NOT trip the repeat cap");
 }
 
-// ── 5. NO STEP CAP: a long run of DISTINCT work is never cut off ─────────────
+// ── 5. NO STEP CAP : 长期 DISTINCT 工作从不中断 ─────────────
 //
-// There used to be a 25-turn cap here, gated on a model-id heuristic. Both are
-// gone: a raw count of tool turns is not evidence of anything. A real
-// search → read → edit → verify pass over a large codebase legitimately spends
-// dozens of distinct, productive steps, and stopping it at an arbitrary number
-// truncates working output with no finding to point at. The gate made it worse
-// by being inconsistent — the SAME transcript stopped on a local model and ran
-// fine on Claude.
+// 曾经有25个 -turn 盖子在这,门在模型上 -id 高压。
+// 两者都不见了。 原始的数工具转动并不代表什么。
+// 真正的搜索。 读 , 编辑 , 校验一个大转折
+// 代码库 合法地花费了数十个独特的、富有成效的步骤,
+// 并任意地以数量阻止它,使工作产出被断断绝,而毫无发现。
+// 相同 记录稿停在本地模特儿身上 运行顺利
+// Claude.
 //
-// What still bounds a runaway is repetition, which is tested in 5c/5d below.
-// This case locks in that volume alone never trips anything.
+// 离家出走的仍然是重复,在下文的5c/5d中测试.
+// 这个案子 锁 单凭那卷纸 什么都行
 TEST_CASE("no step cap: distinct work runs as long as it needs") {
     std::vector<Message> msgs;
     msgs.push_back(user());
@@ -181,11 +181,11 @@ TEST_CASE("no step cap: distinct work runs as long as it needs") {
           "200 distinct successful tool turns do NOT break");
 }
 
-// ── 5b. ...and that holds regardless of WHICH model is driving.
-//       The old cap was enforced only when an id heuristic failed to
-//       recognise the model, so an unfamiliar local name got stopped where
-//       `claude-opus-4` did not, on byte-identical history. There is no flag
-//       left to pass, which is the point: one transcript, one answer.
+// 5b. 无论当前由哪个模型驱动，该性质都应成立。
+//       旧的帽子是当一个id Heuristic 无法识别
+//       模型时才执行的 所以一个不熟悉的本地名字被停了
+//       `claude-opus-4` 没有,在 字节-identical 历史。
+//       没有 标志 左传,即是重点:一抄本,一答.
 TEST_CASE("no step cap: the answer does not depend on the model id") {
     std::vector<Message> msgs;
     msgs.push_back(user());
@@ -196,10 +196,10 @@ TEST_CASE("no step cap: the answer does not depend on the model id") {
           "60 distinct reads never break, whoever is driving");
 }
 
-// ── 5c. REPEAT-FAILURE is UNIVERSAL — and with the step cap gone it is one
-//       of only two things that can stop a run at all. aider/MindStudio apply
-//       the repeated-dead-call cap to every model; a capable model stuck
-//       re-trying an identical failing call still stops.
+// 5c. 连续重复失败保护适用于所有模型；取消步骤上限后，它是
+//       只能阻止两件事 aider/MindStudio 应用重复的
+//       -dead-call 盖到每个模型; 一个能用的模型卡住
+//       -trying 相同的失败 调用 仍然停下来。
 TEST_CASE("repeat failure breaks even for capable") {
     std::vector<Message> msgs;
     msgs.push_back(user());
@@ -214,8 +214,8 @@ TEST_CASE("repeat failure breaks even for capable") {
           "repeat-failure reason names the tool");
 }
 
-// ── 5d. Only the CURRENT consecutive streak counts. Earlier failures that
-//       were followed by success are recovery history, not a doom loop.
+// 5d. 仅统计当前连续失败次数，更早的失败
+//       之后的成功是复苏历史,而不是末日循环。
 TEST_CASE("success resets failure streak") {
     std::vector<Message> msgs;
     msgs.push_back(user());
@@ -229,8 +229,8 @@ TEST_CASE("success resets failure streak") {
           "success resets identical-call failure streak");
 }
 
-// Rejections are terminal failures for loop purposes: repeatedly refusing the
-// same permission cannot make progress and should receive the same breaker.
+// 拒绝是 终端 循环目的失败: 一再拒绝相同
+// 权限 无法取得进展,因此应当获得同样的突破器。
 TEST_CASE("rejection streak breaks") {
     std::vector<Message> msgs;
     msgs.push_back(user());
@@ -242,7 +242,7 @@ TEST_CASE("rejection streak breaks") {
           "3x identical rejection streak breaks");
 }
 
-// ── 6. A modest healthy multi-step task does NOT break ───────────────────────
+// ── 6. 适度的健康的多种 -step 任务确实 不 换行 ───────────────────────
 TEST_CASE("healthy progress no break") {
     std::vector<Message> msgs;
     msgs.push_back(user());
@@ -254,24 +254,24 @@ TEST_CASE("healthy progress no break") {
           "4-step search→read→edit→verify does NOT break");
 }
 
-// ── 7. User boundary resets the run: a prior doom loop in an EARLIER turn
-//      doesn't count against the current one. ──────────────────────────────
+// 7. 用户消息边界会重置运行状态；更早轮次中的死循环
+//      与当前不相抵。
 TEST_CASE("user boundary resets run") {
     std::vector<Message> msgs;
-    // Earlier turn: a doom loop (3 failing reads).
+    // 转早点:末日循环(3次失败读).
     msgs.push_back(user("first"));
     json a = {{"path", "x"}};
     msgs.push_back(asst_call("read", a, Term::Failed));
     msgs.push_back(asst_call("read", a, Term::Failed));
     msgs.push_back(asst_call("read", a, Term::Failed));
-    // New user turn starts a FRESH run with one healthy call.
+    // 新的用户回合以一个健康的调用开始FRESH运行.
     msgs.push_back(user("second"));
     msgs.push_back(asst_call("shell", json{{"command", "pwd"}}, Term::Done));
     check(!agent_loop_should_break(msgs).has_value(),
           "doom loop in a PRIOR run doesn't break the current fresh run");
 }
 
-// ── 8. Empty / no-tool history is safe ───────────────────────────────────────
+// ── 8. 空/无-tool历史安全 ───────────────────────────────────────
 TEST_CASE("empty and text only no break") {
     check(!agent_loop_should_break({}).has_value(), "empty history no break");
     std::vector<Message> msgs;
@@ -280,9 +280,9 @@ TEST_CASE("empty and text only no break") {
     check(!agent_loop_should_break(msgs).has_value(), "text-only turn no break");
 }
 
-// ── 9. #90: the first trip NUDGES and the run continues ───────────────────────────
-// apply_nudge mirrors kick_pending_tools: the reason is appended to the
-// target call's output, which is how the breaker later knows it nudged.
+// ── 9.90号:第一次旅行NUDGES和运行继续进行 ───────────────────────────
+// apply_nudge 镜像 kick_pending_tools
+// : 理由附于目标 调用 输出, 也就是断路器后来知道它被压抑的方式.
 namespace {
 void apply_nudge(std::vector<Message>& msgs,
                  const agentty::app::cmd::LoopBreak& b) {
@@ -295,7 +295,7 @@ void apply_nudge(std::vector<Message>& msgs,
                 d->output += "\n\n" + b.reason;
         }
 }
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("issue 90 first failure trip nudges instead of stopping") {
     std::vector<Message> msgs;
@@ -362,9 +362,9 @@ TEST_CASE("issue 90 success repeat nudges then stops") {
     check(brk2 && brk2->stop, "identical read after the nudge stops");
 }
 
-// The screenshot loop: read a png, fix the code, re-shoot, read it again.
-// Same path every time, other calls in between, a new picture each time.
-// That's work, not a loop, and it used to get stopped at the 6th read.
+// 截图环:读png,修补码,re-shoot,再读一遍.
+// 每次都是一样的路,其他的 调用 中间,每次要一张新照片。
+// 那是工作,不是循环,过去在六读时被停了.
 TEST_CASE("re-reading a file between other calls is not a loop") {
     std::vector<Message> msgs;
     msgs.push_back(user());

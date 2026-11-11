@@ -1,23 +1,23 @@
-// compaction_wire_test — the compaction WIRE SUBSTITUTION and its
-// interaction with fork provenance (cmd_factory: wire_messages_for /
+// compaction_wire_test - 紧凑 传输 SUBSTITUTION 及其与叉源
+// 的相互作用(第2条) cmd_factory: wire_messages_for /
 // estimate_wire_tokens).
 //
-// compaction_threshold_test covers WHEN compaction fires; this covers WHAT
-// the wire looks like afterwards, and that fork + compaction compose:
+// compaction_threshold_test 覆盖 WHEN
+// 紧凑火灾;覆盖 内容 编号 传输 之后看起来像叉子+紧凑的成形:
 //
-//   1. No compaction → wire is the raw transcript, unchanged.
-//   2. A CompactionRecord replaces [0, up_to_index) with ONE synthetic User
-//      summary message; the tail [up_to_index, end) ships raw.
-//   3. The wire ALWAYS starts with a User (Anthropic requirement) — the
-//      synthetic summary is a User.
-//   4. estimate_wire_tokens counts the substituted (smaller) view, not the
-//      raw transcript — otherwise auto-compaction would re-fire forever.
-//   5. A malformed record (up_to_index 0 or > size) degrades to the raw
-//      transcript instead of corrupting the wire.
-//   6. FORK + COMPACTION compose: a forked thread's fork_note (a real User
-//      message at head) ships on the wire uncompacted; and when a fork is
-//      later compacted, the summary subsumes the fork_note prefix and the
-//      wire still starts with a User.
+//   1. 原始记录稿没有收缩 − 传输 不变。
+//   2. A CompactionRecord 替换 [0], up_to_index 与 一个 合成用户
+//      摘要; 末尾 [up_to_index 船是生的 船是没完没了的
+//   3. 第传输 ALWAYS号从用户开始(第Anthropic号要求)——
+//      合成摘要是一个用户。
+//   4. estimate_wire_tokens 计算替代(较小)视图,而不是
+//      原始记录- 否则自动 -compaction 将重新 -fire 永远
+//   5. 错误记录(up_to_index 0或 > 大小)降解为原始记录
+//      而不是破坏记录 传输.
+//   6. FORK + COMPACTION 作曲:一个叉子 线程's fork_note (一个真正的用户)
+//      船舶在海上航行 传输 未压缩;当一个叉子后来被压缩时,
+//      摘要包含 fork_note 前缀和 传输
+//      仍然以用户开始。
 
 #include "agtest.hpp"
 
@@ -37,7 +37,7 @@ static Message amsg(std::string t) {
 }
 
 TEST_CASE("compaction wire") {
-    // ── 1: no compaction → raw transcript verbatim ──
+    // ── 1:无压缩 + 原始录音稿 ──
     {
         Thread t;
         t.messages = { umsg("q1"), amsg("a1"), umsg("q2"), amsg("a2") };
@@ -47,18 +47,18 @@ TEST_CASE("compaction wire") {
               "no compaction: verbatim order preserved");
     }
 
-    // ── 2+3: a CompactionRecord substitutes the prefix ──
+    // ── 2+3:一个CompactionRecord取代前缀 ──
     {
         Thread t;
         t.messages = { umsg("q1"), amsg("a1"), umsg("q2"), amsg("a2"),
                        umsg("q3"), amsg("a3") };
         Thread::CompactionRecord rec;
-        rec.up_to_index = 4;                 // summarize [0,4): q1..a2
+        rec.up_to_index = 4;                 // 总结 [0]: q1.a2
         rec.summary     = "user asked q1/q2; assistant answered a1/a2";
         t.compactions.push_back(rec);
 
         auto wire = app::cmd::wire_messages_for(t);
-        // 1 summary + tail (q3, a3) = 3
+        // 1 汇总+ 末尾(q3, a3)=3
         check(wire.size() == 3, "compaction: prefix collapses to summary + tail");
         check(wire.front().role == Role::User,
               "compaction: wire starts with a User (Anthropic invariant)");
@@ -70,17 +70,17 @@ TEST_CASE("compaction wire") {
               "compaction: raw tail after the boundary preserved");
     }
 
-    // ── 4: estimate_wire_tokens prices the substituted view ──
+    // ── 4: estimate_wire_tokens 给替换视图定价 ──
     {
         Thread t;
-        // A big prefix that a compaction shrinks dramatically.
+        // 一个大前缀,一个紧凑的缩水非常大。
         for (int i = 0; i < 40; ++i)
             t.messages.push_back(i % 2 ? amsg(std::string(4000, 'a'))
                                        : umsg(std::string(4000, 'q')));
         const int raw = app::cmd::estimate_wire_tokens(t);
 
         Thread::CompactionRecord rec;
-        rec.up_to_index = 38;                // collapse almost everything
+        rec.up_to_index = 38;                // 几乎是一切崩溃
         rec.summary     = "short recap";
         t.compactions.push_back(rec);
         const int compacted = app::cmd::estimate_wire_tokens(t);
@@ -91,12 +91,12 @@ TEST_CASE("compaction wire") {
               + std::to_string(compacted) + ")");
     }
 
-    // ── 5: malformed record degrades to raw ──
+    // ── 5: 记录不正确降解为原始 ──
     {
         Thread t;
         t.messages = { umsg("q1"), amsg("a1") };
         Thread::CompactionRecord bad;
-        bad.up_to_index = 99;                // > size → malformed
+        bad.up_to_index = 99;                // > 大小 – 结构不全
         bad.summary = "ignored";
         t.compactions.push_back(bad);
         auto wire = app::cmd::wire_messages_for(t);
@@ -106,7 +106,7 @@ TEST_CASE("compaction wire") {
         Thread t2;
         t2.messages = { umsg("q1"), amsg("a1") };
         Thread::CompactionRecord zero;
-        zero.up_to_index = 0;                // 0 → nothing to summarize
+        zero.up_to_index = 0;                // 0 ~ 无总结
         zero.summary = "ignored";
         t2.compactions.push_back(zero);
         auto wire2 = app::cmd::wire_messages_for(t2);
@@ -114,7 +114,7 @@ TEST_CASE("compaction wire") {
               "malformed record (index 0): raw transcript sent");
     }
 
-    // ── 6a: fork_note ships uncompacted on the wire ──
+    // ── 6a: fork_note 船上没有船体 传输 ──
     {
         Thread t;
         Message note;
@@ -133,7 +133,7 @@ TEST_CASE("compaction wire") {
               "fork: the real prompt follows the note");
     }
 
-    // ── 6b: compacting a fork subsumes the fork_note; wire still User-first ──
+    // ── 6b: 将叉子压缩成块 fork_note; 传输 仍然用户 -first ──
     {
         Thread t;
         Message note;
@@ -147,7 +147,7 @@ TEST_CASE("compaction wire") {
         t.messages.push_back(amsg("a2"));
 
         Thread::CompactionRecord rec;
-        rec.up_to_index = 3;                 // subsume note + q1 + a1
+        rec.up_to_index = 3;                 // 包含注释 + q1 + a1
         rec.summary = "forked thread; user asked q1, got a1";
         t.compactions.push_back(rec);
 
@@ -164,29 +164,29 @@ TEST_CASE("compaction wire") {
 }
 
 TEST_CASE("compaction reclaim is measured") {
-    // A compaction's whole job is to make the next request fit. Nothing
-    // recorded whether it DID.
+    // 压缩器的全部工作是使下一个请求适合。
+    // 没有记录它是否DID。
     //
-    // The dangerous case is not a compaction that fails loudly — it is one
-    // that reclaims almost nothing. It looks identical in the transcript:
-    // a summary appears, the turn continues. Then the next turn is still
-    // over threshold, compacts again, reclaims nothing again, and the
-    // thread livelocks summarising itself while the user watches it do
-    // nothing. That is only visible as a NUMBER, which is why GitHub's
-    // runtime carries the same pre/post pair.
+    // 危险案件并不是一个大叫失败的缩
+    // 合物——它几乎完全没有恢复。
+    // 接下来的转弯仍然在门槛之上, 紧凑, 不再恢复任何东西,
+    // 线程 liverlock 自己总结,
+    // 而用户却看它什么都不做。 这只可见于一个 NUMBER ,
+    // 这就是为什么 GitHub's 运行时 携带
+    // 同样的 pre/post 双人
     //
-    // Both sides must come from the SAME scorer or the difference is
-    // noise, so this pins that the pair is measured with
-    // cmd::estimate_wire_tokens — the compaction-aware one.
+    // 双方必须来自 相同 计分器或区别是噪音,所以这个针头
+    // 是用 cmd::estimate_wire_tokens
+    // - 紧凑 -aware 一个
     Thread t;
-    t.messages.push_back(umsg(std::string(20000, 'q')));   // a big prefix
+    t.messages.push_back(umsg(std::string(20000, 'q')));   // 一个大前缀
     t.messages.push_back(amsg(std::string(20000, 'a')));
     t.messages.push_back(umsg("and now a short tail"));
 
     const int before = app::cmd::estimate_wire_tokens(t);
 
     Thread::CompactionRecord rec;
-    rec.up_to_index   = 2;              // subsume the two big messages
+    rec.up_to_index   = 2;              // 包含两个大消息
     rec.summary       = "user asked a long thing; assistant answered";
     rec.tokens_before = before;
     t.compactions.push_back(rec);
@@ -194,8 +194,8 @@ TEST_CASE("compaction reclaim is measured") {
 
     const auto& r = t.compactions.back();
 
-    // The measurement is real: a big prefix replaced by one short summary
-    // has to shrink the wire substantially.
+    // 测量是真实的:一个大前缀被一个简短的总结所取代,
+    // 必须大大缩小传输.
     check(r.tokens_after < r.tokens_before,
           "compaction reclaim: after is smaller than before");
     check(r.reclaimed().has_value(),
@@ -203,18 +203,18 @@ TEST_CASE("compaction reclaim is measured") {
     check(*r.reclaimed() > 1000,
           "compaction reclaim: subsuming ~40KB reclaims real tokens");
 
-    // And it agrees with the estimator the auto-compaction trigger reads,
-    // which is the only reason before/after can be compared at all.
+    // 也同意汽车的预估 -compaction 触发读,
+    // 这是唯一的原因 before/after 完全可以比较。
     check(r.tokens_after == app::cmd::estimate_wire_tokens(t),
           "compaction reclaim: after matches the live wire estimate");
 }
 
 TEST_CASE("an unmeasured compaction reports unknown, not zero") {
-    // Records written before the measurement existed reload with 0/0.
-    // Zero reclaim and "we never measured" want OPPOSITE reactions — the
-    // first means compaction is broken and the thread is about to
-    // livelock, the second means we simply don't know. Conflating them
-    // would have an old thread reporting a disaster that never happened.
+    // 测量方法存在前用0/0.重新装入的记录
+    // 零开垦和 "we never measured"
+    // 想要( E) OPPOSITE 反应——第一个
+    // 表示收缩被打破, 线程 即将出现,第二,我们根本不知道,
+    // 把他们吓得一团糟 线程 报告从未发生过的灾难。
     Thread t;
     t.messages.push_back(umsg("q"));
     t.messages.push_back(amsg("a"));
@@ -227,19 +227,19 @@ TEST_CASE("an unmeasured compaction reports unknown, not zero") {
     check(!t.compactions.back().reclaimed().has_value(),
           "unmeasured compaction reports nullopt rather than 0");
 
-    // A half-measured record is also unknown: one side alone cannot
-    // produce a difference, and guessing the other would be inventing data.
+    // 半-measured记录也是未知的:单
+    // 靠一方无法产生差异,而另一方猜测是数据发明。
     t.compactions.back().tokens_before = 5000;
     check(!t.compactions.back().reclaimed().has_value(),
           "half-measured compaction is still unknown");
 }
 
 TEST_CASE("soft trim keeps the live request") {
-    // ~1143 tokens per 4000-byte message at 3.5 bytes/token.
+    // ~ 1 143个令牌/每4000-byte 条消息,3.5bytes/token.
     const std::string big(4000, 'x');
 
-    // Long tool loop: q1, then q2 followed by many assistant sub-turns.
-    // The old front-trim peeled q2 away and kept only the last assistant.
+    // 长工具环:q1,然后q2,之后是许多助手sub-turns.
+    // 旧前线 -trim 剥掉q2,只留下最后一个助手.
     {
         std::vector<Message> v = { umsg("q1"), amsg(big), umsg("q2") };
         for (int i = 0; i < 10; ++i) v.push_back(amsg(big));
@@ -251,7 +251,7 @@ TEST_CASE("soft trim keeps the live request") {
         check(v.back().text == big, "newest message survives");
     }
 
-    // A huge first prompt alone overflows: the head goes, the live turn stays.
+    // 第一次大战 提示词 单是溢出:头去,活转而留.
     {
         std::vector<Message> v = { umsg(std::string(40000, 'h')), amsg("a1"),
                                    umsg("q2"), amsg("a2") };
@@ -260,14 +260,14 @@ TEST_CASE("soft trim keeps the live request") {
         check(v.size() == 2, "live turn kept whole");
     }
 
-    // Fits already: nothing changes.
+    // 已经适应了:没有变化。
     {
         std::vector<Message> v = { umsg("q1"), amsg("a1"), umsg("q2") };
         app::cmd::soft_trim_to_ceiling(v, 100000);
         check(v.size() == 3, "under the ceiling is a no-op");
     }
 
-    // The head IS the live request: never dropped.
+    // 头IS 直播请求:从未放弃.
     {
         std::vector<Message> v = { umsg(std::string(40000, 'h')), amsg(big) };
         app::cmd::soft_trim_to_ceiling(v, 100);

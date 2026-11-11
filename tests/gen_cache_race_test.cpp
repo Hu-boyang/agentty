@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// gen_cache_race_test.cpp — util::GenCache, the model-list cache Copilot and
-// Kimi use.
+// gen_cache_race_test.cpp — util::GenCache ,模型( 模型) -list 缓存 副驾驶
+// 和Kimi使用。
 //
-//   1. a fetch that started before clear() can't store its stale list.
-//   2. many fetchers and clearers at once: no race, and a value only ever
-//      lands if no clear() ran after its fetch began.
+//   1. 始于 clear() 无法储存它 过期 列表中选择一个选项。
+//   2. 一次性收集器和更清晰的器件:没有竞态,而且只有一次
+//      如果在开始采集后没有clear()运行,则会降落。
 //
-// Run under: -DAGENTTY_SANITIZE_ALL=thread
+// 运行在 : -DAGENTTY_SANITIZE_ALL=thread 下
 
 #include "agentty/util/gen_cache.hpp"
 
@@ -28,12 +28,12 @@ void fail(const char* what) {
 void stale_store_dropped() {
     std::printf("--- gen_cache: a fetch from before clear() is dropped ---\n");
     agentty::util::GenCache<std::vector<int>> c;
-    const auto seen = c.gen();          // fetch starts
-    c.clear();                          // invalidation lands mid-fetch
+    const auto seen = c.gen();          // 获取开始
+    c.clear();                          // 中点无效 -fetch
     if (c.store_if({1, 2, 3}, seen)) fail("stale store reported as landed");
     if (!c.get().empty()) fail("stale list overwrote the clear");
 
-    const auto fresh = c.gen();         // a fetch after the clear
+    const auto fresh = c.gen();         // 清除后获取的
     if (!c.store_if({4}, fresh)) fail("fresh store was dropped");
     if (c.get() != std::vector<int>{4}) fail("fresh list didn't land");
 }
@@ -53,8 +53,8 @@ void hammer() {
                 if (t % 4 == 0 && i % 8 == 0) { c.clear(); continue; }
                 const auto seen = c.gen();
                 const bool landed = c.store_if({t, i}, seen);
-                // A store that landed was made under its own generation, so
-                // the generation can't have moved backwards past it.
+                // 登陆的商店是在自己一代人下制造的,
+                // 所以一代人不能向后移动.
                 if (landed && c.gen() < seen)
                     bad.fetch_add(1, std::memory_order_relaxed);
                 (void)c.get();
@@ -65,7 +65,7 @@ void hammer() {
     if (bad.load()) fail("generation went backwards");
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 int main() {
     std::printf("=== gen_cache_race_test (run me under TSan) ===\n");

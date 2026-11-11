@@ -1,8 +1,8 @@
 #!/bin/sh
-# run_acp_client.sh — agentty acp against a fake OpenAI server, checked
-# message by message against the ACP v1 schema (tests/acp/schema/v1).
-#   usage: run_acp_client.sh <agentty> [schema.json]
-# Schema checks need python's jsonschema; without it the scenarios still run.
+# run_acp_client.sh — agentty 针对假的 OpenAI 服务器,
+# 通过信件对齐 ACP v1 模式定义 (tests/acp/schema/v1).
+#   使用:run_acp_client.sh <agentty> [
+# schema.json] 模式定义 检查需要python的jsonschema;没有它,情景仍然运行.
 set -u
 A="$1"
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -12,7 +12,7 @@ export FAKE_TOOLS_LOG="$S/tools.log"
 python3 "$HERE/fake_openai_server.py" 0 > "$S/port" 2>/dev/null </dev/null &
 SRV=$!
 trap 'kill $SRV 2>/dev/null; rm -rf "$S"' EXIT INT TERM
-# Up to 30s (see run_cli_test.sh): an empty port reads as "no credentials".
+# 最多30岁(见 run_cli_test.sh : 空端口读作 "no credentials".
 for _ in $(seq 1 150); do [ -s "$S/port" ] && break; sleep 0.2; done
 if [ ! -s "$S/port" ]; then echo "FAIL fake server did not start"; exit 1; fi
 PORT=$(cat "$S/port")

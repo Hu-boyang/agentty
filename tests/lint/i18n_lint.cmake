@@ -1,47 +1,47 @@
-# i18n_lint — the three gates that keep the catalog honest.
+# i18n_lint - 三个门 保持了 目录 诚实的。
 #
-# Run as a ctest entry (see AgenttyTests.cmake). Pure CMake and pure text: no
-# build artifacts, so it runs in milliseconds and cannot be skipped by a
-# platform that failed to compile something.
+# 运行为测试项( 见 AgenttyTests.cmake 纯净
+# CMake 和纯文本:没有建造文物,所以它以毫秒的速度运行,
+# 不能被一个未能跳过平台 编译 东西。
 #
-# WHY A LINT AT ALL. The string sweep is a large mechanical diff -- hundreds
-# of literals moving into a catalog -- and "did we drop one" is not a question
-# a reviewer can answer by eye. These gates answer it mechanically, which is
-# what makes the sweep reviewable at all.
+# 原因 A LINT AT 全部。弦扫荡是一个大型机械化的
+# diff -- -- 数百升移到一个 目录 ——和
+# "did we drop one" 检查者可以用眼睛回答问题。
+# 这些门是机械回答的,因此可以进行扫描。
 #
-#   usage: cmake -DROOT=<src> -P i18n_lint.cmake
+#   使用: 制作 -DROOT=<src> -P i18n_lint.cmake
 
-# A `cmake -P` script starts with every policy unset, so the `IN_LIST`
-# below is parsed as a plain word under OLD CMP0057 and the `if` errors out --
-# turning the whole ctest entry red on every run. This sets the floor for the
-# script alone; it does not affect the project's own requirement.
+# A `cmake -P` 脚本从每个未设定的策略开始,
+# 所以 `IN_LIST` 下面是被解为普通词的下面 旧 CMP0057
+# 编辑 `if` 出错 — 每次运行时将整个测试条目都变成红色。
+# 这只为脚本设置了底板; 不影响项目本身的要求。
 cmake_minimum_required(VERSION 3.25)
 
 if(NOT DEFINED ROOT)
     message(FATAL_ERROR "usage: -DROOT=<source dir> -P i18n_lint.cmake")
 endif()
 if(NOT IS_ABSOLUTE "${ROOT}")
-    # Same trap the other lints have: a relative ROOT resolves against the
-    # cwd (for `cmake -P`, wherever it was invoked), silently matches zero
-    # files, and the whole check passes green having examined nothing.
+    # 和其他的线条一样的陷阱: 一个亲戚 ROOT 解决
+    # cwd(用于 `cmake -P` ,无论它被引用的地方),
+    # 默默匹配零文件,整张支票经过绿色,没有检查过.
     message(FATAL_ERROR "ROOT must be ABSOLUTE, got: ${ROOT}")
 endif()
 
 set(_fail 0)
 
-# ── Read the English catalog out of startup.cpp ──────────────────────────
+# ── 读英文 目录 调出 startup.cpp ──────────────────────────
 #
-# The catalog is a raw string literal in the source rather than a data file,
-# because it is embedded (see the comment there: a catalog read at runtime
-# decides what a permission prompt says). So the lint reads the source.
+# 电话 目录 是一个原始字符串字元, 而不是一个数据文件,
+# 因为它是嵌入的( 参见下面的注释: a) 目录 读于 运行
+# 时 决定什么是 权限 提示词 说,所以,用铅印读取源。
 set(_startup "${ROOT}/src/i18n/startup.cpp")
 if(NOT EXISTS "${_startup}")
     message(FATAL_ERROR "i18n: cannot find ${_startup}")
 endif()
 file(READ "${_startup}" _startup_text)
 
-# Every "id": at the start of an entry. Ids are dotted lower-case by
-# convention, which is also what keeps this regex from matching the VALUES.
+# 每一个 "id" : 在一个条目的开头。 ID 的点数
+# 较低 -case 也正是这种正则性能无法匹配 VALUES.
 string(REGEX MATCHALL "\"[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+\"[ \t]*:" _cat_raw
        "${_startup_text}")
 set(_catalog_ids "")
@@ -52,7 +52,7 @@ endforeach()
 list(REMOVE_DUPLICATES _catalog_ids)
 list(LENGTH _catalog_ids _n_catalog)
 
-# ── Collect every t()/tn()/format() id used in the tree ──────────────────
+# ── 收集每个 t()/tn()/format() 用于 源码树 ──────────────────
 file(GLOB_RECURSE _sources "${ROOT}/src/*.cpp" "${ROOT}/include/*.hpp")
 set(_used_ids "")
 set(_model_facing "")
@@ -72,13 +72,13 @@ foreach(_f IN LISTS _sources)
         list(APPEND _used_ids "${_id}")
     endforeach()
 
-    # GATE 3, collected here because we already have the file open.
+    # GATE 3, 收集在这里,因为我们已经打开了文件。
     #
-    # Model-facing code must not translate. Tool descriptions are part of an
-    # API contract with the provider; the sandbox denial note exists to
-    # change the MODEL's behaviour and instruction-following is strongest in
-    # English. Translating either degrades a non-English user's agent while
-    # changing nothing they can see. See docs/design/i18n.md §3.
+    # Model-facing 代码不能翻译。 Tool 描述是
+    # API 与提供方订立的合同; 沙箱 拒绝注释存在以更改
+    # MODEL 行为和指示 -following 翻译或降级为非
+    # -English 用户的代理, 却改变他们看不到的东西。
+    # 见 docs/design/i18n.md §3.
     if(_rel MATCHES "^(src/provider/|src/tool/)")
         list(APPEND _model_facing "${_rel}")
     endif()
@@ -86,11 +86,11 @@ endforeach()
 list(REMOVE_DUPLICATES _used_ids)
 list(REMOVE_DUPLICATES _model_facing)
 
-# ── GATE 1: every id the source uses exists in the catalog ───────────────
+# ── GATE 1:源代码的每个使用都存在于 目录 ───────────────
 #
-# A t("foo.bar") with no entry renders the id on screen. That is deliberate
-# (visibly wrong beats blank) but it must never SHIP, so it fails the build
-# rather than the render.
+# A t("foo.bar" 无条目 渲染 屏幕上的标识,
+# 这是故意的(显然错误的拍子是空白的),但绝不能 SHIP ,
+# 所以它失败了 建设而不是 渲染.
 set(_missing "")
 foreach(_id IN LISTS _used_ids)
     if(NOT _id IN_LIST _catalog_ids)
@@ -108,15 +108,15 @@ if(_missing)
     set(_fail 1)
 endif()
 
-# ── GATE 2: every id in the catalog is used ──────────────────────────────
+# ── GATE 2: 每一ID在其中 目录 用于 ──────────────────────────────
 #
-# Dead strings are translator time spent on nothing, and they accumulate
-# silently -- a string stays in the catalog long after the row that used it
-# was deleted, and twenty translators each render it once.
+# 死弦是翻译时间 花在无物上, 它们静静地积累 -
+# - 一个弦留在 目录 很久之后,用它写的行被删除,
+# 和每个20名翻译 渲染 一次,我记得
 #
-# The lang.* and common.* namespaces are exempt: they are the picker's own
-# strings and shared vocabulary, referenced from view code that may build the
-# id dynamically.
+# lang.* 和 common.* 命名空间是免责的:它们
+# 是选择面板 自己的字符串和共享词汇,从可能动态构建id的视图
+# 代码中引用.
 set(_unused "")
 foreach(_id IN LISTS _catalog_ids)
     if(NOT _id IN_LIST _used_ids)
@@ -136,7 +136,7 @@ if(_unused)
     set(_fail 1)
 endif()
 
-# ── GATE 3: no translation in model-facing code ──────────────────────────
+# ── GATE 3: 模型中无翻译 -facing 代码 ──────────────────────────
 if(_model_facing)
     message("")
     message("i18n: t() called from MODEL-FACING code:")
@@ -151,39 +151,39 @@ if(_model_facing)
     set(_fail 1)
 endif()
 
-# ── GATE 4: no translation blows its width budget ────────────────────────
+# ── GATE 4: 不翻译吹吹其宽度预算 ────────────────────────
 #
-# THE FAILURE THIS CATCHES, and it is not the one you expect. An over-long
-# label does NOT break the frame -- maya truncates in display columns, which
-# a render test confirmed by refusing to fail on a deliberately 71-column
-# label at width 60. The frame held; the LABEL was silently cut to "Auch
-# lesbar aber mit einem absichtli".
+# 该 FAILURE 此 CATCHES 而不是你期望的 结束 -long
+# 标签有 不 打开 帧 -- maya 显示列中的切换, a 渲染 以拒绝故意
+# 失败的方式确认的试验 71 -column 标签宽度 60.。 帧 举行;
+# LABEL 默默的切成这样
+# "Auch lesbar aber mit einem absichtli".
 #
-# So the render gate cannot see this class of bug at all, and a width budget
-# is the only thing that can. `width_hint` on each English entry is the
-# column count the layout was designed around; a translation materially past
-# it is one that will be cut on a narrow terminal.
+# 所以,我们... 渲染 闸门完全看不到这种错误,
+# 宽度预算是唯一能够看到的东西。 `width_hint`
+# 每一英文条目上均是栏数, 其布局设计为周遭;
+# 翻译材料经过后, 将切入一个窄处 终端.
 #
-# The allowance is generous (1.6x, rounded up) because German legitimately
-# runs 1.35-1.61x and we are not going to make translators write worse German
-# to fit an English-shaped box. What it catches is the 2.5x+ case -- a
-# translator rendering a label as a sentence -- which is a translation bug,
-# not a layout one.
+# 津贴是宽大的(1.6x,四舍五入),因为德语合法运行1.35
+# -1.61x,我们不会让翻译写得更差的德语,以适应英语
+# -shaped 框中。它捕获的是一个2.5x+ 的大小写
+# -- -- 一个翻译 渲染 标签为句子——是翻译错误,
+# 而不是布局错误。
 #
-# COUNTING. For Latin scripts a codepoint is a column and the two agree. For
+# COUNTING. 对于拉丁文文字,一个代码点是一栏,两者同意。
 # CJK they do not: 额外可读 is 4 codepoints and 8 columns, so a codepoint
-# count scores a Chinese label at HALF its true width -- and passes exactly
-# the overflow this gate exists to catch.
+# 计数分数一个中文标签 HALF 其真正的宽度 正好穿过
+# 溢出的地方 这座大门就存在了
 #
-# So CJK gets its own count: every codepoint in the CJK/Hangul/Kana blocks
-# is worth 2, everything else 1. That is not a general Unicode width
-# implementation (maya has one, and CMake cannot call it) -- it is the
-# narrow claim that the characters these three languages are written in are
-# double-width, which is true and is all this needs.
+# 这么说吧 CJK 获得自己的计数: CJK/Hangul/Kana
+# 块值2, 其他所有 1. 这不是一个通用的 Unicode
+# 宽度执行( )。 maya 有个,而且 CMake 无法
+# 调用 ————是狭义的说法,这三种语言的字符是双倍的.
+# -width ,这是真的,也是所有这一切需要。
 #
-# The render test is still the authority on whether the FRAME holds; this is
-# the authority on whether the LABEL survives, and neither can see the
-# other's failures.
+# 电话 渲染 测试是否 FRAME 持有;
+# 这是是否 LABEL 也看不到
+# 对方的失败
 file(GLOB _catalogs "${ROOT}/src/i18n/catalog_*.hpp")
 foreach(_cf IN LISTS _catalogs)
     get_filename_component(_cname "${_cf}" NAME_WE)
@@ -195,7 +195,7 @@ foreach(_cf IN LISTS _catalogs)
     file(READ "${_cf}" _ctext)
 
     foreach(_id IN LISTS _catalog_ids)
-        # The English budget for this id.
+        # 英文预算的这个ID。
         string(REGEX MATCH "\"${_id}\"[^}]*\"width_hint\"[ \t]*:[ \t]*([0-9]+)"
                _hm "${_startup_text}")
         if(NOT CMAKE_MATCH_1)
@@ -209,32 +209,32 @@ foreach(_cf IN LISTS _catalogs)
         if(NOT CMAKE_MATCH_1)
             continue()
         endif()
-        # COLUMNS, counted from the UTF-8 encoding.
+        # COLUMNS 中,从 UTF -8码
         #
-        # CMake's LENGTH is BYTES, which is wrong for every non-ASCII
-        # language and wrong differently for each:
+        # CMake的LENGTH是BYTES,每一种非-ASCII语言都是错误的,
+        # 对每种语言都不同的错误: .
         #
-        #   Cyrillic / Latin-1 accents   2 bytes, 1 column
-        #   CJK / Hangul / Kana          3 bytes, 2 columns
+        #   西里尔语 / 拉丁语 1 口音 2 字节,
+        #   1 栏 CJK / 汉语 / Kana 3 字节, 2 栏
         #
-        # The first version divided the non-ASCII byte count by 3 and
-        # doubled it, which is right for CJK and scores Russian "выкл"
-        # (4 chars, 4 columns) as 8. The lint fired on a correct
-        # translation -- caught here rather than by a translator wondering
-        # why their language was rejected.
+        # 第一个版本将非 -ASCII 字节 数到三再加倍,
+        # 这是正确的 CJK 俄语和分数 "выкл" 4个字符,
+        # 4个栏)作为8. 林特向正确的翻译开火 --
+        # -- 被这里的翻译抓住,而不是被一个想知道为什么
+        # 他们的语言被拒绝的翻译抓住.
         #
-        # So count CODEPOINTS by their lead byte, then weight: a codepoint
-        # encoded in 3+ bytes is double-width (true for the CJK blocks,
-        # which is the only place we need it), anything shorter is single.
+        # 所以用他们的铅 字节 计算CODEPOINTS,
+        # 然后是重量:一个编码在3+ 字节的编码码是双 -width(
+        # 对于CJK 块,这是我们唯一需要它的地方),任何更短的都是单的.
         string(REGEX REPLACE "[^ -~]" "" _ascii "${CMAKE_MATCH_1}")
         string(LENGTH "${_ascii}" _n_ascii)
         string(LENGTH "${CMAKE_MATCH_1}" _n_bytes)
         math(EXPR _n_other_bytes "${_n_bytes} - ${_n_ascii}")
         if(_wide)
-            # 3-byte codepoints, 2 columns each.
+            # 3-byte代码点,每栏2个.
             math(EXPR _len "${_n_ascii} + (${_n_other_bytes} / 3) * 2")
         else()
-            # 2-byte codepoints (Cyrillic, accented Latin), 1 column each.
+            # 2-byte 代码点(Cyrilic,重音拉丁文),每栏1个.
             math(EXPR _len "${_n_ascii} + ${_n_other_bytes} / 2")
         endif()
         if(_len GREATER _max)

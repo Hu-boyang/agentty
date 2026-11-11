@@ -1,23 +1,23 @@
-// Deterministic repro, layer 3: AGENTTY's view + frozen ledger.
+// 定義重複,第3層:AGENTTY的视图+冷冻分类账.
 //
-// The two maya-layer repros both PASS: a theme swap is detected, the cells
-// change, style ids do not collide, and the emitted bytes carry the new ink.
-// So maya renders correctly when handed a correctly-rebuilt tree.
+// 两者 maya-layer 重写两张 PASS : 检测到主题交换,
+// 即 存储单元 更改、 样式标识不碰撞、 并释放 字节 带着新墨水
+// 因此,在正确交付maya 渲染时,正确无误地交付-rebuilt 源码树.
 //
-// That moves the suspicion back to agentty: the FROZEN LEDGER holds prebuilt
-// Element values. If a theme change does not rebuild those Elements, maya is
-// handed a tree that still carries the old palette — and maya will faithfully
-// render exactly what it was given. Every maya-layer test would still pass.
+// 这会把怀疑推回 agentty : 数据 FROZEN
+// LEDGER 如果主题更改不重建这些元素, maya 被
+// 递出一个 源码树 仍带有旧调色板的 maya 将忠诚 渲染
+// 完全一样,每个都给过 maya-layer 测试还是会通过
 //
-// This drives the real reducer path (move_highlight -> restyle_sealed_turns ->
-// rehydrate_frozen) and asserts the property that matters end to end:
+// 这能推动真正的 状态更新函数 路径( 选项) move_highlight ->
+// restyle_sealed_turns -> rehydrate_frozen 并声称,重要的是结束的财产:
 //
-//   after one simulated arrow key, the FROZEN ledger's rendered bytes must
-//   carry the newly selected scheme's ink.
+//   在一个模拟箭头键后, FROZEN 分类账已经开出
+//   字节 使用新选择的图案墨水。
 //
-// It also asserts the one the user actually reported: TWO consecutive arrow
-// keys must produce TWO different palettes on screen — not one change for
-// every two presses.
+// 该公司还声称,用户实际报告的这一条: 两个 连续箭头
+// 键必须生成 两个 屏幕上不同的调色板——每两张压板
+// 都一个不变.
 
 #include "agentty/runtime/app/deps.hpp"
 #include "agentty/runtime/app/update.hpp"
@@ -48,7 +48,7 @@ void check(bool ok, const char* what) {
 
 constexpr int kWidth = 100;
 
-// What the FROZEN ledger would put on the wire, colours included.
+// 或 FROZEN 分类账会放在 传输 ,包含颜色。
 std::string frozen_bytes(const Model& m) {
     std::string out;
     for (const auto& blk : m.ui.frozen.elements())
@@ -56,24 +56,24 @@ std::string frozen_bytes(const Model& m) {
     return out;
 }
 
-// What the WHOLE view would put on the wire.
+// 或 整个 将打开 传输.
 std::string view_bytes(const Model& m) {
     return maya::render_to_string_ansi(ui::view(m), kWidth);
 }
 
-} // namespace
+} // 命名空间结束。
 
 int main(int argc, char** argv) {
-    // These compare painted bytes across palettes; a NO_COLOR in the
-    // caller's env (CI, agent shells, a console with no VT) would make every
-    // scheme identical. MAYA_COLOR is maya's documented deterministic-test
-    // override (see detect_color_level).
+    // 这些比较画 字节 跨调色板; a NO_COLOR 电话铃声的内脏
+    // CI ,代理贝壳,一个控制台,没有 VT )将使每个方案都相同。
+    // MAYA_COLOR 谓 maya 已经记录的定型 -test 覆盖( 见
+    // detect_color_level).
     ::unsetenv("NO_COLOR");
     ::setenv("MAYA_COLOR", "truecolor", 1);
     const int msgs = argc > 1 ? std::atoi(argv[1]) : 200;
-    // Optional: a REAL thread file. Synthetic messages do not reproduce the
-    // frozen ledger's real block shapes (tool cards, code blocks, folds),
-    // and the whole bug lives in how those blocks repaint.
+    // 可选:REALXX线程文件. 合成消息不复制被
+    // 冻结的分类账的真实块形状(工具卡,代码块,归并),
+    // 整个bug生活在那些块重绘的状态.
     const char* thread_path = argc > 2 ? argv[2] : nullptr;
 
     app::install_deps(app::Deps{
@@ -91,9 +91,9 @@ int main(int argc, char** argv) {
 
     Model m;
     if (thread_path) {
-        // A thread id, not a path: the store speaks the .jsonl log format
-        // (load_thread_file is the LEGACY whole-document .json reader, which
-        // silently returns nothing for a log file).
+        // A 线程 id,不是路径: 商店会说 .jsonl 日志格式( )
+        // load_thread_file 是那个 LEGACY 整体 -document .
+        // JSON 读取器,它默默地不返回日志文件。
         auto t = persistence::load_thread_by_id(::agentty::IoAccess::grant(), ThreadId{thread_path});
         if (t) {
             m.d.current = std::move(*t);
@@ -118,14 +118,14 @@ int main(int argc, char** argv) {
     m = app::update(std::move(m), Msg{OpenAppearance{}}).first;
     m = app::update(std::move(m), Msg{AppearancePickTheme{}}).first;
 
-    // Pin the colour TIER.
+    // 将颜色 TIER 绑定。
     //
-    // resolve() falls back to `native` for every named scheme when the tier
-    // is too low to paint one — and detect_tier() reports the lowest tier
-    // headlessly, because stdout is a pipe. Without this the probe resolves
-    // EVERY theme to the same palette and "the ledger did not change" is a
-    // property of the harness, not of the code under test. Forcing TrueColor
-    // is what a real terminal session already has.
+    // resolve() 倒车 `native` 当等级太低,
+    // 无法画出一种时,每个命名方案都使用。 detect_tier
+    // ()无头报告最低层,因为Stdout是管子。没有这个探测器,
+    // 探测器就会解决 每个 主题改为同一调色板和
+    // "the ledger did not change" 是一种系系系系,而不是测试中的编码。
+    // TrueColor 简直是真实的 终端 已经是了
     m.d.ui().tier = ui_prefs::ColorTier::TrueColor;
 
     app::detail::rehydrate_frozen(m);
@@ -133,14 +133,14 @@ int main(int argc, char** argv) {
     std::printf("transcript=%d msgs, frozen_through=%zu, blocks=%zu\n\n",
                 msgs, m.ui.frozen_through, m.ui.frozen.elements().size());
 
-    // One "frame": what a real loop does — view() publishes + builds, and we
-    // capture what would go to the wire.
+    // 一个 "frame" :一个真正的循环会做什么—— view() 发布+构建,
+    // 我们抓住将进入 传输.
     auto frame = [&](std::string& frozen, std::string& whole) {
-        whole  = view_bytes(m);     // publishes the theme as a real frame does
+        whole  = view_bytes(m);     // 将主题发布为 帧 的真值。
         frozen = frozen_bytes(m);
     };
 
-    // ── One arrow key must change the screen ─────────────────────────────
+    // ── 一个箭头键必须改变屏幕 ─────────────────────────────
     {
         std::printf("a single arrow key changes what is on screen\n");
         std::string f0, v0, f1, v1;
@@ -152,11 +152,11 @@ int main(int argc, char** argv) {
         const std::string t1 = m.d.ui().theme;
 
         std::printf("    theme: '%s' -> '%s'\n", t0.c_str(), t1.c_str());
-        // Distinguish "the reducer never picked a real scheme" from "it did
-        // but the ledger did not rebuild". resolve() falls back to native
-        // whenever the colour TIER is too low to paint a named scheme, so a
-        // headless run can silently resolve everything to the same palette —
-        // which would look exactly like the bug without being it.
+        // 区分 "the reducer never picked a real scheme"
+        // 发件人 "it did but the ledger did not rebuild".
+        // resolve() 颜色何时回原生 TIER 过于低沉,
+        // 无法描绘一个命名的图案,因此无头运行可以默默地将一切解于同
+        // 一个调色板上——它看起来完全像错误,而不会是它.
         {
             const auto r0 = ui_prefs::resolve(m.d.ui(), m.env.terminal);
             std::printf("    resolved tier=%d  scheme=%s  ink=%02x%02x%02x\n",
@@ -171,9 +171,9 @@ int main(int argc, char** argv) {
         std::printf("\n");
     }
 
-    // ── THE REPORT: two presses, two visibly different screens ───────────
-    // "It takes two arrow movements to see the theme change" means press N
-    // and press N+1 render identically. Assert they do not.
+    // ── 该 REPORT:两台压机,两台显式不同的屏幕 ───────────
+    // 需要移动两次方向键，才能看到主题变化。
+    // 表示按 N 和 按 N+1 键 渲染 完全一样,他们肯定不会
     {
         std::printf("consecutive presses each change the screen\n");
         int unchanged = 0;

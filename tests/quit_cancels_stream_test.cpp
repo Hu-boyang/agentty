@@ -1,9 +1,9 @@
-// quit_cancels_stream_test — ^C / Quit must trip the in-flight turn's cancel
-// token so the streaming (or tool) worker unblocks immediately. Without it the
-// event loop exits but ~BackgroundQueue's join waits for the HTTP worker to
-// notice cancellation the slow way (next server byte / idle timeout) — the
-// "^C doesn't quit during an animation" hang. Esc/CancelStream already did
-// this; this pins that Quit does too.
+// quit_cancels_stream_test — ^C / 退出必须绊倒 -flight
+// 转弯 取消 表示这样 流式传输 (或工具) 工作线程 立即解开路障,没有它 事件 循环退出但
+// ~ BackgroundQueue 加入等待着 HTTP 工作线程 通知 取消 慢路(
+// 下一个服务器) 字节 闲置/ 闲置 超时 —— —— .
+// "^C doesn't quit during an animation" 绞刑 Esc/CancelStream
+// 已经这样做了; 退出的这个针头也这样做了。
 
 #include <chrono>
 #include <memory>
@@ -37,13 +37,13 @@ void install_stub_deps() {
         .auth          = {},
     });
 }
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("Quit cancels the in-flight stream token") {
     install_stub_deps();
 
-    // A model mid-stream: Streaming phase with an active ctx carrying a live
-    // cancel token — the exact state where the spinner is animating.
+    // 中场模特儿 -stream: 流式传输 带有活性 Ctx
+    // 的相位 取消 符号—— 用于 加载动画 正在动画。
     A::Model m;
     A::Message assistant;
     assistant.role = A::Role::Assistant;
@@ -56,7 +56,7 @@ TEST_CASE("Quit cancels the in-flight stream token") {
 
     check(!token->is_cancelled(), "precondition: token starts un-cancelled");
 
-    // Dispatch Quit through the meta reducer.
+    // 分派 退出通过元a 状态更新函数.
     auto [next, cmd] = D::step(::agentty::app::detail::meta_update, std::move(m), A::Quit{});
     (void)next; (void)cmd;
 
@@ -66,7 +66,7 @@ TEST_CASE("Quit cancels the in-flight stream token") {
 
 TEST_CASE("Quit with no active stream is safe") {
     install_stub_deps();
-    // Idle model: no active_ctx. Quit must not crash on the null cancel path.
+    // 闲置模式:无 active_ctx。退出时不能崩溃于空 取消 路径。
     A::Model m;
     auto [next, cmd] = D::step(::agentty::app::detail::meta_update, std::move(m), A::Quit{});
     (void)next; (void)cmd;

@@ -1,14 +1,14 @@
 #pragma once
-// Standard RFC 4648 base64 (NOT base64url): `+` and `/` for the
-// 62/63 codes, `=` padding to a multiple of 4. Used at the
-// Anthropic-API write boundary (image content blocks expect
-// standard base64) and at the persistence-save boundary (so on-disk
-// thread JSON can carry the raw image bytes losslessly).
+// 标准RFC 4648 base64 (不 base64url):
+// 62/63代码的`+`和`/`，`=`填充为4的倍数。
+// 用在Anthropic-API写入边界(图像内容块
+// 期望标准base64)和持久化-save处边界（所以-disk
+// 线程 JSON可以无损承载原始图像字节）。
 //
-// `auth.hpp` exports `base64url_no_pad` for the OAuth/PKCE flow —
-// that uses the URL-safe alphabet (`-_` for 62/63) and no padding,
-// which Anthropic's image API rejects. So we keep the two encoders
-// distinct.
+// `auth.hpp`为OAuth/PKCE流导出`base64url_no_pad`
+// ——其使用URL-safe字母表(`-_`用于62/63)并且没有填充，
+// Anthropic的图像API拒绝填充。所以我们保持两个编码
+// 器不同。
 
 #include <cstddef>
 #include <string>
@@ -23,8 +23,8 @@ namespace agentty::util {
                          bytes.size());
 }
 
-/// Returns empty string on malformed input. Skips whitespace; tolerates
-/// missing padding (rounds up to a multiple of 4).
+/// 对于格式错误的输入，返回空字符串。跳过空白；
+/// 允许缺失填充（向上舍入为 4 的倍数）。
 [[nodiscard]] std::string base64_decode(std::string_view encoded);
 
 } // namespace agentty::util

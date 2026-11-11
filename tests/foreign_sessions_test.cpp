@@ -1,8 +1,8 @@
-// foreign_sessions_test.cpp — reading Codex and Claude Code sessions.
+// foreign_sessions_test.cpp 阅读 Codex 财务报告和已审计财务报表 Claude 代码会话.
 //
-// Fixtures are trimmed copies of real session lines: the shapes both tools
-// actually write, including Codex's code-mode `exec` scripts, `wait` polls
-// and compaction, and Claude Code's split assistant lines and rewinds.
+// 修饰是真实会话行的修饰复制: 两种工具的形状都实际写入,
+// 包括 Codex 代码 -mode `exec` 脚本,
+// `wait` 民意测验和收缩,以及 Claude 代码的分割助手行和倒行.
 
 #include "agentty/foreign/sessions.hpp"
 #include "agentty/provider/anthropic/transport.hpp"
@@ -42,7 +42,7 @@ const ToolUse* find_tool(const std::vector<Message>& ms, std::string_view name) 
     return nullptr;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("codex: messages, code-mode tools, reasoning and usage") {
     const std::string text = lines({
@@ -221,8 +221,8 @@ TEST_CASE("claude: a compact summary becomes a record") {
 }
 
 TEST_CASE("continuing: an imported session is a valid request on every dialect") {
-    // A Codex session with a tool round, reasoning and an encrypted blob,
-    // then one turn typed in agentty.
+    // A Codex 带有工具回合、推理和加密的blob,然后一个回合 带
+    // 类型的 输入 agentty.
     const std::string text = lines({
         R"({"timestamp":"2026-07-27T13:00:00.000Z","type":"session_meta","payload":{"id":"w1","cwd":"/p","originator":"codex-tui"}})",
         R"({"timestamp":"2026-07-27T13:00:01.000Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"status?"}]}})",
@@ -235,7 +235,7 @@ TEST_CASE("continuing: an imported session is a valid request on every dialect")
     Message next; next.role = Role::User; next.text = "now run the tests";
     t.messages.push_back(next);
 
-    // Anthropic Messages: every tool_use is answered by a tool_result.
+    // Anthropic 消息: 每封 tool_use 由下列人员回答: tool_result.
     {
         const auto j = nlohmann::json::parse(agentty::provider::anthropic::messages_json_string(t));
         std::set<std::string> uses, results;
@@ -249,7 +249,7 @@ TEST_CASE("continuing: an imported session is a valid request on every dialect")
         CHECK(uses == results, "anthropic: calls and results pair up");
         CHECK(j.back()["role"] == "user");
     }
-    // OpenAI Chat: each tool_call id has a tool message.
+    // OpenAI 聊天:每个 tool_call id有工具信息.
     {
         const auto arr = agentty::provider::openai::build_messages(t);
         std::set<std::string> calls, answered;
@@ -261,8 +261,8 @@ TEST_CASE("continuing: an imported session is a valid request on every dialect")
         CHECK(!calls.empty());
         CHECK(calls == answered, "chat: calls and results pair up");
     }
-    // OpenAI Responses: function_call + output, and the old encrypted
-    // reasoning never rides along.
+    // OpenAI 答复: function_call +输出,
+    // 而旧的加密推理则从未出现过.
     {
         agentty::provider::Request req;
         req.messages = t.messages;

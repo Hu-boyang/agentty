@@ -1,30 +1,30 @@
 #pragma once
-// agentty::provider — the ONE enumeration of "things that have models".
+// agentty::provider-"things that have models"的ONE枚举。
 //
-// The fused model picker draws from every backend the user can actually
-// stream from: built-in presets they're signed into, and saved custom hosts
-// (a raw "host:port", Ollama, llama.cpp, a private gateway). That list was
-// never written down. `refresh_fused_sources` re-derived it inline, and for
-// a long time it enumerated ONLY presets — so a saved custom host got no
-// catalog, its live /v1/models fetch landed in `available_models`, and the
-// picker showed nothing. The menu was simply blank for those users.
+// 融合模型选择面板从用户实际可以数据流的每个后端提取：他们登录的内置-in预设，
+// 以及已保存自定义主机（原始"host:port"、Ollama、
+// llama.cpp、私有网关）。这份清单从未被写下来。
+// `refresh_fused_sources` re-derived 它内联，
+// 并且很长一段时间它枚举了 仅 预设 - 因此 已保存 自定义主机没有 目录，
+// 其实时 /v1/models 获取落在 `available_models` 中，
+// 而 选择面板 没有显示任何内容。对于这些用户来说，菜单只是空白。
 //
-// The provider PICKER had already learned this lesson: provider_rows.hpp
-// says "the composite list is a value", built once so the reducer and the
-// view cannot disagree about which rows exist. The CATALOG layer never got
-// the same treatment, which is exactly why a source could be forgotten and
-// nobody noticed for a release.
+// 提供者PICKER已经吸取了这个教训：provider_rows.hpp说
+// 合并列表本身是一个值。
+// 构建一次，因此状态更新函数和视图不能对存在哪些行存在分歧。
+// CATALOG 层从未得到同样的待遇，这正是为什么源可能被遗忘
+// 并且没有人注意到发布的原因。
 //
-// So: state it once, here. Adding a backend kind means editing this file and
-// nothing else — every consumer follows automatically, and "we forgot to
-// enumerate X" stops being a class of bug rather than a thing to remember.
+// 所以：在此声明一次。添加后端类型意味着编辑这个文件，而不是其他任何
+// 东西——每个消费者都会自动遵循，
+// "we forgot to enumerate X" 不再是一类错误，而是一个需要记住的东西。
 //
-// ── Why not just reuse ProviderRow? ──────────────────────────────────────
-// ProviderRow answers a different question: what the provider PICKER shows,
-// which includes ACP agents (no models to list — they own their own model
-// choice) and the "Custom host…" sentinel (not a backend at all). Catalog
-// sources are the subset that can answer a models query. Two questions, two
-// types, one shared derivation for the part they have in common.
+// ── 为什么不重新使用ProviderRow? ──────────────────────────────────────
+// ProviderRow回答了一个不同的问题：提供者PICKER
+// 显示了什么，其中包括ACP代理（没有要列出的模型——它们
+// 拥有自己的模型选择）和"Custom host…"哨兵（
+// 根本不是后端）。 目录 源是可以回答模型查询的子集。
+// 两个问题，两种类型，一种对它们的共同部分的共同推导。
 
 #include <string>
 #include <vector>
@@ -36,34 +36,34 @@
 
 namespace agentty::provider {
 
-// A backend the fused picker can list models for.
+// fused 选择面板可以列出其型号的后端。
 struct CatalogSource {
-    // Stable identity, and the key every ProviderCatalog is stored under.
-    // For a preset this is its registry id ("anthropic"); for a custom host
-    // it is the spec the user typed ("api.my-gw.com", "localhost:11434").
+    // 身份稳定，每ProviderCatalog都存储有密钥。
+    // 对于预设，这是其 注册表 id ("anthropic")；对于自定义主机，它是用户 带
+    // 类型的（"api.my-gw.com"、"localhost:11434"）的规范。
     std::string id;
-    // What the user sees. The preset's label, or the resolved display name
-    // of the host.
+    // 用户所看到的。预设的标签，或主机的已解析
+    // 显示名称。
     std::string label;
-    // True when this came from the registry. Consumers that need the row
-    // itself can look it up with preset_for(id) — kept as a flag rather than
-    // a pointer so the struct stays copyable and lifetime-free.
+    // 当这来自 注册表 时确实如此。需要行本身的消费者可以使用
+    // preset_for(id) 进行查找 - 保留为 标志 而不是指针，
+    // 以便结构保持可复制和 生命周期-free。
     bool is_preset = false;
-    // Un-authed presets are surfaced as QUERY-GATED sign-in offers rather
-    // than catalogs: typing "mistral" with no account should offer a sign-in
-    // instead of a dead end. Custom hosts are never in this state — holding
-    // a saved key IS being authed for them.
+    // Un-authed预设显示为QUERY-GATED标志-in提供而不是目录：
+    // 在没有帐户的情况下键入"mistral"应该提供标志-in而不是死胡同。
+    // 自定义主机永远不会处于这种状态 - 持有为其进行身份
+    // 验证的 已保存 密钥 IS。
     bool needs_signin = false;
 };
 
-// Everything the fused picker can list models for, in display order:
-// registry presets first (registry order), then saved custom hosts (sorted).
+// fused 选择面板可以列出型号的所有内容，按显示顺序：
+// 首先是注册表预设（注册表顺序），然后是已保存自定义主机（已排序）。
 //
-// Adoption is handled by saved_custom_hosts(), which drops any spec that
-// RESOLVES onto a preset row — "api.githubcopilot.com" is the copilot
-// preset, not a second backend beside it. Without that, a consumer building
-// one entry per element here would produce two catalogs for one endpoint and
-// show its models twice.
+// 采用由 saved_custom_hosts() 处理，
+// 它将 RESOLVES 的任何规范丢弃到预设行上 —
+// "api.githubcopilot.com" 是副驾驶预设，而不是其旁边的第二个后端。
+// 如果没有这一点，消费者在此处为每个元素构建一个条目将为一个端点生成两个
+// 目录 并显示其模型两次。
 [[nodiscard]] inline std::vector<CatalogSource> catalog_sources(
     const store::Settings& settings, const auth::AuthView& view) {
     std::vector<CatalogSource> out;

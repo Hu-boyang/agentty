@@ -1,77 +1,77 @@
 #pragma once
-// agentty/util/lock_levels.hpp — the order agentty's locks are taken in, as
-// TYPES the compiler checks.
+// agentty/util/lock_levels.hpp-agentty的锁被采纳的顺序，
+// 如TYPES和编译器检查。
 //
-// Every maya::guarded<T, Rank> names its rank. Taking it needs a capability
-// proving every lock the thread holds ranks LOWER (jaal core/capability.hpp):
+// 每个maya::guarded<T, Rank>命名其等级。采取它需要有能力证明每个 锁
+// 线程 都拥有 LOWER (jaal core/capability.hpp) 的排名：
 //
-//     const maya::unlocked&           the thread holds nothing
-//     const maya::held<R>&            a lock body ranked R
-//     const maya::below<R>&           a PARAMETER: "my caller holds only ranks < R"
+//     const maya::unlocked&线程 没有任何内容 const
+//     maya::held<R>&a 锁 正文 排名 R const
+//     maya::below<R>& 参数表明：调用方只持有等级小于 R 的锁。
 //
-// A function that takes a lock ranked R (directly or through anything it
-// calls) declares `const maya::below<R>&`, and its callers must be able to
-// produce one. So a call made from inside a lock ranked >= R does not
-// compile, wherever it is in the call graph. The table below is the order;
-// adding a nesting edge means placing the inner lock above the outer one
-// here, and the compiler checks every caller.
+// 采用 锁 等级 R (直接或通过任何它 调用) 的函数声明
+// `const maya::below<R>&`，并且其调用者
+// 必须能够产生一个。因此，从排名 >= R 的 锁 内部
+// 生成的 调用 不会是 编译，无论它位于 调用 图中的哪个位置。
+// 下表为顺序；添加嵌套边缘意味着将内部的 锁 放置在外部的上方，
+// 并且 编译器 检查每个调用者。
 //
-// Most locks are leaves (maya::leaf, the default): their body takes nothing.
-// A value read far more often than it changes (UI prefs, catalog facts, the
-// active selection) is a maya::snapshot instead: no lock, no rank, readable
-// from anywhere including a view and a lock body.
+// 大多数 锁 是叶子（maya::leaf，默认）：它们的 正文 不带任何东西。
+// 读取次数远多于其改变的值（UI首选项、目录事实、
+// 主动选择）是maya::snapshot：没有锁，没有等级，
+// 可以从任何地方读取，包括视图和锁 正文。
 //
-// Outermost first. Numbers are spaced so a new rank fits between two.
+// 最外层第一。数字之间有间隔，以便新的排名适合在两个之间。
 
 #include <maya/runtime.hpp>
 
 namespace agentty::lock_levels {
 
-// Serialises whole MCP connect+publish rounds; a round reads OAuth tokens,
-// the server list, the tool catalog and persistence inside.
+// 序列化整个MCP连接+发布轮次；一轮读取 OAuth 令牌、
+// 服务器列表、里面的工具 目录 和 持久化。
 using mcp_connecting = maya::rank<10, "mcp.connecting">;
 
-// Copilot's Auto-session cache. Held across the /models/session probe so
-// concurrent turns share one probe, and the probe needs a fresh proxy token.
+// 副驾驶的 Auto-session 缓存。通过 /models/session
+// 探针举行，因此并发回合共享一个探针，并且该探针需要一个新的代理令牌。
 using copilot_auto = maya::rank<12, "copilot.auto_session">;
 
-// One credential refresh at a time per provider (Claude, Copilot, Kimi,
-// Codex, MCP OAuth). Its body reads and writes the credential store (a
-// leaf) and does the network refresh.
+// 每个提供商（Claude、Copilot、Kimi、Codex、
+// MCP OAuth）一次进行一次 凭据 刷新。它的 正文 读取和写入
+// 凭据 存储（叶子）并进行网络刷新。
 using auth_refresh = maya::rank<15, "auth.refresh">;
 
-// One credential file's read-modify-write, held across the network refresh
-// so other processes adopt the token instead of refreshing again. Entered
-// from inside the provider's refresh lane, so it ranks above it.
+// 一个凭据文件的read-modify-write通过网络刷新保持，
+// 因此其他进程采用该令牌而不是再次刷新。
+// 从提供商的刷新通道内部进入，因此它的排名高于提供商。
 using cred_file = maya::rank<17, "auth.cred_file">;
 
-// The RAG index: held for a whole retrieve/refresh, which reads the skills
-// catalog, the memory store and other caches inside.
+// RAG索引：保存了整个retrieve/refresh，
+// 其读取里面的技能目录、内存存储以及其他缓存。
 using rag_index = maya::rank<20, "rag.index">;
 
-// A memory scope file's read-modify-write (takes the id rng inside). Read
-// by a RAG reindex, so it ranks above the index.
+// 内存范围文件的read-modify-write（获取内部的id rng）。
+// 通过 RAG 重新索引读取，因此它排名高于索引。
 using memory_store = maya::rank<25, "memory.store">;
 
-// One thread's log (.jsonl/.ofs/.meta.json) while the drain worker writes
-// it. The thread index's lane (file_lane) is taken inside, so it ranks below.
+// 一个线程的日志(.jsonl/.ofs/.meta.json)，
+// 同时漏极工作线程写入它。 线程索引的泳道（file_lane）被取入内部，因此排名靠后。
 using thread_log = maya::rank<28, "persistence.thread_log">;
 
-// A shared-file lane: one read-modify-write of a file two agentty instances
-// share (thread index, settings). Its body takes the cross-process file
-// lock and may read persistence caches.
+// 共享-file通道：两个agentty实例共享的文件的一次读取
+// -modify-write（线程索引、设置）。它的正文采用cross
+// -process文件锁并且可以读取持久化 缓存。
 using file_lane = maya::rank<30, "persistence.file_lane">;
 
-// A background worker's slot: its body touches the state its worker drains.
+// 背景工作线程的槽：其正文触及其工作线程耗尽的状态。
 using worker_slot = maya::rank<35, "worker_slot">;
 
-// State a lane or slot body touches, which is itself the outer lock for
-// nothing but leaves.
+// 说明正文接触的车道或槽位，其本身就是外部锁，
+// 除了离开之外什么也没有。
 using writer_state   = maya::rank<40, "persistence.writer_state">;
 using settings_cache = maya::rank<40, "settings_cache.state">;
 
-// The parameter types, spelled once. A function that takes rank R (or
-// anything ranked above it) takes `below_R`.
+// 参数类型，拼写一次。具有 R 级（或高于 R 级的任何
+// 值）的函数采用 `below_R`。
 using below_mcp_connecting = maya::below<mcp_connecting>;
 using below_copilot_auto   = maya::below<copilot_auto>;
 using below_auth_refresh   = maya::below<auth_refresh>;
@@ -83,13 +83,13 @@ using below_file_lane      = maya::below<file_lane>;
 using below_worker_slot    = maya::below<worker_slot>;
 using below_writer_state   = maya::below<writer_state>;
 using below_settings_cache = maya::below<settings_cache>;
-// Takes only leaves: callable from any lock body except a leaf's.
+// 仅采用叶子：可从除叶子之外的任何 锁 正文 调用。
 using below_leaf           = maya::below<maya::leaf>;
 
 }  // namespace agentty::lock_levels
 
 namespace agentty {
-// Short spellings for signatures.
+// 签名的短拼写。
 using maya::unlocked;
 using maya::held;
 using maya::below;

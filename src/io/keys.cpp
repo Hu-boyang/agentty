@@ -1,12 +1,12 @@
-// agentty::auth::keys — impl of the sealed provider-key vault. See
-// keys.hpp for the security rationale.
+// agentty::auth::keys-密封提供者-key金库的实现。
+// 有关安全原理，请参阅 keys.hpp。
 //
-// Persistence mirrors auth.cpp's credentials store exactly: seal the JSON
-// payload with crypt::seal (machine-bound AES-256-GCM), mirror the sealed
-// envelope into the OS keystore when enabled, then write the file
-// atomically at 0600. Load prefers the keystore (it holds the same
-// envelope) and falls back to the file; a legacy plaintext body is never
-// written back — the caller migrates it out of settings.json instead.
+// 持久化准确地镜像auth.cpp的凭据存储：用crypt::
+// seal (机器-bound AES-256-GCM)密封
+// JSON 载荷，在启用时将密封的信封镜像到OS密钥库中，
+// 然后在0600处原子地写入文件。加载更喜欢密钥库（它
+// 持有同一个信封）并落回到文件上；遗留明文 正文 永远不会被写回
+// ——调用者将其从 settings.json 中迁移出来。
 
 #include "agentty/auth/keys.hpp"
 
@@ -19,7 +19,7 @@
 #include <nlohmann/json.hpp>
 
 #include "agentty/auth/auth.hpp"        // config_dir()
-#include "agentty/auth/cred_crypt.hpp"  // crypt::seal / unseal / looks_sealed
+#include "agentty/auth/cred_crypt.hpp"  // crypt::seal/开封/looks_sealed
 #include "agentty/auth/keystore.hpp"
 #include "agentty/io/shared_file.hpp"
 #include "agentty/util/dbglog.hpp"
@@ -36,9 +36,9 @@ fs::path vault_path() {
     return agentty::auth::config_dir() / "provider-keys.json";
 }
 
-// Atomic + 0600 write of the sealed envelope. Its only writer is
-// save_settings_locked, inside the settings file's section, so concurrent
-// processes already take turns here.
+// 原子+0600写入密封信封。它唯一的编写者是
+// save_settings_locked，位于设置文件的部分内，
+// 因此并发进程已经在这里轮流进行。
 bool write_private(const fs::path& p, const std::string& body) {
     if (persistence::detail::write_in_section(p.string(), body,
             {.durability = persistence::Durability::Durable, .mode = 0600}))
@@ -47,9 +47,9 @@ bool write_private(const fs::path& p, const std::string& body) {
     return false;
 }
 
-// The vault body is a plain JSON object: { "provider-id": "key", … }.
-// Reject non-string members rather than trusting them — the map is the
-// wire contract with Settings.provider_keys.
+// 保险库 正文 是一个普通的 JSON 对象：{ "provider-id": "key", … }。
+// 拒绝非-string成员而不是信任他们——地图是传输与
+// Settings.provider_keys的合同。
 std::optional<KeyMap> parse(const std::string& body) {
     try {
         json j = json::parse(body);
@@ -66,28 +66,28 @@ std::optional<KeyMap> parse(const std::string& body) {
     return std::nullopt;
 }
 
-} // namespace
+} // 命名空间结束。
 
 std::string path() { return vault_path().string(); }
 
 KeyMap load() {
-    // Keystore first, exactly like auth::load_credentials: when enabled it
-    // holds the same sealed envelope, and the file becomes the fallback.
+    // 首先是密钥库，与auth::load_credentials
+    // 完全相同：当启用时，它保存相同的密封信封，并且文件变成回退。
     if (keystore::available()) {
         std::string raw;
         if (keystore::retrieve("provider-keys", raw) == keystore::Status::Ok
             && !raw.empty()) {
             if (auto body = crypt::unseal(raw))
                 if (auto parsed = parse(*body)) return std::move(*parsed);
-            // A keystore envelope that fails to authenticate falls through
-            // to the file — unseal is fail-closed, so this can only mean a
-            // stale machine binding, and the file copy is the newer store.
+            // 验证失败的密钥库信封落入文件——解封是
+            // fail-closed，因此这只能意味着
+            // 过期机器绑定，并且文件副本是较新的存储。
         }
     }
     auto file = persistence::peek_file(vault_path());
     if (!file || file->empty()) return {};
     const std::string& raw = *file;
-    // Fail closed on unauthenticated bytes: wrong machine / corrupt → {}.
+    // 未经身份验证的 字节 失败关闭：机器错误/损坏 → {}。
     auto body = crypt::looks_sealed(raw) ? crypt::unseal(raw) : std::nullopt;
     if (!body) {
         util::dbglog("keys.load", "unauthenticated vault ignored");
@@ -98,18 +98,18 @@ KeyMap load() {
 }
 
 bool save(const KeyMap& keys) {
-    // An empty map is AUTHORITATIVE (a sign-out must leave no recoverable
-    // key at rest), so it wipes the vault rather than writing an empty
-    // envelope — no ghost file, no stale keystore item.
+    // 空映射是AUTHORITATIVE（符号-out必须不留下任何可恢复的密钥），
+    // 因此它擦除保管库而不是写入空信封——没有
+    // 幽灵文件，没有过期密钥库项目。
     if (keys.empty()) {
         clear();
         return true;
     }
     json j = json::object();
     for (const auto& [k, v] : keys) j[k] = v;
-    // Refuse to persist what we can't encrypt — same contract as
-    // auth::save_credentials. The in-memory Settings still work for the
-    // session; the caller surfaces the write failure.
+    // 拒绝保留我们无法加密的内容——与
+    // auth::save_credentials 相同的合同。
+    // in-memory 设置仍然适用于会话；调用者显示写入失败。
     auto sealed = crypt::seal(j.dump(2));
     if (!sealed) {
         util::dbglog("keys.save", "seal failed; vault left unchanged");

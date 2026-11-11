@@ -1,19 +1,19 @@
-// tests/wire_pipe.hpp -- a real maya::Writer over a real OS pipe, for wire
-// tests that render frames and inspect the exact bytes that hit the "tty".
+// tests/wire_pipe.hpp - 一个真实的 maya::Writer 过
+// 一个真实 OS 烟斗,用于 传输 测试 渲染 帧 检查准确 字节 撞到的车 "tty".
 //
 //     auto [writer, rfd] = wire_pipe::make_writer();
-//     ... render a frame through writer ...
-//     std::string bytes = wire_pipe::drain(rfd);   // never blocks
+//     ... 渲染 a 帧 透过作家...
+//     std::string 字节 = wire_pipe::drain (rfd); // 永远不设块
 //     ::close(rfd);
 //
-// POSIX: pipe(2), both ends O_NONBLOCK; drain reads until EAGAIN.
-// Windows: an anonymous CRT pipe with a large buffer (WriteFile on an
-// anonymous pipe blocks when full, so the buffer must hold a whole frame —
-// tests drain after every frame); drain asks PeekNamedPipe how much is
-// queued and reads exactly that, so it never blocks on an empty pipe.
+// POSIX : 管道(2),两端 O_NONBLOCK ; 排水量读取到 EAGAIN.
+// Windows : 匿名者 CRT 带有大管子 缓冲区 (
+// WriteFile 在一个匿名的管道块 当满,所以 缓冲区 一定有
+// 整个 帧 ——每一次试验后排水量 帧 ); 排水层问
+// PeekNamedPipe 排队和读得准确,所以它从来不会在空管上阻塞。
 //
-// The write end stays open for the process lifetime on both platforms (the
-// Writer doesn't own its handle), matching the behaviour these tests had.
+// 写端在两个平台上对生命周期进程保持开放(
+// Writer不拥有它的手柄),匹配这些测试的行为.
 #pragma once
 
 #include <cstddef>
@@ -37,8 +37,8 @@
 namespace wire_pipe {
 
 #if defined(_WIN32)
-// Larger than any single frame the wire tests emit (full-screen redraws
-// of wide fuzz terminals are a few hundred KB).
+// 比任何单人都大 帧 编号 传输 测试( 完全) -screen
+// 宽毛线重画 终端 几百块 KB).
 inline constexpr unsigned kPipeBytes = 16u << 20;
 #endif
 
@@ -56,7 +56,7 @@ inline constexpr unsigned kPipeBytes = 16u << 20;
 #endif
 }
 
-// Everything currently queued on the read end; returns "" when empty.
+// 当前在读端上队列的所有项目; 当空时返回 ""。
 [[nodiscard]] inline std::string drain(int rfd) {
     std::string out;
     char buf[8192];

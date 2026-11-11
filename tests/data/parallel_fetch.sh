@@ -1,10 +1,10 @@
 #!/bin/sh
-# Does the sandbox proxy serve fetches CONCURRENTLY?
+# 是否为 沙箱 代理服务获取 CONCURRENTLY?
 #
-# The first version handled one connection at a time, so N fetches took N
-# times as long -- which is what `npm install` does, a dozen sockets at once.
-# Eight parallel requests against a serial proxy take 8x one request; against
-# a concurrent one they take about 1x.
+# 第一个版本一次处理一个连接,所以N接头需要N倍长的
+# 时间--这是`npm install`做的,一打套接字。
+# 八个针对序列代理的平行请求取8x1请求;
+# 针对一个平行请求取约1x.
 N=8
 start=$(date +%s%N)
 i=0

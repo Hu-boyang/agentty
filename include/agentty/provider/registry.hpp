@@ -1,25 +1,25 @@
 #pragma once
-// agentty::provider — the provider REGISTRY: one static, ordered table that
-// is the single source of truth for every backend agentty can talk to.
+// agentty::provider——提供者REGISTRY：一个静态的、
+// 有序的表，它是每个后端agentty可以与之对话的单一事实来源。
 //
-// Why a registry (and not an if/else chain): provider selection is growing
-// toward "all providers, first-class". Every place that needs to know about
-// a backend — the provider picker UI, `parse_selection`, the per-provider
-// auth-env resolution in main.cpp, `Endpoint::from_spec`, the model badge —
-// used to hardcode a 2-way Anthropic/OpenAI branch (or a chain of
-// `if (label == "groq")`). Adding a provider meant editing N call sites and
-// hoping you found them all.
+// 为什么是 注册表 (而不是 if/else 链)：提供商选择正朝着
+// "all providers, first-class" 方向发展。每个需要了解后端的地方
+// - 提供者 选择面板 UI、`parse_selection`、main.cpp、
+// `Endpoint::from_spec` 中的 per-provider auth-env 分辨率、
+// 型号徽章 - 用于硬编码 2-way Anthropic/OpenAI 分支
+// （或 `if (label == "groq")` 链）。添加提供商意味着编辑 N 调用
+// 站点并希望您能找到所有这些站点。
 //
-// Now: add ONE row to `kProviders` below and the picker shows it, the auth
-// resolver knows its env var, the badge labels it. The table is `constexpr`
-// where it can be (ids/labels/flags) with the endpoint left to
-// `openai::Endpoint::from_spec` so the wire-shape (path/port/tls) lives next
-// to the transport that uses it.
+// 现在：将 一个 行添加到下面的 `kProviders` 中，选择面板 显示它，
+// 身份验证解析器知道它的环境变量，徽章标记它。该表是 `constexpr`，
+// 它可以是 (ids/labels/flags)，端点保留为
+// `openai::Endpoint::from_spec`，因此 传输-shape (path/port/tls)
+// 位于使用它的 传输层 旁边。
 //
-// The registry deliberately does NOT own the concrete Provider type — that
-// stays behind the type-erased `Deps::stream` seam (see runtime/app/deps.hpp).
-// A registry row only describes *which* backend and *how to authenticate*;
-// constructing the right transport is main.cpp's job, dispatched on `Kind`.
+// 注册表故意让NOT拥有具体的Provider类型——该类型保留在类型-erased
+// `Deps::stream` 接口边界之后（参见runtime/app/deps.hpp)。
+// 注册表行仅描述*哪个*后端以及*如何认证*；构建正确的
+// 传输层 是 main.cpp 的工作，于 `Kind` 分派。
 
 #include <array>
 #include <cstdint>
@@ -33,44 +33,44 @@
 
 namespace agentty::provider {
 
-// ── The two orthogonal axes of a provider ────────────────────────────────
+// ── 供方的两根正交轴 ────────────────────────────────
 //
-// `Kind` used to conflate them into one enum, which is why "is this ChatGPT?"
-// had to be re-derived as `kind == OpenAI && label == "chatgpt"` at six sites.
-// They are separated here:
+// `Kind`过去常常将它们合并为一个枚举，这就是为什么"is this ChatGPT?"必须在六个站点将
+// -derived重新修改为`kind == OpenAI && label == "chatgpt"`的原因。
+// 它们在这里分开：
 //
-//   Wire     — the on-the-wire DIALECT (which serializer/parser a turn uses).
-//              This is the ONLY thing the transport layer branches on.
-//   Lifetime — whether the concrete Provider is built once and reused for the
-//              whole process (it holds connection / OAuth-token state) or is a
-//              cheap value rebuilt per call from the active Endpoint.
+//   传输-on-the-wire DIALECT(serializer/parser一轮使用)。
+//              这是 传输层 层分支的 仅 事物。
+//   生命周期-具体的Provider是否被构建一次并在整个
+//              过程中重用（它保持连接/OAuth-token状态），
+//              或者是从活动端点的每个调用重建的廉价值。
 //
-// Provider IDENTITY ("chatgpt" vs "groq") is never an enum — it is the row's
-// `id`. Anything that used to switch on identity now reads a capability field
-// off the row (see ProviderDescriptor), so adding a provider is adding a row.
+// 提供方身份，例如 chatgpt 与 groq。
+// 绝不是枚举——它是行的`id`。任何用于打开身份的内容现在都会从行中读取功能字段
+// （请参阅ProviderDescriptor），因此添加提供程序就是添加一行。
 
-// Which wire dialect a turn is serialized/parsed as. Multiple providers share
-// one dialect (every hosted OpenAI-compat clone speaks OpenAIChat); a provider
-// is special only if it needs a NEW dialect.
+// 其中传输方言一转就是serialized/parsed。多个提供商共享一种
+// 方言（每个托管的 OpenAI-compat 克隆都说 OpenAIChat）；
+// 仅当提供程序需要 新 方言时，它才是特殊的。
 enum class Wire : std::uint8_t {
-    AnthropicMessages,  // Anthropic /v1/messages SSE.
-    OpenAIResponses,    // OpenAI /responses SSE (Codex/ChatGPT + api.openai.com).
-    OpenAIChat,         // OpenAI /chat/completions SSE + Ollama /api/chat NDJSON.
-    Acp,                // external ACP agent subprocess (no HTTP dialect).
+    AnthropicMessages,  // Anthropic/v1/messages SSE。
+    OpenAIResponses,    // OpenAI/响应SSE(Codex/ChatGPT+api.openai.com)。
+    OpenAIChat,         // OpenAI /chat/completions 使用 SSE，Ollama /api/chat 使用 NDJSON。
+    Acp,                // 外部ACP代理子进程(无HTTP方言)。
 };
 
-// Is the concrete Provider long-lived (owns refreshed tokens / a warm pool, so
-// it is constructed once in main() and reused) or built per call?
+// 具体的Provider是long-lived（拥有刷新的代币/温暖的池，
+// 因此它在main()中构造一次并重复使用）还是根据调用构造？
 enum class Lifetime : std::uint8_t {
-    PerCall,    // cheap value transport, rebuilt from the active Endpoint.
-    LongLived,  // holds cross-turn state; one instance owned by main().
+    PerCall,    // 便宜的值传输层，从活动端点重建。
+    LongLived,  // 保持cross-turn状态； main() 拥有一个实例。
 };
 
-// `Kind` is retained as a COARSE, derived view of `Wire` for the handful of
-// call sites that only care "Anthropic vs OpenAI-family vs ACP subprocess".
-// It is no longer stored on a row — it is a pure function of Wire — so it can
-// never drift from the dialect. New code should prefer `Wire` + capability
-// fields; `Kind` stays only to keep the migration mechanical.
+// `Kind`被保留为COARSE，是少数仅关心
+// "Anthropic vs OpenAI-family vs ACP subprocess"的调用站点的`Wire`的派生视图。
+// 它不再存储在一行中——它是 传输 的纯函数——因此它永远不会
+// 偏离方言。新代码应该优先选择 `Wire` + 能力字段；
+// `Kind` 留下来只是为了保持迁移的机械性。
 enum class Kind : std::uint8_t { Anthropic, OpenAI, ExternalAcp };
 
 [[nodiscard]] constexpr Kind kind_of(Wire w) noexcept {
@@ -83,28 +83,28 @@ enum class Kind : std::uint8_t { Anthropic, OpenAI, ExternalAcp };
     return Kind::OpenAI;
 }
 
-// How a provider authenticates — drives both the UI hint and which env vars
-// the auth resolver consults.
+// 提供者如何进行认证——驱动UI提示以及认证解析器
+// 咨询哪些环境变量。
 enum class AuthStyle : std::uint8_t {
-    OAuthOrKey,  // Anthropic: OAuth (Pro/Max) or x-api-key.
-    ApiKey,      // hosted OpenAI-family: a bearer key from env / --key.
-    None,        // local server (Ollama / llama.cpp): no auth needed.
+    OAuthOrKey,  // Anthropic:OAuth(Pro/Max)或x-api-key。
+    ApiKey,      // 托管OpenAI-family:来自env/--key的承载密钥。
+    None,        // 本地服务器(Ollama/llama.cpp)：不需要认证。
 };
 
-// Which long-lived provider slot serves this row. A LongLived-lifetime
-// provider holds cross-turn state (refreshed OAuth tokens / a warm
-// transport), so it is constructed ONCE in main() and reused; dispatch
-// indexes the router by this value. `None` = served by a per-call transport
-// (the generic OpenAI-compat/Ollama builder) or the ACP arm.
+// 哪个long-lived提供商时隙服务该行。 LongLived-lifetime
+// 提供者持有 cross-turn 状态（刷新的 OAuth 令牌/温暖的
+// 传输层），因此它在 main() 中构造 一次 并重用； 分派 通过该值对路
+// 由器进行索引。 `None` = 由 per-call 传输层（通用
+// OpenAI-compat/Ollama 构建器）或 ACP 臂提供服务。
 //
-// This lives ON THE ROW — not in an if-chain inside dispatch — so routing is
-// a data lookup and the static_asserts below can PROVE the table coherent:
-// adding an OAuth-native provider without a slot, or a slot without the
-// long-lived lifetime, is a compile error, not a field bug.
+// 这个住ON 该 ROW——不在一个if-chain里面分派——所以路由是
+// 一个数据查找，下面的static_asserts可以和PROVE表连贯：
+// 添加没有槽的 OAuth-native 提供者或者没有 long
+// -lived 生命周期 的槽是 编译 错误，而不是现场错误。
 enum class RouteSlot : std::uint8_t { None, Anthropic, ChatGpt, Copilot, Kimi };
 inline constexpr std::size_t kRouteSlots = 5;
 
-// Log/diagnostic tag for a slot — the `route=` value in dispatch.turn.
+// 槽的Log/diagnostic标签——dispatch.turn中的`route=`值。
 [[nodiscard]] constexpr std::string_view slot_tag(RouteSlot s) noexcept {
     switch (s) {
         case RouteSlot::Anthropic: return "anthropic-messages";
@@ -116,257 +116,257 @@ inline constexpr std::size_t kRouteSlots = 5;
     return "";
 }
 
-// One backend agentty knows how to reach: its identity, how it authenticates,
-// which wire dialect it speaks, and its lifetime. POD + string_view so the
-// whole table is a constant-initialised `constexpr` array with zero heap.
+// 一个后端agentty知道如何到达：它的身份、它如何认证、它讲哪种传输方言、
+// 以及它的生命周期。 POD + string_view 所以整个表是
+// 一个常量-initialised `constexpr` 数组，堆为零。
 //
-// This is THE source of truth. Every subsystem that used to switch on a
-// provider (dispatch, model-list, prewarm, login gate, picker) reads a field
-// here instead. "Add a provider" == "append a row".
+// 这是THE的事实来源。用于打开提供程序的每个子系统（分派、型号-list、
+// 预热、登录门、选择面板）都会在此处读取字段。 "Add a provider"
+// == "append a row"。
 struct ProviderDescriptor {
-    std::string_view id;        // canonical spec token ("anthropic", "groq").
-    std::string_view label;     // display name for the picker / badge.
-    std::string_view blurb;     // one-line description (picker trailing text).
-    Wire             wire;       // on-the-wire dialect (transport branches here).
-    Lifetime         lifetime;   // long-lived (owns state) vs rebuilt per call.
+    std::string_view id;        // 规范规范令牌("anthropic"，"groq")。
+    std::string_view label;     // 显示名称为选择面板/徽章。
+    std::string_view blurb;     // one-line描述（选择面板尾随文本）。
+    Wire             wire;       // on-the-wire方言(传输层在此分支)。
+    Lifetime         lifetime;   // long-lived (拥有状态) vs 根据 调用 重建。
     AuthStyle        auth;
-    // TRUE only for a backend that runs on this machine (Ollama, a custom
-    // localhost host). NOT "needs no API key" — that is AuthStyle::None, and
-    // conflating the two is why ChatGPT once claimed to be local. Read by the
-    // credential layer to skip key resolution and by the picker to skip the
-    // key prompt.
+    // TRUE 仅适用于在此计算机上运行的后端（Ollama，自定义本地主机主机）。
+    // 不 "needs no API key" — 即 AuthStyle::None，
+    // 将两者混为一谈就是 ChatGPT 曾经声称是本地的原因。
+    // 通过 凭据 层读取可跳过密钥解析，通过 选择面板 层读取可跳过密钥
+    // 提示词。
     bool             is_local;
 
-    // Env vars consulted (in order) to find this provider's API key. The
-    // last entry is usually the generic OPENAI_API_KEY fallback. Empty for
-    // Anthropic (creds come from `agentty login`) and local backends.
-    // Stored as a fixed 3-slot array of string_views; unused slots are "".
+    // （按顺序）咨询环境变量以找到该提供商的 API 密钥。最后一个条目
+    // 通常是通用的 OPENAI_API_KEY 回退。 Anthropic
+    // （信用来自 `agentty login`）和本地后端为空。
+    // 存储为string_views的固定3-slot数组；未使用的插槽是 ""。
     std::array<std::string_view, 3> auth_env;
 
-    // Key PREFIXES unique enough to identify this provider from a pasted key
-    // alone, most specific first. Unused slots are "".
+    // 密钥PREFIXES足够独特，足以仅从粘贴的密钥中识别该提供商，
+    // 首先是最具体的。未使用的插槽是 ""。
     //
-    // Why this lives on the row: `agentty login` and the first-run modal both
-    // accept "an API key" and then had nowhere to ask which provider it
-    // belonged to, so every pasted key was written to the Anthropic store
-    // (issue #68). The prompt says "or any provider" and the code meant
-    // "Anthropic" -- a key for Groq was accepted, saved, and then failed on
-    // the first turn with an auth error naming the wrong vendor.
+    // 为什么这位于行：`agentty login`和第一个-run 弹出
+    // 面板都接受"an API key"，然后无处询问它属于哪个提供者，
+    // 因此每个粘贴的密钥都被写入Anthropic存储（问题#68）。
+    // 提示词 表示 "or any provider"，
+    // 代码意味着 "Anthropic"——Groq 的密钥 已保存 被接受，
+    // 然后在第一回合失败，出现身份验证错误，指定了错误的供应商。
     //
-    // Detection HAS to be a registry fact rather than a switch somewhere in
-    // the auth layer: a new provider already declares its host, its env vars
-    // and its wire dialect here, and a prefix table living anywhere else is
-    // one more place to forget. This is the same reasoning auth_env above
-    // follows.
+    // 检测 HAS 是 注册表 事实，而不是身份验证层中
+    // 某处的开关：新的提供者已经在这里声明了其主机、
+    // 其环境变量及其 传输 方言，而位于其他任何地方的前缀表又是
+    // 一个需要忘记的地方。这与上面的 auth_env 的推理
+    // 相同。
     //
-    // ONLY unambiguous prefixes belong here. `sk-` is shared by Anthropic,
-    // OpenAI and DeepSeek, so it identifies nothing and is deliberately
-    // absent -- a guess that silently picks the wrong provider is worse than
-    // asking, because the user then debugs a credential they believe is
-    // correct. An empty match means "ask", which is the honest outcome.
+    // ONLY明确的前缀属于这里。 `sk-` 由 Anthropic、
+    // OpenAI 和 DeepSeek 共享，
+    // 因此它不识别任何内容并且故意不存在——默默地选择错误的
+    // 提供者的猜测比询问更糟糕，因为用户随后调试他们认为
+    // 正确的 凭据。空匹配意味着 "ask"，这是诚实的结果。
     std::array<std::string_view, 2> key_prefixes;
 
-    // The FIXED host to open a warm TLS connection to before the first turn,
-    // when it is NOT derivable from the runtime Endpoint. Two backends need
-    // this: Anthropic (the transport hardcodes api.anthropic.com; no Endpoint
-    // is dialled) and ChatGPT (talks to chatgpt.com/backend-api/codex while
-    // its Endpoint carries a sentinel port 0). Empty for every other row:
-    // hosted OpenAI-compat backends prewarm their own Endpoint host, and
-    // local / ACP backends have nothing worth warming. This makes
-    // prewarm_active_provider a data lookup instead of a hand-written switch.
+    // 当NOT可从运行时端点导出时，FIXED主机在第一次转动之前打开
+    // 到TLS的热连接。两个后端需要这个：Anthropic（传输层
+    // 硬编码 api.anthropic.com；没有拨打端点）和
+    // ChatGPT（与 chatgpt.com/backend-api/codex 通信，
+    // 而其端点带有哨兵端口 0）。每隔一行为空：
+    // 托管OpenAI-compat后端预热其自己的Endpoint主机，
+    // 而本地/ACP后端没有什么值得预热的。
+    // 这使得 prewarm_active_provider 成为数据查找而不是 hand-written 开关。
     std::string_view prewarm_host;
 
-    // OAuth-native: the backend authenticates by "sign in with <provider>"
-    // (its own OAuth flow, tokens auto-refreshed in-process) rather than a
-    // bearer API key, AND it rides a DEDICATED long-lived transport instead of
-    // the generic OpenAI-compat one. Today only ChatGPT/Codex sets this
-    // (Anthropic OAuth speaks AnthropicMessages, so it never needs the flag to
-    // be routed). "This endpoint is special" is a DATUM on the row, read at the
-    // routing/prewarm/login sites — a second such provider just sets the flag.
+    // OAuth-native:后端通过"sign in with <provider>"(其
+    // 自己的OAuth流程、-process中的令牌auto-refreshed)而不是持有者
+    // API密钥、AND进行身份验证，它使用DEDICATED long-lived 传输层而不是
+    // 通用的OpenAI-compat。今天只有 ChatGPT/Codex 设置了这个（
+    // Anthropic OAuth 使用 AnthropicMessages，所以它永远不需要路
+    // 由 标志）。 "This endpoint is special" 是该行的 DATUM，
+    // 在 routing/prewarm/login 站点上读取 - 第二个此类提供程序仅设置 标志。
     bool oauth_native = false;
 
-    // ── Wire endpoint (the HTTP facts) ───────────────────────────────
-    // Where this provider is actually dialled. These used to live in a
-    // 14-arm if-chain inside Endpoint::from_spec, RE-STATING host/path
-    // facts that were already half-present on this row. Two sources of
-    // truth drifted exactly as you'd expect: the `openai` row claimed
-    // Wire::OpenAIResponses while the transport dialled
-    // /v1/chat/completions, which silently made the reasoning-text UI
-    // promise something the wire never delivers.
+    // ── 传输 结束点( 结束点) HTTP 事实) ───────────────────────────────
+    // 实际拨打该提供商的位置。这些曾经住在 14-arm if-chain
+    // 里面 Endpoint::from_spec、RE-STATING
+    // host/path 事实已经是这一排的 half-present 了。
+    // 两个事实来源完全符合您的预期：`openai` 行声称
+    // Wire::OpenAIResponses，
+    // 而 传输层 拨打了 /v1/chat/completions，这默默地使推理
+    // -text UI 承诺了 传输 从未兑现的东西。
     //
-    // Keeping them HERE, one column over from `wire`, makes that class of
-    // drift unrepresentable: a row that says Responses but points at
-    // /chat/completions is now a visible contradiction on a single line,
-    // and a static_assert below rejects it at compile time.
+    // 将它们保留在 此处（距 `wire` 多一列）使得此类漂移
+    // 无法表示：一行显示“响应”但指向 /chat/completions
+    // 现在是单行上的明显矛盾，并且下面的
+    // static_assert 在 编译 时间拒绝它。
     //
-    // Empty `host` means "not dialled over the generic OpenAI-compat
-    // transport": Anthropic (own transport, hardcoded host), ChatGPT
-    // (dedicated OAuth transport) and ACP (subprocess, no HTTP) leave
-    // these blank and are routed by `wire` / `oauth_native` instead.
-    std::string_view host;          // "api.groq.com"; "" = not HTTP-dialled.
-    std::string_view path;          // completions path, e.g. "/v1/chat/completions".
-    std::string_view models_path;   // model-list path, e.g. "/v1/models".
+    // 空`host`意味着"not dialled over the generic OpenAI-compat transport":
+    // Anthropic(自己的传输层，硬编码主机)、
+    // ChatGPT(专用OAuth 传输层)和ACP(子进程，
+    // 无HTTP)将这些留空并由`wire`/`oauth_native`来路由。
+    std::string_view host;          // "api.groq.com"; "" = 不是 HTTP-dialled。
+    std::string_view path;          // 完成路径，e.g。 "/v1/chat/completions"。
+    std::string_view models_path;   // 型号-list路径，e.g。 "/v1/models"。
     std::uint16_t    port = 443;
     bool             use_tls = true;
 
-    // ── The SECOND dialect (optional) ────────────────────────────────
-    // A host is not always ONE dialect. `wire`/`path` above is the row's
-    // DEFAULT; this is the Responses path on the SAME host, when it has
-    // one. Empty = this host speaks its default dialect only.
+    // ── SECOND方言(可选) ────────────────────────────────
+    // 主机并不总是ONE方言。上面的`wire`/`path`
+    // 是该行的DEFAULT；这是 相同 主机上的响应路径（
+    // 如果有的话）。空 = 该主机仅讲其默认方言。
     //
-    // Why this column has to exist: OpenAI's own docs now say that from
-    // GPT-5.4 on, Chat Completions does NOT support tool calling with a
-    // reasoning_effort other than `none` — and GPT-6-class models drop
-    // chat function-calling entirely. So for a reasoning agent the
-    // dialect is not a style preference, it is the difference between a
-    // working turn and a 400. A host therefore needs to advertise BOTH
-    // paths and let the per-model predicate choose.
+    // 为什么这个专栏必须存在：OpenAI自己的文档现在说从
+    // GPT-5.4开始，NOT支持使用reasoning_effort
+    // 而不是`none`进行工具调用 - 并且GPT-6
+    // -class模型完全放弃了聊天功能-calling。
+    // 因此，对于推理代理来说，方言不是风格偏好，而是工作轮次和
+    // 400 之间的区别。因此，主机需要通告 两者 路径并
+    // 让 per-model 谓词进行选择。
     //
-    // Copilot proved the shape before it was a column: its row says
-    // OpenAIChat while `prefers_responses_dialect()` quietly re-routed
-    // gpt-5* and mai-code-* to /responses — the row was lying again, just
-    // in a function instead of a field. With this column the lie has
-    // somewhere true to live, and `endpoints_consistent()` checks it.
-    std::string_view responses_path;   // "" = no Responses endpoint here.
+    // Copilot 在它成为列之前证明了形状：它的行显示 OpenAIChat，
+    // 而 `prefers_responses_dialect()` 悄悄地将
+    // -routed gpt-5* 和 mai-code-* 重新设置为 /responses
+    // — 该行再次躺着，只是在函数中而不是在字段中。在本专栏中，谎言有了真实
+    // 存在的地方，`endpoints_consistent()` 会检查它。
+    std::string_view responses_path;   // ""=此处没有响应端点。
 
-    // ── App attribution (optional) ───────────────────────────────────
-    // Some aggregators ask a client to NAME ITSELF, and give the user
-    // something back for it. OpenRouter is the case that exists today: a
-    // request carrying `HTTP-Referer` (+ `X-Title`) is credited to an app
-    // page, shows up in the public rankings, and — the part users actually
-    // feel — satisfies the models that only serve a recognised agent
-    // harness. Issue #74.
+    // ── app 属性( 可选) ───────────────────────────────────
+    // 一些聚合器要求客户端NAME ITSELF，
+    // 并为此向用户返还一些东西。 OpenRouter 是当今
+    // 存在的情况：携带 `HTTP-Referer`（+
+    // `X-Title`）的请求被记入应用程序页面，显示在公共排名中，
+    // 并且（用户实际感受到的部分）满足仅服务于公认的代理工具的模型。
+    // 问题＃74。
     //
-    // A COLUMN, not a branch in the transport, for the reason the endpoint
-    // block above exists: the identity would otherwise be a string literal
-    // sitting next to an `if (label == "openrouter")`, which is the same
-    // shape as the 14-arm if-chain that drifted from these rows. Here the
-    // fact is one line next to the host it belongs to, every transport that
-    // dials the row picks it up for free, and a row that wants no
-    // attribution simply leaves it empty.
+    // COLUMN，不是 传输层 中的分支，因为上面的端点块
+    // 存在：否则身份将是位于 `if (label == "openrouter")`
+    // 旁边的字符串文字，其与从这些行漂移的 14
+    // -arm if-chain 具有相同的形状。
+    // 这里的事实是，它所属的主机旁边有一条线路，
+    // 每个拨打该行的 传输层 都会免费接听该行，
+    // 而不需要归属的行则只需将其留空即可。
     //
-    // This is deliberately NOT a general "static headers" escape hatch:
-    // Endpoint::extra_headers already plays that role for per-request
-    // protocol junk (Copilot's editor block, Kimi's device ids). This column
-    // is narrower on purpose — it answers "who is calling", so it holds a
-    // URL and a display name and nothing else, and the values come from the
-    // ONE place agentty states its own identity (identity.hpp).
+    // 这是故意将NOT作为一般"static headers"逃生舱口：
+    // Endpoint::extra_headers已经在per
+    // -request协议垃圾（Copilot的编辑器块、Kimi的设备ID）中
+    // 扮演该角色。此列有意变窄 - 它回答 "who is calling"，
+    // 因此它包含 URL 和显示名称，仅此而已，并且值来自 一个 位置
+    // agentty 声明其自己的身份 (identity.hpp)。
     bool             attribution = false;
 
-    // The row's API accepts OpenAI's `prompt_cache_key` body field.
+    // 该行的API接受OpenAI的`prompt_cache_key` 正文字段。
     //
-    // OpenAI-COMPATIBLE is not OpenAI: the compat layers validate the body
-    // strictly and 400 an unknown field, killing the turn (#93) --
-    //   Groq:   "property 'prompt_cache_key' is unsupported"
-    //   Gemini: "Unknown name \"prompt_cache_key\": Cannot find field."
-    // So this is opt-IN per row, set only where the API documents the field
-    // (OpenAI) or passes it through (OpenRouter, which routes to OpenAI and
-    // ignores it elsewhere). Omitting it costs a cache optimisation;
-    // sending it to a strict host costs the whole turn. When in doubt, omit.
+    // OpenAI-COMPATIBLE不是OpenAI：兼容层严格验证正文并且
+    // 400未知字段，杀死转弯(#93)--Groq:
+    //   "property 'prompt_cache_key' is unsupported"
+    //   Gemini:
+    // "Unknown name \"prompt_cache_key\": Cannot find field."（未知字段 prompt_cache_key，无法找到对应字段。）
+    // 所以这是每行opt-IN，仅在API记录字段(OpenAI)或传递它的地方设置
+    // （OpenRouter，路由到 OpenAI 并在其他地方忽略它）。
+    // 忽略它会导致 缓存 优化；将其发送到严格的主机会花费整个回合。如有疑问，请省略。
     bool             accepts_prompt_cache_key = false;
 
-    // Ollama's NATIVE /api/chat protocol (NDJSON, structured tool_calls)
-    // instead of its OpenAI-compat shim, which makes weak local models
-    // leak tool calls as raw JSON in `content`.
+    // Ollama的NATIVE/api/chat协议(NDJSON，
+    // 结构化tool_calls)代替其OpenAI-compat垫片，这使得弱局部模型
+    // 泄漏工具调用作为`content`中的原始JSON。
     bool             native_api = false;
 
-    // ── Auth capabilities (what the LOGIN flow needs to know) ───────
-    // These four used to be ~26 provider-name string compares scattered
-    // through login.cpp / modal.cpp / pickers.cpp — exactly the
-    // `if anthropic {} else if copilot {}` chain the registry exists to
-    // delete. Each is the CAPABILITY the branch was really testing, so a
-    // new OAuth provider becomes a row edit rather than a grep.
+    // ── 授权能力(什么是 LOGIN 流动需要知道) ───────
+    // 这四个曾经是 ~26provider-name 字符串比较分散在
+    // login.cpp/modal.cpp/pickers.cpp
+    // — 正是 注册表 存在要删除的 `if anthropic {} else if copilot {}` 链。
+    // 每个都是分支真正测试的 CAPABILITY，
+    // 因此新的 OAuth 提供程序成为行编辑而不是 grep。
 
-    // Runs a device/browser OAuth flow (no key prompt). Copilot and Kimi
-    // share the generic launcher; ChatGPT has its own because the Codex
-    // flow negotiates device-vs-browser at runtime (see oauth_native).
+    // 运行device/browser OAuth流程（无密钥提示词)。
+    // 副驾驶和 Kimi 共用通用发射器； ChatGPT 有自己的，因为 Codex
+    // 流在 运行时 处协商设备-vs-browser（请参阅oauth_native）。
     bool device_login = false;
 
-    // Does this row use the bespoke ChatGPT/Codex login flow?
+    // 该行是否使用定制的ChatGPT/Codex登录流程？
     //
-    // A PREDICATE rather than a raw flag test, because the obvious test is
-    // wrong and was wrong at two call sites. `oauth_native` reads as "the
-    // Codex one" but actually means "authenticates by sign-in and rides its
-    // own long-lived transport" — true of Copilot and Kimi as well, which is
-    // exactly how credentials.cpp uses it. So `if (p->oauth_native)` sent
-    // every device-flow provider into the ChatGPT browser flow: picking
-    // "GitHub Copilot" opened the OpenAI sign-in panel.
+    // PREDICATE而不是原始标志测试，因为明显的测试是错误的并且在两个调用站点处是错误的。
+    // `oauth_native` 读作 "the Codex one" 但实际上意味着
+    // 通过登录认证，并使用自身长期保持的传输连接。
+    // ——对于 Copilot 和 Kimi 来说也是如此，这正是 credentials.cpp
+    // 的用法。因此，`if (p->oauth_native)` 将每个设备
+    // -flow 提供商发送到ChatGPT 浏览器流程中：选择
+    // "GitHub Copilot" 打开OpenAI 标志-in 面板。
     //
-    // The two flags are not independent — device_login is the more specific
-    // claim and wins — so the relationship belongs here, once, instead of
-    // being re-derived (and mis-ordered) by each caller.
+    // 两个标志不是独立的——device_login是更具体的声明
+    // 并获胜——因此该关系属于这里一次，而不是被每个调用者re
+    // -derived（和mis-ordered）。
     [[nodiscard]] constexpr bool codex_login() const noexcept {
         return oauth_native && !device_login;
     }
 
-    // The login modal offers a CHOICE of method (OAuth subscription vs
-    // API key). Only Anthropic does today: everything else is either
-    // key-only or OAuth-only, and showing a one-item menu is noise.
+    // 登录弹出面板提供了CHOICE方法(OAuth 事件订阅 vs API密钥)。
+    // 今天只有 Anthropic 这样做：其他一切要么是 key-only
+    // 要么是 OAuth-only，并且显示 one-item 菜单是噪音。
     bool method_menu = false;
 
-    // Tokens live in the provider's OWN store (the transport reads them
-    // per turn) rather than in a resolvable AuthHeader. On account switch
-    // these need the cached header CLEARED, not replaced — resolve()
-    // returns empty for them by design.
+    // 令牌存在于提供者的OWN存储中（传输层每轮读取它们）而不是
+    // 存在于可解析的AuthHeader中。在帐户切换时，
+    // 这些需要缓存的 头文件 CLEARED，而不是替换 -
+    // resolve() 按设计为它们返回空。
     bool token_in_transport = false;
 
-    // Anthropic-only extras that are genuinely not uniform: a long-idle
-    // OAuth token gets a proactive background refresh on account switch,
-    // and the learned "1M context is blocked" flag is re-armed because the
-    // switched-to account may hold a different entitlement.
+    // Anthropic-only真正不统一的附加功能：long
+    // -idle OAuth令牌在帐户切换时获得主动后台刷新，
+    // 并且学习到的"1M context is blocked" 标志是re
+    // -armed，因为切换的-to帐户可能拥有不同的权利。
     bool oauth_proactive_refresh = false;
 
-    // Model to select when switching TO this provider with no recalled
-    // choice, and no live catalog yet (the switch runs on the UI thread, so
-    // it cannot fetch). Empty = "let the ModelsLoaded refetch auto-select
-    // the first available", which is right for local backends and for any
-    // provider whose line-up is server-driven.
+    // Model在切换TO时选择该提供商，没有召回选择，并且还没有实时目录
+    // （交换机在UI 线程上运行，因此无法获取）。
+    // 空 = "let the ModelsLoaded refetch auto-select the first available"，
+    // 这适用于本地后端以及 line-up 为 server
+    // -driven 的任何提供商。
     //
-    // A static default belongs on the row; a DERIVED one does not — ChatGPT
-    // reads its cached catalog and Copilot's line-up varies by tier, so those
-    // stay in code with the reason written down at the call site.
+    // 静态默认值属于该行； 派生 则不然 — ChatGPT 会读取其
+    // 缓存的 目录，而 Copilot 的 line-up 因层而异，
+    // 因此这些内容会保留在代码中，并在 调用 站点上写下原因。
     std::string_view default_model;
 
-    // The long-lived routing slot serving this row (see RouteSlot above).
-    // RouteSlot::None = per-call transport chosen by wire/native_api at
-    // dispatch time. Proven coherent against lifetime/oauth_native by the
-    // static_asserts under kProviders.
+    // 服务该行的long-lived路由槽(参见上面的RouteSlot)。
+    // RouteSlot::None =由wire/native_api在分派时间选择的每-call
+    // 传输层。 kProviders 下的 static_asserts 已证明与
+    // lifetime/oauth_native 一致。
     RouteSlot route = RouteSlot::None;
 
-    // True when this row is reached over the generic OpenAI-compat
-    // transport (i.e. it carries real endpoint data above).
+    // 当通过通用 OpenAI-compat 传输层 (i.e。
+    // 它携带上面的真实端点数据)到达该行时为真。
     [[nodiscard]] constexpr bool http_dialled() const noexcept {
         return !host.empty();
     }
 
-    // Coarse Kind view, derived from `wire` so it can never drift. Kept for
-    // the call sites that only need Anthropic-vs-OpenAI-family-vs-ACP.
+    // 粗类视图，源自`wire`，因此它永远不会漂移。为仅需要 Anthropic
+    // -vs-OpenAI-family-vs-ACP 的 调用 站点保留。
     [[nodiscard]] constexpr Kind kind() const noexcept { return kind_of(wire); }
 };
 
-// Legacy name. `ProviderPreset` was the row type before it grew wire/lifetime
-// and became the behaviour source of truth; kept as an alias so the ~dozen
-// call sites naming it keep compiling during and after the migration.
+// 旧名称。 `ProviderPreset` 是在增长
+// wire/lifetime 并成为行为事实来源之前的行类型；保留为别名，
+// 以便命名它的约十几个 调用 站点在迁移期间和迁移后继续编译。
 using ProviderPreset = ProviderDescriptor;
 
-// ── The table ────────────────────────────────────────────────────────────
-// Order = display order in the picker. Anthropic first (the default), then
-// hosted OpenAI-family by popularity, then the local backend last.
+// ── 桌子上写着 ────────────────────────────────────────────────────────────
+// 顺序=选择面板中的显示顺序。首先是 Anthropic（默认），
+// 然后按受欢迎度托管 OpenAI-family，最后是本地后端。
 //
-// To add a provider: append ONE row here. The endpoint columns below are the
-// only place its host/path live — Endpoint::from_spec is a lookup over this
-// table, so there is no second arm to keep in sync.
+// 要添加提供者：在此处附加ONE行。下面的端点列是 host/path
+// 存在的唯一位置 - Endpoint::from_spec 是对
+// 此表的查找，因此没有第二个臂可以保持同步。
 inline constexpr std::array<ProviderDescriptor, 15> kProviders{{
     {.id = "anthropic", .label = "Anthropic",
      .blurb = "Claude — OAuth (Pro/Max) or API key",
-     // Own transport (not the OpenAI-compat one): no endpoint columns.
-     // The one row that gets a proactive token refresh + 1M-entitlement
-     // re-arm on an account switch.
+     // 自己的传输层(不是OpenAI-compat之一)：没有端点列。
+     // 在账户切换上获得主动令牌刷新+1M-entitlement
+     // re-arm的一行。
      .wire = Wire::AnthropicMessages, .lifetime = Lifetime::LongLived,
      .auth = AuthStyle::OAuthOrKey,
-     // sk-ant- covers both the API key (sk-ant-api03-) and the OAuth token
-     // (sk-ant-oat01-). Unambiguous, unlike the bare sk- that OpenAI and
-     // DeepSeek also use -- which is why neither of those rows has a prefix.
+     // sk-ant-涵盖API密钥(sk-ant-api03-)和OAuth
+     // 令牌(sk-ant-oat01-)。明确，与 OpenAI 和
+     // DeepSeek 也使用的裸 sk- 不同——这就是为什么这些行都没有前缀。
      .key_prefixes = {"sk-ant-", ""},
      .prewarm_host = "api.anthropic.com",
      .method_menu = true, .oauth_proactive_refresh = true,
@@ -374,31 +374,31 @@ inline constexpr std::array<ProviderDescriptor, 15> kProviders{{
      .route = RouteSlot::Anthropic},
 
     {.id = "openai", .label = "OpenAI", .blurb = "GPT / Codex — api.openai.com",
-     // DEFAULT is Chat Completions; `responses_path` below carries the second
-     // dialect. The row once claimed Wire::OpenAIResponses while dialling
-     // /v1/chat/completions — the label was decorative (nothing dispatched on
-     // it) so the lie went unnoticed and made the reasoning-text UI
-     // over-promise. Wire and path must agree; the SECOND path is now a
-     // column of its own rather than a fib in the first one.
+     // DEFAULT是聊天完成；下面的`responses_path`
+     // 带有第二种方言。该行曾经在拨打/v1/chat/completions时声称Wire::
+     // OpenAIResponses——标签是装饰性的（上面没有发送
+     // 任何内容），因此谎言没有被注意到，并使得-text
+     // UI超过-promise。 传输和路径必须一致；
+     // 第二 路径现在是它自己的一列，而不是第一列中的谎言。
      .wire = Wire::OpenAIChat, .lifetime = Lifetime::PerCall,
      .auth = AuthStyle::ApiKey,
      .auth_env = {"OPENAI_API_KEY", "CODEX_API_KEY", ""},
      .host = "api.openai.com", .path = "/v1/chat/completions",
      .models_path = "/v1/models",
-     // Reasoning models are routed here by dialect_for(). Not cosmetic:
-     // GPT-5.4+ rejects tool calls on chat with a real reasoning effort.
+     // 推理模型通过dialect_for()路由至此处。非化妆品：
+     // GPT-5.4+通过真实的推理努力拒绝聊天工具调用。
      .responses_path = "/v1/responses",
-     // The field's home: documented on Chat Completions and Responses.
+     // 该领域的主页：记录在聊天完成和响应中。
      .accepts_prompt_cache_key = true,
      .default_model = "gpt-4o"},
 
     {.id = "chatgpt", .label = "ChatGPT",
      .blurb = "Sign in with ChatGPT — Codex models, no API key",
-     // Genuinely Responses — but over its OWN OAuth transport
-     // (/backend-api/codex/responses), not the compat one, so no endpoint
-     // columns. is_local stays FALSE: chatgpt.com is a remote host, and
-     // "needs no API key" is what AuthStyle::None already says.
-     // No default_model: the cached catalog picks.
+     // 真实的响应——但是通过其 自身 OAuth 传输层 (/
+     // backend-api/codex/responses)，而不是兼容的，所以没有端点列。
+     // is_local 保持 FALSE：chatgpt.com 是远程主机，
+     // "needs no API key" 是 AuthStyle::None 已经说过的内容。
+     // 无default_model:缓存的目录选秀。
      .wire = Wire::OpenAIResponses, .lifetime = Lifetime::LongLived,
      .auth = AuthStyle::None,
      .prewarm_host = "chatgpt.com", .oauth_native = true,
@@ -407,18 +407,18 @@ inline constexpr std::array<ProviderDescriptor, 15> kProviders{{
 
     {.id = "copilot", .label = "GitHub Copilot",
      .blurb = "Sign in with GitHub — Copilot models, no API key",
-     // gpt-4o runs on every Copilot tier; the async fetch replaces it with
-     // the account's real line-up (incl. Auto) shortly after the switch.
+     // gpt-4o在每个副驾驶层上运行；切换后不久，
+     // 异步获取会将其替换为帐户的真实行-up（包括自动）。
      .wire = Wire::OpenAIChat, .lifetime = Lifetime::LongLived,
      .auth = AuthStyle::None,
      .prewarm_host = "api.githubcopilot.com", .oauth_native = true,
      .host = "api.githubcopilot.com", .path = "/chat/completions",
      .models_path = "/models",
-     // Copilot was ALWAYS mixed — gpt-5*/mai-code-* only work on /responses.
-     // That fact used to live solely inside prefers_responses_dialect();
-     // now the endpoint it implies is on the row where it can be checked.
-     // (The live host is overridden per-session from endpoints.api; this is
-     // the path, which is stable across Individual/Business/Enterprise.)
+     // 副驾驶是 始终 混合型 — gpt-5* /mai-code-* 只对 / 响应起作用。
+     // 该事实过去仅存在于prefers_responses_dialect()内；
+     // 现在它暗示的端点位于可以检查的行上。
+     // (现场主机从endpoints.api开始被覆写于-session；这是路径，
+     // 在Individual/Business/Enterprise.期间是稳定的)
      .responses_path = "/responses",
      .device_login = true, .token_in_transport = true,
      .default_model = "gpt-4o",
@@ -426,8 +426,8 @@ inline constexpr std::array<ProviderDescriptor, 15> kProviders{{
 
     {.id = "kimi", .label = "Kimi",
      .blurb = "Sign in with Kimi — Kimi K2 models, no API key",
-     // Kimi Code inference API: base https://api.kimi.com/coding/v1 (its own
-     // provider builds this; the columns must agree with it).
+     // Kimi代码推断API：基础
+     // https://api.kimi.com/coding/v1（其自己的提供者构建此；列必须与其一致）。
      .wire = Wire::OpenAIChat, .lifetime = Lifetime::LongLived,
      .auth = AuthStyle::None,
      .prewarm_host = "api.kimi.com", .oauth_native = true,
@@ -453,14 +453,14 @@ inline constexpr std::array<ProviderDescriptor, 15> kProviders{{
      .key_prefixes = {"sk-or-v1-", "sk-or-"},
      .host = "openrouter.ai", .path = "/api/v1/chat/completions",
      .models_path = "/api/v1/models",
-     // OpenRouter shipped an OpenAI-compatible Responses endpoint; upstream
-     // reasoning models behind it need the same routing as first-party.
+     // OpenRouter运送了OpenAI-compatible响应端点；
+     // 上游背后的推理模型需要与first-party相同的路由。
      .responses_path = "/api/v1/responses",
-     // Name ourselves: OpenRouter credits attributed requests to an app page
-     // and some models only serve a recognised harness. Issue #74.
+     // 命名我们自己：OpenRouter 将归因于应用程序页面的
+     // 请求归功于某些模型仅提供公认的工具。问题＃74。
      .attribution = true,
-     // Passed through to OpenAI upstreams (where it pins the cache node)
-     // and dropped for the others: OpenRouter normalises the body.
+     // 传递到 OpenAI 上游（在此处固定 缓存 节点）并为
+     // 其他节点丢弃：OpenRouter 标准化 正文。
      .accepts_prompt_cache_key = true},
 
     {.id = "together", .label = "Together",
@@ -481,7 +481,7 @@ inline constexpr std::array<ProviderDescriptor, 15> kProviders{{
 
     {.id = "deepseek", .label = "DeepSeek",
      .blurb = "DeepSeek V4 — api.deepseek.com",
-     // DeepSeek serves completions WITHOUT the /v1 prefix.
+     // DeepSeek提供补全WITHOUT/v1前缀。
      .wire = Wire::OpenAIChat, .lifetime = Lifetime::PerCall,
      .auth = AuthStyle::ApiKey,
      .auth_env = {"DEEPSEEK_API_KEY", "OPENAI_API_KEY", ""},
@@ -509,12 +509,12 @@ inline constexpr std::array<ProviderDescriptor, 15> kProviders{{
      .wire = Wire::OpenAIChat, .lifetime = Lifetime::PerCall,
      .auth = AuthStyle::ApiKey,
      .auth_env = {"GEMINI_API_KEY", "GOOGLE_API_KEY", "OPENAI_API_KEY"},
-     // AIzaSy is the legacy Developer API key prefix; AQ. is the newer
-     // AI-Studio-issued key format (see Google AI Studio forum reports --
-     // ai.google.dev/t/my-account-only-generates-aq-keys/170801 and
-     // sibling threads). New AI Studio accounts now issue AQ. keys
-     // exclusively, so leaving them unrouted sent every one of them to
-     // the Anthropic store on paste. Both prefixes carry a Gemini key.
+     // AIzaSy是旧的开发者API密钥前缀； AQ。是较新的 AI-Studio-issued
+     // 密钥格式（请参阅 Google AI Studio 论坛报告 -
+     // ai.google.dev/t/my-account-only-generates-aq-keys/170801
+     // 和兄弟 线程）。新的 AI Studio 帐户现在发行 AQ。
+     // 独占密钥，因此将它们保留为未路由，将它们中的每一个都通过粘贴发送
+     // 到 Anthropic 存储。两个前缀都带有 Gemini 密钥。
      .key_prefixes = {"AIzaSy", "AQ."},
      .host = "generativelanguage.googleapis.com",
      .path = "/v1beta/openai/chat/completions",
@@ -530,45 +530,45 @@ inline constexpr std::array<ProviderDescriptor, 15> kProviders{{
 
     {.id = "ollama", .label = "Ollama",
      .blurb = "Local models at localhost:11434",
-     // Plain HTTP on loopback, and the NATIVE /api/chat protocol.
+     // 环回上的普通HTTP，以及NATIVE/api/chat协议。
      .wire = Wire::OpenAIChat, .lifetime = Lifetime::PerCall,
      .auth = AuthStyle::None, .is_local = true,
      .host = "localhost", .path = "/api/chat", .models_path = "/api/tags",
      .port = 11434, .use_tls = false, .native_api = true},
 
-    // NOTE: no "llama.cpp" preset row. A llama.cpp / vLLM / LM Studio server is
-    // just a generic OpenAI-compatible host — use "Custom host…" (which the
-    // picker offers, saves, and can delete). The from_spec("llama.cpp") alias in
-    // openai/transport.cpp is kept so `--provider llama.cpp` on the CLI still
-    // resolves to localhost:8080.
+    // NOTE:无"llama.cpp"预设行。 llama.cpp / vLLM / LM Studio 服务
+    // 器只是一个通用的 OpenAI-compatible 主机 - 使用 "Custom host…"（
+    // 选择面板 提供，保存，并且可以删除）。 openai/transport.cpp 中的 from_spec(
+    // "llama.cpp") 别名被保留，因此 CLI 上的 `--provider llama.cpp`
+    // 仍解析为 localhost:8080。
 }};
 
-// All presets, for the picker / iteration.
+// 所有预设，针对选择面板/迭代。
 [[nodiscard]] inline std::span<const ProviderPreset> providers() noexcept {
     return {kProviders.data(), kProviders.size()};
 }
 
-// Look up a preset by its canonical id. Returns nullptr for an unknown id
-// (e.g. a raw "host:port" custom endpoint, which has no preset row).
+// 通过预设的规范ID查找预设。对于未知 id（e.g。
+// 原始 "host:port" 自定义端点，没有预设行）返回 nullptr。
 [[nodiscard]] inline const ProviderPreset* preset_for(std::string_view id) noexcept {
     for (const auto& p : kProviders)
         if (p.id == id) return &p;
     return nullptr;
 }
 
-// Which provider does this API key belong to, judged by its prefix alone?
-// Empty when no row claims it — which is the common case and NOT a failure.
+// 仅通过其前缀判断该API密钥属于哪个提供商？
+// 当没有行声明它时为空——这是常见情况并且NOT失败。
 //
-// Why empty is a real answer: a bare `sk-` key could be OpenAI, DeepSeek or a
-// custom endpoint, and silently picking one is how issue #68 happened in the
-// first place. Every pasted key was written to the Anthropic store because the
-// prompt said "or any provider" while the code had no way to ask. The user
-// then debugged a credential they believed was correct, against an error
-// naming a vendor they had not chosen.
+// 为什么空是一个真正的答案：一个裸露的 `sk-` 密钥可能是 OpenAI、
+// DeepSeek 或自定义端点，而默默地选择一个就是问题 #
+// 68 最初发生的原因。每个粘贴的密钥都被写入 Anthropic 存储，
+// 因为 提示词 表示 "or any provider"，
+// 而代码无法询问。然后，用户调试了他们认为正确的 凭据，
+// 针对命名他们未选择的供应商的错误。
 //
-// So the contract is: a confident answer, or none. A caller that gets none
-// must ASK rather than assume. Longest match wins, so `sk-or-v1-` beats
-// `sk-or-` and a future `sk-ant-oat02-` cannot be shadowed by `sk-ant-`.
+// 所以合同是：有信心的答案，或者没有。没有得到任何结果的调用者必须 ASK 而不是假设。
+// 最长的比赛获胜，因此 `sk-or-v1-` 击败 `sk-or-`，
+// 并且未来的 `sk-ant-oat02-` 不能被 `sk-ant-` 遮蔽。
 [[nodiscard]] inline std::string_view provider_for_api_key(
         std::string_view key) noexcept {
     std::string_view best;
@@ -584,13 +584,13 @@ inline constexpr std::array<ProviderDescriptor, 15> kProviders{{
 }
 
 // ── Compile-time invariants ─────────────────────────────────────────────
-// These are what make the single source of truth actually HOLD. The
-// `openai` row previously claimed Wire::OpenAIResponses while the
-// transport dialled /v1/chat/completions; nothing dispatched on the enum,
-// so the contradiction survived review and silently taught the UI to
-// promise reasoning text the wire never sends. Now the dialect and the
-// path live on one row, and disagreeing is a BUILD ERROR rather than a
-// bug someone notices months later.
+// 这些是使单一事实来源实际上HOLD的原因。 `openai`
+// 行先前声称 Wire::OpenAIResponses，
+// 而 传输层 则拨打 /v1/chat/completions；
+// 枚举 上没有发送任何内容，因此矛盾在审查中幸存下来，
+// 并默默地教导 UI 承诺 传输 永远不会发送的推理文本。现在，
+// 方言和路径位于同一行，不一致的是 BUILD ERROR，
+// 而不是几个月后有人注意到的错误。
 namespace detail {
 
 [[nodiscard]] constexpr bool ends_with(std::string_view s,
@@ -600,46 +600,46 @@ namespace detail {
 
 [[nodiscard]] constexpr bool endpoints_consistent() noexcept {
     for (const auto& p : kProviders) {
-        // Attribution names agentty to a HOST, so it only means something on a
-        // row we actually dial over HTTP. Checked BEFORE the http_dialled()
-        // bail below, because the rows that would get this wrong (the chatgpt
-        // / acp sentinels) are exactly the ones that bail.
+        // 归属名称agentty到HOST，因此它仅意味着我们实际上
+        // 通过HTTP拨打的行上的某些内容。检查了下面的 之前 和
+        // http_dialled() 保释，因为会出现此错误的行（
+        // chatgpt / acp 哨兵）正是保释的行。
         if (p.attribution && !p.http_dialled()) return false;
         if (!p.http_dialled()) {
-            // Not dialled over the compat transport ⇒ must not carry half
-            // an endpoint (a stray path with no host is how rows rot).
+            // 未通过兼容传输层拨号⇒不得携带半个端点
+            // （没有主机的杂散路径是行腐烂的原因）。
             if (!p.path.empty() || !p.models_path.empty()) return false;
             continue;
         }
         if (p.path.empty() || p.models_path.empty()) return false;
         if (p.port == 0) return false;
-        // Anthropic/ACP are never reached over the OpenAI-compat transport.
+        // Anthropic/ACP永远不会超过OpenAI-compat 传输层。
         if (p.wire == Wire::AnthropicMessages || p.wire == Wire::Acp)
             return false;
-        if (p.native_api) continue;   // Ollama's /api/chat is its own shape.
+        if (p.native_api) continue;   // Ollama的/api/chat是它自己的形状。
         if (p.wire == Wire::OpenAIChat
             && !ends_with(p.path, "/chat/completions")) return false;
         if (p.wire == Wire::OpenAIResponses
             && !ends_with(p.path, "/responses")) return false;
-        // The second dialect gets the SAME treatment as the first: if a row
-        // advertises a Responses path it must actually end in /responses,
-        // and it must not duplicate the primary path (a row claiming both
-        // dialects on one URL is the drift this column exists to kill).
+        // 第二方言得到与第一方言一样的SAME处理：如果
+        // 一行通告响应路径，则它实际上必须以/responses结束，
+        // 并且它不能重复主路径（在一个URL上声明
+        // 两种方言的行是该列存在要消除的漂移）。
         if (!p.responses_path.empty()) {
             if (!ends_with(p.responses_path, "/responses")) return false;
             if (p.responses_path == p.path) return false;
-            // Only meaningful on a host we actually dial over HTTP.
+            // 仅对我们实际拨打HTTP的主机有意义。
             if (p.host.empty()) return false;
         }
-        // A row whose DEFAULT is already Responses must not also carry a
-        // secondary Responses path — there'd be two answers to one question.
+        // DEFAULT已经是响应的行不得还
+        // 携带辅助响应路径——一个问题将有两个答案。
         if (p.wire == Wire::OpenAIResponses && !p.responses_path.empty())
             return false;
     }
     return true;
 }
 
-// Ids are the primary key: a duplicate makes preset_for() ambiguous.
+// Id是主键：重复使得preset_for()不明确。
 [[nodiscard]] constexpr bool ids_unique() noexcept {
     for (std::size_t i = 0; i < kProviders.size(); ++i)
         for (std::size_t j = i + 1; j < kProviders.size(); ++j)
@@ -647,20 +647,20 @@ namespace detail {
     return true;
 }
 
-// No two providers may claim the same key prefix, and no prefix may be a
-// prefix OF another provider's prefix.
+// 没有两个提供商可以声明相同的密钥前缀，并且没有前缀可以是
+// 另一个提供商的前缀OF的前缀。
 //
-// The second half is the one that matters. provider_for_api_key() takes the
-// longest match, so `sk-or-v1-` beating `sk-or-` within OpenRouter is fine and
-// intended. But if a FUTURE row declared `sk-` while Anthropic declares
-// `sk-ant-`, every Anthropic key would still resolve correctly and every
-// unrecognised `sk-` key would silently resolve to that new provider -- which
-// is issue #68 again, wearing a different vendor's name. A prefix that can
-// swallow another row's keys must not compile.
+// 下半场是最重要的。 provider_for_api_key() 需要最长的匹配，
+// 因此 `sk-or-v1-` 在 OpenRouter 内击败 `sk-or-`
+// 是好的并且是有意的。但是，如果 FUTURE 行声明 `sk-`，
+// 而 Anthropic 声明 `sk-ant-`，
+// 则每个 Anthropic 密钥仍将正确解析，并且每个无法识别的 `sk-`
+// 密钥将默默地解析为该新提供程序 - 这又是问题 #68，使用不同的供应商名称。
+// 可以吞没另一行键的前缀不能是 编译。
 //
-// Checked at build time rather than tested, because the failure is silent at
-// runtime: the user gets a credential stored against the wrong provider and an
-// auth error that names someone they never chose.
+// 在构建时检查而不是测试，因为故障在 运行时 处是静默
+// 的：用户获得针对错误的提供者存储的 凭据 以及命名
+// 他们从未选择的某人的身份验证错误。
 [[nodiscard]] constexpr bool key_prefixes_unambiguous() noexcept {
     for (std::size_t i = 0; i < kProviders.size(); ++i) {
         for (std::string_view a : kProviders[i].key_prefixes) {
@@ -669,8 +669,8 @@ namespace detail {
                 if (i == j) continue;
                 for (std::string_view b : kProviders[j].key_prefixes) {
                     if (b.empty()) continue;
-                    // Either being a prefix of the other is ambiguous ACROSS
-                    // rows; equality is the degenerate case of that.
+                    // 任一作为另一个的前缀是不明确的ACROSS行；
+                    // 平等是这种情况的退化情况。
                     const auto n = a.size() < b.size() ? a.size() : b.size();
                     if (a.substr(0, n) == b.substr(0, n)) return false;
                 }
@@ -683,31 +683,31 @@ static_assert(key_prefixes_unambiguous(),
               "two providers claim overlapping API-key prefixes: a pasted key "
               "would resolve to the wrong vendor's store (issue #68)");
 
-// Auth capabilities must be internally consistent. These fields replaced a
-// chain of provider-name compares in login.cpp, so a row that contradicts
-// itself is exactly the bug the migration set out to make impossible — catch
-// it at build time rather than at a user's login prompt.
+// 认证能力必须内部一致。这些字段替换了 login.cpp
+// 中的提供程序-name 比较链，因此自相矛盾的
+// 行正是迁移所要消除的错误 - 在构建时捕获它，
+// 而不是在用户登录 提示词 时捕获它。
 [[nodiscard]] constexpr bool auth_caps_consistent() noexcept {
     for (const auto& p : kProviders) {
-        // A method menu only makes sense when there IS more than one method.
+        // 方法菜单仅在存在 IS 多个方法时才有意义。
         if (p.method_menu && p.auth != AuthStyle::OAuthOrKey) return false;
-        // Device login is an OAuth flow: a row that also advertises a key
-        // env var would present two conflicting paths to the same account.
+        // 设备登录是OAuth流程：还通告密钥环境
+        // 变量的行将呈现到同一帐户的两个冲突路径。
         if (p.device_login && p.auth != AuthStyle::None) return false;
-        // Local backends never authenticate at all.
+        // 本地后端根本不进行认证。
         if (p.is_local
             && (p.device_login || p.method_menu || p.token_in_transport))
             return false;
-        // A transport-held token implies an OAuth backend, never a keyed
-        // one — an API key is resolvable, so it would never need the cached
-        // header cleared. NOT equality with oauth_native: that flag means
-        // specifically "OpenAI-FAMILY OAuth transport" and is false for
-        // Anthropic, whose OAuth rides its own AnthropicMessages transport.
-        // (An earlier draft asserted the two were equal; this static_assert
-        // caught it, which is the point of encoding the rule.)
+        // 一种运输-held令牌意味着 OAuth 后端，而不是密钥后端
+        // —APIkey 是可解析的，因此永远不需要清除缓存的标头。
+        // NOT与 平等oauth_native：该标志具体表示
+        // "OpenAI-FAMILY OAuth transport"且为假Anthropic，
+        // 其 OAuth 拥有自己的AnthropicMessages运输。
+        // （较早的草案声称两者是相等的；这个 static_assert
+        // 抓住了它，这就是对规则进行编码的点。）
         if (p.token_in_transport && p.auth == AuthStyle::ApiKey) return false;
         if (p.oauth_native && !p.token_in_transport) return false;
-        // The proactive-refresh extra is meaningless without OAuth.
+        // 在没有OAuth的情况下，active-refresh额外是没有意义的。
         if (p.oauth_proactive_refresh && p.auth == AuthStyle::ApiKey)
             return false;
     }
@@ -717,14 +717,14 @@ static_assert(key_prefixes_unambiguous(),
 } // namespace detail
 
 namespace detail {
-// Routing must be coherent with the rest of the row — this is the proof
-// that makes RouteSlot-on-the-row safe to trust blindly at dispatch time:
-//   • a routed row must be LongLived (slots hold cross-turn state);
-//   • a LongLived row must be routed (otherwise it can never be reached);
-//   • an oauth_native OpenAI-family row must be routed (its dedicated
-//     transport IS its slot — unrouted it would silently degrade to the
-//     generic per-call path, the exact custom-host bug class);
-//   • no two rows may share a slot (a slot is one provider instance).
+// 路由必须与行的其余部分保持一致——这是使 RouteSlot
+// -on-the-row 在 分派 时间安全盲目信任的证明：
+//   ·路由行必须是LongLived(槽保持cross-turn状态)；
+//   ·必须路由LongLived行（否则永远无法到达）；
+//   ·必须路由oauth_native OpenAI-family行（其专用
+//     传输层 IS其插槽——未路由，它将默默降级为通用per-call路径，
+//     确切的custom-host错误类别）；
+//   ·没有两行可以共享槽(槽是一个提供者实例)。
 [[nodiscard]] constexpr bool routing_consistent() noexcept {
     for (const auto& p : kProviders) {
         if (p.route != RouteSlot::None && p.lifetime != Lifetime::LongLived)
@@ -753,53 +753,53 @@ static_assert(detail::auth_caps_consistent(),
               "provider row: auth capability flags contradict the row's "
               "AuthStyle (see ProviderDescriptor's auth capability block)");
 
-// Can this wire DIALECT carry reasoning TEXT back to us, for THIS model?
+// 这个传输 DIALECT能否将TEXT的推理返回给我们，对于THIS模型？
 //
-// A model reasoning and a model letting you SEE it are different things.
-// OpenAI's Chat Completions dialect does not transmit reasoning text for
-// the GPT-5 family: the tokens are generated and billed, but the response
-// carries no reasoning_content / summary — that is exclusive to the
-// Responses API. Anthropic Messages streams thinking blocks natively, and
-// many OpenAI-COMPAT servers (DeepSeek-R1, Mistral, vLLM, OpenRouter) do
-// populate reasoning_content on the Chat dialect, which is why the
-// transport parses it unconditionally.
+// 模型推理和让你SEE的模型是不同的东西。
+// OpenAI的聊天完成方言不传输GPT-5系列的推理文本：生成令牌并计费，
+// 但响应不携带reasoning_content/摘要——这是响应
+// API独有的。 Anthropic 消息 数据流 思维块本身，
+// 并且许多 OpenAI-COMPAT 服务器（DeepSeek-R1、
+// Mistral、vLLM、OpenRouter）确实在聊天
+// 方言上填充 reasoning_content，
+// 这就是为什么 传输层 解析 无条件地填充。
 //
-// `model` matters because a provider is not necessarily ONE dialect.
-// GitHub Copilot serves the same account over both: gpt-5* and mai-code-*
-// stream over the Responses API (where reasoning summaries DO come back —
-// measured), while claude-* and gpt-4.x are chat-only (where they do not).
-// Passing an empty model asks the coarser question "could ANY model on this
-// provider show reasoning", which is what a provider-level row wants.
+// `model`很重要，因为提供者不一定是ONE方言。
+// GitHub Copilot在响应API上通过gpt-5*和mai
+// -code-*数据流（其中推理摘要DO返回——测量）来服务相同的账户，
+// 而claude-*和gpt-4.x是chat-only（其中它们不返回）。
+// 传递空模型询问更粗略的问题"could ANY model on this provider show reasoning"，
+// 这是提供者-level行想要的。
 [[nodiscard]] bool wire_streams_reasoning_text(
         std::string_view provider_id, std::string_view model = {}) noexcept;
 
-// The attribution headers for a provider row, or empty when the row doesn't
-// ask for them.
+// 提供者行的属性头文件，或者当该行不要求它们
+// 时为空。
 //
-// ONE builder, so the chat path and the Responses path cannot disagree about
-// who agentty is. Both dialects dial the same host and both are credited to
-// the same app page, so a second spelling of these two headers is a bug
-// waiting for the day one of them is edited.
+// ONE构建者，因此聊天路径和响应路径不能对agentty
+// 是谁存在分歧。两种方言都拨打同一个主机，并且都记入同一个
+// 应用程序页面，因此这两个 头文件 的第二个拼写是一个错误，
+// 等待其中一个被编辑的那一天。
 //
-// Header names, from openrouter.ai/docs/app-attribution:
-//   HTTP-Referer  REQUIRED. The app URL, and the primary key for rankings.
-//                 Without it no app page exists and nothing else matters.
-//   X-Title       The display name. Does nothing on its own — it only
-//                 labels an app page that HTTP-Referer already created.
+// 头文件名称，来自openrouter.ai/docs/app-attribution：
+//   HTTP-Referer REQUIRED。应用程序URL，以及排名的主键。
+//                 没有它，应用程序页面就不存在并且其他都不重要。
+//   X-Title 显示名称。它本身不执行任何操作 - 它仅标记
+//                 HTTP-Referer 已创建的应用程序页面。
 //
-// On the name: the docs now call the title header `X-OpenRouter-Title` and
-// keep `X-Title` as a supported alias. We send `X-Title` deliberately — it
-// is what the overwhelming bulk of real traffic uses, it is still documented
-// as supported, and a shipped harness has already been bitten sending ONLY
-// the newer name (QwenLM/qwen-code#12072). Sending both would be the
-// belt-and-braces option, but two headers claiming one field is how you end
-// up with two app pages if a vendor ever disagrees with itself.
+// 关于名称：文档现在 调用 标题 头文件 `X-OpenRouter-Title`
+// 并保留 `X-Title` 作为受支持的别名。我们故意发送
+// `X-Title` — 这是绝大多数实际流量使用的内容，它仍然被记录
+// 为受支持的，并且已发送的线束已被咬伤，发送 仅 为新名称 (
+// QwenLM/qwen-code#12072)。发送两者将是
+// Belt-and-braces 选项，但是如果供应商不同意自己的观点，
+// 则两个 头文件 声明一个字段最终会得到两个应用程序页面。
 //
-// Lowercase names: header names are case-insensitive per RFC 9110 and the
-// rest of agentty sends lowercase, so these match their neighbours on the
-// wire rather than the spelling used in vendor docs.
+// 小写名称：头文件名称是每个RFC 9110的大小写-insensitive，
+// 并且agentty的其余部分发送小写，因此这些名称匹配它们在
+// 传输上的邻居而不是供应商文档中使用的拼写。
 //
-// x-openrouter-categories files the app under cli-agent in the marketplace.
+// x-openrouter-categories将该应用程序归档在市场中的cli-agent下。
 [[nodiscard]] inline std::vector<std::pair<std::string, std::string>>
 attribution_headers(const ProviderDescriptor* row) {
     std::vector<std::pair<std::string, std::string>> out;
@@ -811,7 +811,7 @@ attribution_headers(const ProviderDescriptor* row) {
     return out;
 }
 
-// The default provider's id — first row of the table.
+// 默认提供者的id——表的第一行。
 [[nodiscard]] inline std::string_view default_provider_id() noexcept {
     return kProviders.front().id;
 }

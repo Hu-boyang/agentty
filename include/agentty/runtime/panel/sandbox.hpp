@@ -1,49 +1,49 @@
 #pragma once
-// agentty::ui::panel::Sandbox — the sandbox pane.
+// agentty::ui::panel::Sandbox — 沙箱 面板。
 //
-// A form pane like Appearance and Retrieval: the pane holds a form::Form and
-// the row ids, so navigation/dropdowns/editing stay the shared reducer's job.
-// What is genuinely specific lives here.
+// 类似于外观和检索的表格面板：面板保存form::Form和行ID，
+// 因此navigation/dropdowns/editing保持共享状态更新函数的工作。
+// 真正具体的东西在这里存在。
 //
-// ── Why this pane is different from every other agent's sandbox config ───
+// ── 为何这样 面板 和所有特工的不一样 沙箱 配置 ───
 //
-// Everyone's sandbox settings are a list of switches you set once and never
-// see again, and that is the actual problem. A boundary you cannot observe is
-// a boundary you cannot trust: the failure mode is not "the switch was wrong",
-// it is "the switch said active and nothing was enforced". agentty has shipped
-// exactly that bug (issue #21: "sandbox: active" while every command died on
-// a uid_map denial), and so had claybin's own probe until it was fixed.
+// 每个人的 沙箱 设置都是您设置一次后就再也不会看到的开关列表，这就是实际的问题。
+// 你无法观察到的边界就是你不能信任的边界：故障模式不是"the switch was wrong"，
+// 而是"the switch said active and nothing was enforced"。
+// agentty 已经发布了该错误（问题＃21："sandbox: active"，
+// 而每个命令都因 uid_map 拒绝而终止），
+// claybin 自己的探测器也是如此，直到它被修复。
 //
-// So this pane does three things no other agent's does, and they are the
-// reason it exists rather than a settings row:
+// 所以这个 面板 做了其他代理没有做的三件事，
+// 它们是它存在的原因而不是设置行：
 //
-//   1. IT SHOWS THE WALLS, LIVE. claybin compiles a policy into a plan and
-//      reports, per capability, whether enforcement is `strong`, `partial` or
-//      `none` -- and WHICH mechanism got it there (landlock abi 6, cgroup2
-//      memory.max, seccomp-bpf). That report is proof-carrying: a backend
-//      cannot claim a guarantee it did not install. The pane renders it, so
-//      changing a row shows you the wall move. Nobody else can do this,
-//      because a sandbox you shell out to has no report to give.
+//   1. IT SHOWS 该 WALLS，LIVE。 claybin 编译 将政策纳入计划并
+//      根据能力报告，强制执行是`strong`、`partial`还是
+//      `none`——并且WHICH机制得到了它（内锁ABI 6、
+//      cgroup2 memory.max、seccomp-bpf）。
+//      该报告是证明-carrying：后端不能声称其未安装的保证。
+//      面板 渲染 它，所以改变一行会显示墙移动。没有其他人可以
+//      做到这一点，因为你掏出的 沙箱 没有报告可提供。
 //
-//   2. IT SHOWS WHAT WAS BLOCKED. seccomp-notify lets the supervisor see a
-//      denied syscall as it happens. So the pane can say "3 blocked: ptrace,
-//      clone(CLONE_NEWUSER), /etc/shadow" instead of leaving you to guess why
-//      a build failed. A sandbox that fails silently trains people to turn it
-//      off; one that narrates what it stopped teaches them what their tools
-//      actually do.
+//   2. IT SHOWS 内容 WAS BLOCKED。 seccomp-notify 让主管看到
+//      发生时拒绝系统调用。因此 面板 可以说
+//      "3 blocked: ptrace, clone(CLONE_NEWUSER), /etc/shadow"，（三项被阻止：ptrace、clone(CLONE_NEWUSER)、/etc/shadow。）
+//      而不是让您猜测构建失败的原因。出现故障的 沙箱 会默默地训练
+//      人们将其关闭；一个讲述它停止了什么的人告诉他们他们的工具实际上
+//      是做什么的。
 //
-//   3. IT CAN LEARN A POLICY. Run your workload under Observe, and the
-//      sandbox records what it genuinely needed -- which paths, which ports,
-//      which syscalls -- then offers the MINIMAL policy that still works.
-//      This is the answer to the real reason people run agents unsandboxed:
-//      not that they want the risk, but that writing a correct allowlist by
-//      hand is miserable and breaks their build three times first.
+//   3. IT CAN LEARN A POLICY。在观察下运行您的工作负载，并且
+//      沙箱记录它真正需要的——哪些路径、哪些端口、
+//      哪些系统调用——然后提供仍然有效的MINIMAL策略。
+//      这是人们运行非沙盒代理的真正原因的答案：
+//      并不是他们想要冒险，而是手工编写正确的 允许清单
+//      很痛苦，并且首先会破坏他们的构建三次。
 //
-// ── Everything here is claybin ───────────────────────────────────────────
-// Per-port network, syscall filtering, cgroup2 caps and the guarantee report
-// are all things you can only ask for if you are COMPILING a policy. bwrap
-// stays available as a backend, but it cannot answer these questions, so the
-// pane is honest about which rows it can enforce and says so per row.
+// ── 这里的一切 claybin ───────────────────────────────────────────
+// Per-port 网络、系统调用过滤、cgroup2 上限和
+// 保证报告都是只有当您是 COMPILING 保单时才能要求的东西。
+// bwrap 作为后端仍然可用，但它无法回答这些问题，
+// 因此 面板 诚实地说明它可以强制执行哪些行，并按行说明。
 
 #include <cstdint>
 #include <string>
@@ -52,22 +52,22 @@
 
 #include "agentty/domain/sandbox_config.hpp"
 #include "agentty/runtime/panel/form.hpp"
-#include "agentty/runtime/panel/filtered_picker.hpp"   // path completion
-#include "agentty/workspace/files.hpp"                 // the candidate set
+#include "agentty/runtime/panel/filtered_picker.hpp"   // 路径完成
+#include "agentty/workspace/files.hpp"                 // 候选集
 
 namespace agentty::ui::panel {
 
-// Row ids. Named constants at both the build and read site, for the reason
-// appearance.hpp gives: a typo across two matching string literals is a
-// silently dead setting and the compiler cannot see it.
+// 行ID。构建和读取站点上的命名常量，
+// 原因是 appearance.hpp 给出：两个匹配的字符串文字之间
+// 的拼写错误是一个无声的死亡设置，编译器 无法看到它。
 //
-// There is deliberately NO `mode` row. Turning the sandbox off is a launch
-// decision (`--sandbox off`), not a setting: a saved "off" is a foot-gun that
-// survives reboots silently, and the pane cannot change the live boundary
-// anyway (the policy is sealed at startup -- see tool/util/sandbox.hpp). A row
-// id for a row that must not exist is an invitation to wire it up "for
-// consistency", so it is not here to be found. See docs/design/
-// sandbox-boundary.md §3.
+// 故意存在NO `mode`行。关闭 沙箱 是一个启动决定 (`--sandbox off`)，
+// 而不是一个设置：已保存 "off" 是一个 foot-gun，它可以在重新启动后
+// 默默地生存，并且 面板 无论如何都无法更改实时边界（策略在启动时被密封 -
+// 请参阅 tool/util/sandbox.hpp）。不能存在的行的行 ID 是
+// 对 传输 的邀请，它是 "for consistency"，所以在这里找不到它。
+// 请参阅 docs/design/ sandbox-boundary.md
+// §3。
 inline constexpr std::string_view kSbPosture     = "posture";
 inline constexpr std::string_view kSbFsScope     = "fs_scope";
 inline constexpr std::string_view kSbReadPaths   = "read_paths";
@@ -89,201 +89,201 @@ inline constexpr std::string_view kSbScopeIpc    = "scope_ipc";
 inline constexpr std::string_view kSbCloseFds    = "close_fds";
 inline constexpr std::string_view kSbFakeHost    = "fake_hostname";
 inline constexpr std::string_view kSbMaskDepth   = "mask_scan_depth";
-// The row that defends the escape class nobody else defends. See
-// domain/sandbox_provenance.hpp for why it is its own control.
+// 捍卫逃逸类的行没有其他人捍卫。
+// 请参阅 domain/sandbox_provenance.hpp 了解为什么它是它自己的控件。
 inline constexpr std::string_view kSbHandoff     = "handoff";
 
-// ── The live wall report ────────────────────────────────────────────────
+// ── 活墙报告 ────────────────────────────────────────────────
 //
-// One capability and what is actually enforcing it, straight from claybin's
-// GuaranteeReport. `mechanism` is the load-bearing field: "strong" alone is a
-// claim, "strong via landlock abi 10" is a claim with its receipt attached.
+// 一种能力以及实际执行它的内容，直接来自claybin的GuaranteeReport。
+// `mechanism` 是 加载-bearing 字段："strong" 单独是一项索赔，
+// "strong via landlock abi 10" 是附有收据的索赔。
 struct Wall {
-    std::string name;       // "filesystem.write", "network.isolation", …
+    std::string name;       // "filesystem.write"，"network.isolation"，……
     std::string strength;   // "strong" | "partial" | "none"
-    std::string mechanism;  // "landlock abi 10", "cgroup2 memory.max", …
+    std::string mechanism;  // "landlock abi 10"、"cgroup2 memory.max"、……
 
-    // The policy never ASKED for this capability, so a `none` here is a
-    // choice rather than a gap.
+    // 对于该能力，政策从来没有ASKED，所以这里的`none`是
+    // 一个选择而不是一个差距。
     //
-    // Without this the footer listed `resource.memory: none (none)` on a
-    // default policy -- where memory_mb = 0 means "no cap wanted" ever since
-    // sandbox_config.hpp decided the right ceiling is a property of the
-    // machine. Three such rows sat beside the real degradations and taught the
-    // user to read the whole line as noise, which is the opposite of what a
-    // wall report is for.
+    // 如果没有这个，页脚就会在默认策略上列出
+    // `resource.memory: none (none)`——其中
+    // memory_mb = 0 意味着 "no cap wanted"，
+    // 自从 sandbox_config.hpp 决定正确的上限是机器的属性以来。
+    // 三个这样的行位于真正的降级旁边，并教会用户将整行视为噪音，
+    // 这与墙上报告的用途相反。
     bool not_requested = false;
 };
 
-// What the pane knows about the current policy, recomputed whenever a row
-// changes. This is a COMPILE, not a spawn: claybin's compile() is pure over a
-// described host, so the pane can show the consequences of an edit without
-// running anything.
+// 面板了解当前策略，每当行改变时就重新计算。这是 COMPILE，
+// 而不是衍生：claybin 的 compile() 是纯粹的
+// 所描述的主机，因此 面板 可以在不运行任何内容的情况下
+// 显示编辑的结果。
 struct Preview {
     bool                compiled = false;
-    std::string         error;        // why not, when !compiled
+    std::string         error;        // 为什么不编译时！
     std::vector<Wall>   walls;
-    std::size_t         plan_ops = 0; // how many operations the sandbox performs
-    // Capabilities the policy ASKED for that this host cannot enforce. Never
-    // silently empty -- if a user asks for per-port network on a kernel with
-    // landlock abi 3, the pane says so rather than quietly downgrading.
+    std::size_t         plan_ops = 0; // 沙箱执行多少次操作
+    // 该主机无法强制执行的策略 ASKED 的功能。永远不要默默
+    // 地清空——如果用户在具有内锁 ABI 3 的内核上请求
+    // per-port 网络，面板 会这么说，而不是悄悄降级。
     std::vector<std::string> unenforceable;
 };
 
-// ── Deliberately not here yet ─────────────────────────────────────────────
+// ── 故意还没到 ─────────────────────────────────────────────
 //
-// One of these two has since been built, and the note is updated rather than
-// deleted because the reasoning is still the rule:
+// 这两个中的一个已经被构建，并且注释被更新而不是被删除，
+// 因为推理仍然是规则：
 //
-//   Observation   — a "learning mode" that runs permissively and records what
-//                   it would have had to grant, so `npm install` once hands
-//                   you the allowlist instead of a sequence of failures.
-//                   STILL NOT BUILT.
-//   BlockedEvent  — a feed of what the sandbox actually stopped. BUILT: it
-//                   lives in tool/util/sandbox_broker.hpp (seccomp-notify
-//                   denials) with a sibling in tool/util/handoff_gate.hpp for
-//                   trust handoffs, and the pane footer renders both. It is
-//                   not declared here because the producer owns the type —
-//                   the pane reads the feed, it does not define it.
+//   观察 — "learning mode" 许可地运行并记录 授权
+//                   所需要的内容，因此 `npm install`
+//                   一次将 允许清单 交给您，而不是一系列失败。
+//                   尚未实现。
+//   BlockedEvent — 沙箱实际停止的内容的提要。 BUILT：它
+//                   位于 tool/util/sandbox_broker.hpp
+//                   （seccomp-notify 否认），其同级位于
+//                   tool/util/handoff_gate.hpp，
+//                   用于信任切换，以及 面板 页脚 渲染。它没有在这里声明，
+//                   因为生产者拥有该类型 - 面板 读取提要，但没有定义它。
 //
-// The rule that kept the structs out of this header until something populated
-// them: a type with a reducer arm and no producer is the same trap kSbMode
-// was. It reads as a shipped feature to the next person, and it makes the pane
-// look like it reports things it cannot. See docs/design/sandbox-boundary.md
-// §13 for the learning mode's implementation notes and §14 for the feeds.
+// 将结构保持在该 头文件 之外直到有东西填充它们的规则：具有 状态更新函数
+// 臂且没有生产者的类型与 kSbMode 的陷阱相同。它读起来就像是
+// 一个已交付的功能给下一个人，这使得 面板 看起来像是它报告了它不能报告的事情。
+// 有关学习模式的实施说明，请参阅 docs/design/sandbox-boundary.md
+// §13；有关提要，请参阅 §14。
 //
-// The learning mode carries a warning if it ever lands: it is a WEAKER sandbox
-// while it runs, and a mode that silently weakens a boundary is worse than no
-// mode. It has to be loud, and it cannot be the default.
+// 学习模式一旦落地就会发出警告：运行时是WEAKER 沙箱，
+// 无声地削弱边界的模式比没有模式更糟糕。
+// 它必须是响亮的，并且不能是默认的。
 
-// What the host can do, and what is ACTUALLY enforcing right now.
+// 主机可以做什么，ACTUALLY现在正在执行什么。
 //
-// ── Why this is a struct and not three parameters ────────────────────
+// ── 为什么这是个结构而不是三个参数 ────────────────────
 //
-// Because conflating two of these shipped the worst bug this pane has had.
-// `build_sandbox_form` used to take `claybin_available` and nothing else, so
-// the only facts in scope were the SELECTED engine and whether the host COULD
-// run it. The subtitle was built from those two -- and therefore announced
-// "claybin \xc2\xb7 landlock abi 10 \xc2\xb7 seccomp \xc2\xb7 cgroup2" the instant you moved the
-// row, on a process that was still running bwrap and could not change.
+// 因为将其中的两个混为一谈带来了这个 面板 所具有的最严重的错误。
+// `build_sandbox_form`过去只接受`claybin_available`，
+// 所以范围内唯一的事实是SELECTED引擎以及主机COULD是否运行它。
+// 副标题是由这两个构建的 - 因此在您移动该行时立即宣布
+// "claybin \xc2\xb7 landlock abi 10 \xc2\xb7 seccomp \xc2\xb7 cgroup2"，
+// 该进程仍在运行 bwrap 并且无法更改。
 //
-// That is issue #21 exactly, re-entered through the front door: a pane built
-// to stop "sandbox: active" from meaning nothing, claiming walls that were not
-// up. The missing fact was never computed anywhere the view could see it --
-// `SandboxPane::backend` held it and had no reader at all.
+// 这正是问题#21，re-entered穿过前门：一个面板，
+// 旨在阻止"sandbox: active"毫无意义，声称没有竖起的墙。
+// 缺失的事实从未在视图可以看到的任何地方进行计算——
+// `SandboxPane::backend`持有它并且根本没有读者。
 //
-// So the running engine is a NAMED FIELD next to the capability probe, and
-// every caller has to supply it. There is no overload that omits it.
+// 因此，正在运行的引擎是能力探测器旁边的NAMED FIELD，
+// 并且每个调用者都必须提供它。没有任何重载可以忽略它。
 struct HostFacts {
-    // Can claybin start here? A real probe (it forks and attempts the uid_map
-    // write), not a guess.
+    // claybin可以从这里开始吗？一个真正的探针（它分叉并尝试 uid_map
+    // 写入），而不是猜测。
     bool claybin_available = false;
     std::uint32_t landlock_abi = 0;
-    // Can the engine filter network by port? Linux: landlock abi 4+.
-    // macOS: seatbelt endpoint filters.
+    // 引擎可以按端口过滤网络吗？ Linux：内陆 ABI 4+。
+    // macOS:安全带端点过滤器。
     bool per_port_net = false;
-    // Are abstract sockets and signals kept inside the sandbox? Linux:
-    // landlock abi 6+. macOS: seatbelt scopes signals and has no abstract
-    // sockets.
+    // 抽象套接字和信号是否保存在沙箱内部？ Linux：
+    // 内陆ABI 6+。 macOS：安全带范围信号并且没有抽象
+    // 套接字。
     bool ipc_scoped = false;
 
-    // What is enforcing RIGHT NOW. Sealed at startup and immutable for the
-    // life of the process -- which is the whole reason it has to be separate
-    // from the selection: the row can change, this cannot.
+    // 什么是执行RIGHT 当前。在启动时密封，
+    // 并在进程的生命周期内密封 不可变 ——这就是它必须与选择
+    // 分开的全部原因：行可以更改，而行不能更改。
     sandbox_cfg::LinuxBackend running = sandbox_cfg::LinuxBackend::Claybin;
 
-    // False when there is no backend at all (probe failed, or --sandbox off).
-    // `running` is meaningless then, and the subtitle must say so rather than
-    // naming an engine that is not confining anything.
+    // 当根本不存在后端时为假（探测失败，或--sandbox关闭）。
+    // `running`则毫无意义，并且副标题必须这么说，
+    // 而不是命名不限制任何东西的引擎。
     bool sandbox_active = false;
 
-    // The user passed `--sandbox off`.
+    // 用户通过了`--sandbox off`。
     //
-    // Distinct from `!sandbox_active`, and the distinction is the point: a host
-    // that FAILED to sandbox is a problem to report, while a user who asked not
-    // to be sandboxed is a choice to respect. The pane says different things
-    // for each, and the handoff gate stands down only for the second.
+    // 与`!sandbox_active`不同，
+    // 区别在于：FAILED到沙箱是一个需要报告的问题的主机，
+    // 而要求不被沙箱化的用户是一个值得尊重的选择。 面板 对每
+    // 个都说了不同的事情，并且切换门仅在第二个时才会关闭。
     bool mode_off = false;
 
-    // The workspace is the user's home directory. Then every dotfile is
-    // writable, including login files and ~/.local/bin, and the pane says so.
+    // 工作区是用户的主目录。那么每个点文件都是可写的，
+    // 包括登录文件和~/.local/bin，面板也是如此。
     bool workspace_is_home = false;
 
-    // The last trust-handoff snapshot hit its entry cap, so a write below
-    // the cut would not be reported. Logged before; now shown on the row.
+    // 最后的 trust-handoff 快照 达到其进入上限，
+    // 因此不会报告低于削减的写入。之前已登录；现在显示在行上。
     bool handoff_truncated = false;
 };
 
-// ── The path list editor ────────────────────────────────────────
+// ── 路径列表编辑器 ────────────────────────────────────────
 //
-// The path rows used to be a single Text field holding "a, b, c". That is a
-// serialisation format pretending to be an interface: entries have no visible
-// boundary, a stray comma silently rewrites the policy, and reaching the third
-// of four paths means cursoring past the other three. On a security control
-// whose entire purpose is legibility, it was the wrong shape.
+// 路径行曾经是包含 "a, b, c" 的单个文本字段。
+// 这是一种伪装成接口的序列化格式：条目没有可见的边界，
+// 杂散逗号默默地重写策略，到达四个路径中的第三个意味
+// 着光标会越过其他三个路径。对于一个其全部目的是
+// 易读性的安全控件来说，它的形状是错误的。
 //
-// This is the list as a LIST: one entry per row, add and remove as discrete
-// acts, each entry its own editable field.
+// 这是作为LIST的列表：每行一个条目，添加和删除作为离散行为，
+// 每个条目都有其自己的可编辑字段。
 //
-// It reuses form::Form rather than inventing a widget, so navigation, text
-// editing, the caret and commit-on-exit all come for free and behave exactly
-// as they do everywhere else. The rows ARE the entries -- there is no model
-// behind them to drift out of sync.
+// 它重用 form::Form 而不是发明一个小部件，因此导航、
+// 文本编辑、光标 和 commit-on-exit 都是免费的，
+// 并且行为与其他地方完全相同。 ARE 行是条目——它们
+// 后面没有模型会漂移不同步。
 struct SandboxListPane {
-    // Which parent row is being edited, so the commit knows where to write
-    // back. By id rather than index: the parent form is rebuilt on every
-    // reproject, and an index would address a different row afterwards.
+    // 哪个父行正在被编辑，因此提交知道要写回哪里。
+    // 通过 id 而不是索引：每次重新项目
+    // 都会重建父表单，之后索引将寻址不同的行。
     std::string row_id;
-    std::string title;      // "Also readable", "Masked", …
-    std::string help;       // what this list means, shown above the entries
+    std::string title;      // "Also readable"，"Masked"，……
+    std::string help;       // 该列表的含义，显示在条目上方
 
-    // One field per entry, plus a trailing "add" action row. Editing happens
-    // here and nowhere else; the parent row is untouched until commit, which
-    // is what makes Esc a true cancel.
+    // 每个条目一个字段，加上尾随"add"操作行。编辑在这里进行，
+    // 而不是在其他地方进行；父行在提交之前保持不变，
+    // 这使得 Esc 成为真正的 取消。
     form::Form form;
 
-    // What the entries ARE. Decides the add-row prompt, the live per-entry
-    // hint, readback normalisation, and whether path completion runs.
-    //   Path  free text, workspace-path completion
-    //   Port  digits 1-65535, typed into a Text row so it shows a caret
-    //   Host  a host name or *.wildcard, canonicalised by the SAME function
-    //         the proxy uses (netproxy::normalize_host_entry), so what the
-    //         editor accepts is exactly what is enforced
+    // 条目ARE是什么。决定 add-row 提示词、
+    // 实时 per-entry 提示、回读规范化以及是否运行路径完成。
+    //   路径自由文本，工作区-path完成端口数字1-65535，
+    //   带类型的进入文本行，因此它显示光标 Host主机名或*.
+    //   通配符，由代理使用的SAME函数（
+    //         netproxy::normalize_host_entry）规范化，
+    //         因此编辑器接受的正是强制执行的
     enum class ListKind : std::uint8_t { Path, Port, Host };
     ListKind kind = ListKind::Path;
     [[nodiscard]] bool numeric() const noexcept { return kind == ListKind::Port; }
 
-    // ── Completion ──────────────────────────────────────────────
+    // ── 完成 ──────────────────────────────────────────────
     //
-    // Typing a path by hand is where this control actually fails people: a
-    // mistyped path does not error, it silently does not match, and the user
-    // discovers it when a command cannot read a file weeks later. Completion
-    // is not a convenience here, it is how the list stops being a guess.
+    // 手动键入路径是该控制实际上让人失败的地方：
+    // 键入错误的路径不会出错，它默默地不匹配，
+    // 并且当命令在几周后无法读取文件时用户会发现它。
+    // 在这里，完成并不是一种方便，而是列表如何不再是猜测。
     //
-    // Reuses ui::FilteredPicker rather than growing a private matcher: `@`
-    // mentions, `#` symbols and the palette all already share it, and the
-    // header of filtered_picker.hpp lists the three bugs that came from
-    // hand-copying this logic. The memo, the cold-open refill and the cursor
-    // clamp all come with it.
+    // 重用ui::FilteredPicker而不是开发私有匹配器：
+    // `@`提到，`#` 符号和调色板都已经共享它，
+    // 并且filtered_picker.hpp的头文件列出了来自
+    // hand-copying这个逻辑的三个错误。 记忆缓存、cold-open
+    // 笔芯和光标夹均随附。
     //
-    // Suggestions are OFF unless the focused entry has text: an empty row
-    // offering the whole workspace is a wall of noise, and the row is also how
-    // you add a path you are about to type in full.
+    // 建议是 OFF，除非聚焦的条目具有文本：
+    // 提供整个 工作区 的空行是噪音墙，并且该行也是
+    // 您添加要完整键入的路径的方式。
     bool completing = false;
     ui::FilteredPicker<std::string> complete;
 
     SandboxListPane();
 };
 
-// Declared HERE rather than in the shared visual_parts.hpp because this type
-// has a user-provided constructor (the picker needs its source + filter), so
-// the brace-arity probe reads 0 and the completeness proof needs the explicit
-// opt-in to live beside the thing it describes -- same as mention::Open and
-// AppearancePane::ThemePicker.
+// 声明HERE而不是在共享visual_parts.hpp中，因为该类型具有
+// user-provided构造函数（选择面板需要其源+过滤器），
+// 因此大括号-arity探针读取0并且完整性证明需要显式opt-in存在于它所描述的事物旁边
+// ——与mention::
+// Open和AppearancePane::ThemePicker相同。
 //
-// `completing` and `complete` are both visual: they decide whether the
-// suggestion list is on screen and what is in it. row_id/title/help/numeric
-// are fixed for the editor's lifetime, so they cannot drive a repaint.
+// `completing`和`complete`都是视觉的：它们决定建议
+// 列表是否在屏幕上以及其中有什么。 row_id/title/help/numeric
+// 是针对编辑器的 生命周期 固定的，因此它们无法驱动 重绘。
 inline auto visual_parts(const SandboxListPane& p) {
     return std::make_tuple(visual::exempt, visual::exempt, visual::exempt,
                            visual::ref(p.form),
@@ -292,13 +292,13 @@ inline auto visual_parts(const SandboxListPane& p) {
                            visual::ref(p.complete));
 }
 
-// Build the editor for one parent row. `values` is the current list.
+// 为一个父行构建编辑器。 `values` 是当前列表。
 [[nodiscard]] SandboxListPane build_sandbox_list(std::string_view row_id,
                                                 std::string title,
                                                 std::string help,
                                                 const std::vector<std::string>& values,
                                                 SandboxListPane::ListKind kind);
-// Ports-or-paths shorthand, kept for the many callers that predate hosts.
+// Ports-or-paths简写，为早于主机的许多呼叫者保留。
 [[nodiscard]] inline SandboxListPane build_sandbox_list(std::string_view row_id,
                                                        std::string title,
                                                        std::string help,
@@ -309,203 +309,203 @@ inline auto visual_parts(const SandboxListPane& p) {
                                       : SandboxListPane::ListKind::Path);
 }
 
-// The trailing "+" row for a list of `kind`. The ONE place the add prompt is
-// spelled, used by both build_sandbox_list and the reducer's grow path.
+// `kind`列表的尾随"+"行。 一个 位置拼写了添加 提示词，
+// 由 build_sandbox_list 和 状态更新函数 的增长路径使用。
 [[nodiscard]] form::Field list_add_row(std::string_view id, SandboxListPane::ListKind kind);
 
-// One entry row. Shared with the reducer so GROWING the list and BUILDING it
-// cannot drift -- the grow path appends a row that has to look exactly like
-// the ones build_sandbox_list made, or the editor changes shape mid-edit.
+// 一个条目行。与 状态更新函数 共享，因此 GROWING 列表和 BUILDING
+// 不能漂移 - 增长路径附加一行必须看起来与 build_sandbox_list
+// 所做的完全相同，或者编辑器会在 -edit 中更改形状。
 [[nodiscard]] form::Field list_entry_text(std::string_view id, std::string label,
                                           std::string help);
 [[nodiscard]] form::Field list_entry_number(std::string_view id, std::string label,
                                             std::string help);
 
-// Renumber the visible labels ("1.", "2.", …) after the row set changes.
+// 在行集改变之后对可见标签（"1."、"2."、……）重新编号。
 //
-// The numbers are pure decoration -- order comes from field order, not from
-// them -- but a list that reads 1, 2, 2 after an append looks broken, and the
-// label is the only thing that has to be fixed up when a row is appended.
+// 这些数字是纯粹的装饰——顺序来自字段顺序，
+// 而不是来自它们——但是在追加之后读取1、2、
+// 2的列表看起来很糟糕，并且标签是追加行时唯一需要修复的东西。
 void renumber_sandbox_list(SandboxListPane& p);
 
-// Read the editor back into a list, dropping blanks.
+// 将编辑器读回到列表中，删除空白。
 //
-// Blank-dropping is why "add" can insert an empty row and why deleting is just
-// clearing one: both become the same operation, and the user never has to find
-// a separate remove gesture.
+// Blank-dropping是"add"可以插入空行以及
+// 删除只是清除空行的原因：两者变成相同的操作，并且用户永远不必
+// 找到单独的删除手势。
 [[nodiscard]] std::vector<std::string> read_sandbox_list(const SandboxListPane& p);
 
-// The pane. Named SandboxPane, not Sandbox, because panel/slot.hpp needs the
-// bare name for the SLOT that holds it -- same split as AppearancePane.
+// 面板。命名为 SandboxPane，而不是 沙箱，因为 panel/slot.hpp
+// 需要包含它的 SLOT 的裸名称 - 与 AppearancePane 的分割相同。
 struct SandboxPane {
     form::Form form;
 
-    // Recomputed on every edit, so the walls track the rows.
+    // 每次编辑时都会重新计算，因此墙会跟踪行。
     Preview preview;
 
-    // Whether the NEXT LAUNCH will actually deliver what the rows describe,
-    // and if not, why. Empty means the promise is good.
+    // 下一个 LAUNCH是否将实际传送行所描述的内容，
+    // 如果不是，为什么。空意味着承诺是好的。
     //
-    // Computed by the reducer alongside the preview, for the same reason
-    // `facts` is stored: the view cannot probe, and it must not re-derive the
-    // config to find out. See restart_outcome().
+    // 由 状态更新函数 与预览一起计算，出于同样的原因存储 `facts`：
+    // 视图无法探测，并且它不能重新配置 -derive 来找出答案。
+    // 参见 restart_outcome()。
     std::string restart_note;
 
-    // The config the rows are a projection OF.
+    // 配置行是投影OF。
     //
-    // Needed because some settings no longer live in the form at all: the path
-    // and port lists are Pick rows showing a count, with the real values held
-    // here and edited in a separate pane. read_sandbox_form() passes those
-    // through from its `base` argument, so the base has to be the config this
-    // pane is building -- not the saved policy, which is the OLD one and would
-    // silently discard every list edit on the next repaint.
+    // 需要，因为一些设置根本不再存在于表单中：路径和端口列表是
+    // 显示计数的选择行，其中真实值保存在此处并在单独的面板中进行编辑。
+    // read_sandbox_form() 从其 `base`
+    // 参数传递这些内容，因此基础必须是此 面板 正在构建的
+    // 配置 - 而不是 已保存 策略，后者是 旧 策略，
+    // 并且会默默地丢弃下一个 重绘 上的每个列表编辑。
     sandbox_cfg::Config working;
 
-    // Which backend is actually in use, for the header line. A pane that
-    // offers per-port network while running under bwrap would be lying, so
-    // the rows that need claybin are marked unavailable rather than hidden --
-    // hiding them would make the limitation invisible.
+    // 对于头文件线，实际使用的是哪个后端。在 bwrap
+    // 下运行时提供 per-port 网络的 面板 是撒谎的，
+    // 因此需要 claybin 的行被标记为不可用而不是
+    // 隐藏 - 隐藏它们将使限制不可见。
     std::string backend;        // "claybin" | "none"
     bool claybin_available = false;
 
-    // The host as measured, captured by the REDUCER at open and on every
-    // reproject.
+    // 所测量的主机，由REDUCER在打开时和每次重新投影
+    // 时捕获。
     //
-    // Stored rather than probed on demand because the view must stay pure --
-    // it cannot fork a uid_map probe mid-render. And it has to be here rather
-    // than reconstructed in the view from `backend`/`claybin_available`,
-    // because reconstructing it is exactly how the subtitle came to describe
-    // a boundary that was not up (§17): the view would be inferring reality
-    // from fields that only approximate it.
+    // 存储而不是按需探测，因为视图必须保持纯粹——它不能
+    // 分叉 uid_map 探测 mid-render。
+    // 它必须在这里，而不是在 `backend`/
+    // `claybin_available` 的视图中重建，
+    // 因为重建它正是副标题描述不向上的边界的方式（§17）：
+    // 视图将从仅近似它的场中推断现实。
     HostFacts facts;
 
-    // A save has landed on disk but the LIVE boundary is still the one this
-    // process started with. Drives the "applies on restart" footer.
+    // 保存已经落在磁盘上，但是LIVE边界仍然是该过程开始时的边界。
+    // 驱动 "applies on restart" 页脚。
     //
-    // Needed because this pane's save is the one place in agentty where
-    // saving does not take effect: the sandbox policy is sealed at startup
-    // (see tool/util/sandbox.hpp's set_config). Without saying so, a user
-    // who tightens the syscall profile and keeps working would believe in a
-    // wall that is not up until they relaunch -- which is the exact class of
-    // lie this pane exists to prevent, just pointed at the future instead of
-    // the present.
+    // 需要，因为该面板的保存是agentty中不进行
+    // 保存的一处副作用：沙箱策略在启动时被密封（
+    // 参见tool/util/sandbox.hpp的set_config）。
+    // 不用说，收紧系统调用配置文件并继续工作的用户会
+    // 相信在他们重新启动之前不会出现的墙——这正是
+    // 面板 存在的目的是为了防止的谎言，只是指向未来而不是
+    // 现在。
     bool saved_pending_restart = false;
 };
 
-// (visual_parts for this pane lives in panel/visual_parts.hpp, alongside
-// every other panel's -- that header is where the gate's proofs are kept.)
+// (这个 面板 的 visual_parts 位于 panel/visual_parts.hpp 中，
+// 与所有其他面板一起——头文件 是保存门证据的地方。)
 
-// The three states the engine row can be in.
+// 发动机排可以处于的三种状态。
 //
-// A sum type rather than the two bools that caused the bug, for the reason
-// panel/form.hpp gives about FormFocus: two bools encoding three states leaves
-// the invariant living only in a comment, and this file has now shipped that
-// failure twice (kSbMode, and the subtitle). Spelling the states out means the
-// view cannot accidentally describe a boundary that is not up.
+// 和类型而不是导致该错误的两个布尔值，
+// 因为panel/form.hpp给出了大约FormFocus：
+// 编码三个状态的两个布尔值使得不变量仅存在于注释中，
+// 并且该文件现在已两次传送该故障（kSbMode和副标题）。
+// 拼写出状态意味着视图不会意外地描述不向上的边界。
 enum class EngineStatus : std::uint8_t {
-    // The selected engine IS the running one. Only in this state may anything
-    // on screen speak in the present tense.
+    // 选定正在运行的发动机IS。只有在这种状态下，
+    // 屏幕上的任何内容才可以用现在时表达。
     InForce,
-    // The selection differs from what is running. A save takes effect at the
-    // next launch; the walls described below are a FORECAST.
+    // 该选择与正在运行的不同。下次发射时，保存 会取代 副作用；
+    // 下面描述的墙壁是 FORECAST。
     AppliesOnRestart,
-    // claybin is selected and the host refused it. Saving is still legitimate
-    // (the user may be on a different machine tomorrow) but nothing here will
-    // be enforced by it.
+    // 选择了claybin，但主机拒绝了。保存仍然是合法
+    // 的（用户明天可能会在另一台机器上），但这里不会强制
+    // 执行任何操作。
     CannotStart,
 };
 
 [[nodiscard]] EngineStatus engine_status(const sandbox_cfg::Config& cfg,
                                          const HostFacts& facts);
 
-// Will this config actually work on the next launch?
+// 该配置在下次启动时实际上会起作用吗？
 //
-// ── Why this is its own function ───────────────────────────────────
+// ── 为什么这是它自己的职能 ───────────────────────────────────
 //
-// Because the pane could say "saved \xc2\xb7 applies on restart" and be wrong about
-// it. Every ingredient of the answer was already computed -- the compile
-// result, the unenforceable list, the host probe -- and nothing joined them
-// into the one claim the footer was making. A promise about the future with no
-// check behind it is the same shape as every other bug in this subsystem:
-// "sandbox: active" (§1), the handoff row that enforced nothing (§14), the
-// subtitle naming walls that were not up (§17). Here the lie just points
-// forward instead of at the present.
+// 因为面板可能会说"saved \xc2\xb7 applies on restart"
+// 并且是错误的。答案的每一个组成部分都已经计算出来了
+// ——编译结果、不可执行的列表、主机探测——没有任何
+// 东西将它们加入到页脚所做的一个声明中。对未来的承诺，
+// 背后没有任何检查，其形状与该子系统中的所有其他错误相同：
+// "sandbox: active" (§1)，不执行任何操作
+// 的交接行 (§14)，未向上的字幕命名墙 (§17)。
+// 这里的谎言只是指向未来而不是现在。
 //
-// Three things can make a restart NOT deliver what the rows describe:
-//   1. the policy does not compile at all (claybin refuses rather than
-//      degrading, so this is a hard no)
-//   2. the selected engine cannot start on this host
-//   3. it compiles and starts, but some capability silently comes out weaker
-//      than asked -- the `unenforceable` list
+// 三件事可以使重新启动 不 提供行所描述的内容：
+//   1.保单根本没有编译（claybin拒绝而不是
+//      有辱人格，所以这是一个硬不）
+//   2.所选引擎无法在此主机上启动
+//   3.它编译并启动，但某些能力悄然变弱
+//      比问——`unenforceable`名单
 //
-// Returns empty when the restart really will deliver the policy as described.
-// A non-empty string is what the footer must say INSTEAD of a bare promise.
+// 当重新启动确实将传递所描述的策略时，返回空。
+// 非-empty字符串是页脚必须说的纯粹承诺的INSTEAD。
 [[nodiscard]] std::string restart_outcome(const sandbox_cfg::Config& cfg,
                                           const HostFacts& facts,
                                           const Preview& preview);
 
-// One line describing what is ACTUALLY confining commands right now, derived
-// only from `facts` -- it cannot see the selection, so it cannot be talked
-// into describing a policy that is not running.
+// 一行描述目前什么是 ACTUALLY 限制命令，
+// 仅从 `facts` 派生——它看不到选择，
+// 因此它不能被用来描述未运行的策略。
 [[nodiscard]] std::string describe_running(const HostFacts& facts);
 
-// Build the form from a config. Pure: no I/O, no probe -- the caller supplies
-// what the host can do, so this is testable without a kernel.
+// 从配置构建表单。纯粹：没有 I/O，没有探测——调用者提供主机
+// 可以做什么，所以这可以在没有内核的情况下进行测试。
 [[nodiscard]] form::Form build_sandbox_form(const sandbox_cfg::Config& cfg,
                                             const HostFacts& facts);
 
-// Read the form back into a config. The inverse of the above, and the only
-// place that knows the mapping -- so a renamed row breaks in one spot.
+// 将表格读回到配置中。与上述相反，也是唯一知道
+// 映射的地方 - 因此重命名的行会在一处中断。
 [[nodiscard]] sandbox_cfg::Config read_sandbox_form(const form::Form& f,
                                                     const sandbox_cfg::Config& base);
 
-// Compile the config and describe the resulting walls, without spawning.
+// 编译配置并描述所产生的墙，没有生成。
 [[nodiscard]] Preview preview_sandbox(const sandbox_cfg::Config& cfg);
 
-// Attach the wall report to the ROWS, and validate what the user typed.
+// 将挂墙报告附加到ROWS，并验证用户带类型的的内容。
 //
-// ── Why this is a separate pass ─────────────────────────────────────────
+// ── 为什么这是个单独的通行证 ─────────────────────────────────────────
 //
-// Because the honesty only exists after the compile. build_sandbox_form()
-// knows the config and the host, which is enough to LOCK a row ("this kernel
-// cannot do per-port network") but not enough to annotate one ("your network
-// rule is enforced by landlock abi 10"). That second fact comes out of
-// claybin's GuaranteeReport, which needs the finished config. So: build, then
-// compile, then annotate.
+// 因为诚实只存在于编译之后。 build_sandbox_form() 知道配置和主机，
+// 这足以 LOCK 一行 ("this kernel cannot do per-port network")，
+// 但不足以注释一行 ("your network rule is enforced by landlock abi 10")。
+// 第二个事实来自 claybin 的 GuaranteeReport，
+// 它需要完成的配置。所以：构建，然后 编译，
+// 然后注释。
 //
-// ── Why per-row and not just the footer ────────────────────────────────
+// ── 为何 -row 不只是脚印 ────────────────────────────────
 //
-// The footer already carried all of this, and that was the problem. Twelve
-// capabilities folded into one run-on line is a paragraph, and a paragraph is
-// what you skip. The user's actual question is never "what are all the walls",
-// it is "is the thing I just changed real" -- which is a question about ONE
-// row. Answering it next to that row turns a wall of text into a glance, and
-// it costs nothing: `Field::origin` already renders dim and right-aligned, for
-// exactly this ("where did this value come from") on the other panes.
+// 页脚已经包含了所有这些，这就是问题所在。十二个功能合并到一个 run-on
+// 行中就是一个段落，而一个段落就是您跳过的内容。用户的实际问题从来不是
+// 目前有哪些隔离边界？
+// 而是 "is the thing I just changed real"——这是
+// 关于 一个 行的问题。在该行旁边回答它，将一堵文字墙变成一瞥，而且不需要任何成本：
+// `Field::origin`已经渲染暗淡和正确的-aligned，
+// 正是这个（"where did this value come from"）在另一个面板上。
 //
-// Validation lands in the same pass for the same reason. `Field::error` has
-// been in the form model since the beginning and no pane set it; meanwhile
-// this pane could accept `net_mode = ports` with an empty port list, which
-// compiles to an isolated namespace that denies everything -- the user asked
-// for "these ports" and silently got "nothing". A row that is self-defeating
-// should say so where it is typed.
+// 出于相同的原因，验证在同一遍中进行。 `Field::error`从一
+// 开始就在表单模型中，没有面板设置它；同时，这个 面板 可以接受带有空
+// 端口列表的 `net_mode = ports`，其中 编译 到一个
+// 拒绝一切的隔离命名空间 - 用户请求 "these ports" 并
+// 默默地得到 "nothing"。 self-defeating 的行应该
+// 在 带类型的 的位置如此表示。
 void annotate_sandbox_form(form::Form& f, const Preview& preview,
                            const sandbox_cfg::Config& cfg, EngineStatus status);
 
-// Warnings that depend on the HOST rather than the config: the workspace is
-// $HOME (every dotfile writable), or the last handoff snapshot hit its cap.
-// Also config warnings the audit found misleading: allow_ports does nothing
-// under Full, and Ports covers TCP only. Run after annotate_sandbox_form.
+// 依赖于HOST而不是配置的警告：工作区是$HOME
+// （每个点文件可写），或者最后的切换快照达到其上限。
+// 此外，审计发现误导性的配置警告：allow_ports在完全下不执行任何操作，
+// 并且端口仅覆盖TCP。在 annotate_sandbox_form 之后运行。
 void annotate_host_risks(form::Form& f, const sandbox_cfg::Config& cfg,
                          const HostFacts& facts);
 
 }  // namespace agentty::ui::panel
 
 namespace agentty::visual {
-// SandboxListPane has a user-provided constructor (the picker needs its source
-// and filter), so the brace-arity probe reads 0 and parts_cover_all cannot
-// verify the tuple mechanically. Same opt-in mention::Open and
-// AppearancePane::ThemePicker use, and the same obligation: the visual_parts
-// above is checked by HAND, so adding a member means updating it.
+// SandboxListPane具有user-provided构造函数(选择面板需要其源
+// 和过滤器)，因此brace-arity探针读取0并且parts_cover_all无法机械地验证元组。
+// 同样的opt-in mention::Open和AppearancePane::ThemePicker使用，
+// 并且同样的义务：上面的visual_parts是由
+// HAND检查的，所以添加成员意味着更新它。
 template <> inline constexpr bool trusted_parts<ui::panel::SandboxListPane> = true;
 }  // namespace agentty::visual

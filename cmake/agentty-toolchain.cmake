@@ -1,5 +1,5 @@
-# Dependencies extracted from Ubuntu packages keep their multiarch layout.
-# Unlike /usr/include, this user-local include root is not searched by Clang.
+# 从 Ubuntu 包中提取的依赖关系保持其多体系结构布局。
+# 与/usr/include不同，Clang不搜索该用户-local包括root。
 set(_agentty_deps_prefix "$ENV{HOME}/.local/agentty-deps/usr")
 
 set(CMAKE_C_COMPILER "${_agentty_deps_prefix}/bin/clang-22")

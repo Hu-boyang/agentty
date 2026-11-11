@@ -1,42 +1,42 @@
 #pragma once
-// agentty::mcp — the SERVER side: expose agentty's own native tools OVER MCP.
+// agentty::mcp-SERVER侧：暴露agentty自己的原生工具OVER MCP。
 //
-// The inverse of client.hpp. client.hpp lets agentty CONSUME a remote MCP
-// server's tools as local ToolDefs; this lets agentty BE an MCP server, so any
-// MCP client (Claude Desktop, another agent, an IDE) can call agentty's native
-// tools — `read`, `edit`, `bash`, `grep`, `glob`, `list_dir`, `web_fetch`,
-// `web_search`, `find_definition`, `diagnostics`, the git_* family, … — over a
-// standard transport.
+// client.hpp的逆。 client.hpp让agentty CONSUME远程MCP服务器的
+// 工具作为本地ToolDefs；这让 agentty BE 成为 MCP 服务器，因此任何 MCP 客户端（
+// Claude 桌面、另一个代理、IDE）都可以使用 调用 agentty 的本机工具 — `read`、
+// `edit`、`bash`、`grep`、`glob`、`list_dir`、 `web_fetch`、
+// `web_search`、`find_definition`、`diagnostics`、git_* 系列…
+// … — 超过标准 传输层。
 //
 //   ┌──────────────┐   tools/list           ┌───────────────────────────┐
-//   │  MCP client  │ ─────────────────────► │  agentty mcp-serve        │
+//   │ MCP 客户端   │ ─────────────────────► │ agentty mcp-serve        │
 //   │ (Claude/IDE) │   tools/call read {…}   │   tools::registry()       │
 //   │              │ ◄───────────────────── │   → DynamicDispatch::exec  │
 //   └──────────────┘   CallToolResult        └───────────────────────────┘
 //
-// This is the ONE honest place to put "all agentty tools through MCP": the
-// process boundary is real, so JSON is the real contract. The internal agent
-// loop keeps its fast in-process ToolDef path (FileChange round-trips natively
-// there); a remote caller simply receives the diff as text, which is correct
-// for that boundary.
+// 这是ONE诚实地放置"all agentty tools through MCP"
+// 的地方：进程边界是真实的，所以JSON是真实的合约。内部代理循环在
+// -process ToolDef路径中保持快速（FileChange round
+// -trips本来就在那里）；远程调用者只是以文本形式接收差异，
+// 这对于该边界来说是正确的。
 //
-// PERF CONTRACT: this header is mcp-cpp-FREE (no template cost leaks). All the
-// heavy machinery lives in src/mcp/serve.cpp, compiled into the agentty_mcp
-// object library like the rest of the bridge. The entry point only runs when
-// the user invokes `agentty mcp-serve`; the normal TUI/ACP paths never touch
-// it, so cold start is unaffected.
+// PERF CONTRACT:这个头文件是mcp-cpp-FREE(没有模板成本泄漏)。
+// 所有重型机械都位于 src/mcp/serve.cpp 中，与桥的其余部分一样，
+// 编译到 agentty_mcp 对象 库 中。入口点仅在用户调用
+// `agentty mcp-serve`时运行；正常的 TUI/ACP 路径
+// 永远不会触及它，因此冷启动不受影响。
 
-#include <maya/capability.hpp>   // tiny: the capability types only
+#include <maya/capability.hpp>   // tiny:仅能力类型
 
 namespace agentty::mcp {
 
-// Run agentty as an MCP server over stdio (newline-delimited JSON-RPC on
-// stdin/stdout; diagnostics on stderr so the protocol channel stays clean).
-// Registers every tool in tools::registry() and blocks serving requests until
-// stdin closes. Returns a process exit code. The provider/subagent/sandbox
-// seams must already be wired by the caller (main.cpp does this) so tools like
-// `task` and `bash` behave exactly as they do in the TUI. It blocks until
-// stdin closes and joins its reader: `unlocked`.
+// 通过stdio将agentty作为MCP服务器运行（stdin/stdout上的换行-delimited
+// JSON-RPC；在stderr上进行诊断，以便协议通道保持干净）。
+// 注册tools::registry()中的每个工具并阻止服务请求直到stdin关闭。
+// 返回进程退出代码。 provider/subagent/sandbox 接口
+// 边界 必须已由调用者连接（main.cpp 执行此操作），因此 `task` 和
+// `bash` 等工具的行为与 TUI 中的行为完全相同。它会阻塞，
+// 直到标准输入关闭并加入其读取器：`unlocked`。
 [[nodiscard]] int serve_stdio(const maya::unlocked&);
 
 } // namespace agentty::mcp

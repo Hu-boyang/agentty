@@ -1,10 +1,10 @@
-// codex_auth_test — the ChatGPT sign-in edge cases codex-rs handles.
+// codex_auth_test - 电话 ChatGPT 签名 -in 边框代码x -rs 手柄。
 //
-//   * a refresh that fails for good says why ("sign in again"), and one that
-//     failed on the network does not
-//   * a token is refreshed 5 minutes before it dies, or after 8 days anyway
-//   * the server's error code survives into the detail, but not into what
-//     the user reads
+//   永远失败的新鲜空气 说明了原因 "sign in again" ),还有一个
+//     网络失败
+//   * 一枚标志在5分钟前或8天后重新刷新
+//   *服务器的错误代码在细节中存活,但不能在细节中生存。
+//     用户读取
 
 #include "agentty/provider/chatgpt/codex_oauth.hpp"
 
@@ -19,7 +19,7 @@ std::int64_t now_ms() {
     using namespace std::chrono;
     return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 }
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("codex refresh: each server answer maps to the right reason") {
     using F = RefreshFailure;
@@ -27,7 +27,7 @@ TEST_CASE("codex refresh: each server answer maps to the right reason") {
     CHECK(classify_refresh_failure(401, R"({"error":{"code":"refresh_token_reused"}})") == F::Reused);
     CHECK(classify_refresh_failure(401, R"({"error":{"code":"refresh_token_invalidated"}})") == F::Revoked);
     CHECK(classify_refresh_failure(400, "invalid_grant: bad token") == F::Revoked);
-    // No verdict on the token: try again later, say nothing scary.
+    // 不再做任何判决:以后再试,
     CHECK(classify_refresh_failure(0, "connection reset") == F::Transient);
     CHECK(classify_refresh_failure(503, "upstream down") == F::Transient);
     CHECK(classify_refresh_failure(429, "slow down") == F::Transient);
@@ -43,16 +43,16 @@ TEST_CASE("codex refresh: 5 minutes early, and after 8 days regardless") {
     c.access_token = "a";
     c.last_refresh_ms = now_ms();
 
-    c.expires_at_ms = now_ms() + 60LL * 60 * 1000;          // an hour left
+    c.expires_at_ms = now_ms() + 60LL * 60 * 1000;          // 还有一个小时
     CHECK(!c.needs_refresh());
-    c.expires_at_ms = now_ms() + 4LL * 60 * 1000;           // 4 minutes left
+    c.expires_at_ms = now_ms() + 4LL * 60 * 1000;           // 只剩4分钟了
     CHECK(c.needs_refresh(), "inside the 5-minute window");
 
     c.expires_at_ms = now_ms() + 60LL * 60 * 1000;
-    c.last_refresh_ms = now_ms() - 9LL * 24 * 3600 * 1000;  // 9 days old
+    c.last_refresh_ms = now_ms() - 9LL * 24 * 3600 * 1000;  // 9天大,年龄
     CHECK(c.needs_refresh(), "an old login is refreshed even if the token looks fine");
 
-    c.last_refresh_ms = 0;                                  // saved before we tracked it
+    c.last_refresh_ms = 0;                                  // 已保存 之前我们追踪它
     c.expires_at_ms = 0;
     CHECK(!c.needs_refresh(), "no information, no forced refresh");
 }

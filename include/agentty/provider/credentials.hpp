@@ -1,28 +1,28 @@
 #pragma once
-// agentty::provider::credentials — THE central, provider-uniform credential
-// layer. Every subsystem that needs a provider's auth (the stream seam, the
-// switch funnel, the account manager UI) goes through here, so there is ONE
-// resolver and ONE account model for every provider — Anthropic (OAuth or
-// key), the OpenAI-family hosted keys, ChatGPT / Copilot / Kimi (OAuth), a
-// user-added custom host, and local servers (Ollama / llama.cpp, no auth).
+// agentty::provider::credentials —THE中央，
+// 提供商-uniform 凭据层。每个需要提供商身份验证的子系统（数据流 接口边界、
+// 切换漏斗、帐户管理器 UI）都会经过此处，因此每个提供商都有 一个 解析器和 一个 帐户
+// 模型 — Anthropic（OAuth 或密钥）、OpenAI-family 托管密钥、
+// ChatGPT / Copilot / Kimi（OAuth），以及用户添加的
+// 自定义主机和本地服务器（Ollama / llama.cpp，无身份验证）。
 //
-// Design (mirrors Anthropic's account-manager flow, made uniform):
-//   • A provider's ACTIVE credential is resolved by resolve(provider_id) —
-//     stored account → env-var chain → empty. No per-provider special-casing
-//     leaks into callers (the old resolve_auth_for's `anthropic_creds`
-//     side-channel is gone; Anthropic is just "the provider whose store is
-//     credentials.json").
-//   • Where the secret physically LIVES differs per provider (a credentials
-//     file, Settings.provider_keys[spec], or nothing for local) — that is the
-//     ONLY thing that varies, captured behind backend_for() internally.
-//   • Multi-account is uniform: list / active_label / activate / remove all
-//     key on the provider id, so the same account-manager UI drives every
-//     provider.
+// 设计（镜像Anthropic的账号-manager的流量，做了统一）：
+//   ·提供商的ACTIVE 凭据通过resolve(provider_id)来解析——
+//     存储账户→env-var链→空。没有 per-providerspecial-casing 泄漏给调用者（旧
+//     的 resolve_auth_for 的 `anthropic_creds` side-channel
+//     消失了；Anthropic 只是
+//     凭据存储位于 credentials.json 的提供方。
+//   ·当每个提供者的物理秘密LIVES不同时（凭据
+//     文件，Settings.provider_keys[规格]，或者本地没有任何
+//     内容）——这是 仅 变化的东西，在 backend_for() 内部捕获。
+//   ·Multi-account统一：列出/active_label/激活/删除全部
+//     关键在于提供者ID，因此相同的帐户-manager UI驱动每个
+//     提供者。
 //
-// This header declares the seam; the implementation lives in
-// src/provider/credentials.cpp and delegates storage to auth::* (Anthropic),
-// the provider oauth modules (chatgpt/copilot/kimi), and Settings.provider_keys
-// (hosted keys + custom hosts) via the accounts registry.
+// 该头文件声明接口边界；该实现位于 src/provider/credentials.cpp 中，
+// 并通过帐户 注册表 将存储委托给 auth::* (Anthropic)、
+// 提供者 oauth 模块 (chatgpt/copilot/kimi) 和
+// Settings.provider_keys（托管密钥 + 自定义主机）。
 
 #include <optional>
 #include <string>
@@ -36,52 +36,52 @@
 
 namespace agentty::provider::credentials {
 
-// How a provider takes a NEW account — drives the account-manager "add" flow.
+// 提供者如何获取NEW账户——驱动账户-manager "add"流。
 enum class AddMethod : std::uint8_t {
-    ApiKey,       // paste a bearer/API key (hosted OpenAI-family, custom host).
-    OAuthDevice,  // browser/device OAuth (Anthropic, ChatGPT, Copilot, Kimi).
-    None,         // local server (Ollama / llama.cpp) — no account.
+    ApiKey,       // 粘贴bearer/API密钥(托管OpenAI-family，自定义主机)。
+    OAuthDevice,  // browser/device OAuth (Anthropic、ChatGPT、副驾驶、Kimi)。
+    None,         // 本地服务器(Ollama/llama.cpp)-没有帐户。
 };
 
-// Resolve the auth header for `provider_id`'s ACTIVE credential. The single
-// resolver, uniform across every provider:
-//   stored active account (file OR provider_keys) → env-var chain → empty.
-// Empty (for a provider that needs auth) means "not signed in" — callers route
-// to the account manager. `AuthStyle::None` providers always resolve empty.
+// 解析`provider_id`的ACTIVE 凭据的授权头文件。
+// 单一解析器，在每个提供商中都是统一的：
+//   存储的活动账户(文件OR provider_keys)→env-var链→空。
+// 空（对于需要认证的提供商）意味着"not signed in"-呼叫者路由
+// 到账户管理器。 `AuthStyle::None` 提供商始终解析为空。
 [[nodiscard]] auth::AuthHeader resolve(Io, std::string_view provider_id);
 
-// True when `provider_id` needs a credential the user hasn't provided yet
-// (resolve() is empty AND the provider isn't a keyless local server). Drives
-// "route to login on switch".
+// 当 `provider_id` 需要用户尚未提供的 凭据 时为真（resolve()
+// 为空 和 提供者不是无密钥本地服务器）。
+// 驱动器 "route to login on switch"。
 [[nodiscard]] bool needs_login(Io, std::string_view provider_id);
 
-// The add-account method this provider offers. Pure: a registry lookup, no
-// credential read, so reducers may call it.
+// 该提供商提供的add-account方法。纯：注册表 查找，没有 凭据 读取，
+// 因此 状态更新函数 可能是 调用 它。
 [[nodiscard]] AddMethod add_method(std::string_view provider_id);
 
-// ── Account management — uniform for every provider ──────────────────────────
-// Saved accounts for a provider (may be empty). Mirrors auth::accounts but
-// keyed by the canonical provider id and consistent for file/key/local backends.
+// ── 账户管理——每个供应商统一使用 ──────────────────────────
+// 已保存帐户用于提供商（可以为空）。镜像 auth::accounts，
+// 但由规范提供商 ID 键入，并且与 file/key/local 后端保持一致。
 [[nodiscard]] std::vector<auth::accounts::Account> list(Io, std::string_view provider_id);
 
-// The active account's label ("OAuth · me@x", "key …Ddmj", "local", …).
+// 活动帐户的标签（"OAuth · me@x"、"key …Ddmj"、"local"，...）。
 [[nodiscard]] std::string active_label(Io, std::string_view provider_id);
 
-// Switch the active account for a provider to `label` (writes its secret into
-// the provider's live store + updates the registry). Returns false if unknown.
+// 将提供商的活动帐户切换到`label`（将其秘密写入提供
+// 商的实时存储+更新注册表）。如果未知则返回 false。
 bool activate(Io, const maya::unlocked&, std::string_view provider_id, std::string_view label);
 
-// Remove one saved account. When it was the active one, promotes the next (or
-// clears the live credential if none remain).
+// 删除一个 已保存 帐户。当它是活动的时，升级下一个（或者
+// 清除活动的 凭据，如果没有剩余）。
 bool remove(Io, const maya::unlocked&, std::string_view provider_id, std::string_view label);
 
-// Wipe the provider's LIVE active credential entirely (its file, or its
-// provider_keys[spec] entry) — a full sign-out. Used when the last account is
-// removed so build_account_list can't rediscover and resurrect it.
+// 完全擦除提供商的LIVE活动凭据（其文件或其provider_keys
+// [规格]条目）——完整的标志-out。当最后一个帐户被删除时使用，
+// 这样 build_account_list 就无法重新发现并复活它。
 void clear_active(Io, const maya::unlocked&, std::string_view provider_id);
 
-// Persist a freshly-obtained API key as this provider's active account
-// (snapshots any prior active account first, so it ADDS, not replaces).
+// 保留新的-obtained API密钥作为该提供商的活动帐户（
+// 快照首先是任何先前的活动帐户，因此它是ADDS，而不是替换）。
 bool add_key(Io, const maya::unlocked&, std::string_view provider_id, std::string_view key);
 
 } // namespace agentty::provider::credentials

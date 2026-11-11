@@ -1,16 +1,16 @@
-// error_class_test — the retry classifier's status-preferring dispatch.
+// error_class_test - 电话 重试 分类器状态 -preferring 分派.
 //
-// provider::classify_stream_error(message, http_status) is what the runtime's
-// StreamError reducer calls to decide auto-retry vs re-auth vs surface. Its
-// contract: when the transport stamped a real HTTP status on the Msg
-// (http_status != 0), classify via the TYPED classify(HttpError) path — the
-// transport already knew the exact status, so no substring sniff of the human
-// message. When http_status == 0 (SSE `event: error`, transport/socket
-// failure, user cancel, synthetic stall), fall back to the string sniff.
+// provider::classify_stream_error (新闻, http_status
+// 是什么来着? 运行时's StreamError 状态更新函数 调用 自动决定
+// -retry 比较 -auth 合同:当 传输层 印出真实 HTTP 财务报告
+// 和审定财务报表 Msg (http_status =0),通过该分类. TYPED 分类
+// ( C) HttpError ()路径—— 传输层 已经知道确切的状态,所以没有下弦嗅觉人类信息。
+// http_status == 0 (SSE `event: error`,
+// transport/socket 失败, 用户 取消 合成的摊位 回到弦的嗅觉
 //
-// This locks the "status wins over prose" behaviour that lets a proxy phrasing
-// "429" as "Too Many Requests" (no digits) still retry, and stops a terminal
-// 400 whose message contains "connection" from being mis-retried as transient.
+// 这个 锁 编号 "status wins over prose" 允许代理词组的行为
+// "429" 以 "Too Many Requests" (没有数字) 重试 ,然后停止一个
+// 终端 其信息包含的400个 "connection" 被错害 -retried 以暂时性为主
 
 #include <string_view>
 
@@ -19,78 +19,78 @@
 #include "agentty/provider/error_class.hpp"
 #include "agentty/domain/catalog.hpp"
 #include "agentty/domain/entitlement.hpp"
-#include "agentty/provider/openai/transport.hpp"   // build_request_body (#93)
+#include "agentty/provider/openai/transport.hpp"   // build_request_body(#93) 页面存档备份,存于互联网档案馆, 互联网档案馆的存檔,存档日期2013-09-02.
 
 using namespace agentty::provider;
 
-// ── Status-set: the typed path wins, message text is ignored ───────────────
+// ── 状态 -set : 数据 带类型的 路径胜出, 信件文本被忽略 ───────────────
 TEST_CASE("status wins over message prose") {
-    // 429 with a prose-only body (no digits) → RateLimit via the typed path.
-    // The old string sniff would have missed this (no "429"/"rate_limit").
+    // 429个传言 -only 正文 (无数字) ^ RateLimit 经由 带类型的 路径。
+    // 老弦嗅觉会错过这个(没有"429"/"rate_limit").
     CHECK(classify_stream_error("Too Many Requests", 429) == ErrorClass::RateLimit);
 
-    // 401/403 → Auth regardless of message wording.
+    // 401/403 – Auth,不管电文措辞如何.
     CHECK(classify_stream_error("Unauthorized", 401) == ErrorClass::Auth);
     CHECK(classify_stream_error("Forbidden", 403) == ErrorClass::Auth);
 
-    // 5xx → Transient.
+    // 5xx – 临时.
     CHECK(classify_stream_error("Bad Gateway", 502) == ErrorClass::Transient);
     CHECK(classify_stream_error("Service Unavailable", 503) == ErrorClass::Transient);
     CHECK(classify_stream_error("overloaded_error", 529) == ErrorClass::Transient);
-    // A bare 500 is the provider's fault too; it used to end the turn.
+    // 赤五百是供养者之过也;昔为止转.
     CHECK(classify_stream_error("Internal Server Error", 500) == ErrorClass::Transient);
-    CHECK(classify_stream_error("whatever", 520) == ErrorClass::Transient);   // Cloudflare
-    // 501 is the one 5xx that never succeeds on a retry.
+    CHECK(classify_stream_error("whatever", 520) == ErrorClass::Transient);   // 云飞
+    // 501是5xx的 从未成功在 重试.
     CHECK(classify_stream_error("Not Implemented", 501) == ErrorClass::Terminal);
-    // 402 is a billing wall: never retried.
+    // 402是开票墙:再也没有再试.
     CHECK(classify_stream_error("Payment Required", 402) == ErrorClass::Terminal);
-    // Same wall carried on a 429: still not worth waiting for.
+    // 同一面墙上还挂着429面墙:仍然不值得等待.
     CHECK(classify_stream_error("insufficient_quota: You exceeded your current quota", 429)
           == ErrorClass::Terminal);
-    // A real 429 still retries.
+    // 实际429个仍然为重试.
     CHECK(classify_stream_error("rate_limit_exceeded", 429) == ErrorClass::RateLimit);
 
-    // A terminal 400 whose message happens to contain a "transient-looking"
-    // word ("connection") must NOT be mis-retried — the status is decisive.
+    // A 终端 其信息恰好包含 "transient-looking" 单词( 单词)
+    // "connection" )不得 错 -retried ——地位是决定性的.
     CHECK(classify_stream_error("bad request: connection field invalid", 400)
           == ErrorClass::Terminal);
     CHECK(classify_stream_error("model not found", 404) == ErrorClass::Terminal);
 }
 
-// ── Status-zero: fall back to the substring sniff (unchanged behaviour) ─────
+// ── status-zero:回向下弦嗅觉(未改变的行为) ─────
 TEST_CASE("status-zero falls back to substring sniff") {
-    // User cancel: StreamError{"cancelled"} carries no status → Cancelled.
+    // 用户 取消: StreamError{"cancelled" §没有地位§ 已取消.
     CHECK(classify_stream_error("cancelled", 0) == ErrorClass::Cancelled);
 
-    // SSE event:error bodies (Anthropic wire text, no status on the Msg).
+    // SSE 事件 : 错误 正文 (Anthropic 传输 文本,没有状态 Msg).
     CHECK(classify_stream_error("Overloaded", 0) == ErrorClass::Transient);
     CHECK(classify_stream_error("rate_limit_error", 0) == ErrorClass::RateLimit);
     CHECK(classify_stream_error("authentication_error", 0) == ErrorClass::Auth);
 
-    // Transport/socket failures rendered as prose.
+    // Transport/socket 失败了,作为传言。
     CHECK(classify_stream_error("connection reset", 0) == ErrorClass::Transient);
     CHECK(classify_stream_error("stream stall", 0) == ErrorClass::Transient);
 
-    // Genuinely unknown prose with no status → Terminal.
+    // 真正不明的无身份的传教士 – 终端.
     CHECK(classify_stream_error("invalid request: missing field", 0)
           == ErrorClass::Terminal);
 
-    // Server-side failures as SSE error text.
+    // 服务器 -side 失败, 如 SSE 错误文本。
     CHECK(classify_stream_error("api_error: Internal server error", 0) == ErrorClass::Transient);
     CHECK(classify_stream_error("server_error: The server had an error", 0) == ErrorClass::Transient);
     CHECK(classify_stream_error("slow_down", 0) == ErrorClass::RateLimit);
-    // Out of credit beats "429" in the same text: OpenAI sends
-    // insufficient_quota as a 429 and it never clears by waiting.
+    // 信用节拍 "429" 在同一案文中: OpenAI 发送
+    // insufficient_quota 429年,它永远无法通过等待来澄清。
     CHECK(classify_stream_error("429 insufficient_quota: You exceeded your current quota", 0)
           == ErrorClass::Terminal);
-    // A token count is not a status code.
+    // 符号计数不是状态代码。
     CHECK(classify_stream_error("limit is 5000 tokens", 0) == ErrorClass::Terminal);
 }
 
-// ── The two paths agree where they overlap ────────────────────────────
-// classify_stream_error(msg, status) with a status must equal the direct typed
-// call, and with status 0 must equal the direct string call — it's a pure
-// dispatcher, no logic of its own.
+// ── 两种途径在重叠之处达成一致 ────────────────────────────
+// classify_stream_error 具有某种地位的(msg,地位)必须等于
+// 直接 带类型的 调用 ,且具有第 0 个状态的,必须等于直接字符串 调用 -
+// 纯洁的 分派器 没有自己的逻辑。
 TEST_CASE("classify_stream_error is a pure dispatcher") {
     using K = agentty::http::HttpErrorKind;
     CHECK(classify_stream_error("whatever", 503)
@@ -98,21 +98,21 @@ TEST_CASE("classify_stream_error is a pure dispatcher") {
     CHECK(classify_stream_error("Overloaded", 0) == classify("Overloaded"));
 }
 
-// ── Typed mid-stream errors ────────────────────────────────────────
+// ── 带类型的 中点 -stream 错误 ────────────────────────────────────────
 //
-// An `event: error` inside a 200 body carries a machine-readable type and no
-// HTTP status — the status line was 200 and is long gone. So the retry
-// ladder used to classify these by sniffing the human `message`.
+// 来,来,来 `event: error` 在一个200 正文 携带机器
+// -readable 类型和无 HTTP 状态——状态线为200条,
+// 早已消失。 重试 用来通过嗅探人类的 `message`.
 //
-// That is the lossy path this header exists to avoid, and its failures are
-// asymmetric in both directions: a retryable overload whose prose we don't
-// recognise dies as Terminal, and a permanently-invalid request whose prose
-// happens to contain a transient-sounding word gets retried six times.
+// 这条路就是迷路 头文件 其失败在两个方向上不
+// 对称: 一种可重复的超载,其传言我们不承认是
+// 终端 永久时 -invalid 请求其传言恰好
+// 包含一个瞬间 -sounding 字会重审六遍.
 
 TEST_CASE("wire error types map to the status that means the same thing") {
     using agentty::provider::wire_error_type_status;
 
-    // Anthropic's published taxonomy.
+    // Anthropic出版分类学.
     CHECK(wire_error_type_status("rate_limit_error")     == 429);
     CHECK(wire_error_type_status("overloaded_error")     == 503);
     CHECK(wire_error_type_status("api_error")            == 500);
@@ -122,8 +122,8 @@ TEST_CASE("wire error types map to the status that means the same thing") {
     CHECK(wire_error_type_status("not_found_error")      == 404);
     CHECK(wire_error_type_status("request_too_large")    == 413);
 
-    // The OpenAI/Responses spellings for the same conditions. Both dialects
-    // surface errors this way; one table is one fewer place to drift.
+    // 相同条件的OpenAI/Responses拼写法,
+    // 两种方言都这样表面错误;一个表是漂移的地方少一个.
     CHECK(wire_error_type_status("rate_limit_exceeded")     == 429);
     CHECK(wire_error_type_status("insufficient_quota")      == 402);
     CHECK(wire_error_type_status("server_error")            == 500);
@@ -133,10 +133,10 @@ TEST_CASE("wire error types map to the status that means the same thing") {
     CHECK(wire_error_type_status("timeout_error")           == 504);
     CHECK(wire_error_type_status("billing_error")           == 402);
 
-    // Unknown means NO OPINION, not Terminal. 0 tells the caller to keep
-    // its existing string-sniff rather than inventing a classification —
-    // guessing here would be the same mistake as guessing a tool call's
-    // owner: confidently wrong beats visibly unsure only until it matters.
+    // 未知的表示NO OPINION,而不是终端.
+    // 0告诉呼叫者保留其现有的字符串-sniff,
+    // 而不是发明分类——这里猜测与猜测一个工具调用的主人
+    // 一样错误:自信错误的击打只会明显地不确定,直到它重要为止.
     CHECK(wire_error_type_status("some_future_error") == 0);
     CHECK(wire_error_type_status("")                  == 0);
 }
@@ -145,9 +145,9 @@ TEST_CASE("a typed wire error classifies like its HTTP equivalent") {
     using agentty::provider::wire_error_type_status;
     using K = agentty::http::HttpErrorKind;
 
-    // The point of the mapping: a mid-stream error reaches the SAME
-    // compile-time-proven table as a header error, instead of a parallel
-    // substring list that drifts from it.
+    // 地图的点:中点 -stream 错误到达 相同
+    // 编译-time-proven 表格为 头文件 错误,
+    // 而不是从中漂移的平行子字符串列表。
     struct Case { const char* type; int status; };
     static constexpr Case kCases[] = {
         {"rate_limit_error",      429},
@@ -166,11 +166,11 @@ TEST_CASE("a typed wire error classifies like its HTTP equivalent") {
 TEST_CASE("typed errors fix what prose sniffing gets wrong") {
     using agentty::provider::wire_error_type_status;
 
-    // THE MOTIVATING CASE, in both directions.
+    // 该 MOTIVATING CASE,双向.
 
-    // 1. A retryable overload phrased in prose the sniffer has never seen.
-    //    Sniffing calls it Terminal and the turn dies on a failure the
-    //    server told us to retry.
+    // 1. 嗅探器从未见过的可重复试验的超载词。
+    //    闻到 调用 来,来,来 终端 转弯会因服务器告诉
+    //    我们的故障而死 重试.
     const char* unfamiliar =
         "The model is currently experiencing unusually high demand";
     const auto sniffed = classify(unfamiliar);
@@ -178,11 +178,11 @@ TEST_CASE("typed errors fix what prose sniffing gets wrong") {
         unfamiliar, wire_error_type_status("overloaded_error"));
 
     CHECK(typed == ErrorClass::Transient);
-    CHECK(sniffed != typed);      // the sniff really does get this wrong
+    CHECK(sniffed != typed);      // 嗅觉真的弄错了
 
-    // 2. The reverse: a permanently-invalid request whose message happens
-    //    to read as transient. Retrying it six times cannot help, and the
-    //    user waits through the whole ladder for a guaranteed failure.
+    // 2. 反之:信息发生的永久-invalid请求
+    //    。重试 它有6次无济于事,
+    //    用户通过整个梯子等待保证失败。
     const char* misleading =
         "invalid connection parameter: tools[0].name";
     const auto typed_terminal = classify_stream_error(
@@ -192,63 +192,63 @@ TEST_CASE("typed errors fix what prose sniffing gets wrong") {
     CHECK(max_retries_for(typed_terminal, /*mid_stream=*/true) == 0);
 }
 
-// ── Vision rejections ──────────────────────────────────────────
+// ── 拒绝视线 ──────────────────────────────────────────
 //
-// A 400 on an image-bearing request has four causes and they are NOT
-// interchangeable. The strings below are what Copilot's API actually
-// returns — read out of the GitHub CLI's own binary, not invented.
+// 图像上的400元 -bearing 请求有四个原因,而且都不是 可互换。
+// 下面的字符串是“副驾驶”的字符串。 API 实际返回——从“已读出”
+// 中读出 GitHub CLI 属于自己的 二进制程序 而不是发明。
 
 TEST_CASE("vision rejection: each cause is told apart") {
     using agentty::provider::classify_vision_rejection;
     using V = agentty::provider::VisionRejection;
 
-    // The model genuinely cannot see. A property of the MODEL: switching
-    // account changes nothing, and the fix is a different model.
+    // 模型真的无法看见。 MODEL 的属性: 切换
+    // 账户不会改变任何东西, 固定是不同的模型。
     CHECK(classify_vision_rejection("not supported for vision", 400)
           == V::ModelCapability);
     CHECK(classify_vision_rejection(
               "This model does not support image input", 400)
           == V::ModelCapability);
 
-    // The model sees images, just not THIS format. Per-request: a PNG
-    // would work on the very same model, so remembering it as a
-    // capability would be wrong.
+    // 模型看到图像,只是没有 此 格式。每个 -request:
+    // a PNG 将工作在同一个模式, 所以记住它
+    // 作为一个能力是错的。
     CHECK(classify_vision_rejection("image media type not supported", 400)
           == V::MediaType);
     CHECK(classify_vision_rejection("could not process image", 400)
           == V::MediaType);
 
-    // Too MANY, not too big. Also per-request.
+    // 也一样 MANY 也不错,也不错 -request.
     CHECK(classify_vision_rejection(
               "exceeded maximum number of images", 400)
           == V::TooManyImages);
 
-    // Policy, not capability — the one that matters most (below).
+    // 政策,而不是能力——最重要的(以下)能力。
     CHECK(classify_vision_rejection(
               "vision is not enabled for this organization", 400)
           == V::OrgPolicy);
 
-    // And an ordinary 400 is not swept in. A classifier that fires on
-    // unrelated errors would strip images from turns that never had a
-    // vision problem, and then retry forever.
+    // 普通的400个不会被卷进来。一个在无关错误
+    // 上发火的分类器会从从未出现视觉问题的转弯处
+    // 剥离图像,然后 重试 永远
     CHECK(classify_vision_rejection("invalid request: messages[0]", 400)
           == V::None);
     CHECK(classify_vision_rejection("rate limit exceeded", 429) == V::None);
 }
 
 TEST_CASE("vision rejection: org policy is never read as a model defect") {
-    // THE ordering hazard, and the reason this is an enum rather than a
-    // bool.
+    // 该 命令危险, 原因是一个 枚举 而不是一个
+    // 鸟。
     //
-    // "vision is not enabled for this organization" contains the word
-    // "vision". A classifier that tested the model-capability patterns
-    // first would match it, record the MODEL as blind, and persist that
-    // against the model for every account — including the entitled ones.
-    // The user would switch to a working account and find the model still
-    // refusing to look at images, with nothing anywhere explaining why.
+    // "vision is not enabled for this organization"（当前组织未启用图像理解。）
+    // 包含单词 "vision"。测试模型的分类器
+    // -capability 模式会首先匹配,记录 MODEL
+    // 并且坚持这种态度,反对每个帐户,包括有资格帐户的帐户的模型。
+    // 用户会切换到一个工作账户,发现模型仍然
+    // 拒绝查看图像,没有任何地方解释原因.
     //
-    // So the narrow, most-specific test runs FIRST. This pins it against
-    // messages deliberately built to trip a naive ordering.
+    // 所以,最窄,最强 -specific 测试运行 首次
+    // 以此来对抗故意制造的 扰乱天真命令的信息
     using agentty::provider::classify_vision_rejection;
     using V = agentty::provider::VisionRejection;
 
@@ -260,13 +260,13 @@ TEST_CASE("vision rejection: org policy is never read as a model defect") {
           == V::OrgPolicy);
     CHECK(classify_vision_rejection(
               "image input is not supported for this organisation", 400)
-          == V::OrgPolicy);          // en-GB spelling
+          == V::OrgPolicy);          // en-GB 拼写
     CHECK(classify_vision_rejection(
               "blocked by organization policy", 403)
-          == V::None);               // 403 is an auth class, not ours
+          == V::None);               // 403是认证类,不是我们的
 
-    // Every kind has a distinct, greppable tag — a log line that says
-    // "vision failed" is the 400 we already had.
+    // 每一种标记都有明显的,可擦拭的标记——一条日志线说,
+    // "vision failed"就是我们已经拥有的400个标记.
     CHECK(agentty::provider::tag(V::OrgPolicy)       == "org_policy");
     CHECK(agentty::provider::tag(V::ModelCapability) == "model_capability");
     CHECK(agentty::provider::tag(V::MediaType)       == "media_type");
@@ -274,57 +274,57 @@ TEST_CASE("vision rejection: org policy is never read as a model defect") {
 }
 
 TEST_CASE("vision rejection: an org block is account-scoped, not model-scoped") {
-    // The storage half of the same distinction.
+    // 同一区别的储存半个.
     //
-    // An org-policy block must key on the ACCOUNT and not the model, so
-    // that (a) it applies to every model on that login, and (b) it
-    // evaporates the moment the user switches to an entitled account.
-    // Recording it per-model would do the opposite on both counts.
+    // 兽形 -policy 块必须按键于 ACCOUNT
+    // 而不是模型,以便(a) 适用于登录的每个模型,
+    // (b) 用户切换到一个合格账户时蒸发。
+    // 记录下来的每 -model 两者都相反
     namespace ent = agentty::domain::entitlement;
     ent::Store s;
 
     ent::record_blocked(s, ent::Fact::VisionOrgPolicy, "copilot", "work");
 
-    // Blocks on this account, for ANY model — no model component in the key.
+    // 以此帐户为块,用于ANY模型——键中没有模型组件.
     CHECK(ent::blocked(s, ent::Fact::VisionOrgPolicy, "copilot", "work"));
 
-    // And NOT on another account of the same provider. This is the
-    // property the whole registry exists for: the other login's facts were
-    // never in the way, so nothing has to be reset on a switch.
+    // 还有 不 同一供应商的另一说法。这是整个财产。
+    // 注册表 存在的原因: 其它登录的事实从未妨碍,
+    // 因此切换上不需要重置任何内容。
     CHECK(!ent::blocked(s, ent::Fact::VisionOrgPolicy, "copilot", "personal"));
 
-    // Nor on a different provider.
+    // 也不在别的供养者身上
     CHECK(!ent::blocked(s, ent::Fact::VisionOrgPolicy, "openai", "work"));
 
-    // And it does not collide with the other fact on the same key axes.
+    // 并且它不会与同一轴上的其他事实相冲突。
     CHECK(!ent::blocked(s, ent::Fact::Context1M, "copilot", "work"));
 }
 
-// ── Long-context entitlement rejection: the [1m] self-heal trigger ───────
-// Anthropic 400s the whole request when the context-1m beta rides on an
-// unentitled subscription. The reducer strips the `[1m]` marker and retries;
-// this detector is its gate, so lock its shape: the real message matches (any
-// casing / suffix rewording), unrelated 400s and non-400s don't.
+// ── 长 -context 权利拒绝:[1m]本身 -heal 触发 ───────
+// Anthropic 当上下文-1mβ搭乘无标题时, 整个请求为
+// 400 事件订阅。该词 状态更新函数 剥离 `[1m]` 标记和
+// 重试 探测器就是它的门 所以 锁 它的形状: 真实消息匹配(
+// 任何外壳/ 后缀重写), 无关的400s和非400s不匹配.
 TEST_CASE("is_long_context_rejection") {
     using agentty::provider::is_long_context_rejection;
-    // The exact wire message observed in production.
+    // 生产中观察到的准确的传输信息.
     CHECK(is_long_context_rejection(
         "HTTP 400: The long context beta is not yet available for this "
         "subscription.", 400));
-    // SSE event:error path carries no status (0) — must still match.
+    // SSE 事件 : 错误路径没有状态( 0) —— 必须仍然匹配。
     CHECK(is_long_context_rejection(
         "The long context beta is not yet available for this subscription.", 0));
-    // Upstream rewording of the tail keeps matching (stable prefix).
+    // 上游 重新定义 末尾 继续匹配( 稳定前缀)。
     CHECK(is_long_context_rejection(
         "the Long Context Beta is not enabled for this organization", 400));
-    // Future drift naming the beta id directly.
+    // 未来漂移直接命名β id.
     CHECK(is_long_context_rejection(
         "unsupported beta: context-1m-2025-08-07", 400));
-    // Unrelated 400s must NOT trigger the fallback.
+    // 无关的400人不得 触发 回退.
     CHECK(!is_long_context_rejection("invalid request: missing field", 400));
     CHECK(!is_long_context_rejection("prompt is too long", 400));
-    // The right words on the wrong status must NOT trigger it either
-    // (a 529/503 mentioning "long context" in prose is not the beta gate).
+    // 错误状态的正确词不得 触发该词或(a) 529/503
+    // 提及 "long context" 以传言不是β门。
     CHECK(!is_long_context_rejection(
         "long context beta is not available", 503));
 }
@@ -334,7 +334,7 @@ TEST_CASE("parse_effort_rejection: learn the accepted set from a 4xx body") {
     using agentty::Effort;
     using agentty::effort_bit;
 
-    // Mistral's REAL 400 body (probed live): names the binary contract.
+    // 迷雾的 真实 400 正文 (现场直播): 二进制程序 合同。
     const char* mistral_binary =
         "{\"object\":\"error\",\"message\":\"reasoning_effort low is not "
         "supported for this model, supported values: "
@@ -348,7 +348,7 @@ TEST_CASE("parse_effort_rejection: learn the accepted set from a 4xx body") {
         CHECK((*set & effort_bit(Effort::Medium)) == 0);
     }
 
-    // Mistral's "not enabled" shape (devstral/codestral): param off entirely.
+    // 迷雾的 "not enabled" 形状( 5) devstral/codestral 完全放弃了
     const char* mistral_off =
         "{\"object\":\"error\",\"message\":\"reasoning_effort is not "
         "enabled for this model\",\"type\":\"invalid_request_invalid_args\"}";
@@ -358,7 +358,7 @@ TEST_CASE("parse_effort_rejection: learn the accepted set from a 4xx body") {
         CHECK(*set == 0);
     }
 
-    // Mistral's small-model wording variant ("Must be one of (...)").
+    // 雾带很小 -model 措辞 变体 ("Must be one of (...)").
     const char* mistral_small =
         "reasoning_effort='low' is not supported for this model. "
         "Must be one of (<ReasoningEffort.high: 'high'>, "
@@ -370,7 +370,7 @@ TEST_CASE("parse_effort_rejection: learn the accepted set from a 4xx body") {
         CHECK((*set & effort_bit(Effort::Medium)) == 0);
     }
 
-    // A generic OpenAI-compat server that doesn't know the field at all.
+    // 通用软件 OpenAI-compat 完全不了解字段的服务器。
     {
         auto set = parse_effort_rejection(
             "Unrecognized request argument: reasoning_effort", 400);
@@ -378,7 +378,7 @@ TEST_CASE("parse_effort_rejection: learn the accepted set from a 4xx body") {
         CHECK(*set == 0);
     }
 
-    // 422 validation-enum shape also counts.
+    // 422 验证-enum形状也算数.
     {
         auto set = parse_effort_rejection(
             "{\"detail\":[{\"type\":\"enum\",\"loc\":[\"body\","
@@ -390,19 +390,19 @@ TEST_CASE("parse_effort_rejection: learn the accepted set from a 4xx body") {
         CHECK((*set & effort_bit(Effort::High)) != 0);
     }
 
-    // NOT effort rejections: wrong status, unrelated 400s, effort only
-    // mentioned incidentally.
+    // 不 努力拒绝:地位错误,没有关系,
+    // 努力只是偶然提到。
     CHECK(!parse_effort_rejection(mistral_binary, 503).has_value());
     CHECK(!parse_effort_rejection("invalid request: missing field", 400)
                .has_value());
     CHECK(!parse_effort_rejection(
         "model overloaded, retry later", 400).has_value());
-    // Mentions the field but rejects something else → no learn.
+    // 提到这个领域,但拒绝别的东西 —— 学不学。
     CHECK(!parse_effort_rejection(
         "reasoning_effort accepted; temperature out of range", 400)
                .has_value()
-          || true);   // (defensive: harvest may fire; the retry arm still
-                      // clamps within the harvested set, which is safe)
+          || true);   // (防御:收获可能开火;重试臂仍然在)
+                      // 套装在收割的套装内,这是安全的)
 }
 
 TEST_CASE("learned effort set drives ladder, clamp and wire") {
@@ -415,11 +415,11 @@ TEST_CASE("learned effort set drives ladder, clamp and wire") {
     using agentty::Effort;
     using agentty::effort_bit;
 
-    // A provider nobody has heard of: from_id knows nothing, so effort is
-    // off. Then its 400 teaches us it accepts {low, high}.
+    // 一个没人听说过的供货商:from_id什么都不知道,所以努力就结束了。
+    // 然后它的400个教导我们接受{低,高}。
     const char* id = "wombat-9b-instruct";
     CHECK(!resolved_caps(id).supports_effort()
-          || true);   // unknown ids default off; tolerated either way
+          || true);   // 未知的 IDs 默认; 容忍任意一种
     set_learned_effort_set(id, static_cast<std::uint8_t>(
         effort_bit(Effort::Low) | effort_bit(Effort::High)));
     {
@@ -430,59 +430,59 @@ TEST_CASE("learned effort set drives ladder, clamp and wire") {
         CHECK(ladder[1] == Effort::None);
         CHECK(ladder[2] == Effort::Low);
         CHECK(ladder[3] == Effort::High);
-        // Auto anchors at the midpoint of the LEARNED ladder {low,high}:
-        // (2-1)/2 = 0 -> low. A learned set narrows the anchor too.
+        // 位于LEARNED梯度 {low, high} 中点的自动锚地 :
+        // (2-1)/2 = 0 - > 低。一个学习的设定也会缩小锚。
         CHECK(agentty::auto_base_effort(caps) == Effort::Low);
-        // Medium maps DOWN to low (nearest at-or-below), max down to high.
+        // 中图 DOWN 至低(最接近 -or-below ),最大降为高.
         CHECK(clamp_effort(Effort::Medium, caps) == Effort::Low);
         CHECK(effort_wire_for(Effort::Medium, caps) == "low");
         CHECK(clamp_effort(Effort::Max, caps) == Effort::High);
         CHECK(effort_wire_for(Effort::None, caps) == "");
     }
 
-    // Learned zero-set: the model rejects the parameter entirely.
+    // 学习了0-set:该模型完全拒绝该参数.
     set_learned_effort_set(id, 0);
     {
         const auto caps = resolved_caps(id);
         CHECK(!agentty::effort_capable(caps));
         CHECK(effort_wire_for(Effort::High, caps) == "");
-        // No ladder: `auto` is not offered, because it would resolve to off
-        // and an "auto" that can only ever mean off is a lie.
-        CHECK(available_efforts(caps).size() == 1);   // just off
+        // 无梯子 : `auto` 因为它会决定放弃和取消
+        // "auto" 这只能意味着 离开是一个谎言。
+        CHECK(available_efforts(caps).size() == 1);   // 刚刚离开
         CHECK(available_efforts(caps)[0] == Effort::None);
         CHECK(agentty::auto_base_effort(caps) == Effort::None);
         CHECK(effort_wire_for(Effort::Auto, caps) == "");
     }
 
-    set_learned_effort_sets({});   // reset global state for other tests
+    set_learned_effort_sets({});   // 重置全球状态用于其他测试
 }
 
-// #93: strict OpenAI-compat hosts 400 an optional field; we must recognise
-// exactly that (and nothing broader) so the turn retries without it.
+// #93:严格 OpenAI-compat 主办400个可选领域;
+// 我们必须确切地认识到(而且没有更广泛的),因此轮到 重试 没有它。
 TEST_CASE("parse_rejected_field: the issue's bodies and its neighbours") {
     using agentty::provider::parse_rejected_field;
     using F = agentty::provider::OptionalField;
 
-    // Groq.
+    // 格罗克。
     CHECK(parse_rejected_field("property 'prompt_cache_key' is unsupported", 400)
           == F::PromptCacheKey);
-    // Gemini (the extracted sentence).
+    // Gemini (引句) ( ⁇ .
     CHECK(parse_rejected_field(
               "Invalid JSON payload received. Unknown name \"prompt_cache_key\": "
               "Cannot find field.", 400) == F::PromptCacheKey);
-    // Azure-style / vLLM / pydantic phrasings, and stream_options.
+    // 阿苏雷 -style /vLLM/  ⁇ 字,和 stream_options.
     CHECK(parse_rejected_field("Unrecognized request argument supplied: stream_options", 400)
           == F::StreamOptions);
     CHECK(parse_rejected_field("stream_options: Extra inputs are not permitted", 422)
           == F::StreamOptions);
 
-    // NOT a rejection of the field: a value error naming it must surface.
+    // 不 拒绝字段:一个命名它必须表面的值错误.
     CHECK(parse_rejected_field("prompt_cache_key must be at most 64 chars", 400)
           == F::None);
-    // A required field is never "learned" away.
+    // 要求的字段永远不会 "learned" 离开。
     CHECK(parse_rejected_field("Unknown name \"messages\": Cannot find field.", 400)
           == F::None);
-    // Only 400/422 (or status-less mid-stream frames).
+    // 仅 400/422 (或状况) -less 中点 -stream 帧).
     CHECK(parse_rejected_field("prompt_cache_key is unsupported", 500) == F::None);
     CHECK(parse_rejected_field("prompt_cache_key is unsupported", 401) == F::None);
     CHECK(parse_rejected_field("prompt_cache_key is unsupported", 0) == F::PromptCacheKey);
@@ -491,11 +491,11 @@ TEST_CASE("parse_rejected_field: the issue's bodies and its neighbours") {
 TEST_CASE("parse_rejected_field: max_tokens rename, and only the rename") {
     using agentty::provider::parse_rejected_field;
     using F = agentty::provider::OptionalField;
-    // OpenAI's exact o-series / Azure body.
+    // OpenAI 准确的O -series / 阿苏雷 正文.
     CHECK(parse_rejected_field(
               "Unsupported parameter: 'max_tokens' is not supported with this "
               "model. Use 'max_completion_tokens' instead.", 400) == F::MaxTokens);
-    // A too-large value names max_tokens too; that's a real error.
+    // 也是个 -large 值名称 max_tokens 也一样,这是个真正的错误。
     CHECK(parse_rejected_field("max_tokens is too large: 200000. This model "
                                "supports at most 128000 completion tokens", 400)
           == F::None);
@@ -507,7 +507,7 @@ TEST_CASE("learned rejected field is omitted from the next body (#93)") {
     using agentty::provider::OptionalField;
     using agentty::provider::bit;
 
-    // OpenAI opts in to prompt_cache_key, so the first body carries it...
+    // OpenAI 选择加入 prompt_cache_key 所以第一个 正文 带着它...
     oa::Request r;
     r.endpoint    = oa::Endpoint::from_spec("openai");
     r.model       = "gpt-4o";
@@ -516,33 +516,33 @@ TEST_CASE("learned rejected field is omitted from the next body (#93)") {
     CHECK(oa::build_request_body(r).contains("prompt_cache_key"));
     CHECK(oa::build_request_body(r).contains("stream_options"));
 
-    // ...until that host rejects it once. Learned per HOST: every model
-    // behind it gets the corrected body.
+    // 直到主办方拒绝一次 HOST :每个
+    // 模型都得到纠正 正文.
     const auto host = agentty::host_key(r.endpoint.host, r.endpoint.port);
     agentty::add_rejected_field(host, bit(OptionalField::PromptCacheKey));
     CHECK(!oa::build_request_body(r).contains("prompt_cache_key"));
-    CHECK(oa::build_request_body(r).contains("stream_options"));   // untouched
+    CHECK(oa::build_request_body(r).contains("stream_options"));   // 无人
 
     agentty::add_rejected_field(host, bit(OptionalField::StreamOptions));
     CHECK(!oa::build_request_body(r).contains("stream_options"));
     CHECK(agentty::rejected_fields_for(host)
           == (bit(OptionalField::PromptCacheKey) | bit(OptionalField::StreamOptions)));
 
-    // Another host is unaffected.
+    // 另一主机没有受到影响.
     r.endpoint = oa::Endpoint::from_spec("openrouter");
     CHECK(oa::build_request_body(r).contains("prompt_cache_key"));
 
-    agentty::set_rejected_fields({});   // reset global state
+    agentty::set_rejected_fields({});   // 重置全球状态
 }
 
-// #117: a thinking-mode model 400s a history whose earlier assistant turns
-// lack reasoning_content. Bodies verbatim from the issue and the trackers
-// that hit the same thing (Kilo#15198, opencode#23831, 9router#4804).
+// #117:一个思考 -mode 型号400s 早期的助手缺乏的历史
+// reasoning_content. 正文 由发行和打出相同东西的追踪器(Kilo#
+// 15198,opencode#23831,9router#4804)的逐字记录.
 TEST_CASE("parse_reasoning_echo_required: the issue's bodies and its neighbours") {
     using agentty::provider::parse_reasoning_echo_required;
     using R = agentty::provider::ReasoningEcho;
 
-    // Beam, as #117 reported it: every earlier turn.
+    // 贝姆,如117号报道: 早前的转弯。
     CHECK(parse_reasoning_echo_required(
               "400 Bad Request: Missing required parameter: "
               "'messages[3].reasoning_content'. This model needs the reasoning of "
@@ -550,35 +550,35 @@ TEST_CASE("parse_reasoning_echo_required: the issue's bodies and its neighbours"
               "returned with that message. If 'reasoning_content' is not available, "
               "consider starting a new session or conversation history.", 400)
           == R::All);
-    // The same through a gateway that wraps it (9router / OpenCode Zen).
+    // 同样的通过一个关卡,包扎它(9router / OpenCode Zen).
     CHECK(parse_reasoning_echo_required(
               "Upstream request failed: [missing_required_parameter] Missing required "
               "parameter: 'messages[36].reasoning_content'. This model needs the "
               "reasoning of every earlier assistant message: send back the "
               "'reasoning_content' returned with that message.", 400) == R::All);
-    // An SSE error frame carries no status.
+    // 来,来,来 SSE 错误 帧 没有任何状态。
     CHECK(parse_reasoning_echo_required(
               "Missing required parameter: 'messages[1].reasoning_content'. This model "
               "needs the reasoning of every earlier assistant message", 0) == R::All);
-    // Kimi / Moonshot: tool-call turns.
+    // Kimi / Moonshot:工具-call转弯.
     CHECK(parse_reasoning_echo_required(
               "thinking is enabled but reasoning_content is missing in assistant tool "
               "call message at index 2", 400) == R::ToolCalls);
-    // DeepSeek names no scope; its docs say tool-call turns.
+    // DeepSeek 名称无范围;其文件显示工具 -call 转弯
     CHECK(parse_reasoning_echo_required(
               "The `reasoning_content` in the thinking mode must be passed back to "
               "the API.", 400) == R::ToolCalls);
 
-    // Neighbours that must NOT be learned away.
+    // 邻居不得 被学着去。
     CHECK(parse_reasoning_echo_required("messages[3].reasoning_content must be a string", 400)
-          == R::None);                                   // a value error, not a missing turn
+          == R::None);                                   // 值错误, 不是缺少转弯
     CHECK(parse_reasoning_echo_required("Missing required parameter: 'messages'", 400)
-          == R::None);                                   // a real error
+          == R::None);                                   // 真实错误
     CHECK(parse_reasoning_echo_required("property 'prompt_cache_key' is unsupported", 400)
-          == R::None);                                   // #93's, not ours
+          == R::None);                                   // 93号,不是我们的
     CHECK(parse_reasoning_echo_required(
               "Missing required parameter: 'messages[3].reasoning_content'", 500)
-          == R::None);                                   // 5xx is transient, not a contract
+          == R::None);                                   // 5xx是暂时的,不是合同
     CHECK(parse_reasoning_echo_required("", 400) == R::None);
 }
 
@@ -603,37 +603,37 @@ TEST_CASE("learned reasoning echo is per host AND model, and fills the body (#11
 
     const auto host = agentty::host_key(r.endpoint.host, r.endpoint.port);
     CHECK(reasoning_echo_for(host, r.model) == 0);
-    CHECK(!asst().contains("reasoning_content"));        // nobody asked: body unchanged
+    CHECK(!asst().contains("reasoning_content"));        // 没有人问:正文不变
 
     agentty::set_reasoning_echo(reasoning_echo_key(host, r.model), 2);
     CHECK(reasoning_echo_for(host, r.model) == 2);
     CHECK(asst()["reasoning_content"] == " ");
-    // Spelling-insensitive, like every caps key.
+    // 拼写-insensitive,像每个盖子键。
     CHECK(reasoning_echo_for(host, "moonshotai/Kimi-K2-Thinking") == 2);
 
-    // Another model on the same gateway is NOT padded...
+    // 同一网关上的另一个模型是NOT加法. .
     CHECK(reasoning_echo_for(host, "openai/gpt-4o") == 0);
     r.model = "openai/gpt-4o";
     CHECK(!asst().contains("reasoning_content"));
-    // ...and the same model on another host is learned separately.
+    // ..另一个主机上的同一模型是单独学习的.
     CHECK(reasoning_echo_for("api.groq.com", "moonshotai/kimi-k2-thinking") == 0);
 
-    // Beam is seeded under every name it ships as, so a model switch onto it
-    // never pays the first 400.
+    // 贝姆以它所运载的每个名字播种 所以一个模型开关
+    // 从不支付前400名
     CHECK(reasoning_echo_for("gen.pollinations.ai",
                              "community/YoannDev90/vercel-beam:free") == 2);
     CHECK(reasoning_echo_for("ai-gateway.vercel.sh", "reflection/beam-free") == 2);
     CHECK(reasoning_echo_for("ai-gateway.vercel.sh", "reflection/beam") == 2);
     CHECK(reasoning_echo_for("opencode.ai", "cat-jam-free") == 2);
     CHECK(reasoning_echo_for("x", "stealth/cat-jam:free") == 2);
-    // ...and nothing that merely contains "beam".
+    // ...没有仅仅包含 "beam".
     CHECK(reasoning_echo_for("x", "someone/beamformer-7b") == 0);
     CHECK(reasoning_echo_for("x", "beam") == 0);
-    // Learned beats seeded.
+    // 学着打种子
     agentty::set_reasoning_echo(reasoning_echo_key("x", "reflection/beam"), 1);
     CHECK(reasoning_echo_for("x", "reflection/beam") == 1);
 
-    agentty::set_reasoning_echoes({});   // reset global state
+    agentty::set_reasoning_echoes({});   // 重置全球状态
 }
 
 TEST_CASE("parse_effort_rejection: ollama think-value + minimal harvesting") {
@@ -641,8 +641,8 @@ TEST_CASE("parse_effort_rejection: ollama think-value + minimal harvesting") {
     using agentty::Effort;
     using agentty::effort_bit;
 
-    // The bit table in error_class.hpp is hand-mirrored from effort_bit
-    // (layering forbids the include) — this pins them together.
+    // 位表在其中( E) error_class.hpp 手是手,手是手是手 手是脚是手是脚
+    // -mirrored 发件人 effort_bit (层层禁止包括)——这把钉住他们在一起.
     static_assert(agentty::effort_bit(agentty::Effort::Low)     == 1u << 0);
     static_assert(agentty::effort_bit(agentty::Effort::Medium)  == 1u << 1);
     static_assert(agentty::effort_bit(agentty::Effort::High)    == 1u << 2);
@@ -650,7 +650,7 @@ TEST_CASE("parse_effort_rejection: ollama think-value + minimal harvesting") {
     static_assert(agentty::effort_bit(agentty::Effort::Max)     == 1u << 4);
     static_assert(agentty::effort_bit(agentty::Effort::Minimal) == 1u << 5);
 
-    // Ollama's REAL think rejection (ollama/ollama#12004).
+    // Ollama's 真实 思维拒绝( E) ollama/ollama#12004).
     {
         auto set = parse_effort_rejection(
             "invalid think value: \"minimal\" (must be \"high\", \"medium\", "
@@ -661,7 +661,7 @@ TEST_CASE("parse_effort_rejection: ollama think-value + minimal harvesting") {
         CHECK((*set & effort_bit(Effort::Low))    != 0);
         CHECK((*set & effort_bit(Effort::Max))    == 0);
     }
-    // A declared minimal tier harvests to the Minimal bit now (was dropped).
+    // 宣布最低收成水平 Minimal 选项。
     {
         auto set = parse_effort_rejection(
             "reasoning_effort must be one of 'minimal', 'low', 'medium', "
@@ -672,39 +672,39 @@ TEST_CASE("parse_effort_rejection: ollama think-value + minimal harvesting") {
     }
 }
 
-// A 429 covers two unrelated situations and only one is worth retrying.
+// 429只处理两个无关的情况,只有一个值得 重试.
 //
-// A burst/concurrency limit clears in seconds — retrying is exactly right.
-// A plan QUOTA does not clear until it resets, and every retry is guaranteed
-// to fail with the message the first response already carried. So the user
-// sits through a backoff to learn nothing.
+// A burst/concurrency 限制以秒计的清除 重试 完全正确,我说得没错
+// 计划 QUOTA 直到它重新出现,和每一个 重试
+// 以第一个已包含的响应保证信件失败。
+// 所以用户会坐到一个 退避 以学无所学.
 //
-// The server tells us which one it is, in Retry-After. Yolo-Auto's free tier
-// answers `retry-after: 29410` (8h, to 00:00 UTC) with
-// type=insufficient_quota — captured live 2026-09-23 after exhausting a real
-// key's 15 requests. agentty used to clamp that to 600s and retry 3×, so a
-// "you are out until midnight" became three pointless 10-minute waits.
+// 服务器告诉我们它是什么,在 重试-After。 Yolo (英语). -Auto 免费的等级答案
+// `retry-after: 29410` (8小时,00:00) UTC ),
+// 类型= insufficient_quota ——在耗尽真钥匙15项请求后,被俘2026-
+// 09-23直播. agentty 用来把那个塞到600多块 重试 3×,
+// 所以一个 "you are out until midnight" 变成三个无意义十 -minute 等会
 TEST_CASE("retry-after: hours means quota, and a quota is terminal") {
     namespace P = agentty::provider;
 
-    // The threshold is the line between "wait" and "tell the user".
+    // 门槛是 "wait" 财务报告和已审计财务报表 "tell the user".
     CHECK(P::kRetryAfterTerminalSeconds == 15 * 60);
 
-    // Burst limits sit well under it and must still be honoured, not
-    // shortened — re-hitting the same 429 early burns the budget faster
-    // than the server permits.
-    CHECK(30   <= P::kRetryAfterTerminalSeconds);   // typical burst backoff
+    // 布尔斯特限额在它下面很合理,必须仍然遵守,
+    // 不能缩短——同样是429的re
+    // -hitting提前烧掉预算的速度比服务器允许的要快.
+    CHECK(30   <= P::kRetryAfterTerminalSeconds);   // 典型爆破退避
     CHECK(60   <= P::kRetryAfterTerminalSeconds);
-    CHECK(300  <= P::kRetryAfterTerminalSeconds);   // a 5-min cooldown
+    CHECK(300  <= P::kRetryAfterTerminalSeconds);   // a 5-min 冷却
 
-    // A real quota reset is far beyond it.
-    CHECK(29410 > P::kRetryAfterTerminalSeconds);   // Yolo-Auto free, measured
-    CHECK(3600  > P::kRetryAfterTerminalSeconds);   // an hourly cap
-    CHECK(86400 > P::kRetryAfterTerminalSeconds);   // a daily cap
+    // 真正的配额重置远远超出了它。
+    CHECK(29410 > P::kRetryAfterTerminalSeconds);   // 自由度量的 Yolo-Auto
+    CHECK(3600  > P::kRetryAfterTerminalSeconds);   // 小时封顶
+    CHECK(86400 > P::kRetryAfterTerminalSeconds);   // 每日上限
 
-    // And the classification itself is unchanged: this is still a RateLimit,
-    // not an Auth or Terminal error. What changed is whether we WAIT on it —
-    // the class still drives the slow loop-backoff schedule.
+    // 分类本身没有改变: RateLimit ,不是 Auth 或
+    // 名称 终端 错误。 变化是, 我们是否 WAIT 上 ——
+    // 课仍然驱动慢环 -backoff 时间表。
     agentty::http::HttpError e{};
     e.kind        = agentty::http::HttpErrorKind::Status;
     e.http_status = 429;
@@ -725,7 +725,7 @@ TEST_CASE("context overflow: every provider's wording, and the real limit") {
           == 128000);
     CHECK(context_limit_from_overflow(
               "the request exceeds the available context size (8192 tokens)") == 8192);
-    // No number: no guess.
+    // 无号:无猜.
     CHECK(context_limit_from_overflow("Your input exceeds the context window of this model.") == 0);
 }
 
@@ -735,6 +735,6 @@ TEST_CASE("optional fields: a host that rejects one is learned, not fatal") {
     CHECK(parse_rejected_field("cache_control is not supported", 400) == OptionalField::CacheControl);
     CHECK(parse_rejected_field("Unrecognized request argument supplied: session_id", 400) == OptionalField::SessionId);
     CHECK(parse_rejected_field("unknown parameter 'reasoning'", 400) == OptionalField::Reasoning);
-    // A wrong value is a real error, not something to drop.
+    // 错误的值是真正的错误,而不是要掉下来的东西.
     CHECK(parse_rejected_field("reasoning_details must be an array", 400) == OptionalField::None);
 }

@@ -1,4 +1,4 @@
-// paste_settings.cpp — the Settings → Paste panel, via the shared form.
+// paste_settings.cpp — 设置 → 粘贴面板, 通过共享格式。
 
 #include "panels_prologue.hpp"
 #include "agentty/runtime/view/form_panel.hpp"

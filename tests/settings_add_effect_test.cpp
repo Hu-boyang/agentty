@@ -1,12 +1,12 @@
-// settings_add_effect_test — the settings pane's add-mode create is an effect.
+// settings_add_effect_test ——设置 面板 添加时 -mode 创建是一个 副作用.
 //
-// Submitting "name command" in the Plugins (or Commands/Agents) add prompt
-// writes the disk: an entry in mcp.json, or a starter file. That used to run
-// INSIDE the reducer. Now the reducer only describes it (cmd::settings_add)
-// and folds the answer (SettingsAddDone). Pinned here:
-//   1. Submit returns a Cmd and writes NOTHING to disk during the fold.
-//   2. SettingsAddDone{ok} for Plugins toasts "… — connecting…" and starts
-//      a plugin reload; a failure toasts the message and reloads nothing.
+// 在插件(或Commands/Agents)中提交"name command",
+// 加上提示词写入磁盘:一个条目在mcp.json,或一个启动文件。这个条目曾经运行
+// INSIDE,即状态更新函数。现在,状态更新函数只描述它(cmd::settings_add)
+// 和归并的答案(SettingsAddDone)。
+//   1. 提交返回a Cmd 写 无内容 中切换到磁盘 归并.
+//   2. SettingsAddDone 用于插件烤面包 "… — connecting…" 开始
+//      a 插件重新装入; 失败时会向信件敬酒, 并重新装入任何内容。
 
 #include <cstdio>
 #include <cstdlib>
@@ -21,7 +21,7 @@ namespace fs = std::filesystem;
 using namespace agentty;
 namespace pn = agentty::ui::panel;
 
-namespace {  // fold: TU-local (bundled into agentty_standalone_tests)
+namespace {  // 归并: TU-local (捆绑成 agentty_standalone_tests)
 int g_fail = 0;
 void check(bool ok, const char* what) {
     std::printf("  [%s] %s\n", ok ? "PASS" : "FAIL", what);
@@ -32,7 +32,7 @@ void type(Model& m, const std::string& s) {
     for (char c : s)
         (void)app::update(m, msg::SettingsListMsg{SettingsListChar{static_cast<char32_t>(c)}});
 }
-}  // namespace
+}  // 命名空间结束。
 
 int main() {
     std::printf("=== settings_add_effect_test ===\n");
@@ -61,7 +61,7 @@ int main() {
     check(after && !after->input_active && after->input.empty(),
           "submit closes the add prompt");
 
-    // The effect's answer, folded.
+    // 电话 副作用 '答曰,折叠.
     m.ui.plugins_loading = false;
     auto ok_cmd = app::update(m, msg::SettingsListMsg{
         SettingsAddDone{settings::Category::Plugins, true, "added demo"}});

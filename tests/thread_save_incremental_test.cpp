@@ -1,10 +1,10 @@
-// thread_save_incremental_test — a save writes only what changed.
+// thread_save_incremental_test — a 保存 写着改变的事物
 //
-// save_thread() used to rewrite and re-verify the whole log every round,
-// which made a long thread slower the longer it ran. It now cuts the log at
-// the first changed message and appends from there. These tests pin both
-// halves: the tail path is really taken (history before the change is not
-// touched), and every kind of change still lands correctly on disk.
+// save_thread () 用于重写和重写 -verify
+// 每轮都记录着整个木头 使整个木头变得很长 线程 越慢越慢。
+// 它现在会切除第一个更改的信件和附件的日志。
+// 这些测试将双半边标注: 末尾 路径被真正采用(在变化未
+// 触碰之前的历史),并且各种变化仍然在磁盘上正确着陆.
 
 #include "agtest.hpp"
 
@@ -73,8 +73,8 @@ void check_same(const Thread& want, const Thread& got) {
     }
 }
 
-// Mark message 0 on disk without changing any length, so offsets stay
-// valid. A save that leaves the mark in place did not rewrite the head.
+// 在磁盘上标记信件 0而不更改长度,
+// 因此抵消仍然有效。 留下标记的 保存 没有重写头。
 void mark_head(const Thread& t) {
     auto s = slurp(log_path(t));
     const auto at = s.find("message 0\"");
@@ -86,16 +86,16 @@ bool head_marked(const Thread& t) {
     return slurp(log_path(t)).find("MESSAGE 0") != std::string::npos;
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("incremental save: a new message is appended, history untouched") {
     Thread t = make_thread("inc-append", 6);
     persistence::delete_thread(::agentty::IoAccess::grant(), agtest::cap(), t.id);
-    save(t);                         // first save of the process: full
+    save(t);                         // 进程的第一个保存: 完全
     mark_head(t);
 
     t.messages.push_back(make_msg(6));
-    save(t);                         // tail save: only message 6
+    save(t);                         // 末尾 保存:仅发文6
 
     CHECK_MESSAGE(head_marked(t), "the head was rewritten; the tail path was not taken");
     auto got = load(t);
@@ -110,7 +110,7 @@ TEST_CASE("incremental save: the open turn is replaced, not duplicated") {
     save(t);
     mark_head(t);
 
-    // The last message keeps changing while it streams / its tools settle.
+    // 最后一个消息在它数据流/它的工具结算时会不断改变.
     for (int round = 0; round < 5; ++round) {
         t.messages.back().text = "streaming " + std::to_string(round);
         save(t);
@@ -127,15 +127,15 @@ TEST_CASE("incremental save: editing an old message rewrites from there") {
     persistence::delete_thread(::agentty::IoAccess::grant(), agtest::cap(), t.id);
     save(t);
 
-    // Same length on purpose: a size-only fingerprint would miss this.
+    // 目的长度相同:大小 -only 指纹 这会错过这个。
     t.messages[3].text = "MESSAGE 3";
     save(t);
     check_same(t, load(t));
     persistence::delete_thread(::agentty::IoAccess::grant(), agtest::cap(), t.id);
 }
 
-// The reducer's path: it remembers the fps of its last save and sends only
-// what changed since, without waiting for the writer in between.
+// 电话 状态更新函数 '路径:它记得 FPS 其最后决定
+// 保存 并且只发出自那以后的变化,而不等待作家在中间。
 namespace {
 bool send(const Thread& t, std::vector<std::uint64_t>& saved) {
     auto d = persistence::describe_save(t, saved);
@@ -148,9 +148,9 @@ TEST_CASE("delta save: back-to-back deltas merge in the queue and land whole") {
     Thread t = make_thread("delta-merge", 5);
     persistence::delete_thread(::agentty::IoAccess::grant(), agtest::cap(), t.id);
     std::vector<std::uint64_t> saved;
-    REQUIRE(send(t, saved));                  // whole: nothing saved yet
-    // Several rounds without a flush: each delta only carries its own tail,
-    // and some land on a job still queued. The merge must keep them all.
+    REQUIRE(send(t, saved));                  // 整体: 尚未有已保存
+    // 几轮没有冲浪:每个三角洲只携带自己的末尾,
+    // 一些工作的土地仍然排队。合并必须保留全部。
     for (int i = 5; i < 12; ++i) {
         t.messages.push_back(make_msg(i));
         if (i % 3 == 0) t.messages[2].text = "edit " + std::to_string(i);
@@ -168,14 +168,14 @@ TEST_CASE("delta save: a delta on an unknown base is refused, a whole save is no
     REQUIRE(send(t, saved));
     persistence::flush_pending_saves(::agentty::IoAccess::grant(), agtest::cap());
 
-    // The writer forgets a base when a save of it fails (or a delete drops
-    // it). A delta built on that base must be refused, not written on top of
-    // a log that doesn't hold it. Simulate the failure with forget().
+    // 作家忘记了一个基础 当一个 保存 无法创建( 或删除时将
+    // 其删除 )。 必须在该基底上创建的三角洲必须拒绝,
+    // 而不是在无法保存的日志上写。 模拟失败 forget().
     persistence::debug_forget_saved(agtest::cap(), t.id);
     t.messages.push_back(make_msg(4));
     CHECK_FALSE(send(t, saved));
 
-    // What the reducer does on SaveRefused: drop its base, send it whole.
+    // 或 状态更新函数 显示在 SaveRefused :放下它的基地,发送整个.
     std::vector<std::uint64_t> none;
     REQUIRE(send(t, none));
     persistence::flush_pending_saves(::agentty::IoAccess::grant(), agtest::cap());
@@ -191,7 +191,7 @@ TEST_CASE("delta save: a delta queued after a delete is refused, not written") {
     persistence::flush_pending_saves(::agentty::IoAccess::grant(), agtest::cap());
     persistence::delete_thread(::agentty::IoAccess::grant(), agtest::cap(), t.id);
 
-    // The delete dropped the base, so a tail on it has nothing under it.
+    // 删掉的基数,所以上面的末尾没有下面的东西.
     t.messages.push_back(make_msg(3));
     CHECK_FALSE(send(t, saved));
     persistence::flush_pending_saves(::agentty::IoAccess::grant(), agtest::cap());
@@ -229,7 +229,7 @@ TEST_CASE("incremental save: Smart Mode cards don't shift the log indices") {
     save(t);
 
     Message card;
-    card.smart_routing = true;          // view-only, never persisted
+    card.smart_routing = true;          // 视图-only, 从未持续
     t.messages.insert(t.messages.begin() + 2, card);
     t.messages.push_back(make_msg(4));
     save(t);
@@ -248,7 +248,7 @@ TEST_CASE("incremental save: after delete, the next save is a full write") {
     persistence::delete_thread(::agentty::IoAccess::grant(), agtest::cap(), t.id);
     CHECK_FALSE(fs::exists(log_path(t)));
 
-    // The writer must not think the (now missing) log still holds 5 lines.
+    // 作者不能认为(现在缺失的)日志仍然有5行.
     t.messages.push_back(make_msg(5));
     save(t);
     check_same(t, load(t));
@@ -260,9 +260,9 @@ TEST_CASE("incremental save: a log damaged behind the writer's back heals") {
     persistence::delete_thread(::agentty::IoAccess::grant(), agtest::cap(), t.id);
     save(t);
 
-    // Someone truncates the log to nothing. The tail save sees the log is
-    // shorter than it thinks; it can't rebuild the head from disk, so it
-    // drops its bookkeeping and the NEXT save goes full and heals it.
+    // 有人把日志切成零字 末尾 保存 看见日志比
+    // 想象的短;它不能从磁盘重建头部,
+    // 所以它会放下账簿和 下一个 保存 满了就治好了
     spit(log_path(t), "");
     fs::remove(persistence::threads_dir() / (t.id.value + ".ofs"));
     t.messages.push_back(make_msg(5));
@@ -273,12 +273,12 @@ TEST_CASE("incremental save: a log damaged behind the writer's back heals") {
     persistence::delete_thread(::agentty::IoAccess::grant(), agtest::cap(), t.id);
 }
 
-// The fingerprint is what decides which messages a save rewrites, so a
-// change it FAILS to notice is silent data loss: the edit stays in memory,
-// never reaches disk, and is gone on the next load. The hash mixes four
-// independent lanes for speed, which is exactly the kind of change that can
-// accidentally drop a byte range — so pin that every persisted field, and a
-// difference at any offset of a long body, moves it.
+// 电话 指纹 是什么决定了哪些信息 a 保存 重写,
+// 所以改变它 FAILS 通知是无声数据丢失:编辑保留在
+// 内存 永远无法到达磁盘, 并且已经消失在下一个 加载。
+// 散列混合了四个独立航道,以达到速度,这正是可以意外掉下
+// 一个的改变。 字节 范围——如此针入每个持续字段,
+// 以及任何差数抵消一个长的 正文 移动它。
 TEST_CASE("incremental save: the fingerprint notices every persisted edit") {
     using persistence::debug_message_fingerprint;
 
@@ -321,8 +321,8 @@ TEST_CASE("incremental save: the fingerprint notices every persisted edit") {
         differs(std::move(m), "tool call added");
     }
 
-    // A settling tool call: same call, different status/output each time.
-    // This is the per-round change the tail save exists to catch.
+    // 和解工具 调用 : 不变 调用 不同,但不会 status/output 每次都这样
+    // 这是每张 -round 更改 末尾 保存 存在以获取。
     {
         Message running = base;
         ToolUse tc;
@@ -338,8 +338,8 @@ TEST_CASE("incremental save: the fingerprint notices every persisted edit") {
                       "a tool call settling must move the fingerprint");
     }
 
-    // A one-byte edit at EVERY offset of a long body, including deep inside
-    // the 32-byte lane loop and in the ragged tail after it.
+    // 一个 -byte 编辑时间 每个 减: 正文 包括32号线深处
+    // -byte 车道环线和车道 末尾 之后,我们再谈吧。
     {
         const std::string body(4096, 'a');
         Message m = base; m.text = body;
@@ -354,8 +354,8 @@ TEST_CASE("incremental save: the fingerprint notices every persisted edit") {
         CHECK_MESSAGE(missed == 0, "a one-byte edit was invisible to the fingerprint");
     }
 
-    // Transposed content: same bytes, different order. A lane fold that
-    // ignored position would collide here.
+    // 转换内容: 相同 字节 ,顺序不同。
+    // 归并 被忽略的位置会在这里碰撞
     {
         Message a = base; a.text = std::string(32, 'x') + std::string(32, 'y');
         Message b = base; b.text = std::string(32, 'y') + std::string(32, 'x');
@@ -363,8 +363,8 @@ TEST_CASE("incremental save: the fingerprint notices every persisted edit") {
                       "reordered content must not collide");
     }
 
-    // Identical content fingerprints identically — otherwise every save
-    // would rewrite the whole thread.
+    // 内容相同的指纹——否则每张 保存 将
+    // 改写整个 线程.
     {
         Message a = base, b = base;
         CHECK(debug_message_fingerprint(a) == debug_message_fingerprint(b));
@@ -382,13 +382,13 @@ TEST_CASE("thread log: truncate_to cuts both files and appends cleanly") {
     CHECK(log->size() == 3u);
     REQUIRE(log->append(make_msg(42)));
 
-    auto again = ThreadLog::open(id);   // re-read the FILES, not memory
+    auto again = ThreadLog::open(id);   // 内容 -read 编号 FILES ,没有 内存
     REQUIRE(again.has_value());
     const auto all = again->all();
     REQUIRE(all.size() == 4u);
     CHECK(all[2].id.value == "m2");
     CHECK(all[3].id.value == "m42");
-    CHECK(log->truncate_to(100));       // past the end: no-op, no error
+    CHECK(log->truncate_to(100));       // 过尾号: no-op, 无错误
     CHECK(log->size() == 4u);
     again->remove();
 }
@@ -399,7 +399,7 @@ void retitle(const Thread& t, std::string title, std::int64_t at = 1'800'000'000
                                std::move(title), at);
     persistence::flush_pending_saves(::agentty::IoAccess::grant(), agtest::cap());
 }
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("rename: retitles a log thread and leaves the rest alone") {
     Thread t = make_thread("inc-rename", 5);
@@ -413,11 +413,11 @@ TEST_CASE("rename: retitles a log thread and leaves the rest alone") {
     auto got = load(t);
     CHECK(got.title == "a better name");
     check_same(t, got);
-    // Kept, so the row does not jump to the top of the picker.
+    // 保持,所以行 不跳到顶端 选择面板.
     CHECK(got.updated_at == t.updated_at);
     CHECK_MESSAGE(slurp(log_path(t)) == log_before, "a rename never touches the log");
 
-    // The picker's directory walk sees it too, not just the by-id load.
+    // 电话 选择面板 书目走过的路也看到了 不只是路边 -id 加载.
     bool listed = false;
     for (const auto& meta : persistence::load_all_threads(::agentty::IoAccess::grant(), agtest::cap()))
         if (meta.id == t.id) { listed = true; CHECK(meta.title == "a better name"); }
@@ -430,9 +430,9 @@ TEST_CASE("rename: a save queued just before does not undo it") {
     persistence::delete_thread(::agentty::IoAccess::grant(), agtest::cap(), t.id);
     save(t);
 
-    // Queue a save built with the OLD title (what ^N / Alt+arrow do for the
-    // thread being left), then rename at once. Whether the writer has picked
-    // the save up yet is up to it; either way the rename must win.
+    // 队列 a 保存 与 旧 标题(何为) ^N / Alt
+    // +arrow 用于 线程 中,然后立即重命名。
+    // 保存 上到上到上; 无论是哪种方式, 重命名都必须获胜。
     t.messages.push_back(make_msg(4));
     persistence::save_thread(::agentty::IoAccess::grant(), agtest::cap(), t);
     retitle(t, "renamed while queued");
@@ -441,7 +441,7 @@ TEST_CASE("rename: a save queued just before does not undo it") {
     CHECK(got.title == "renamed while queued");
     CHECK(got.messages.size() == 5u);
 
-    // And the writer still knows the log: the next save is a tail append.
+    // 写作员仍然知道日志:下一个 保存 是一个 末尾 附录。
     mark_head(t);
     t.messages.push_back(make_msg(5));
     t.title = "renamed while queued";
@@ -451,25 +451,25 @@ TEST_CASE("rename: a save queued just before does not undo it") {
 }
 
 TEST_CASE("rename: a stale copy saved later keeps the rename") {
-    // Another agentty had this thread open from before the rename. Its copy
-    // still carries the old title (and no rename stamp), and it saves a new
-    // turn after the rename landed. The rename must survive, on both the
-    // tail path and a full rewrite.
+    // 再来 agentty 曾经有这个 线程 从重命名前打开。
+    // 其副本仍带有旧标题(没有重命名章),并且 保存 重命名
+    // 后的新转弯。重命名必须存活下来,同时在两个位置上。
+    // 末尾 路径和完整的重写。
     Thread t = make_thread("inc-rename-stale", 3);
     persistence::delete_thread(::agentty::IoAccess::grant(), agtest::cap(), t.id);
     save(t);
-    const Thread stale = t;   // the other process's copy
+    const Thread stale = t;   // 其它进程的副本
 
     retitle(t, "renamed here");
 
     Thread other = stale;
     other.messages.push_back(make_msg(3));
-    save(other);   // tail append from the stale copy
+    save(other);   // 末尾 跳动 过期 复制
     auto got = load(t);
     CHECK(got.title == "renamed here");
     CHECK(got.messages.size() == 4u);
 
-    // A full rewrite from a stale copy (the writer has never seen this id).
+    // 完全重写自过期副本(作者从未见过这个id).
     persistence::flush_pending_saves(::agentty::IoAccess::grant(), agtest::cap());
     other.messages.push_back(make_msg(4));
     other.messages.front().text = "edited history forces a rewrite";
@@ -477,11 +477,11 @@ TEST_CASE("rename: a stale copy saved later keeps the rename") {
     got = load(t);
     CHECK(got.title == "renamed here");
 
-    // The picker's listing agrees.
+    // 电话 选择面板 上市同意了 上市协议
     for (const auto& meta : persistence::load_all_threads(::agentty::IoAccess::grant(), agtest::cap()))
         if (meta.id == t.id) CHECK(meta.title == "renamed here");
 
-    // A newer rename still wins over an older one.
+    // 更新的名字仍然比老的更古老的名字要好
     retitle(t, "renamed again", 1'900'000'000);
     CHECK(load(t).title == "renamed again");
     persistence::delete_thread(::agentty::IoAccess::grant(), agtest::cap(), t.id);
@@ -512,9 +512,9 @@ TEST_CASE("delete: a save queued just before does not bring the thread back") {
     Thread t = make_thread("inc-delete-queued", 4);
     persistence::delete_thread(::agentty::IoAccess::grant(), agtest::cap(), t.id);
 
-    // A thread this process has not saved yet goes to the writer WHOLE: what
-    // ^N queues for a thread just opened from the picker. ^D ^D on it right
-    // after must win, whether the writer has started that save or not.
+    // A 线程 这一过程没有 已保存 却去写作 整个 : 何为
+    // ^N 队列为 a 线程 刚刚打开 从 选择面板. ^D ^D
+    // 写作结束后,必须赢, 无论作者已经开始 保存 或无.
     persistence::save_thread(::agentty::IoAccess::grant(), agtest::cap(), t);
     persistence::delete_thread(::agentty::IoAccess::grant(), agtest::cap(), t.id);
     persistence::flush_pending_saves(::agentty::IoAccess::grant(), agtest::cap());
@@ -526,8 +526,8 @@ TEST_CASE("delete: a save queued just before does not bring the thread back") {
     for (const auto& meta : persistence::load_all_threads(::agentty::IoAccess::grant(), agtest::cap()))
         CHECK_MESSAGE(meta.id != t.id, "no ghost row in the picker");
 
-    // A later save of the same id is a new thread: written whole, not a
-    // tail append against the log that was deleted.
+    // 一会儿 保存 的代码是新的 线程 : 写整篇,
+    // 不是 末尾 附加到已删除的日志中。
     Thread again = make_thread("inc-delete-queued", 2);
     save(again);
     auto got = load(again);
@@ -547,15 +547,15 @@ TEST_CASE("rename: an unknown id writes nothing") {
 TEST_CASE("clean_title: one safe line, at most kTitleMaxBytes") {
     using persistence::clean_title;
     CHECK(clean_title("  two\nlines\there  ") == "two lines here");
-    CHECK(clean_title("\x1b[31mred") == "[31mred");      // ESC dropped
-    CHECK(clean_title("a\xc2\x9b" "b") == "ab");          // C1 CSI dropped
+    CHECK(clean_title("\x1b[31mred") == "[31mred");      // ESC 已丢弃
+    CHECK(clean_title("a\xc2\x9b" "b") == "ab");          // C1 CSI 已丢弃
     CHECK(clean_title("   ").empty());
-    // Cut on a code-point boundary: 59 ASCII bytes, then a 3-byte em dash
-    // that would end at byte 62.
+    // 切换代码 -point 边界: 59 ASCII 字节 3,然后是3,然后是一个3 -byte
+    // 以时间结束的破折号 字节 62.
     const std::string long_in = std::string(59, 'x') + "\xe2\x80\x94";
     const std::string out = clean_title(long_in);
     CHECK(out == std::string(59, 'x'));
     CHECK(out.size() <= persistence::kTitleMaxBytes);
-    // Kept whole when it fits.
+    // 合适的时候就保持整齐
     CHECK(clean_title("caf\xc3\xa9") == "caf\xc3\xa9");
 }

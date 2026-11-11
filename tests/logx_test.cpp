@@ -1,13 +1,13 @@
-// logx_test — the structured diagnostic log (agentty::logx).
+// logx_test 结构化诊断记录( agentty::logx).
 //
-// Covers: filter parsing (bare level, chan=level, mixed, garbage), gate
-// semantics (enabled/recorded, ring-always-on-Warn+), file sink (atomic
-// appends land, format shape), the flight recorder (ring capture, dump
-// ordering, wraparound), spans, and the dbglog compat shim.
+// 封面: 过滤器 解析 (赤度,chan=平度,混音,垃圾),闸门语义学(conte
+// semics). enabled/recorded 环 -always-on-Warn +),
+// 文件槽(原子附着物陆地,格式形状),飞行记录器(环捕获,堆放定购,
+// 包包),横跨,以及dbglogcompat shim.
 //
-// Env-sensitive: sets AGENTTY_LOG/_FILE before first use. logx latches
-// its config on first call (magic static), so this test relies on being
-// its own process (standalone binary) and configures BEFORE any logging.
+// 信封( E) -sensitive : 套装 AGENTTY_LOG/_FILE。
+// logx 将它配置在第一个位置 调用 (魔法静态),所以这个测试
+// 依赖于自己的过程(独立) 二进制程序 )和配置 之前 任何伐木作业。
 
 #include "agentty/util/logx.hpp"
 #include "agentty/util/dbglog.hpp"
@@ -36,23 +36,23 @@ static std::string slurp(const std::string& path) {
     return ss.str();
 }
 
-// A file under the platform temp dir ("/tmp" doesn't exist on Windows).
+// 平台time dir("/tmp"在Windows上不存在)下的文件.
 static std::string tmp_file(const char* name) {
     return (std::filesystem::temp_directory_path() / name).string();
 }
 
 int main() {
-    // Configure BEFORE the first logx call: default warn, wire wide open,
-    // rag silenced. File in a temp path.
+    // 配置( O) 之前 第一个对数 调用 : 默认警告, 传输 宽宽的,
+    // 破烂的, 暂时的路径中的文件。
     const std::string log_path = tmp_file("agentty-logx-test.log");
     std::remove(log_path.c_str());
     setenv("AGENTTY_LOG", "warn,wire=trace,rag=off", 1);
-    // AGENTTY_LOG_FILE is gone — the destination is set through the same
-    // seam `--log-file` uses. Must happen before the first log call, which
-    // is exactly the contract set_log_path() documents.
+    // AGENTTY_LOG_FILE 目的地被设定为同一地点 接口
+    // 边界 `--log-file`。必须在第一个日志之前发生 调用 ,
+    // 这正是合同 set_log_path (a) 文件。
     logx::set_log_path(log_path);
 
-    // ── Gate semantics ────────────────────────────────────────────────
+    // ── 门语义 ────────────────────────────────────────────────
     CHECK(logx::enabled(logx::Channel::Wire, logx::Level::Trace),
           "filter: wire=trace opens the wire channel at trace");
     CHECK(!logx::enabled(logx::Channel::General, logx::Level::Debug),
@@ -65,7 +65,7 @@ int main() {
           "recorded: Warn+ always reaches the flight ring, even when the "
           "file filter silences the channel");
 
-    // ── File sink + format ────────────────────────────────────────────
+    // ── 文件槽+格式 ────────────────────────────────────────────
     AGT_LOG(Wire, Trace, "test.site", "hello {} {}", 42, "world");
     AGT_LOG(General, Debug, "test.site", "MUST NOT APPEAR {}", 1);
     AGT_LOG(General, Error, "test.err", "an error line");
@@ -81,15 +81,15 @@ int main() {
               "format: level char + channel name present");
         CHECK(got.find("test.site: ") != std::string::npos,
               "format: site prefix present");
-        // Wall-clock + monotonic stamps.
+        // 墙 -clock + 单调递增的 邮票。
         CHECK(got.find("ms ") != std::string::npos,
               "format: monotonic ms stamp present");
     }
 
-    // ── logx::log_file resolution ─────────────────────────────────────
+    // ── logx::log_file 决议 ─────────────────────────────────────
     CHECK(logx::log_file() == log_path, "log_file() reports the sink path");
 
-    // ── Flight recorder: capture + dump + ordering ────────────────────
+    // ── 飞行记录器:抓获+倾卸+订购 ────────────────────
     AGT_LOG(General, Warn, "ring.a", "first");
     AGT_LOG(General, Warn, "ring.b", "second");
     {
@@ -105,7 +105,7 @@ int main() {
         CHECK(a != std::string::npos && b != std::string::npos,
               "ring: both warn events captured");
         CHECK(a < b, "ring: dump is oldest-first");
-        // rag=off event still reaches the ring (recorded() contract).
+        // 擦除为 rag=off 事件 仍然到达环( 3) recorded() 合同)。
         AGT_LOG(Rag, Error, "ring.rag", "silenced-on-file, ringed");
         std::remove(dump_path.c_str());
         (void)logx::dump_flight_recorder_to(dump_path.c_str());
@@ -114,7 +114,7 @@ int main() {
         std::remove(dump_path.c_str());
     }
 
-    // ── Ring wraparound: >kRingSlots events keep only the newest ──────
+    // ── 环绕环: > kRingSlots 事件 仅保留最新 ──────
     {
         for (int i = 0; i < 300; ++i)
             AGT_LOG(General, Warn, "wrap", "event {}", i);
@@ -129,22 +129,22 @@ int main() {
         std::remove(dump_path.c_str());
     }
 
-    // ── Spans ─────────────────────────────────────────────────────────
+    // ── 西班牙语 ─────────────────────────────────────────────────────────
     {
-        { AGT_SPAN(Wire, "test.span"); }   // enters + exits at trace
+        { AGT_SPAN(Wire, "test.span"); }   // 跟踪时输入+ 退出
         const std::string got = slurp(log_path);
         CHECK(got.find("test.span: begin") != std::string::npos,
               "span: begin logged at trace");
         CHECK(got.find("test.span: end (") != std::string::npos,
               "span: end logged with duration");
-        // A span on a masked channel emits nothing.
+        // 蒙面频道的一段间隙什么也没有
         const auto size_before = slurp(log_path).size();
         { AGT_SPAN(Rag, "rag.span"); }
         CHECK(slurp(log_path).size() == size_before,
               "span: masked channel emits nothing");
     }
 
-    // ── dbglog compat shim ────────────────────────────────────────────
+    // ── dbglog compat shim 语句 ────────────────────────────────────────────
     {
         util::dbglog("legacy.site", "legacy message");
         const std::string got = slurp(log_path);
@@ -154,7 +154,7 @@ int main() {
               "shim: dbglog_enabled true (warn default passes error)");
     }
 
-    // ── Long message truncation is safe (no overflow, still terminated) ─
+    // 长消息截断应安全：不溢出，且仍有字符串终止符。
     {
         std::string big(2000, 'x');
         AGT_LOG(General, Warn, "trunc", "{}", big);

@@ -1,24 +1,24 @@
-// tool_wedge_liveness_test — the hung-syscall wedge net measures liveness
-// from the LAST PROGRESS event, not from launch.
+// tool_wedge_liveness_test - 绞刑 -syscall 网格
+// 测量活度 最后 PROGRESS 事件 而不是从发射。
 //
-// Regression target: the wedge net in update/meta.cpp (Tick) failed ANY
-// running tool 330s after it STARTED, discarding its work — even a healthy
-// long-runner that was actively emitting progress. A `task` subagent doing an
-// exhaustive multi-minute audit (stepping through tool after tool, emitting a
-// progress snapshot each step) would get force-failed at the flat cap and its
-// whole report thrown away. Observed: parallel explorers, two guillotined at
-// exactly 330s while a third that happened to finish sooner survived.
+// 退后目标: 楔形网 update/meta.cpp (tick)
+// 失败 任意 运行工具 330s 之后 STARTED ——甚至
+// 健康地长期地—— 抛弃了它的工作。 -runner 积极推动取得进展。
+// `task` 代理代理代理进行全方位 -minute 审计(
+// 通过工具后继工具,释放进展) 快照 将获得力量 -failed
+// 平顶帽上,整个报告都丢掉了。观察者:平行探险家,两个断头台在
+// 330秒左右,而第三个恰巧完成的则在更早的时候幸存下来。
 //
-// The fix: Running carries last_progress_at, stamped on every ToolExecProgress
-// snapshot; the wedge measures now - max(started_at, last_progress_at). A tool
-// making progress keeps resetting the cap; a tool truly hung on a blocking
-// syscall emits nothing, so the net trips exactly as before.
+// 固定: 运行载体 last_progress_at ,在每张标签上盖章
+// ToolExecProgress 快照 ; 楔形测量法 -- -- 最大( 最大)
+// started_at, last_progress_at ) 进步工具会不断重置上限;
+// 一个工具真的挂在了一个阻塞的系统调用上,所以净值的运行完全如前。
 //
-// This drives the REAL meta_update reducer with a Tick and asserts:
-//   A. started long ago BUT progress just now  → tool stays Running.
-//   B. started long ago AND silent since launch → tool is Failed (wedged).
-//   C. progress that is ITSELF older than the cap → still wedged (the stale
-//      progress doesn't rescue a since-gone-silent tool).
+// 这驱动器 真实 meta_update 状态更新函数 附有 " 勾选 " ,并声称:
+//   A. 很久以前开始的 BUT 刚进步 工具继续运行
+//   B. 早在发射后AND号就已停机 —— 工具已失效(已拖动)。
+//   C. 取得的进展 ITSELF 年长于 □ 仍在织布 过期 进步无法挽救
+//      一个 -gone-silent 工具),将使用该工具。
 
 #include <chrono>
 
@@ -39,11 +39,11 @@ using std::chrono::seconds;
 namespace {
 
 
-// Every fold here runs at this fixed time; tool times are set relative to it.
+// 每一个 归并 在此运行于此固定时间; 工具时间是相对它设定的。
 constexpr steady_clock::time_point kNow = app::kTestEpoch;
 
-// A model parked in ExecutingTool with one Running tool whose launch and
-// last-progress times we control. `progress_ago` < 0 means "no progress yet".
+// 有个模特停在了里面 ExecutingTool 与一个运行工具,其启动和最后 -progress 时,
+// 我们控制。 `progress_ago` < 0 表示数 "no progress yet".
 Model model_with_running_tool(seconds started_ago, seconds progress_ago) {
     Model m;
     m.s.phase = phase::ExecutingTool{phase::Active{}};
@@ -68,10 +68,10 @@ Model model_with_running_tool(seconds started_ago, seconds progress_ago) {
     return m;
 }
 
-// A tool that sat awaiting the user's approval for `waited` and has only just
-// been approved — execution begins NOW. Models issue #40: the card was
-// created when the model emitted the call, the human took their time, and
-// the question is whether that thinking time is billed against the tool.
+// 等待用户批准的工具 `waited` 并且
+// 刚刚获得批准—— 执行开始 当前。
+// 模型发行#40:当模型发射时,卡片被创建 调用
+// 人类花时间 问题是 思考时间是否与工具相对立
 Model model_just_approved_after(seconds waited) {
     Model m;
     m.s.phase = phase::ExecutingTool{phase::Active{}};
@@ -85,10 +85,10 @@ Model model_just_approved_after(seconds waited) {
 
     const auto now = kNow;
     ToolUse::Running run;
-    // The card was born when the model emitted the call — `waited` ago.
+    // 牌诞生于模型释放 调用 — `waited` 刚才
     run.started_at = now - waited;
-    // Execution began just now, at approval. Before the fix there was
-    // nowhere to record this, which IS the bug.
+    // 执行行动刚刚开始,在批准后, 在修复之前,
+    // 没有地方可以记录这个, IS 虫子,你这混蛋
     run.executing_since = now;
     tc.status = run;
     asst.tool_calls.push_back(std::move(tc));
@@ -111,16 +111,16 @@ bool tool_failed(const Model& m) {
 }
 
 Model tick(Model m) {
-    m.now = kNow;   // the fold's time
+    m.now = kNow;   // 编号 归并 时间
     auto [next, _] = ::agentty::app::detail::step(::agentty::app::detail::meta_update, std::move(m), msg::MetaMsg{Tick{}});
     return std::move(next);
 }
 
-} // namespace
+} // 命名空间结束。
 
 TEST_CASE("tool wedge liveness") {
-    // The wedge path calls kick_pending_tools, which reaches deps(). Install a
-    // no-op Deps so the reducer runs without a real Provider/Store.
+    // 楔形路径 调用 kick_pending_tools ,达到 deps()。安装无 -op
+    // Deps 所以,我们 状态更新函数 运行时没有真实 Provider/Store.
     app::install_deps(app::Deps{
         .stream        = [](const maya::unlocked&, provider::Request, provider::EventSink) {},
         .save_thread   = [](const Thread&) {},
@@ -133,9 +133,9 @@ TEST_CASE("tool wedge liveness") {
         .title_from    = [](std::string_view) { return std::string{"t"}; },
     });
 
-    // ── A. Long-running but ACTIVELY progressing → NOT wedged. ──────────
-    // Launched 20 minutes ago, but a progress snapshot landed 1s ago. This is
-    // the exact case that used to be wrongly killed.
+    // ── A. 长 -running 不过 ACTIVELY 进展 ______________________ 不 结了婚 ──────────
+    // 20分钟前推出,但进展 快照 之前降落的,
+    // 这是以前被误杀的准确案例
     {
         Model m = model_with_running_tool(seconds{1200}, seconds{1});
         m = tick(std::move(m));
@@ -143,8 +143,8 @@ TEST_CASE("tool wedge liveness") {
         check(!tool_failed(m), "A: it is NOT force-failed by the wedge net");
     }
 
-    // ── B. Long-running and SILENT since launch → wedged. ───────────────
-    // Launched 400s ago, never emitted progress. Genuine hung-syscall shape.
+    // ── B. 长 子 -running 财务报告和已审计财务报表 SILENT 发射以来 —— 楔形。 ───────────────
+    // 400多年前发射的,从未释放出进步。 -syscall 形状。
     {
         Model m = model_with_running_tool(seconds{400}, seconds{-1});
         m = tick(std::move(m));
@@ -152,41 +152,41 @@ TEST_CASE("tool wedge liveness") {
         check(!tool_running(m), "B: it no longer shows as Running");
     }
 
-    // ── C. Progress exists but is itself STALE past the cap → wedged. ───
-    // Started 700s ago; last sign of life 400s ago (> 330s). The stale
-    // progress must NOT keep a since-dead tool alive.
+    // ── C. 进展虽存在,但本身就是进展 STALE 过了盖子 结了婚 ───
+    // 开始于700多年前;生命最后的标志 400多年前(>330s)。
+    // 过期 进步不得 保持一个自 -dead 工具活着。
     {
         Model m = model_with_running_tool(seconds{700}, seconds{400});
         m = tick(std::move(m));
         check(tool_failed(m), "C: a tool whose last progress is older than the cap is failed");
     }
 
-    // ── D. Just under the cap with no progress → still Running. ─────────
-    // Launched 300s ago (< 330s), no progress. The net must not trip early.
+    // ── D. 刚刚到顶端,没有进展 —— 仍在运行。 ─────────
+    // 300多年前( < 330s)发射,没有进展,网络不能提前。
     {
         Model m = model_with_running_tool(seconds{300}, seconds{-1});
         m = tick(std::move(m));
         check(tool_running(m), "D: below the cap, a silent tool is left alone");
     }
 
-    // ── E. The human's approval time is NOT the tool's time (issue #40) ──
+    // ── E. 人类批准时间为NOT 工具时间(第40期) ──
     //
-    // "Tool timeout timers start even when you haven't approved a tool yet,
-    // which means you can approve it and have it immediately fail due to
-    // 'taking too long' even though the tool run actually hasn't done
-    // anything yet."
+    // 工具尚未获批时超时计时器就已经开始计时，
+    // 因此用户批准后，工具可能立即因
+    // 耗时过长失败，尽管实际执行尚未
+    // 开始。
     //
-    // started_at is stamped when the model EMITS the call, deliberately: the
-    // card shows a live elapsed timer and freezing it during arg-streaming
-    // reads as stuck. But a tool awaiting permission is not running, and the
-    // wedge net measured from that same field — so time the HUMAN spent
-    // deciding was charged to the tool's 330s budget. Step away for six
-    // minutes, approve, and the very first Tick kills a command that has not
-    // executed a single instruction.
+    // started_at 模型时盖章 EMITS
+    // 编号 调用 ,故意:卡片显示一个活过的时间器,
+    // 并在加时冷却 -streaming 读作卡住。
+    // 但工具等待 权限 并且从同一个领域测得的楔形网
+    // ——时间是 HUMAN 花费在330s的预算里。
+    // 离开6分钟, 批准, 而第一个Tick杀死一个
+    // 没有执行任何指令的命令。
     //
-    // The two clocks answer different questions and cannot be one field:
-    //   started_at      — "how long has this card existed?"  (display)
-    //   executing_since — "how long has this been RUNNING?"  (liveness)
+    // 两个钟回答不同的问题,不能是一个领域:
+    //   started_at      — "how long has this card existed?" (播放) (
+    //   播放) executing_since — "how long has this been RUNNING?" (寿命)
     {
         Model m = model_just_approved_after(seconds{400});
         m = tick(std::move(m));
@@ -197,12 +197,12 @@ TEST_CASE("tool wedge liveness") {
               "E: approving after a long think does not instantly fail it");
     }
 
-    // ── F. …but once EXECUTING, the cap still applies from that moment. ──
-    // The fix must not disarm the net: a tool approved long ago and silent
-    // ever since is still a hung tool.
+    // ── F. 但一次 . . .. 但有一次 . EXECUTING 帽子从那一刻起就一直适用 ──
+    // 固定决不能解除网络:一个早已批准、此后一直保持沉默的工具
+    // 仍然是一个挂在嘴边的工具。
     {
         Model m = model_just_approved_after(seconds{900});
-        // Approved 400s ago (> cap) rather than just now.
+        // 400,000多年前批准( > 上限),而不是刚刚批准。
         for (auto& msg : m.d.current.messages)
             for (auto& tc : msg.tool_calls)
                 if (auto* r = std::get_if<ToolUse::Running>(&tc.status))

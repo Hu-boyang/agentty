@@ -1,8 +1,8 @@
 #pragma once
-// The panel views — one function per panel, named <name>_panel, defined in
-// src/runtime/view/panels/<name>.cpp. Uniform rule: the panel's name (the
-// same word as its state header, reducer file, slot alternative and Msg
-// family) + _panel. view.cpp's pick_panel() is the only caller for most.
+// 面板视图——每个面板一个函数，名为<name>_panel，
+// 在src/runtime/view/panels/<name>.cpp中定义。
+// 统一规则：面板名称（与其状态头文件、状态更新函数文件、插槽替代和Msg系列同字）+_panel。
+// 对于大多数人来说，view.cpp 的 pick_panel() 是唯一的调用者。
 #include "agentty/runtime/model.hpp"
 
 #include <maya/element/element.hpp>

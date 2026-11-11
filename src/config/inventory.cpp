@@ -1,9 +1,9 @@
-// config/inventory.cpp — resolve and print the inventory.
+// config/inventory.cpp — 解析并打印清单。
 //
-// Everything here folds the SAME functions the real resolvers fold:
-// scope::plan for the read ladder, dirs::resolve_dry for the write path.
-// Nothing re-derives a location, which is what makes the output trustworthy
-// rather than a second opinion. See inventory.hpp for the argument.
+// 这里的所有内容归并、SAME发挥真正的解析器归并的作用：
+// scope::plan为读梯形图，dirs::resolve_dry为写路径。
+// 没有任何 re-derives 位置，这使得输出比第二意见更
+// 值得信赖。参见 inventory.hpp 的参数。
 
 #include "agentty/config/inventory.hpp"
 
@@ -15,7 +15,7 @@
 #include <unistd.h>
 #endif
 #if AGENTTY_MCP
-#include "agentty/mcp/import.hpp"   // foreign configs, named with their fix
+#include "agentty/mcp/import.hpp"   // 外部配置，以其修复命名
 #endif
 
 #include <array>
@@ -33,8 +33,8 @@ namespace fs = std::filesystem;
 
 namespace {
 
-// The inventory. Each row points AT the constants in the header; it never
-// copies one, so there is exactly one definition per concern.
+// 库存。每行指向AT中的常量头文件；
+// 它从不复制一个定义，因此每个关注点只有一个定义。
 constexpr std::array<Entry, 12> kEntries{{
     {"mcp",      "MCP servers",          &kMcpLayout,      nullptr},
     {"skills",   "skills",               &kSkillsLayout,   nullptr},
@@ -50,15 +50,15 @@ constexpr std::array<Entry, 12> kEntries{{
     {"feedback", "retrieval learning",   nullptr,          &kFeedbackSpec},
 }};
 
-// The full dialect product, for computing what a feature SKIPS. The only
-// place the complete set is spelled; the skipped list is a set difference
-// against the layout's own `dialects`, so it can never disagree with plan().
+// 全方言乘积，用于计算特征SKIPS。整套唯一拼写的地方；
+// 跳过的列表与布局自己的 `dialects` 有
+// 一定的差异，因此它永远不会与 plan() 不一致。
 constexpr scope::Dialect kAllDialects[] = {
     scope::Dialect::Agentty, scope::Dialect::Agents, scope::Dialect::Claude};
 
 [[nodiscard]] bool reads_dialect(const scope::Layout& l, scope::Dialect d) noexcept {
-    // An empty span means "defaulted", and plan() treats that as native-only
-    // — mirror that rather than reporting a feature reads nothing.
+    // 空跨度意味着"defaulted"，并且plan()将其视为native
+    // -only——镜像该内容而不是报告不读取任何内容的特征。
     const auto ds = l.dialects.empty()
         ? std::span<const scope::Dialect>{scope::kNativeOnly}
         : l.dialects;
@@ -67,8 +67,8 @@ constexpr scope::Dialect kAllDialects[] = {
     return false;
 }
 
-// A source's concrete target: the leaf joined onto the base, except at the
-// Explicit locus where the variable already named the exact file.
+// 源的具体目标：叶连接到基部上，
+// 除了变量已经命名为确切文件的显式轨迹处。
 [[nodiscard]] fs::path target_of(const scope::Source& src,
                                  const scope::Layout& layout,
                                  const scope::Env& env) {
@@ -83,22 +83,22 @@ constexpr scope::Dialect kAllDialects[] = {
     return v && v[0];
 }
 
-// The approvals leaf MCP vouches against. Same constant bridge.cpp uses;
-// named here so the report reads the same store the spawn gate reads.
+// 批准叶MCP担保。使用相同的常量 bridge.cpp；
+// 此处命名，以便报告读取与生成门读取的相同的存储。
 constexpr std::string_view kMcpApprovalsLeaf = kMcpApprovals;
 
-// What trust_of says about this source, as a word.
+// trust_of关于该来源的一句话。
 //
-// Calls the SAME function the spawn gate calls, with the same content hash
-// and the same approvals store, so the word printed here is the word the
-// connect loop acted on. Anything less is a second opinion, which is what
-// this whole file exists to avoid.
+// 调用和SAME作用于生成门调用，具有相同的内容散
+// 列和相同的批准存储，因此这里打印的单词是连接
+// 循环所作用的单词。任何不足都是第二意见，
+// 这就是整个文件的存在要避免的。
 [[nodiscard]] std::string trust_word(const scope::Source& src,
                                      const fs::path& file) {
-    // is_regular_file before opening: a DIRECTORY opens fine and then throws
-    // out of the first read, which an istreambuf_iterator slurp does not
-    // catch. Reporting trust must never be the thing that aborts the
-    // process.
+    // 打开之前的is_regular_file：DIRECTORY打开良好，
+    // 然后从第一次读取中抛出，而istreambuf_iterator
+    // 吸食无法捕获。报告信任绝不能成为中止这一过程的
+    // 原因。
     std::error_code ec;
     if (!fs::is_regular_file(file, ec)) return {};
     std::ifstream in(file, std::ios::binary);
@@ -114,19 +114,19 @@ constexpr std::string_view kMcpApprovalsLeaf = kMcpApprovals;
     return "needs approval";
 }
 
-// Bytes under `dir`, recursively. Symlinks are NOT followed: a link into
-// someone else's tree would make agentty report their disk as ours, and a
-// cycle would hang the command.
+// 字节在`dir`下，递归。符号链接不是：将 链接 插入
+// 别人的 源码树 将使 agentty 报告他们的磁盘是我们的，
+// 并且循环将挂起命令。
 //
-// `out_partial` is set when some of the tree could not be examined. The
-// count then UNDERSTATES, and saying so matters more than the number does:
-// a silent 0 B next to 2 MB of unreadable files is the same class of
-// confident lie this whole file exists to prevent.
+// 当无法检查某些源码树时，设置`out_partial`。
+// 然后计数是 UNDERSTATES，这样说比数字更重要：
+// 不可读文件的2MB旁边的无声0B是整个
+// 文件存在以防止的同一类置信谎言。
 [[nodiscard]] std::uintmax_t dir_bytes(const fs::path& dir, bool& out_partial) {
     out_partial = false;
     std::error_code ec;
     if (!fs::is_directory(dir, ec)) {
-        // A spec may name a FILE rather than a directory.
+        // 规范可以命名 FILE 而不是目录。
         const auto sz = fs::file_size(dir, ec);
         return ec ? 0 : sz;
     }
@@ -134,11 +134,11 @@ constexpr std::string_view kMcpApprovalsLeaf = kMcpApprovals;
     fs::recursive_directory_iterator it{
         dir, fs::directory_options::skip_permission_denied, ec};
     if (ec) { out_partial = true; return 0; }
-    // Advance MANUALLY with the error_code increment. A range-for calls the
-    // throwing operator++, and descending into a chmod-000 subdirectory
-    // throws there -- skip_permission_denied governs the initial open, not
-    // every step. That threw away the whole running total and reported 0 B
-    // for a 1.9 MB tree.
+    // 以 error_code 增量前进 MANUALLY。 range
+    // -for 调用 抛出运算符++，并下降到 chmod-000 子目录，
+    // 在那里抛出 - skip_permission_denied 控制初始打开，
+    // 而不是每个步骤。这丢弃了整个运行总计并报告 0 B 为 1.9
+    // MB 源码树。
     const fs::recursive_directory_iterator end{};
     while (it != end) {
         std::error_code sec;
@@ -149,13 +149,13 @@ constexpr std::string_view kMcpApprovalsLeaf = kMcpApprovals;
         } else if (sec) {
             out_partial = true;
         } else if (it->is_directory(sec) && !sec) {
-            // skip_permission_denied makes an unreadable directory vanish
-            // SILENTLY -- no error_code, nothing to notice, and everything
-            // inside it simply never appears. A chmod-000 subdir holding
-            // 2 MB reported as 0 B with no hint anything was missed.
+            // skip_permission_denied使不可读的目录消失
+            // SILENTLY——没有error_code，没有什么值得注意的，
+            // 并且它里面的所有内容根本就不会出现。持有 2 MB 的 chmod-
+            // 000 子目录报告为 0 B，没有任何迹象表明遗漏了任何内容。
             //
-            // So probe it directly. Opening it is the only way to learn
-            // that the recursion is about to pretend it is empty.
+            // 所以直接探测它。打开它是了解递
+            // 归将假装它为空的唯一方法。
             std::error_code oec;
             fs::directory_iterator probe{it->path(), oec};
             if (oec) out_partial = true;
@@ -163,9 +163,9 @@ constexpr std::string_view kMcpApprovalsLeaf = kMcpApprovals;
         std::error_code iec;
         it.increment(iec);
         if (iec) {
-            // Cannot descend here. Keep what we counted, note that the
-            // answer is short, and stop -- resuming past an unreadable
-            // branch is not something the iterator offers.
+            // 这里不能下降。保留我们计算的内容，
+            // 注意答案很短，然后停止——迭代器不
+            // 提供恢复过去不可读的分支的功能。
             out_partial = true;
             break;
         }
@@ -173,8 +173,8 @@ constexpr std::string_view kMcpApprovalsLeaf = kMcpApprovals;
     return total;
 }
 
-// Three significant-ish figures, which is all anyone needs to answer "is
-// this the big one". Exact bytes would be noise.
+// 三个重要的-ish数字，这是任何人都需要回答"is this the big one"的。
+// 精确的 字节 将是噪音。
 [[nodiscard]] std::string human_bytes(std::uintmax_t n) {
     const char* unit[] = {"B", "KB", "MB", "GB", "TB"};
     double v = static_cast<double>(n);
@@ -185,7 +185,7 @@ constexpr std::string_view kMcpApprovalsLeaf = kMcpApprovals;
     return buf;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 std::span<const Entry> inventory() noexcept { return kEntries; }
 
@@ -203,8 +203,8 @@ Report describe(const Entry& e) {
     if (e.read) {
         r.explicit_env = e.read->explicit_env;
         const scope::Env env = scope::current_env(*e.read);
-        // plan() IS the ladder. No filtering here — that is the invariant the
-        // dialect change bought: what plan emits is what gets read.
+        // plan() IS 梯子。这里没有过滤——这就是方言
+        // 变化带来的 不变量：计划发出的就是被读取的。
         for (const scope::Source& src : scope::plan(*e.read, env)) {
             ReadRow row;
             row.locus   = src.locus;
@@ -213,8 +213,8 @@ Report describe(const Entry& e) {
             row.path = p.string();
             std::error_code ec;
             row.exists = fs::exists(p, ec);
-            // Only executable content needs vouching, and only a file that
-            // exists has bytes to bind an approval to.
+            // 只有可执行内容需要担保，并且只有存在的
+            // 文件具有要绑定批准的字节。
             if (row.exists && executable(e.name))
                 row.trust = trust_word(src, p);
             r.reads.push_back(std::move(row));
@@ -224,9 +224,9 @@ Report describe(const Entry& e) {
             r.skipped.push_back({d, std::string{scope::dir_name(d)}});
         }
 #if AGENTTY_MCP
-        // Foreign configs that EXIST on this machine. Only listed when
-        // present: naming a path nobody has is noise, while naming one they
-        // do have is the answer to "why is agentty ignoring my servers".
+        // 本机上的外部配置为 EXIST。仅在存在时列出：命名无人
+        // 拥有的路径是噪音，而命名他们拥有的路径则是
+        // "why is agentty ignoring my servers" 的答案。
         if (executable(e.name)) {
             const fs::path home = util::home_dir_or_empty();
             std::error_code fec;
@@ -253,22 +253,22 @@ Report describe(const Entry& e) {
         w.rebuildable   = e.write->life.rebuildable;
         w.keep_last     = e.write->life.keep_last;
         w.retention     = e.write->retention;
-        // resolve_dry: report a location without creating it or warning.
-        // This command is an observer; asking where the logs go must not
-        // make a logs directory.
+        // resolve_dry:报告位置而不创建它或发出警告。
+        // 该命令是观察者；询问日志去哪里一定不能
+        // 创建日志目录。
         if (auto got = dirs::resolve_dry(*e.write)) {
             w.path   = got->path.string();
             w.origin = got->origin;
             std::error_code sec;
             if (fs::exists(got->path, sec)) {
-                // Specs that share a resolved directory (rag and feedback
-                // both land on <project>/.agentty) must not each claim the
-                // whole tree, or the column sums to double the real disk.
-                // The FIRST row for a path owns the measurement; later ones
-                // say so rather than repeating a number that isn't theirs.
+                // 共享已解析目录的规格（rag 和反馈都位于
+                // <project>/.agentty 上）不得
+                // 各自声明整个 源码树，或者列总和是实际磁盘的两倍。
+                // 路径的FIRST行拥有测量；后来的人会这么说，
+                // 而不是重复不属于他们的数字。
                 bool owned_by_earlier = false;
                 for (const Entry& other : kEntries) {
-                    if (&other == &e) break;   // only rows BEFORE this one
+                    if (&other == &e) break;   // 仅第BEFORE行这一行
                     if (!other.write) continue;
                     if (auto o = dirs::resolve_dry(*other.write);
                         o && o->path == got->path) {
@@ -312,9 +312,9 @@ void print_one(const Report& r) {
                 std::string{r.what}.c_str());
 
     if (!r.reads.empty()) {
-        // Name the gate in the header when there is one. A reader who sees
-        // "needs approval" on a row deserves to know WHY this concern is the
-        // one that asks.
+        // 有闸门时，将闸门命名为头文件。
+        // 连续看到 "needs approval" 的读者应该知道 原因 这个问题
+        // 就是所问的问题。
         std::printf("\nread, in precedence order%s\n",
                     executable(r.name) ? "  (executable — project configs are"
                                          " vouched by content hash)" : "");
@@ -333,16 +333,16 @@ void print_one(const Report& r) {
                         std::string{r.explicit_env}.c_str());
     }
 
-    // The valuable half. "Not read, and why" is where someone finds out their
-    // .claude/mcp.json is ignored on purpose — before they file an issue.
+    // 有价值的一半。 "Not read, and why" 是指有人在提交
+    // 问题之前发现自己的 .claude/mcp.json 被故意忽略。
     if (!r.skipped.empty() || !r.foreign.empty()) {
         std::printf("\nnot read\n");
         for (const SkippedDialect& s : r.skipped)
             std::printf("  %-8s not a portable format for %s\n",
                         s.dir.c_str(), std::string{r.name}.c_str());
-        // A foreign config gets the command that adopts it. Reading it live
-        // would put the user's servers in two places with a precedence rule;
-        // importing puts them in one, which is what they asked for.
+        // 外部配置获取采用它的命令。实时读取它会将用户的
+        // 服务器放置在两个具有优先规则的位置；
+        // import 将它们合二为一，这正是他们所要求的。
         for (const ForeignSource& f : r.foreign)
             std::printf("  %-8s %s\n           → %s\n",
                         f.tool.c_str(), f.path.c_str(), f.adopt_with.c_str());
@@ -363,10 +363,10 @@ void print_one(const Report& r) {
             else if (r.write->shared_dir)
                 std::printf("  shares this directory with another concern"
                             " (counted there)\n");
-            // Say exactly what each variable moves. The anchor (when the
-            // root has one) first, because that is the model; then this
-            // spec's own variable, marked as narrower so the two never read
-            // as equals.
+            // 准确说出每个变量的变化。首先是锚点（当根
+            // 有锚点时），因为那是模型；然后这个规范自己的变量，
+            // 标记为更窄，因此两者永远不会被视为
+            // 相等。
             if (!r.write->anchor.empty())
                 std::printf("  $%s moves the whole root\n",
                             std::string{r.write->anchor}.c_str());
@@ -388,8 +388,8 @@ void print_one(const Report& r) {
     std::printf("\n");
 }
 
-// The storage model on one screen: two roots, and a variable for every
-// directory under them. Storage is configured by environment only.
+// 一个屏幕上的存储模型：两个根，
+// 以及其下的每个目录的变量。存储仅按环境配置。
 void print_env() {
     std::printf("storage model\n\n");
     std::printf("  ~/.agentty           follows you         $AGENTTY_HOME%s\n",
@@ -413,7 +413,7 @@ void print_env() {
     std::printf("full map: https://agentty.org/docs/storage\n");
 }
 
-// Files older builds left behind that nothing reads now.
+// 旧版本留下的文件现在无法读取。
 struct Stale { fs::path path; const char* why; };
 
 [[nodiscard]] std::vector<Stale> find_stale() {
@@ -446,18 +446,18 @@ struct Stale { fs::path path; const char* why; };
         add(c->path / "copilot_model_support.json", "cache that now lives in cache/");
     if (!home.empty()) {
         add(home / ".cache" / "agentty", "old cache location");
-        // Migration moves what it knows; anything left there may still matter.
+        // 迁移移动它所知道的；剩下的任何东西可能仍然很重要。
         if (const auto c = home / ".config" / "agentty"; fs::is_empty(c, ec) && !ec)
             add(c, "old config location, empty");
     }
     return out;
 }
 
-// ── move ────────────────────────────────────────────────────────────────────
+// ── 移动 ────────────────────────────────────────────────────────────────────
 
 struct Tally { std::uintmax_t files = 0, bytes = 0; bool ok = true; };
 
-// Files and bytes under p, not following symlinks.
+// p下的文件和字节，不遵循符号链接。
 [[nodiscard]] Tally tally(const fs::path& p) {
     Tally t;
     std::error_code ec;
@@ -486,8 +486,8 @@ struct Tally { std::uintmax_t files = 0, bytes = 0; bool ok = true; };
     return true;
 }
 
-// `agentty config move <dir> <path>`: copy, verify, then remove. agentty
-// never writes its own config; it prints the export line for the user to add.
+// `agentty config move <dir> <path>`:复制、
+// 验证，然后删除。 agentty 从不编写自己的配置；它打印导出行供用户添加。
 int cmd_move(std::span<const std::string> argv) {
     auto usage = [] {
         std::fprintf(stderr, "usage: agentty config move <dir> <path>\n       dirs:");
@@ -516,7 +516,7 @@ int cmd_move(std::span<const std::string> argv) {
             raw = (util::home_dir() / raw.substr(raw.size() > 1 ? 2 : 1)).string();
         to = absolute_clean(raw);
     }
-    // What to tell the shell once the data is there.
+    // 一旦数据存在就告诉外壳什么。
     auto print_export = [&] {
         if (to_default)
             std::printf("\nnow remove $%s from your shell profile:\n  unset %s\n",
@@ -538,7 +538,7 @@ int cmd_move(std::span<const std::string> argv) {
         std::fprintf(stderr, "agentty: %s already exists and isn't empty.\n", to.string().c_str());
         return 1;
     }
-    // Nobody may be writing while we copy.
+    // 当我们复制时，没有人可以写作。
     const auto lock = util::try_store_exclusive();
     if (!lock) {
         std::fprintf(stderr, "agentty: another agentty is running. quit it and try again.\n");
@@ -553,9 +553,9 @@ int cmd_move(std::span<const std::string> argv) {
     const Tally before = tally(from);
     if (!before.ok) { std::fprintf(stderr, "agentty: can't read all of %s\n", from.string().c_str()); return 1; }
     std::printf("  %ju files, %s\n", before.files, human_bytes(before.bytes).c_str());
-    if (fs::exists(to, ec)) fs::remove(to, ec);   // the empty dir checked above
+    if (fs::exists(to, ec)) fs::remove(to, ec);   // 上面检查的空目录
     fs::create_directories(to.parent_path(), ec);
-    // Same filesystem: a rename is instant and atomic. Otherwise copy.
+    // 相同的文件系统：重命名是即时且原子的。否则复制。
     ec.clear();
     fs::rename(from, to, ec);
     const bool renamed = !ec;
@@ -585,10 +585,10 @@ int cmd_move(std::span<const std::string> argv) {
     return 0;
 }
 
-// ── doctor ───────────────────────────────────────────────────────────────────
+// ── 医生 ───────────────────────────────────────────────────────────────────
 
-// Checks the store is healthy: every dir usable, secrets private, no override
-// silently ignored. Exit 1 if anything needs fixing.
+// 检查存储是否健康：每个目录都可用，秘密是私有的，没有静默忽略的覆盖。
+// 如果有任何问题需要修复，请退出 1。
 int cmd_doctor() {
     int problems = 0, notes = 0;
     auto bad  = [&](const std::string& s) { ++problems; std::printf("  ✗ %s\n", s.c_str()); };
@@ -623,13 +623,13 @@ int cmd_doctor() {
     }
 
 #ifndef _WIN32
-    // Secrets must be 0600 each, wherever the folder is.
+    // 无论文件夹位于何处，每个秘密都必须是 0600。
     if (auto c = dirs::resolve_dry(kCredentialsSpec)) {
         std::error_code ec;
         for (fs::directory_iterator it{c->path, ec}, end; !ec && it != end; it.increment(ec)) {
             std::error_code fec;
             if (!it->is_regular_file(fec) || it->path().extension() == ".lock") continue;
-            if (it->path().filename() == "copilot_model_support.json") continue;   // stale, see clean
+            if (it->path().filename() == "copilot_model_support.json") continue;   // 过期，见干净
             const auto perms = it->status(fec).permissions();
             if ((perms & (fs::perms::group_all | fs::perms::others_all)) != fs::perms::none)
                 bad("credentials: " + it->path().filename().string() +
@@ -638,7 +638,7 @@ int cmd_doctor() {
     }
 #endif
 
-    // Retention set but unusable is worth saying out loud.
+    // 保留设置但无法使用值得大声说出来。
     if (const char* kd = std::getenv("AGENTTY_THREADS_KEEP_DAYS"); kd && *kd) {
         char* end = nullptr;
         const long n = std::strtol(kd, &end, 10);
@@ -673,10 +673,10 @@ int print_clean(bool apply) {
 
 void print_table() {
     std::printf("where things live\n\n");
-    // Columns are padded by hand rather than with printf's %-Ns because the
-    // placeholder is an em dash: three BYTES, one COLUMN. %-6s pads to a byte
-    // count and would short the cell by two, which is exactly how a table
-    // with non-ASCII cells goes ragged.
+    // 手动填充列而不是用printf的%-Ns填充，因为占位符是长
+    // 破折号：三个BYTES，一个COLUMN。 %-6s 填充到 字节 计数，
+    // 并将 存储单元 短接两个，这正是具有非 -ASCII
+    // 存储单元 的表变得混乱的方式。
     auto pad = [](std::string s, std::size_t cols) {
         std::size_t width = 0;
         for (unsigned char c : s) if ((c & 0xC0) != 0x80) ++width;
@@ -691,12 +691,12 @@ void print_table() {
         const Report r = describe(e);
         std::string reads = "—";
         if (e.read) reads = std::to_string(r.reads.size());
-        // The size column is the one #58 needed: "move my non-config data"
-        // is unanswerable until you can see which categories are big.
+        // 尺寸列是所需的#58："move my non-config data"
+        // 是无法回答的，直到您可以看到哪些类别是大的。
         std::string size = "—";
         if (r.write && r.write->measured) {
             size = human_bytes(r.write->bytes);
-            if (r.write->partial) size += "+";   // undercounts; see detail view
+            if (r.write->partial) size += "+";   // 计数不足；查看详细视图
             total += r.write->bytes;
         } else if (r.write && r.write->shared_dir) {
             size = "(shared)";
@@ -719,7 +719,7 @@ void print_table() {
                 "`agentty config clean`      files old versions left behind\n");
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 int cmd_config(std::span<const std::string> argv) {
     if (argv.empty()) {

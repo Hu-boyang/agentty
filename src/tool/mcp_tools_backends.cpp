@@ -1,17 +1,17 @@
-// mcp_tools_backends.cpp — the agentty-side HostServices backends the
-// mcp-cpp toolset's host-coupled SHELLS dispatch into.
+// mcp_tools_backends.cpp - 电话 agentty-side HostServices
+// 后端为 mcp-cpp 工具集的主机 -coupled SHELLS 分派 进入。
 //
-//   mcp-cpp owns the protocol surface for remember/forget/wipe, todo,
-//   skill, search_docs, and task — names, schemas, arg parsing, scope
-//   validation, dedup/dry-run messaging, formatting. But the DATA and the
-//   WORK for those tools live in agentty: the JSONL memory store, the
-//   Agent-Skills engine, the RAG pipeline, the subagent loop. This file is
-//   the inversion-of-control seam: each backend is a small class deriving
-//   an `mcp::tools::*` interface and delegating to agentty's existing
-//   subsystem, with the EXACT arg→backend mapping, scope vocabulary, and
-//   output formatting the native tool bodies had.
+//   mcp-cpp 拥有协议表面 remember/forget/wipe ,
+//   待办,技能, search_docs ,和任务——姓名, 模式定义
+//   参数 解析 ,范围验证, dedup/dry-run 通讯、格式化。
+//   但 DATA 编辑 WORK 用来保护这些工具 agentty :
+//   数据 JSONL 内存 库,代理 -Skills 引擎,该引擎 RAG 管道,
+//   子代理环路。 此文件是反转 -of-control 接口边界 :每个后端
+//   是一个小类,从中衍生出一个 `mcp::tools::*` 接口和
+//   授权到 agentty 现有的子系统,带有 EXACT arg_后端映射、
+//   范围词汇和输出格式化本地工具 正文 曾经是。
 //
-//   Built + installed by build_mcp_tool_defs() (mcp_tools_bridge.cpp).
+//   由 + 建造 build_mcp_tool_defs() (mcp_tools_bridge.cpp).
 
 #include "agentty/util/user_root.hpp"
 #include "agentty/tool/mcp_tools_backends.hpp"
@@ -19,7 +19,7 @@
 #include "agentty/util/home_dir.hpp"
 
 #include "agentty/scope/scope.hpp"
-#include "agentty/config/inventory.hpp"   // kAgentsLayout — the one declaration
+#include "agentty/config/inventory.hpp"   // KAgents Layout—— 单一声明
 #include "agentty/tool/memory_store.hpp"
 #include "agentty/tool/skills.hpp"
 #include "agentty/tool/subagent.hpp"
@@ -27,8 +27,8 @@
 #include "agentty/tool/tool_loading.hpp"
 #include "agentty/tool/tool_plan.hpp"
 #include "agentty/tool/host_call.hpp"
-#include "agentty/tool/tool.hpp"       // tool::DynamicDispatch, ToolUse, Message …
-#include "agentty/tool/util/partial_json.hpp"   // args salvage for truncated tool JSON
+#include "agentty/tool/tool.hpp"       // tool::DynamicDispatch, ToolUse ,消息...
+#include "agentty/tool/util/partial_json.hpp"   // 截流工具的回收参数JSON
 #include "agentty/tool/util/utf8.hpp"           // progress_tail
 #include "agentty/runtime/app/update/stream_args.hpp"  // canonify_tool_args (`cmd`→`command`)
 
@@ -49,7 +49,7 @@
 #include "agentty/tool/util/fs_helpers.hpp"
 #include "agentty/store/store.hpp"
 
-#include "agentty/mcp/client.hpp"   // mcp_resources / mcp_read_resource seams
+#include "agentty/mcp/client.hpp"   // mcp_resources / mcp_read_resource 接口边界 / (中文(简体) ).
 #include "agentty/util/background.hpp"
 #include "agentty/util/dbglog.hpp"
 #include "agentty/util/logx.hpp"
@@ -86,38 +86,38 @@ namespace mt  = ::mcp::tools;
 namespace fs  = std::filesystem;
 using json    = nlohmann::json;
 
-// Machine-readable event stream for headless runs, enabled by
-// `agentty run --events jsonl` (and the older AGENTTY_TRACE_TOOLS=1,
-// which now selects the same stream).
+// 机器 -readable 事件 数据流 无头运行,
+// 启用于 `agentty run --events jsonl` (以及老年人)
+// AGENTTY_TRACE_TOOLS =1,现在选择相同的 数据流).
 //
-// WHY THIS EXISTS. A benchmark harness driving `agentty run` needs to
-// know which tools were called and whether they worked. Until this, the
-// only machine-visible signal was a Unicode gear glyph in the rendered
-// Activity view — and that glyph is only emitted on the SUBAGENT path,
-// never by a plain `run`. At least one external harness grepped for it,
-// got nothing, and recorded its tool-call columns as "NA" rather than a
-// misleading zero. The data existed (tool.exec, with timings) but only
-// in the log file, which a sandboxed run throws away on teardown.
+// 原因 此 EXISTS 基准操纵驱动
+// `agentty run` 需要知道哪些工具被调用,
+// 它们是否有效。 -visible 信号在渲染的活动视图
+// 中是Unicode齿轮格格,而且格格法只在 SUBAGENT 路径,
+// 从不通过平原 `run`。至少一个外部的绳子被咬了,
+// 什么都没有,并记录了它的工具 -call 列为
+// "NA" 数据存在( tool.exec ,有时间),
+// 但只在日志文件中,一个沙盒跑在撕裂时丢掉.
 //
-// So: one JSON object per line, on STDERR. stderr because run/acp/
-// mcp-serve keep stdout for the report itself, and a harness that merges
-// the two streams still gets both.
+// 这么说: JSON 每行对象, 开 STDERR . stderr 因为
+// run/acp/ 微缩 -serve 保持Studout为报告本身,
+// 和一个把两者合并的绳子 数据流 两者都一样
 //
-//   {"ev":"tool","seq":3,"tool":"read","ms":12,"ok":true,
-//    "args_sha":"a3f1c09d"}
-//   {"ev":"tool","seq":4,"tool":"edit","ms":4,"ok":false,
-//    "err":"invalid_args: no such file","args_sha":"77b2e410"}
+//   {"ev":"tool","seq":3,"tool":"read","ms":12,"ok" 是真的,我对这个很感兴趣 {。
+//    cHFFFFFF}{\3cH111111}{\4cH111111}
+//   True, "args_sha":"a3f1c09d"} {"ev":"tool","seq":4,"tool":"edit",
+//    "ms":4,"ok" : 假话, "err":"invalid_args: no such file","args_sha":"77b2e410"}
 //
-// args_sha, not args: a repeat-detector needs to know two calls were
-// IDENTICAL, not what they contained. Tool arguments carry paths, env
-// values and command lines, and the harnesses that want this run agentty
-// sandboxed precisely to keep that data in. A hash answers the question
-// without being a leak, and needs no AGENTTY_LOG_BODIES-style gate.
+// args_sha ,而不是参数:重复 -detector 需要
+// 知道两个 调用 曾经 IDENTICAL 而不是他们包含的
+// Tool 参数包含路径、 env 值和命令行, 以及想要此运行的调
+// 用 agentty 沙盒是用来保存数据。散列回答问题而不漏出,
+// 不需要 AGENTTY_LOG_BODIES-style 大门
 enum class EventFormat { Off, Jsonl };
 
 [[nodiscard]] EventFormat event_format() {
     static const EventFormat fmt = [] {
-        // --events jsonl wins; AGENTTY_TRACE_TOOLS is the older spelling.
+        // --events jsonl胜负; AGENTTY_TRACE_TOOLS 是一个老的拼写。
         if (const char* e = std::getenv("AGENTTY_EVENTS");
             e && e[0] && std::string_view{e} == "jsonl")
             return EventFormat::Jsonl;
@@ -129,8 +129,8 @@ enum class EventFormat { Off, Jsonl };
     return fmt;
 }
 
-// FNV-1a over the argument JSON. Short, stable across runs and
-// processes, and not reversible into the arguments it stands for.
+// FNV -1a 过争论 JSON。短、
+// 稳定地跨越各条路线和进程,不能被反转到它所代表的论据中。
 [[nodiscard]] std::string args_digest(std::string_view args) {
     std::uint32_t h = 2166136261u;
     for (unsigned char c : args) { h ^= c; h *= 16777619u; }
@@ -139,8 +139,8 @@ enum class EventFormat { Off, Jsonl };
     return std::string{buf};
 }
 
-// One event line. Never throws: a diagnostic stream must not be able to
-// take down the run it is describing.
+// 一个 事件 线条。永不丢弃:诊断 数据流 一定
+// 无法控制它所描述的运行
 void emit_event(nlohmann::json j) noexcept {
     if (event_format() == EventFormat::Off) return;
     try {
@@ -149,7 +149,7 @@ void emit_event(nlohmann::json j) noexcept {
         const std::string line = j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
         std::fprintf(stderr, "%s\n", line.c_str());
     } catch (...) {
-        // Out of memory formatting a diagnostic line: drop the line.
+        // 内存格式化诊断线中:放下线.
     }
 }
 
@@ -169,9 +169,9 @@ void emit_tool_event(std::string_view tool, long long ms, bool ok,
     } catch (...) {}
 }
 
-// Model output for `agentty run --events jsonl`: reasoning and answer text as
-// it streams, batched per line so a harness isn't flooded with one-char
-// events. Only the top-level run emits these, not nested subagents.
+// `agentty run --events jsonl`的Model输出:推理
+// 和答题文本作为数据流,按行批量进行,这样一盏吊带就不会被1-char 事件淹没.
+// 只有顶端的-level运行会释放这些,而不是巢状的子剂.
 class TextEvents {
 public:
     explicit TextEvents(bool on, int turn) : on_(on), turn_(turn) {}
@@ -194,7 +194,7 @@ private:
         if (!on_ || s.empty()) return;
         if (k != kind_) { flush(); kind_ = k; }
         buf_ += s;
-        // A line per paragraph or ~2 KiB, whichever comes first.
+        // 段落中的一行或~2 KiB,以先到者为准。
         if (buf_.size() >= 2048 || buf_.find('\n') != std::string::npos) flush();
     }
     bool on_;
@@ -204,27 +204,27 @@ private:
 };
 
 // ── MemoryStore ────────────────────────────────────────────────────────
-//   Backs remember / forget / wipe. The shell owns the schema + dedup/pin/
-//   tag/supersede surface; this maps its requests onto agentty::tools::
-//   memory free functions. Scope vocabulary is ["project","user"] so the
-//   shell defaults to project (the safer default, matching the native
-//   remember tool) and accepts "user" for cross-project facts.
-// Drift guard for the parallel result structs bridged in append() below.
-// agentty::tools::memory::AppendResult and mcp::tools::MemoryAppendResult carry
-// identical fields in identical order; the bridge copies them one by one. If a
-// field is added/removed on either side their sizes diverge and this trips at
-// compile time — a reminder to update BOTH structs and the mapping. (The
-// designated-init mapping below separately guards renames/removals.)
+//   背部记着/ 忘了/ 擦。 外壳拥有 模式定义 + dedup/pin/
+//   tag/supersede 表面; 此图将其请求映射到 agentty::tools::
+//   内存 自由函数。范围词汇是 [ "project","user"
+//   )所以 shell 默认为投影(更安全的默认,匹配本地记忆工具)
+//   并接受 "user" 用于交叉 -project 事实。
+// 平行结果结构的漂流保护在下文的append()中架设。
+// agentty::tools::memory::AppendResult和mcp::tools::MemoryAppendResult按相同的顺序搭载相同的字段;
+// 桥面逐一复制。如果字段的大小是added/removed,
+// 则在编译时间进行这一次旅行——提醒更新BOTH
+// structs和绘图。 (下面的指定-init
+// 绘图分别守护renames/removals.)
 static_assert(sizeof(memory::AppendResult) == sizeof(mt::MemoryAppendResult),
               "AppendResult / MemoryAppendResult drifted — update both structs "
               "and the field mapping in AgenttyMemoryStore::append()");
 
-// Lock order: mcp-cpp's MemoryStore interface hands these methods no Call, so
-// the tool worker's capability can't ride the context to them. Each method
-// re-states it at this one boundary (`mem_root`, tests/lint/allowlist.txt):
-// they are called only by mcp-cpp's memory tool from a tool body on a tool
-// worker, which holds no agentty lock, and they take only the memory store
-// lane (ranked below every leaf) and its file IO.
+// 锁 顺序 : mcp-cpp's MemoryStore 接口 手握这些方法 否 调用 ,
+// 所以工具 工作线程 能力不能用上下文来显示它们。 -states 它在这个边界上
+// ( `mem_root`, tests/lint/allowlist.txt):
+// 只能由 mcp-cpp's 内存 工具从工具中 正文 工具上
+// : 工作线程 ,则不 agentty 锁 他们只拿 内存 存储
+// 行( 排在每片叶下方) 及其文件 IO.
 template <class F>
 auto mem_root(F&& f) -> decltype(maya::thread_root(std::forward<F>(f))) {
     return maya::thread_root(std::forward<F>(f));
@@ -232,21 +232,21 @@ auto mem_root(F&& f) -> decltype(maya::thread_root(std::forward<F>(f))) {
 
 class AgenttyMemoryStore final : public mt::MemoryStore {
 public:
-    // scopes()[0] is the DEFAULT scope the shell uses when the model omits
-    // `scope`. We only advertise "project" (and only make it the default)
-    // when project storage is actually WRITABLE here. In a workspace whose
-    // root is "/" or otherwise unwritable, path_for(Project) is empty and a
-    // project append would fail — so offering "project" as the default made
-    // the model's very first remember() call fail every time, forcing a
-    // retry with scope="user". Dropping the unavailable scope from the
-    // vocabulary makes the default "user", which always succeeds, WITHOUT
-    // silently promoting an explicit project fact to user scope (append()
-    // still refuses an explicit unavailable-project write — no cross-
-    // workspace memory bleed).
+    // scopes() [0] 是 DEFAULT 范围 : 当模型省略时,
+    // 贝壳使用 `scope` 我们只做广告 "project"
+    // (并只让它成为默认) 当项目存储是实际 WRITABLE 给,
+    // 在A 工作区 其根为 "/" 或无法写, path_for (
+    // 项目)是空的,项目附件将失败——所以提供 "project"
+    // 默认让模型成为了第一个 remember() 调用 每次都失败,
+    // 强迫 重试 范围= "user"。从词汇中删除无法使用的范围,
+    // 则默认值 "user" 总是成功 无需 默默地向用户范围
+    // 宣传明确的项目事实( append() 仍然拒绝一个无法
+    // 明确获取的 -project 写——无交叉—— 工作区
+    // 内存 流血) (英语:
     std::vector<std::string> scopes() const override {
         if (!memory::path_for(memory::Scope::Project).empty())
-            return {"project", "user"};   // project writable → normal order
-        return {"user"};                   // project unavailable → user is default
+            return {"project", "user"};   // 可写出的项目 − 正常命令
+        return {"user"};                   // 无法执行的工程 – 用户默认
     }
 
     mt::MemoryAppendResult append(const mt::MemoryAppendRequest& req) override {
@@ -254,17 +254,17 @@ public:
         if (!scope)
             return mt::MemoryAppendResult{.error = "unknown scope '" + req.scope + "'"};
 
-        // Smart scope: the shell defaults an omitted `scope` to scopes()[0]
-        // ("project" when writable), so a fact that's plainly about the HUMAN
-        // — "my name is…", "I use fish" — lands in project by default and then
-        // bleeds into every repo. suggest_scope() reads the fact text; on a
-        // CONFIDENT user signal against a project write we correct it and say
-        // so in the note. We only ever redirect project→user this way (never
-        // the reverse, and never when project was genuinely intended for a
-        // codebase fact): the risk is one-directional — a personal fact
-        // escaping into shared project memory is the harm; a project fact in
-        // user memory is merely narrow. An UNAVAILABLE user scope is left
-        // alone (append's own guard handles reachability).
+        // 智能范围:  shell 默认省略 `scope` 改为
+        // scopes()[0] ("project" 写到可以写的时候,
+        // 所以一个事实, 很明显, HUMAN — "my name is…",
+        // "I use fish" ——在项目中默认土地,然后流血成每
+        // 块土地 仓库. suggest_scope (a) 阅读事实案文;
+        // CONFIDENT 用户对项目发出的信号,我们写着,我们纠正,
+        // 并在注释中说。我们只用这种方式重新定向项目。 (绝不相反,
+        // 而且项目真正是为了一个 代码库 风险是一 -directional
+        // 个人事实,逃入共享项目 内存 是伤害; 用户中的项目事实
+        // 内存 仅仅是狭义的。 UNAVAILABLE 用户范围
+        // 被单独保留(附录自己的守护手柄可达性).
         std::string smart_note;
         if (*scope == memory::Scope::Project) {
             const auto hint = memory::suggest_scope(req.text);
@@ -283,9 +283,9 @@ public:
             return memory::append(cap, *scope, req.text, opts);
         });
 
-        // Bridge the agentty result onto the mcp result. Named designated
-        // initialisers so a renamed/removed field is a compile error rather
-        // than a silent miscopy; the static_assert above catches size drift.
+        // 将 agentty 结果连接到 mcp 结果上。
+        // 指定指定 的 renamed/removed 字段是 编译 错误,
+        // 而不是默读; 高于 static_assert 的 渔获量漂移。
         std::string note = r.note;
         if (!smart_note.empty())
             note = note.empty() ? smart_note : (smart_note + "; " + note);
@@ -333,9 +333,9 @@ public:
     }
 };
 
-// The agentty CallContext behind a call (see HostCall). A call that did not
-// come through DynamicDispatch (an MCP client over mcp-serve) has none: an
-// empty one.
+// 电话 agentty CallContext 后面的a 调用 (见A/C.5/61/L.48,第16段) HostCall).
+// A 调用 没能通过 DynamicDispatch (单位:千美元) MCP 客户端通过 mcp -serve
+// 无:空的。
 const CallContext& context_of(const mt::Call& call) {
     static const CallContext kNone{};
     const auto& h = host_call(call.host);
@@ -343,18 +343,18 @@ const CallContext& context_of(const mt::Call& call) {
 }
 
 // ── SkillResolver ──────────────────────────────────────────────────────
-//   Backs the skill tool. The shell returns whatever string load() yields
-//   verbatim, so load() returns the FULL activation payload (body wrapped
-//   in <skill_content>, the absolute skill dir, the <skill_resources>
-//   listing) — identical to the native tool — and applies the same
-//   re-activation dedup (spec §5: don't re-inject a body already in
-//   context). On an unknown name it leaves the body empty and fills `err`
-//   with the available-skills recovery hint.
+//   返回技能工具。 贝壳返回任意字符串 load() 产量逐字,
+//   所以 load() 返回“%s” 完整 激活 载荷 (正文 包起来
+//   <skill_content> ,绝对技能目录,
+//   <skill_resources> ——与原生工具完全相同——并适用
+//   相同的re -activation 调值( 第5节: 不重写) -inject
+//   a 正文 上下文中已存在)。在未知名称上,它留下了 正文 空且填充
+//   `err` 与现有 -skills 恢复提示。
 class AgenttySkillResolver final : public mt::SkillResolver {
 public:
     std::optional<std::string> load(const mt::Call& call, const std::string& name,
                                     std::string& err) override {
-        const Io io = IoAccess::grant();   // a tool body, on a tool worker
+        const Io io = IoAccess::grant();   // 工具 正文 工具上 工作线程
         const auto s = skills::find(io, name);
         if (!s) {
             std::ostringstream avail;
@@ -368,12 +368,12 @@ public:
             else        err += " — no skills are installed in this workspace";
             return std::nullopt;
         }
-        // "Already active" comes from the set the dispatch derived from the
-        // visible transcript (skills::active::Scope, installed by run_tool)
-        // — this runs on a worker and has no Thread of its own. Derived, not
-        // remembered: a body /compact summarised away is not active, so the
-        // model gets it again instead of being pointed at a tool_result that
-        // is no longer there.
+        // "Already active" 是从集合中 分派 由可见
+        // 记录产生( skills::active::Scope ,
+        // 安装于 run_tool - 运行在... 工作线程 并且没有
+        // 线程 衍生的,不记得了:a 正文 / compact 汇总的离去不活动,
+        // 所以模型再次得到它而不是被指向一个 tool_result
+        // 已经不在了
         if (context_of(call).skill_active(s->name)) {
             return "Skill '" + s->name + "' is already active in this "
                    "session — its instructions are in an earlier tool_result. "
@@ -384,22 +384,22 @@ public:
 };
 
 // ── DocRetriever ───────────────────────────────────────────────
-//   Backs search_docs. Runs agentty's full RAG pipeline (rag-cpp) and returns
-//   flat passages. The funnel, as actually wired in src/rag/adapter.cpp:
+//   背对面 search_docs 运行 agentty 满了 RAG 管道( rag-cpp
+//   )返回平面通道。漏斗,如实际的线条。 src/rag/adapter.cpp:
 //
-//     sources:  docs folder + skills + memory, with MCP resources opt-in
-//     retrieve: BM25 plus probed Ollama dense retrieval, weighted RRF fusion
-//     optional: PRF, GraphRAG, CRAG, HyDE, and multi-query are explicit modes
-//     rerank:   deterministic feature rerank + MMR + adjacent-hit stitch
-//     compress: query-focused spans under one aggregate output budget
-//     persist:  validated manifest + incremental docs/code refresh
+//     来源:docs文件夹+技能+ 内存 ,与 MCP 选择资源 -in
+//     获取 : BM25 加上探测 Ollama 加权密集检索 RRF 组合可
+//     选 : PRF, GraphRAG, CRAG, HyDE 多个 -query
+//     它们是明确模式的重新排序:确定特性的重新排序+ MMR + 相邻
+//     -hit 缝合压缩:查询 -focused 产出总预算下的跨度
+//     保持不变:经验证的表 + 增量 docs/code 刷新( T)
 //
-//   The `mode` string carries the rich provenance (root path, mode,
-//   reranked, +N variants, confidence) so no signal is lost when the
-//   shell renders the result.
-// Map a persisted store::RagConfig onto a live rag::Config, preserving the
-// infra fields the picker never exposes (docs root) from the given base
-// (env-derived) config.
+//   电话 `mode` 字符串带有丰富的来源( 根路、 模式、
+//   重新排序、 + N) 变体 ,自信),所以当壳体时,
+//   没有信号丢失 渲染 结果是。
+// 地图a 持续 store::RagConfig 进入现场 rag::Config ,
+// 保留以下的田间 选择面板 从未从给定的基数( env) 中曝光( docs root)
+// -derived ) 调和.
 static ::agentty::rag::Config rag_config_from_settings(
         const store::RagConfig& s, ::agentty::rag::Config base) {
     base.skills          = s.skills;
@@ -429,8 +429,8 @@ static ::agentty::rag::Config rag_config_from_settings(
     base.proactive_min_conf = s.proactive_min_conf;
     base.proactive_bytes    = s.proactive_bytes;
 
-    // Embeddings. An empty backend id means the user never opened the pane,
-    // so the env-derived embed config stands untouched.
+    // 嵌入式。空后端 ID 表示用户从未打开过 面板 ,
+    // 所以这个洞 -derived 嵌入的配置立体未受破坏。
     if (!s.embed_backend.empty()) {
         namespace eb = ::agentty::rag::embed;
         auto& e = base.embed;
@@ -443,8 +443,8 @@ static ::agentty::rag::Config rag_config_from_settings(
         e.model_path     = s.embed_model_path;
         e.tokenizer_path = s.embed_tokenizer_path;
         e.dim            = s.embed_dim;
-        // The credential never round-trips through settings.json; it is
-        // fetched from the keystore/sealed store keyed by endpoint.
+        // 电话 凭据 永远不要圆 -trips 结束 settings.json
+        // 是从大地取来的, keystore/sealed 存储按端点键。
         if (eb::needs_api_key(e.backend)) {
             if (auto key = eb::load_key(eb::endpoint_key(e)); !key.empty())
                 e.api_key = std::move(key);
@@ -453,35 +453,35 @@ static ::agentty::rag::Config rag_config_from_settings(
     return base;
 }
 
-// A single process-wide Retriever backs both the search_docs tool and the
-// proactive pre-turn path. Function-local static ⇒ constructed on first use
-// (after the app has set cwd / env), destroyed at exit. On first construction
-// we fold in any persisted RAG settings (the RAG picker) so the user's saved
-// config wins over the env-derived defaults; if the user has never touched the
-// picker (configured=false) the env config stands.
+// 单一进程 -wide 检索器返回两个 search_docs 工具与
+// 主动预告 -turn 函数 -local 静态 QQ 建于首次使用(
+// 在应用程序设置了 cwd / env 之后) , 并在退出时被销毁。
+// 在第一次使用时, 我们 归并 任何坚持 RAG 设置( 设置 RAG 选择
+// 面板 所以用户的 已保存 配置胜过包围 -derived 默认;
+// 如果用户从未碰过 选择面板 (构图=假) 洞穴配置立面.
 static ::agentty::rag::Retriever& shared_retriever() {
     static ::agentty::rag::Retriever r;
-    // Fold in persisted RAG picker settings exactly once, on first use.
+    // 归并 持续 RAG 选择面板 设置精确一次,在第一次使用时。
     static const bool configured_once = [] {
         try {
-            // First use is always on a tool or retriever worker.
+            // 第一次使用总是在工具或检索器工作线程上.
             auto s = persistence::load_settings(IoAccess::grant());
             if (s.rag.configured)
                 r.apply_config(rag_config_from_settings(s.rag, r.snapshot_config()));
-        } catch (...) { /* best-effort; env config stands */ }
+        } catch (...) { /* 最佳-effort; 封装配置符 */ }
         return true;
     }();
     (void)configured_once;
     return r;
 }
 
-} // namespace (anonymous)
+} // 命名空间( 匿名)
 
-// Live-apply a RagConfig to the process-wide retriever. SYNCHRONOUS: it takes
-// the retriever's mutex, may re-probe the embedder (a network dial) and
-// cold-rebuilds the engines. Never call it from a reducer — the TUI reaches it
-// only through cmd::apply_rag_settings, which runs it as an effect on the
-// kernel's isolated pool, so update stays pure and the kernel owns the thread.
+// 现场直播 -apply a RagConfig 输入进程 -wide 寻者.
+// SYNCHRONOUS :它需要回收者 互斥量 ,可重选 -probe 嵌入
+// 器(网络拨号)和冷气 -rebuilds 引擎,永远不要 调用 是从一个 状态更新函数
+// - 电话 TUI 只能通过它 cmd::apply_rag_settings ,
+// 它运行作为一个 副作用 内核隔离 池 ,所以更新要保持纯度,内核拥有 线程.
 void rag_apply_settings_now(const store::RagConfig& s) {
     auto& r = shared_retriever();
     r.apply_config(rag_config_from_settings(s, r.snapshot_config()));
@@ -510,14 +510,14 @@ RagProbeOutcome rag_probe_embedder(const store::RagConfig& s, const std::string&
     namespace eb = ::agentty::rag::embed;
     RagProbeOutcome out;
     try {
-        // Build the candidate config WITHOUT touching the live retriever: the
-        // user is testing a config they have not committed, and a failed probe
-        // must not degrade the retrieval they currently have working.
+        // 构建候选配置 无需 触碰活检索器:
+        // 用户正在测试他们没有执行的配置,
+        // 失败的探测器不得降低他们目前工作的检索.
         ::agentty::rag::Config base;
         eb::apply_env(IoAccess::grant(), base.embed);
         auto cfg = rag_config_from_settings(s, base);
         if (!api_key.empty()) cfg.embed.api_key = api_key;
-        // Never trust a carried-over dimension: measuring it is the point.
+        // 永远不要相信一个载体 -over 维度:测量它就是点。
         cfg.embed.dim = 0;
 
         auto r = eb::probe(cfg.embed);
@@ -536,12 +536,12 @@ RagProbeOutcome rag_probe_embedder(const store::RagConfig& s, const std::string&
     return out;
 }
 
-// Prompt teardown of the retriever's background warm. Without this the warm
-// worker is only stopped when the function-local `static Retriever` is
-// destroyed at process exit (after main returns), which blocked ^C for 4–10 s
-// while an in-flight embed pass finished. Called early in main()'s teardown.
+// 提示词 撕下回收人的背景 温暖。 已预热的工作线程 仅在函数时停止
+// -local `static Retriever` 被销毁于进程
+// 退出(主返回后),该退出被封存 ^C 4 - 10 s 时, 1 英寸
+// -flight 嵌入式通行证完成。 提前拨打 main() 撕裂的声浪。
 void rag_shutdown() {
-    try { shared_retriever().shutdown(); } catch (...) { /* best-effort */ }
+    try { shared_retriever().shutdown(); } catch (...) { /* 最佳-effort */ }
 }
 
 
@@ -561,12 +561,12 @@ private:
         auto res = shared_retriever().retrieve(q.query, q.k);
         if (!res.error.empty()) { err = res.error; return out; }
         mode = res.mode;
-        // A successful search that matched NOTHING is not a failure — but a
-        // bare empty result makes "corpus is irrelevant" indistinguishable
-        // from "index empty / Ollama down / no docs configured". Fold a short
-        // reason into the MODE label (which the shell renders as context, not
-        // as an error) so the model/user can tell why. err is left empty: a
-        // genuine failure already comes back via res.error above.
+        // 匹配的成功搜索 无内容 并不是失败,而是空洞的结果,
+        // "corpus is irrelevant" 无法区分
+        // "index empty / Ollama down / no docs configured".（索引为空、Ollama 不可用，或未配置文档。）
+        // 归并 进入 MODE 标签( 其外壳) 渲染 而不是
+        // 错误) model/user 错误是空的: 真正
+        // 的失败已经通过 res.error 上节。
         if (res.passages.empty()) {
             mode = res.mode.empty()
                  ? "no matches (no docs indexed — set AGENTTY_DOCS_DIR, or none "
@@ -591,14 +591,14 @@ private:
 
 
 // ── CodeRetriever ──────────────────────────────────────────
-//   definition-aware source chunks; BM25 is always available and a bounded
-//   Ollama probe enables dense retrieval. A pruned 4,000-file manifest detects
-//   drift, and small edit sets update only changed files.
+//   定义 -aware 源块; BM25 总是可以使用,
+//   并且有界限 Ollama 探测器可以进行密集检索。 -file
+//   显示检测漂移, 且小编辑集更新仅更改文件。
 class AgenttyCodeRetriever final : public mt::DocRetriever {
 public:
-    // Opportunistic queries (structural zero-hit leads, over-budget ordering)
-    // must never trigger a cold code-index build — only explicit search_code
-    // calls pay that. Warm ⇔ index live in memory or persisted on disk.
+    // 机会性查询(结构零) -hit 领队,完毕 -budget 命令)
+    // 绝不能触发冷码 -index 建楼——只明确 search_code
+    // 调用 支付。温暖的指数生活在 内存 或坚持在磁盘上。
     bool warm() const override { return shared_retriever().code_warm(); }
 
     std::vector<mt::DocPassage>
@@ -623,79 +623,79 @@ public:
 };
 
 // ── SubagentRunner ─────────────────────────────────────────────────────
-//   Backs the task tool. The ENTIRE isolated agent loop — agent-type role
-//   prompts, the per-completion stream reassembly, local tool dispatch, the
-//   activity feed pumped to the parent card via progress::emit, the report
-//   harvest — lives here, lifted verbatim from the native task tool. The
-//   shell owns only the schema + the availability gate; run() does the work.
+//   返回任务工具。 整个 孤立代理循环——代理 -type
+//   角色 提示词 ,每笔 -completion 数据流 重新组装,
+//   本地工具 分派 ,通过泵入母卡的活动反馈 progress::emit
+//   报告收成——住在这,从本地任务工具中逐字取消。
+//   模式定义 + 可用门; run() 做工作,我们的工作。
 //
-//   The native task tool's `display_description` arg is UI-only and stays in
-//   the shell's schema; run() never needs it.
+//   本地任务工具的 `display_description` 参数为 UI-only
+//   留在壳里 模式定义; run() 永远不需要它。
 
-// Where an agent persona came from — the provenance the task card surfaces
-// so a repo-injected agent is never invisible (transparency, not a gate).
-} // namespace (anonymous)
+// 特务人物来自哪里 任务卡的出处如此浮现 仓库
+// -injected 代理从不隐形(透明,不是大门).
+} // 命名空间( 匿名)
 enum class AgentOrigin : std::uint8_t { Builtin, User, Project };
 
 struct AgentType {
     std::string_view              name;
     bool                          read_only;
     std::string_view              role;
-    std::vector<std::string_view> allow;   // empty ⇒ all (minus task)
+    std::vector<std::string_view> allow;   // 全部空( 减去任务)
     smart::ModelRole              model_role = smart::ModelRole::Utility;
-    // Where this persona came from. Built-ins and the user's OWN
-    // ~/.agentty/agents are trusted-by-authorship; a PROJECT-scoped agent
-    // rode in on the workspace (a clone could inject its role prompt), so the
-    // task card surfaces "project agent" — not a block, just so an injected
-    // persona is never invisible. Mirrors the plugins picker's scope badge.
+    // 这个人从哪里来,建起来的 -ins 和用户的 自身
+    // ~/.agentty/agents 信任的选项 -by-authorship;
+    // a PROJECT-scoped 探员骑着马冲进来了 工作区 (克隆人可以起
+    // 其作用) 提示词 ),所以任务卡表面 "project agent" ——不是块,
+    // 只是这样一个被注入的人a就永远看不见。镜像插件 选择面板 瞄准镜徽章
     AgentOrigin                   origin = AgentOrigin::Builtin;
 };
 
-// ── User-defined agents (.agentty/agents/*.md) ─────────────────────
-// A user agent is a markdown file whose BODY becomes the role prompt and
-// whose frontmatter configures the sandbox:
+// ── 用户 -defined 代理人( 4) .agentty/agents/*.md) ─────────────────────
+// 用户代理是一个标记下的文件,其 BODY 成为角色
+// 提示词 和它的前题, 沙箱:
 //
 //     ---
-//     description: Reviews SQL migrations for safety.   # for the catalog
-//     tools: read grep glob list_dir                     # allowlist (opt)
-//     read-only: true                                    # effect gate (opt)
+//     说明:审查 SQL 移民是为了安全。 # 目录 工具:读取 grep
+//     glob list_dir                     #
+//     允许清单 (备选案文)改为 -only : 真实的 # 副作用 门( opt)
 //     ---
-//     Your role: MIGRATION REVIEWER. Check every migration for …
+//     你的角色是: 爱丽丝·卡西尔·卡西姆·卡西 MIGRATION REVIEWER 检查每一个迁移...
 //
-// Roots (project first, then user; first name wins — mirrors commands/
-// skills): .agentty/agents, .agents/agents, .claude/agents, then the same
-// three under ~. Built-in types always win over a user agent of the same
-// name (a user file can't silently replace `general`).
+// 根( 项目先, 然后是用户; 先名胜出—— 镜像) commands/ 技能:
+// .agentty/agents, .agents/agents,
+// .claude/agents ,然后在~下设置相同的三个. -in 类型总是会战胜
+// 一个同名用户代理(用户文件无法默默替换) `general`).
 //
-// Storage note: AgentType's fields are string_views into `owned`. A
-// generation is immutable once published; a subagent run holds a
-// ResolvedAgent, which keeps its generation alive for the whole run, so a
-// rescan never frees what a run is reading and an old generation dies with
-// its last run.
+// 存储便条 : AgentType 字段为
+// string_views 输入 `owned`。
+// 一代人就是,我们不是可变 已发布; 子代理运行持有
+// ResolvedAgent 使一代人能活着 永远无法释放 阅读的一幕
+// 一代人终究会死去
 struct UserAgentStore {
-    std::vector<std::unique_ptr<AgentType>> types;   // stable addresses
-    std::deque<std::string>                 owned;   // element-stable backing
+    std::vector<std::unique_ptr<AgentType>> types;   // 稳定地址
+    std::deque<std::string>                 owned;   // 元素 -stable 辅助
     std::string                             sig = "\x01uninit";
 };
 
 } // namespace agentty::tools
-// AgentType's string_views point at string literals (built-ins) or into its
-// UserAgentStore's `owned` deque, which nothing writes after publish and
-// which lives as long as the store. A run holds the store (ResolvedAgent),
-// so the views never outlive their bytes. That makes a const AgentType
-// Frozen; jaal can't see it because views are refused on principle.
+// AgentType's string_views 字符串字节的点( 已建)
+// -ins 或进入 UserAgentStore's `owned` 时间
+// 是出版后没有写字的,而且只要商店存续,店里就会有跑步(例如: ResolvedAgent ),
+// 所以观点永远没有超过他们 字节。这让一个康斯特 AgentType 冻死;
+// jaal 无法看出来 因为原则上拒绝观点
 MAYA_FROZEN(agentty::tools::AgentType);
 namespace agentty::tools {
 namespace {
 
-// Leaked so a run abandoned at the shutdown grace can still read it while
-// statics go; the generations themselves are refcounted.
+// 漏掉的,所以在关闭的恩典上弃置的跑步,
+// 仍然可以在静态的走动时读到它;世代本身被重新计算.
 maya::published<const UserAgentStore>& user_agent_gen() {
     static auto* g = new maya::published<const UserAgentStore>;
     return *g;
 }
 
-// Frontmatter subset parser (same lenient rules as commands/skills).
+// 前题子集 解析器 (与《公约》相同的宽大规则) commands/skills).
 void parse_user_agent(const std::string& raw, const std::string& slug,
                       AgentOrigin origin, UserAgentStore& store) {
     auto trim = [](std::string_view v) -> std::string {
@@ -719,8 +719,8 @@ void parse_user_agent(const std::string& raw, const std::string& slug,
             std::string v = trim(line.substr(colon + 1));
             if      (k == "tools")     tools_line = v;
             else if (k == "read-only") read_only = (v == "true" || v == "1" || v == "yes");
-            // description consumed by extra_agent_types' caller via the
-            // task-tool description; not needed in the AgentType itself.
+            // 说明 extra_agent_types ' 通过任务呼叫
+            // 者 -tool 说明; 不需要在 AgentType 自己来
         }
         if (body_start != std::streampos(-1))
             body = trim(raw.substr(static_cast<std::size_t>(body_start)));
@@ -737,7 +737,7 @@ void parse_user_agent(const std::string& raw, const std::string& slug,
     at->model_role = read_only ? smart::ModelRole::Utility
                                : smart::ModelRole::Implementation;
     at->origin = origin;
-    // Whitespace-split tools allowlist — each token stored owned.
+    // 空白空间 -split 工具 允许清单 ——每个存储的代币都拥有.
     std::istringstream ts(tools_line);
     std::string tok;
     while (ts >> tok) {
@@ -747,8 +747,8 @@ void parse_user_agent(const std::string& raw, const std::string& slug,
     store.types.push_back(std::move(at));
 }
 
-// Scan the six roots; publish a new generation when the mtime signature
-// moves. Returns the current generation.
+// 扫描 6 根; 当 mtime 签名移动时发布新一代。
+// 返回当前生成。
 std::shared_ptr<const UserAgentStore> user_agents() {
     namespace fs = std::filesystem;
     std::string sig;
@@ -773,12 +773,12 @@ std::shared_ptr<const UserAgentStore> user_agents() {
         }
     };
     auto home = agentty::util::home_dir_or_empty();
-    // Root ladder from scope::plan (Locus-major, Dialect-minor): project
-    // .agentty ▷ .agents ▷ .claude ▷ the same three under ~. Same order the
-    // hand-written array had; project stays cwd-relative. Built-ins still win
-    // over any user agent of the same name (enforced in the load loop below).
-    // Each root carries its scope origin so the task card can surface a
-    // "project agent" tag (a repo-shipped persona is never invisible).
+    // 根梯子从 scope::plan (乐库) -major 对话框 -minor 项目。
+    // agentty ..代理 . . .. . 宣布 ~ 下的3个相同。 . 同样的命令
+    // 手 -written 数组有; 项目保持 cwd -relative。 已建成 -ins
+    // 仍然会战胜任何同名用户代理( 强制于 加载 )),该机型为: round below.
+    // 每个根都带有其范围源,所以任务卡可以浮出a "project agent"
+    // 标签(a) 仓库-shipped 人性永远是无形的。
     std::vector<std::pair<fs::path, AgentOrigin>> roots;
     {
         scope::Env env;
@@ -800,9 +800,9 @@ std::shared_ptr<const UserAgentStore> user_agents() {
     auto next = std::make_shared<UserAgentStore>();
     next->sig  = sig;
     UserAgentStore& store = *next;
-    // std::deque never moves existing elements on push_back, so the
-    // string_views taken into owned.back() stay valid even for SSO-small
-    // strings (a vector would move the inline bytes on reallocation).
+    // std::deque 永远不要移动已有元素 push_back ,所以,
+    // 请 string_views 已纳入 owned.back (a) 即使在下列情况
+    // 下仍有效: SSO-small 字符串( 向量会移动内线) 字节 资源重新分配。
     constexpr std::size_t kMaxUserAgents = 32;
     constexpr std::size_t kMaxAgentBytes = 32 * 1024;
     static const char* kBuiltins[] = {"explorer","reviewer","tester",
@@ -838,13 +838,13 @@ std::shared_ptr<const UserAgentStore> user_agents() {
         if (store.types.size() >= kMaxUserAgents) break;
     }
     std::shared_ptr<const UserAgentStore> out = std::move(next);
-    // Lost a race to another scan: theirs saw the same files, use it.
+    // 输了 竞态 以进行另一个扫描:他们的文件看到了相同的文件,使用它。
     if (!user_agent_gen().publish_if(cur, out))
         if (auto won = user_agent_gen().current()) return won;
     return out;
 }
 
-// Names of the discovered user agents (for the task tool's enum).
+// 已发现用户代理的名称(用于任务工具的枚举).
 std::vector<std::string> user_agent_names() {
     const auto store = user_agents();
     std::vector<std::string> out;
@@ -853,7 +853,7 @@ std::vector<std::string> user_agent_names() {
     return out;
 }
 
-} // namespace (anonymous)
+} // 命名空间( 匿名)
 
 std::vector<std::string> project_agent_names() {
     std::vector<std::string> out;
@@ -864,11 +864,11 @@ std::vector<std::string> project_agent_names() {
 
 namespace {
 
-// An agent type and what keeps it alive: a built-in lives forever, a user
-// type lives in its generation, which the handle holds for as long as the
-// run that asked for it.
+// 一个代理类型和它能维持生存的事物:一个build-in永远的存活,
+// 一个用户类型生活在它的一代,而这个功能的控件持有的时间与要求它
+// 运行的运行时间一样长.
 struct ResolvedAgent {
-    std::shared_ptr<const UserAgentStore> store;   // null for a built-in
+    std::shared_ptr<const UserAgentStore> store;   // 已建的-in 无效
     const AgentType*                      type;
     const AgentType& operator*()  const noexcept { return *type; }
     const AgentType* operator->() const noexcept { return type; }
@@ -915,37 +915,37 @@ ResolvedAgent resolve_agent_type(std::string_view t) {
     };
     for (const auto& a : kTypes)
         if (a.name == t) return {nullptr, &a};
-    // User-defined agents (.agentty/agents/*.md): consulted after the
-    // built-ins so a user file can never shadow `general` etc.
+    // User-defined代理(.agentty/agents/*.md):在
+    // 建置-ins之后咨询,所以用户文件永远不能阴影`general`等.
     auto gen = user_agents();
     for (const auto& ua : gen->types)
         if (ua->name == t) return {gen, ua.get()};
     return {nullptr, &kTypes.back()};
 }
 
-// Did the subagent's OWN report say it failed?
+// 副特工的OWN报告是否称失败了?.
 //
-// The exit path can't always tell. An agent that burns its turn budget, or
-// decides mid-way that it can't proceed, often still returns a well-formed
-// final message — and that message says, in plain words, that it did not do
-// the work. Reporting that as a success is worse than useless: the caller
-// (a model or a human skimming a ✓) acts on an outcome that never happened.
-// This was observed exactly once and was enough: a coder subagent reported
-// "Task NOT completed … made zero edits", and the UI rendered ✓ DONE.
+// 退出之路并不总是能分辨出来,一个会消耗其转弯预算或
+// 决定中途 -way 无法继续, 往往仍然返回一个井
+// -formed 最后的信息——简言之,这一信息说它
+// 没有做工作。 报告说,成功比无用更糟糕:召唤者(
+// 一个模型或一个人类滑动)对从未发生的结果采取行动。
+// 这一点已经观察到一次,而且足够:一个编码子剂报告了
+// "Task NOT completed … made zero edits",UI使DONE。
 //
-// Deliberately CONSERVATIVE — a false positive downgrades a good run to a
-// warning, so we only match unambiguous self-declarations, anchored near the
-// start of the report where a verdict lives. Prose like "the previous
-// approach did not work, so I fixed it" must NOT trip this, which is why
-// there is no bare "did not work" / "failed" pattern.
+// 故意的 CONSERVATIVE ——假阳性降级 良好跑到警告, 所以我们只是
+// 匹配 毫不含糊的自我 -declarations ,在报告开头处锁定,
+// 判决的根据是 "the previous approach did not work, so I fixed it"
+// 不得 绊倒这段,这就是为什么没有赤裸的 "did not work"
+// / "failed" 模式。
 [[nodiscard]] bool subagent_self_reported_failure(const std::string& report) {
-    // Only inspect the opening of the report: a verdict is stated up front
-    // (an "## OUTCOME" header, a first line). Scanning the whole body would
-    // match narration of intermediate failures that were later fixed.
+    // 报告开篇时只检查一下:判决在前面(第
+    // "## OUTCOME" 头文件号,第1行),
+    // 扫描整个第正文号,将符合后来确定的中间故障的叙述。
     constexpr std::size_t kVerdictWindow = 400;
     std::string head = report.substr(0, std::min(report.size(), kVerdictWindow));
     for (auto& c : head) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    // Strip markdown emphasis so "**Task NOT completed**" matches too.
+    // 将标记下的重点从这里删除 "**Task NOT completed**" 火柴也一样。
     std::string flat;
     flat.reserve(head.size());
     for (char c : head)
@@ -973,14 +973,14 @@ ResolvedAgent resolve_agent_type(std::string_view t) {
 }
 
 std::string subagent_system_prompt(Io io, const AgentType& type) {
-    // A local model gets the same compact prompt (with its "do the work,
-    // never refuse a big task" rules) the main turn gives it. The lean hosted
-    // prompt left `agentty run` and every subagent on a small local model
-    // without them, which is the refusal in #91.
+    // 本地模型得到同样的紧凑 提示词 (以千美元计)
+    // 完成工作，不要因为任务较大就拒绝。
+    // 主转弯给它。 提示词 左边 `agentty run` 和每个副剂
+    // 一个小的地方模型 没有他们, 这是91。
     const auto sel = provider::active();
     std::string base = provider::uses_local_prompt(sel)
         ? provider::local_system_prompt_for(sel)
-        : provider::default_system_prompt(io, /*lean=*/true);
+        : provider::default_system_prompt(io, /*倾斜=*/true);
     base += "\n\n<subagent>\n";
     base += std::string{type.role};
     base +=
@@ -1033,37 +1033,37 @@ std::string summarize_call(const ToolUse& tc) {
     return s;
 }
 
-// What one run did, for `agentty run`. The task tool passes none.
+// 跑的什么,因为 `agentty run`。任务工具没有通过。
 struct RunStats {
-    std::string model;          // wire id of the last request
-    int  max_turns = 0;         // overrides the role's budget when > 0
-    std::optional<std::chrono::seconds> wall;   // overrides the wall clock
-    bool read_only  = false;    // drop write/exec/net tools, refuse them if called
-    bool no_network = false;    // drop net tools, refuse them if called
-    std::optional<Effort> effort;   // --effort; unset keeps subagents' default (off)
-    bool events = false;        // stream reasoning/text as --events jsonl lines
-    // Earlier conversation to continue (--resume). The new prompt is appended.
+    std::string model;          // 上次请求的传输 id
+    int  max_turns = 0;         // 大于 0 时覆盖角色的预算
+    std::optional<std::chrono::seconds> wall;   // 覆盖墙壁钟
+    bool read_only  = false;    // 丢弃 write/exec/net 工具, 如果调用, 则拒绝
+    bool no_network = false;    // 放下净工具, 拒绝工具, 如果调用
+    std::optional<Effort> effort;   // --effort; 未设置保存子代理默认值( 关闭)
+    bool events = false;        // 数据流 reasoning/text 以 --events jsonl 线条
+    // 继续先前的对话(第3段) --resume 新的( ) 提示词 现附上。
     std::vector<Message> history;
-    // The whole conversation when the run ends, to save it.
+    // 整个对话 当运行结束, 到保存。
     Thread final_thread;
     int  turns = 0;
     int  tool_calls = 0;
     int  tool_errors = 0;
     long long input_tokens = 0;
     long long output_tokens = 0;
-    long long last_input_tokens = 0;   // prompt size of the last request
-    long long context_window = 0;      // what the request was sized for
-    bool context_full = false;         // the window ran out
+    long long last_input_tokens = 0;   // 提示词上次请求的大小
+    long long context_window = 0;      // 请求的大小
+    bool context_full = false;         // 窗户跑出来了
     bool cancelled = false;
     bool deadline_hit = false;
     bool budget_exhausted = false;
     bool doomed = false;
-    std::string last_error;     // provider/stream error, if the run ended on one
-    std::string answer;         // the model's final text, no banners
+    std::string last_error;     // provider/stream 错误, 如果运行结束在一个
+    std::string answer;         // 模特儿的最后文本,没有横幅
 };
 
-// Whether a run may use a tool. Used both for the list the model sees and
-// again when it calls one, so an unlisted tool can't run anyway.
+// 运行是否使用工具。 模式在列表中既看到, 也看到 调用 one
+// 时再次使用, 因此未列出的工具无论如何都无法运行。
 bool subagent_tool_allowed(const tools::ToolDef& t, const AgentType& type,
                            const RunStats* stats) {
     if (t.name.value == "task") return false;
@@ -1093,66 +1093,66 @@ provider::StreamResult run_one_completion(Thread& thread,
                               const CallContext& ctx,
                               const subagent::RunRegistration* run_reg = nullptr,
                               RunStats* stats = nullptr) {
-    // Provider-agnostic request — the generic shape every transport accepts.
-    // fresh_auth_header refreshes the ANTHROPIC OAuth token from disk; on any
-    // other backend it would CLOBBER the provider's key with Anthropic
-    // credentials, so gate it on the active provider kind.
+    // Provider-agnostic 请求 - 通用形状 传输层 接受 接受这个建议吧
+    // fresh_auth_header 刷新该 ANTHROPIC 磁盘上的 OAuth 令牌;
+    // 在任何其他后端上它都会 CLOBBER 提供者的密钥,
+    // 带有 Anthropic 凭据 ,所以打开它 活跃的提供者类型。
     provider::Request req;
-    // Model routing: read-only roles (explorer/reviewer) do grunt work —
-    // read/grep/map/summarise — a small model handles as well as a flagship
-    // for a fraction of the cost, so route them to a cheaper model the ACTIVE
-    // provider offers. Write-capable roles (coder/tester/general) keep the
-    // parent model, because their edits must match the parent's quality. The
-    // router never routes UP, so a single-model or Opus-only provider sees no
-    // change.
+    // Model 路由: 已读 -only 角色( 4) explorer/reviewer
+    // 做点心工作 - read/grep/map/summarise 小型的
+    // 模型手柄和旗舰 成本的一小部分,所以引导它们到更便宜的模型 活动 供应商提议。
+    // Write-capable 角色( 4) coder/tester/general
+    // ) 保留父模式,因为其编辑必须符合母模式的质量。路由器从不运行 UP ,
+    // 所以一个 -model 或 Opus 键 -only 提供者不见
+    // 变化。
     //
-    // It can now route ACROSS providers, but only for a slot the user pinned
-    // on another endpoint and only with cross_provider_roles on — see
-    // RoleConfig. Off (the default) it behaves exactly as it always did.
+    // 现在可以走路了 ACROSS 提供者,但仅用于一个插槽,用户被固定在另一个端点上,
+    // 并且只使用 cross_provider_roles 上—
+    // —见 RoleConfig 关闭(默认)它的行为与它一贯一样。
     //
-    // Layer 3b: when Smart Mode subagent routing is on, resolve each worker's
-    // model by its ROLE (explorer→Utility, reviewer→Strategic, coder/tester/
-    // general→Implementation) through the shared resolver instead — honouring
-    // the user's pinned slots. Off ⇒ exactly the existing tier auto-router.
+    // 第3层b:当智能模式子代理路由启动时,将每个子代理解决 工作线程
+    // 以它为模式 ROLE (探索者-效用、审查者-战略、
+    // coder/tester/ 普通 – 执行) 通过共享解析器 –
+    // 遵守用户的固定槽。 关闭 QQ 准确的 现有级自动 -router.
     //
-    // The provider this delegation dispatches to, when it is NOT the active
-    // one. Empty is the normal case. Set by whichever branch resolves the
-    // role below, then validated once after both.
+    // 此代表团的提供者向 不 发送一个活动方。
+    // 空是正常的。 由解决下面角色的分支设置,
+    // 然后在两者之后验证一次。
     std::string route_provider;
     if (cfg.smart.subagent_routing()) {
-        // resolve_subagent_role hard-clamps effort to the parent's (Effort::None
-        // here, so effort stays off — a worker never thinks harder than the
-        // turn that spawned it). Model routing is unchanged: explorer→Utility,
-        // reviewer→Strategic, coder/tester/general→Implementation.
+        // resolve_subagent_role 难 -clamps 父母(父母)
+        // 的努力 Effort::None 努力不要太过紧张 工作线程 从来没有
+        // 比它产生的转弯更难思考。 Model 路线不变:探险家_用户,审查者_战略,
+        // coder/tester/general ——实施.
         smart::RoleProfile role_prof =
             smart::resolve_subagent_role(type.model_role, cfg.model,
                                          Effort::None, cfg.candidates,
                                          cfg.smart, cfg.provider);
         req.model  = role_prof.model;
-        // provider::Request.effort is the WIRE string; convert the clamped
-        // Effort through the resolved model's capabilities (None → "", i.e.
-        // effort off — which is the case today since parent_effort is None).
+        // provider::Request . 功劳是: . 传输 字符串;
+        // 通过解析模型的能力转换被夹住的“努力”(无 →) "", i.e.
+        // ——自此,今天的情况就是如此。 parent_effort 则无)。
         req.effort = std::string(effort_wire_for(
             role_prof.effort,
             role_prof.provider.empty() ? resolved_caps(role_prof.model)
                                        : resolved_caps(role_prof.model, role_prof.provider)));
         route_provider = role_prof.provider;
     } else {
-        // Read-only roles are routed DOWN from the parent, but only to the
-        // Mid tier, not the cheapest thing on the provider.
+        // 读取 -only 角色为路由 DOWN 从父母,
+        // 但只到中层, 不是最便宜的东西在提供者。
         //
-        // The floor used to be Cheap, which on Anthropic means every
-        // explorer ran on Haiku while the parent was Opus — tier 1 doing the
-        // investigation for tier 3. Exploring a codebase is not mechanical:
-        // it is deciding which of 40 grep hits matter, and a weaker model
-        // spends its turns reading the wrong files and then summarises them
-        // confidently. Zed does not downgrade at all; Mid is the middle
-        // position.
+        // 地板上曾经是便宜的,在 Anthropic
+        // 意思是每个探险家在父母是Opus时 跑到海库上
+        // —— 第1级负责调查第3级 代码库 非机械性 :
+        // 它决定40 grep 中哪一个是重要的,
+        // 一个较弱的模型会用转弯时间读错文件,
+        // 然后自信地总结它们。 Zed 根本不降级;
+        // 中位是中间位置。
         //
-        // Through role_target, so a pinned --model is honoured here too.
-        // This branch used to call cheapest_capable_model directly, which
-        // meant turning Smart Mode OFF did not stop routing -- it fell
-        // through to this router instead (#70).
+        // 通关 role_target ,所以钉 --model 也很荣幸
+        // 这个分支曾经 调用 cheapest_capable_model 直接,
+        // 意思是 变换智能模式 OFF 并没有停止线路的运行—
+        // —它掉到这个路由器上(#70).
         if (type.read_only) {
             auto t = smart::role_target(cfg.model, cfg.candidates, cfg.smart,
                                         ModelCapabilities::Tier::Mid,
@@ -1164,13 +1164,13 @@ provider::StreamResult run_one_completion(Thread& thread,
         }
     }
 
-    // ONE place decides whether a cross-provider target is reachable.
+    // 一个 位置决定是否十字 -provider 目标可以达到。
     //
-    // Both branches above can name a foreign provider, and a resolver that
-    // says "run on Groq" is only correct if something here can actually
-    // dispatch there -- otherwise it is a model id sent to an endpoint that
-    // never heard of it, which is a 404 on every delegation. Checking it
-    // once, after both branches, is why the two cannot disagree.
+    // 上面的两家分公司都可以给外国供应商起名 并且可以给
+    // 一个解答者起名 "run on Groq" 只有这里
+    // 的东西能真正做到 分派 —— 否则,它就是一个从未听说
+    // 过的模范ID, 在每个代表团上都是404。在两个分支之后,
+    // 检查一次,就是为什么两个部门不能不同意。
     if (!route_provider.empty() && !cfg.stream_to) {
         AGT_LOG(Smart, Debug, "route.cross_provider_unavailable",
                 "provider={} model={} falling back to active",
@@ -1180,21 +1180,21 @@ provider::StreamResult run_one_completion(Thread& thread,
             ModelCapabilities::Tier::Mid);
         route_provider.clear();
     }
-    // A subagent NEVER needs the 1M/2M extended-context window: it does a
-    // bounded burst (8k output, tool results capped to 8 KiB, up to 24 turns)
-    // that comfortably fits the base 200K window. Carrying the parent's
-    // picker-only `[1m]`/`[2m]` marker here would make the transport send the
-    // entitlement-gated `context-1m-2025-08-07` beta, which 400s with
-    // "long context beta is not yet available for this ..." on accounts
-    // without the entitlement (or when the flagship parent's cheaper subagent
-    // model isn't 1M-eligible) — killing the whole fan-out. Strip the marker
-    // unconditionally: robust (never trips the beta) and economical (subagents
-    // pay for the window they actually use). cheapest_capable_model already
-    // returns a clean id when it finds a cheaper model; this also covers the
-    // "kept the parent" fallback and the write-role (cfg.model) path.
+    // 副代理商 绝不 需要的帮助 1M/2M 延长 -context 窗口:
+    // 它执行一个有界限的破裂(8k输出,工具结果封顶到8) KiB ,
+    // 最多24个转弯),可舒适地适应200K基数窗口。 选择面板-only
+    // `[1m]`/`[2m]` 标记在这里,会使 传输层 发送应享待遇
+    // -gated `context-1m-2025-08-07` β,
+    // 400s与(或)
+    // "long context beta is not yet available for this ..."（当前订阅尚未开放长上下文测试功能。）
+    // 或当旗舰母舰更便宜的副剂型号不是1M时 -eligible )——杀死整个扇子.
+    // -out。无条件剥离标记:坚固(从未穿过β)和节约(水手支付他们实际使用的窗户)。
+    // cheapest_capable_model 找到更便宜的模型时,
+    // 已经返回一个干净的 ID。 这也覆盖了 "kept the parent"
+    // 回退 写作 -role (cfg.model 路径。
     req.model         = agentty::wire_model_id(req.model);
-    // `agentty run --effort`: the user asked this run to think. Clamped to
-    // what the routed model takes; visible so --events can show it.
+    // `agentty run --effort` :用户要求此运行思考。
+    // 粘贴到路由模型的用法; 可见于此 --events 能够显示它。
     if (stats && stats->effort) {
         const auto caps = resolved_caps(req.model);
         req.effort = std::string(effort_wire_for(*stats->effort, caps));
@@ -1202,51 +1202,51 @@ provider::StreamResult run_one_completion(Thread& thread,
         req.no_reasoning   = *stats->effort == Effort::None;
         req.reasoning_off  = caps.reasoning_off;
     }
-    // --events wants the reasoning a model produces even without --effort
-    // (deepseek-r1 and friends always think). Not on Anthropic: there it
-    // only means anything with effort on, which is handled above.
+    // --events 想要一个模型产生的推理,
+    // 即使没有 --effort (深处) -r1 朋友总是会想的,
+    // 不是在 Anthropic : 在那里,它只意味着任何努力,上面处理。
     if (stats && stats->events && ctx.depth == 0
         && provider::active().kind != provider::Kind::Anthropic)
         req.show_reasoning = true;
-    // The model's real context window, from the SAME catalog the model was
-    // routed out of.
+    // 模型的真实背景窗口,从 相同 目录 模型
+    // 被运出。
     //
-    // AFTER wire_model_id(), deliberately. Catalog ids carry picker-only
-    // markers (`[1m]`/`[2m]`) that the wire id strips, so matching before
-    // the strip missed on exactly the rows that have a marker — and matching
-    // after means one id shape on both sides.
+    // 之后 wire_model_id (),故意的。 目录 标识符
+    // 选择面板-only 标记( 4) `[1m]`/`[2m]` ,
+    // 该 传输 id条,所以在条形错失了准确的有标记的行之前进行匹配——
+    // 在后进行匹配意味着两侧有一个id形状.
     //
-    // This was never set here at all, so every subagent turn (and every
-    // `agentty run`, which is this same loop) dispatched with
-    // context_window=0: the Ollama transport then could not size
-    // options.num_ctx and fell back to the daemon's ~2k/4k default,
-    // truncating exactly the long runs headless exists for. The main reducer
-    // fills it at cmd_factory.cpp:954; two loops that both build requests
-    // must both fill them in, which is the asymmetry the comment below has
-    // been warning about.
+    // 从来没有在这里设定过,所以每个副剂转弯(和每个
+    // `agentty run` ,这个循环是相同的)
+    // context_window =0: 数字 Ollama
+    // 传输层 无法大小 options.num_ctx 回到
+    // 守护神的身边 ~2k/4k 默认, 切换到正中存在的长行无头。
+    // 主 状态更新函数 填满它 cmd_factory.cpp :954;
+    // 两个循环,两个构建请求都必须同时填充,这是下面的评论
+    // 警告过的不对称.
     for (const auto& mi : cfg.candidates) {
         if (agentty::wire_model_id(mi.id.value) == req.model) {
             req.context_window = mi.context_window;
             break;
         }
     }
-    // A catalog MISS is not "unknown window", it is "this id is not in the
-    // list we happen to hold" — which is ordinary: the live catalog moves
-    // (a `-m claude-opus-4-5` pinned in settings outlives its row), a custom
-    // host may serve ids no catalog lists, and an offline run has only the
-    // bundled floor. Leaving 0 there pushes a WRONG answer downstream (the
-    // Ollama transport reads 0 as "use my tiny default"), so fall back to
-    // the model's own known window instead of a hole.
+    // A 目录 MISS 不是,是"我们",不是"我们" "unknown window" ,
+    // 这是 "this id is not in the list we happen to hold"
+    // ——这很普通:现场直播. 目录 移动(a) `-m claude-opus-4-5`
+    // 被绑定在设置中, 超过其行, 自定义主机可能服务 ids no 目录 列表,
+    // 离线运行中只有捆绑的地板。 WRONG 回答 下游 (无)
+    // Ollama 传输层 读作 0 "use my tiny default" ),
+    // 所以回到模型自己的已知窗口而不是洞.
     if (req.context_window <= 0)
         req.context_window = agentty::catalog_context_window_for(req.model);
-    req.system_prompt = subagent_system_prompt(IoAccess::grant(), type);   // subagent runs on a tool worker
-    // Smart-channel telemetry, the delegation half of the trace. Without this
-    // a debug log showed ONLY the Strategic turn: subagents dispatch on a
-    // worker thread through the same transport, so their requests appeared
-    // (if at all) as anonymous wire traffic with no role, no parent, and no
-    // indication they were delegations at all. One line per worker launch,
-    // naming the role, the model the router actually chose, and whether
-    // Layer 3b or the tier auto-router chose it.
+    req.system_prompt = subagent_system_prompt(IoAccess::grant(), type);   // 子代理运行于工具工作线程
+    // 聪明 -channel 遥测,代表团的半数追踪。
+    // 没有这个调试日志 仅 战略转动:副剂 分派 时间:
+    // 工作线程 线程 以相同方式 传输层 ,因此他们的请求
+    // (如果有的话)以匿名身份出现 传输 没有任何角色、
+    // 父母和任何迹象表明他们是代表团。 工作线程 启动、
+    // 命名角色、路由器实际选择的模型,以及Layle 3b或
+    // 阶梯自动 -router 选择了它。
     AGT_LOG(Smart, Debug, "route.subagent",
             "agent={} role_routing={} pinned={} read_only={} candidates={} "
             "parent_model={} model={} route_provider={}",
@@ -1258,27 +1258,27 @@ provider::StreamResult run_one_completion(Thread& thread,
             cfg.model,
             req.model,
             route_provider.empty() ? "active" : route_provider);
-    // Resolve auth LIVE from the ACTIVE provider through the central
-    // credential layer — the same discipline as launch_stream's
-    // auth_snapshot(). cfg.auth is a snapshot taken at the last
-    // update_auth/switch_provider; a background OAuth refresh or an
-    // in-picker account switch between then and this subagent's launch
-    // would ship a stale (or the WRONG provider's) credential — the exact
-    // 401 class fixed on the main turn path. cfg.auth remains the fallback
-    // for oauth_native/local providers whose transports own their own tokens
-    // (resolve returns empty there).
+    // 解析认证 LIVE 从 活动 通过中央提供商 凭据 层——与
+    // launch_stream's auth_snapshot().
+    // cfg.auth 是一个 快照 上一个
+    // update_auth/switch_provider ;
+    // 背景 OAuth 刷新或输入 -picker 在那之前和这副特工
+    // 发射之间 开关会传送一个 过期 (或 减 减 WRONG 供应商)
+    // 凭据 ——主转弯路径上固定的准确的401级. cfg.auth 现为 回
+    // 退 费用 oauth_native/local 供应者, 传输层 拥有
+    // 自己的符号( 在那里解析返回空)。
     //
-    // SKIPPED when route_provider is set: this resolves the ACTIVE
-    // provider's credential, which is the wrong one for a delegation going
-    // somewhere else. stream_to resolves the target's own auth — one
-    // credential lookup per request, done by whoever knows the destination.
+    // SKIPPED 何时 route_provider
+    // 设置: 活动 供应商 凭据 代表团去别的地方
+    // 是错的 stream_to 解决目标本身
+    // 的认证——一 凭据 由知道目的地的人进行搜索
     if (route_provider.empty()) {
         const auto sel = provider::active();
         const std::string pid =
             sel.kind == provider::Kind::OpenAI
                 ? sel.openai_endpoint.label
                 : std::string{provider::default_provider_id()};
-        auth::AuthHeader live = provider::credentials::resolve(IoAccess::grant(), pid);   // subagent, on a tool worker
+        auth::AuthHeader live = provider::credentials::resolve(IoAccess::grant(), pid);   // 子代理, 在一个工具工作线程上
         const bool live_real = !auth::bearer_token(live).empty()
             || std::holds_alternative<auth::BearerHeader>(live);
         req.auth = live_real
@@ -1289,27 +1289,27 @@ provider::StreamResult run_one_completion(Thread& thread,
                         ? auth::fresh_auth_header(IoAccess::grant(), ctx.capability(), cfg.auth)
                         : cfg.auth);
     }
-    // A subagent's job is to investigate and return a CONCISE standalone
-    // report — not to emit a 32k-token essay. The parent's default is 16k;
-    // 8k is ample for a report yet caps the per-turn output cost of a
-    // fan-out of parallel subagents (each turn otherwise billed at the full
-    // ceiling). The wrap-up nudge already forces a tight final report.
+    // 副特工的任务是调查并归还 CONCISE 独立报告—
+    // —不发射32k -token 散文。 父的默认值为 16k;
+    // 8k 足够报告, 但上限为每页。 -turn
+    // 扇形的输出成本 -out 平行亚剂(每面转弯,
+    // 在全天花板上计费)。 -up 已经逼迫了一份严谨的最后报告
     req.max_tokens    = 8192;
-    // A small served window (vLLM 4096) 400s a request whose max_tokens
-    // alone fills it; same cap as the main loop.
+    // 一个小的服务窗口(vLLM 4096) 400s 一个请求,
+    // 单是max_tokens就能够填补它;与主循环相同的盖.
     if (req.context_window > 0)
         req.max_tokens = std::min(req.max_tokens,
                                   std::max(256, req.context_window / 4));
     req.messages      = thread.messages;
-    // Same preflight the main loop runs. The subagent assembles its own
-    // request — its own thread, its own tool advertisement, its own
-    // trimming — so a defect here is invisible to cmd_factory's audit.
+    // 同样的飞行前主循环运行。 子代理组装自己的请求 —
+    // 自己的请求 线程 自己的工具广告,自己的修剪,
+    // 所以这里的缺陷是看不见的 cmd_factory 审计
     //
-    // That asymmetry is the class this codebase keeps relearning: the
-    // reasoning toggle honoured by 3 transports of 4, `args={}` seeded by
-    // the main reducer and not the subagent loop. Two loops that both
-    // build requests must both check them, or the one nobody watches is
-    // where the malformed payload comes from.
+    // 不对称是这一类 代码库 继续学习:推理 切换
+    // 3人获奖 传输层 4个 `args={}` 由主
+    // 种子栽培 状态更新函数 而不是子代理循环。两个循环,
+    // 两个循环, 都必须同时构建请求, 或者没有人看
+    // 的循环是错误的 载荷 来者.
     {
         const auto audit = app::cmd::audit_wire(req.messages);
         AGT_LOG(Model, Debug, "wire.shape",
@@ -1327,20 +1327,20 @@ provider::StreamResult run_one_completion(Thread& thread,
         }
     }
     req.cancel        = std::make_shared<http::CancelToken>();
-    // Stable per-subagent conversation identity so the shared prefix
-    // (heavy system prompt + tool schemas + accumulated tool results) is
-    // PROMPT-CACHED across this subagent's whole run instead of being
-    // re-encoded from scratch every turn. Keyed on the agent role + the task
-    // prompt so each spawned subagent gets its own stable cache lane and a
-    // fan-out of parallel explorers doesn't collide. Without this the single
-    // biggest subagent cost — re-sending the same large prefix every turn —
-    // pays full price on every one of those turns.
+    // 稳定人数 -subagent 对话身份,
+    // 所以共享前缀( 重度系统) 提示词 + 工具 模式定义
+    // + 累积工具结果)是 PROMPT-CACHED
+    // 超越了这副特工的整个运行 而不是重新 -encoded 从头开始,
+    // 每次转弯。按键在代理角色上 + 任务 提示词 所以每个
+    // 产卵亚体都有自己的稳定 缓存 车道和风扇 -out 没有这个,
+    // 最大的潜质成本是 -sending 每个转弯都有一个大
+    // 前缀——每个转弯都要支付全额价格。
     {
         std::string key = "subagent:";
         key += type.name;
         key += ':';
-        // A short stable digest of the task prompt (FNV-1a) keeps the key
-        // bounded and distinct per delegated task.
+        // 任务简短的稳定摘要 提示词 (FNV -1a)
+        // 保持按授权任务划分的钥匙。
         std::uint64_t h = 0xcbf29ce484222325ULL;
         for (unsigned char c : thread.messages.empty()
                                    ? std::string_view{}
@@ -1353,17 +1353,17 @@ provider::StreamResult run_one_completion(Thread& thread,
         key += buf;
         req.session_key = std::move(key);
     }
-    // Gateway stickiness follows the PARENT thread, so a fresh subagent goes
-    // straight to the backend the conversation already settled on (#118).
+    // 网关粘滞遵循PARENTXXXX 线程,所以一个新鲜
+    // 的副剂直接到后端,即已经解决的对话(#118).
     req.affinity_key = ctx.conversation;
 
     auto allowed = [&](const tools::ToolDef& t) -> bool {
         return subagent_tool_allowed(t, type, stats);
     };
     {
-        // Same plan as the main loop (#98): every allowed tool callable, the
-        // plan decides what rides the wire, tool_search finds the rest. The
-        // run's own history says what it already loaded.
+        // 与主循环相同的计划(#98):每个允许的工具可调用,
+        // 计划决定骑什么 传输, tool_search 找到剩下的,
+        // 跑步的历史已经说了些什么 已加载.
         const tools::Catalog cat = tools::wire_tools();
         tools::tool_loading::Request tr;
         for (const auto& t : *cat)
@@ -1380,23 +1380,23 @@ provider::StreamResult run_one_completion(Thread& thread,
     Message asst;
     asst.role = Role::Assistant;
     StopReason stop = StopReason::Unspecified;
-    // Usage can arrive more than once per request (start + delta), each one
-    // cumulative, so keep the biggest and add it once at the end.
+    // 用法可以超过一次地到达每个请求(开始+三角洲),
+    // 每个累积一次,所以保留最大,并在结尾加一次.
     long long req_in = 0, req_out = 0;
     if (stats) stats->model = req.model;
     std::unordered_map<std::string, std::string> tool_json;
-    // A StreamError that arrives MID-STREAM, after a 200 and some content.
+    // A StreamError 到达的 MID-STREAM ,在200个和一些内容之后。
     //
-    // The transport-level error paths (non-2xx status, connection failure)
-    // are reported by StreamResult, but a provider can also answer 200 OK,
-    // stream a few deltas, and then emit `{"error": {...}}` in place of a
-    // finish_reason. The decoder handles that shape correctly — and this
-    // loop's StreamError arm was EMPTY, so the message was decoded and
-    // thrown away. The turn then returned whatever partial text had arrived
-    // as if it had completed normally.
+    // 电话 传输层-level 错误路径( 非-2xx 状态,
+    // 连接失败) 由 StreamResult ,但提供者也可以回答
+    // 200 OK, 数据流 几瓶三角洲,
+    // 然后发射 `{"error": {...}}` 替换a finish_reason。
+    // 解码器处理正确形状——这个循环 StreamError 手臂是,
+    // 我们 空 ,所以电文被解码并丢弃。然后转弯返回到任何部分文本,
+    // 好像它正常完成一样。
     //
-    // Captured here and folded into last_error after the stream, so the
-    // subagent reports a failure instead of a truncated success.
+    // 被这里抓获,折成 last_error 之后 数据流 ,
+    // 所以副剂报告失败而不是短暂的成功.
     std::string stream_error;
 
     auto find_tool = [&](const ToolCallId& id) -> ToolUse* {
@@ -1405,18 +1405,18 @@ provider::StreamResult run_one_completion(Thread& thread,
         return it == asst.tool_calls.end() ? nullptr : &*it;
     };
 
-    // Throttled feed pump: a fast model streams hundreds of text deltas
-    // per second, and every progress::emit crosses a thread boundary as a
-    // ToolExecProgress Msg. ~12 fps is indistinguishable on the card and
-    // keeps a parallel fan-out of subagents from flooding the UI queue.
+    // 螺旋式饲料泵:快速型号 数据流 每秒数百个文本三角洲,
+    // 每秒 progress::emit 横跨 a 线程 边界为
+    // ToolExecProgress Msg. ~12 FPS 牌上是
+    // 无法区分的,并保持平行的扇形 -out 水淹的亚剂 UI 队列。
     auto last_pump = std::chrono::steady_clock::now()
                    - std::chrono::milliseconds(100);
     auto pump = [&](bool force = false) {
         auto now = std::chrono::steady_clock::now();
         if (!force && now - last_pump < std::chrono::milliseconds(80)) return;
         last_pump = now;
-        // Only the tail is ever shown, and `log` grows for the whole run:
-        // copy at most the last window of it instead of all of it per tick.
+        // 只有 末尾 曾经显示,和 `log` 整个运行时间 :
+        // 复制最多为每勾选一个窗口的最后一个窗口,而不是全部。
         constexpr std::size_t kKeep = util::kProgressKeep;
         const std::size_t sep = asst.text.empty() ? 0 : 6;
         const std::size_t want_log =
@@ -1429,7 +1429,7 @@ provider::StreamResult run_one_completion(Thread& thread,
         ctx.emit(snap);
     };
 
-    // Reasoning and answer text as --events lines; top-level run only.
+    // 说明理由和答复文本如下: --events 线条; 顶端 -level 运行。
     TextEvents text_events(stats && stats->events && ctx.depth == 0,
                            stats ? stats->turns + 1 : 0);
     auto sink = [&](Msg m) {
@@ -1447,13 +1447,13 @@ provider::StreamResult run_one_completion(Thread& thread,
                     ToolUse tc;
                     tc.id     = e.id;
                     tc.name   = e.name;
-                    // Seed `{}`, same as the main reducer. A tool with no
-                    // required arguments (`ls`, `git_status`) streams zero
-                    // argument deltas on every OpenAI-compatible wire, so
-                    // `args` stayed null and the dispatcher below read that
-                    // as "args failed to parse" — a working call reported to
-                    // the model as malformed. Absent arguments are an empty
-                    // object; only a FAILED parse may leave args null.
+                    // 种子 `{}` ,与主机相同 状态更新函数 .
+                    // 一种没有必要参数的工具( `ls`,
+                    // `git_status`) 数据流 每张零参数三角形
+                    // OpenAI-compatible 传输 ,所以,
+                    // 我说 `args` 无效,而且 分派器 改为:
+                    // "args failed to parse" - 一个工作 调
+                    // 用 参数是空的;只有 FAILED 解析 可能使参数无效。
                     tc.args   = json::object();
                     tc.status = ToolUse::Pending{std::chrono::steady_clock::now()};
                     asst.tool_calls.push_back(std::move(tc));
@@ -1461,11 +1461,11 @@ provider::StreamResult run_one_completion(Thread& thread,
                 } else if constexpr (std::same_as<T, StreamToolUseDelta>) {
                     tool_json[e.id.value] += e.partial_json;
                 } else if constexpr (std::same_as<T, StreamToolUseSnapshot>) {
-                    // ACP sends the whole args each time; replace, don't append.
+                    // ACP每次发送整个转子;替换,不要附加.
                     tool_json[e.id.value] = e.json;
                 } else if constexpr (std::same_as<T, StreamObservedToolResult>) {
-                    // An external agent already ran this call. Settle it so
-                    // the loop below doesn't run it a second time.
+                    // 一个外部特工已经运行了这个调用。 解决它,
+                    // 这样下面的循环就不会第二次运行它。
                     if (ToolUse* tc = find_tool(e.id)) {
                         const auto now = std::chrono::steady_clock::now();
                         std::string out = std::move(e.output);
@@ -1480,21 +1480,21 @@ provider::StreamResult run_one_completion(Thread& thread,
                     auto json_it = tool_json.find(e.id.value);
                     const std::string partial = json_it == tool_json.end()
                                               ? std::string{} : json_it->second;
-                    // An empty or whitespace-only buffer means the model sent
-                    // no arguments at all — `args` keeps the `{}` seeded at
-                    // Start. Providers also send a literal "" for this; treat
-                    // both the same way rather than parsing "" and failing.
+                    // 空或白空间 -only 缓冲区 意思是模型完全没有
+                    // 发出任何论据—— `args` 保留 `{}`
+                    // 种子于 Start。 供应商还发送一个字节 "" 这样做;
+                    // 对待两者的相同方式而不是 解析 "" 失败
                     const bool blank =
                         partial.find_first_not_of(" \t\r\n") == std::string::npos;
                     if (tc && !blank) {
                         try {
                             tc->args = json::parse(partial);
                         } catch (...) {
-                            // Truncated/unbalanced args JSON (stream cut, weak
-                            // model). Salvage by synthesising the missing
-                            // closers — but NEVER when the cut landed inside a
-                            // string VALUE: the repaired JSON would parse fine
-                            // and silently run a tool with a half-written body.
+                            // Truncated/unbalanced 参数
+                            // JSON (数据流 切,弱模型。
+                            // 通过合成缺失的近距离——但是 绝不 当切片落在
+                            // 字符串内时 值 : 修复的 JSON 将 解析 细
+                            // 细无声地运行一个工具 半 -written 正文.
                             if (!util::ended_inside_string(partial)) {
                                 try {
                                     tc->args = json::parse(
@@ -1510,10 +1510,10 @@ provider::StreamResult run_one_completion(Thread& thread,
                                              partial);
                             }
                         }
-                        // `cmd` → `command` etc. for the subagent's dispatcher
-                        // too — it funnels through the same ArgReader, but the
-                        // permission card and output panel read the canonical
-                        // key. (Laguna S 2.1 `cmd` finding.)
+                        // `cmd` → `command` 等,用于副剂的 分派
+                        // 器 也一样,它会漏斗穿过同样的 ArgReader ,
+                        // 但 权限 纸牌和输出面板读取犬形键。 (Laguna
+                        // S 2.1) `cmd` 寻找。 )
                         if (tc) (void)::agentty::app::detail::canonify_tool_args(
                                    tc->name.value, tc->args);
                     }
@@ -1521,7 +1521,7 @@ provider::StreamResult run_one_completion(Thread& thread,
                     if (tc) {
                         log += "\n  ⚙ ";
                         log += summarize_call(*tc);
-                        pump(/*force=*/true);
+                        pump(/*力=*/true);
                     }
                 } else if constexpr (std::same_as<T, StreamFinished>) {
                     stop = e.stop_reason;
@@ -1531,42 +1531,42 @@ provider::StreamResult run_one_completion(Thread& thread,
                     req_in  = std::max(req_in, in);
                     req_out = std::max(req_out, static_cast<long long>(e.output_tokens));
                 } else if constexpr (std::same_as<T, StreamError>) {
-                    // StreamResult is authoritative for TRANSPORT failures
-                    // (non-2xx, dropped connection) — but it cannot see an
-                    // error the provider streams INSIDE a 200 in place of a
-                    // finish_reason. That shape used to land here and be
-                    // dropped, so the turn returned its partial text as if
-                    // it had completed. First error wins: a provider that
-                    // emits several while unwinding is best described by
-                    // whatever broke first.
+                    // StreamResult 具有权威性 TRANSPORT
+                    // 失败(non-2xx, 已丢弃的连接) ——
+                    // 但是它不能看到提供者的错误。 数据流 内部 a
+                    // 200美元代替a finish_reason。
+                    // 用于在此降落和被丢弃的形状,所以转弯返回了它的
+                    // 部分文字,好像它已经完成了一样。第一个错误胜
+                    // 出:一个在解开时发出数个字的提供者最好先由任何
+                    // 断开的描述来描述。
                     if (stream_error.empty()) stream_error = e.message;
                 }
             }, *sm);
         };
 
-    // Route through the SAME provider dispatch the parent uses (installed
-    // at startup); fall back to the Anthropic transport when no seam is
-    // wired (tests that install only auth+model).
+    // 穿过该公路的路线 相同 提供者 分派 母用途(启动时安装);
+    // 返回 Anthropic 传输层 无时 接口边界
+    // 被传输(只安装认证+模型的测试)。
     provider::StreamResult result;
     auto cancel = req.cancel;
-    // Every source that can stop this stream, as callbacks. Zero threads,
-    // zero wakeups, and each fires the instant its source asks rather than at
-    // the next tick of a poll.
+    // 每一个可以阻止这一切的来源 数据流 ,
+    // 作为 回调 零点 线程 零醒,每一次点火 源头问,
+    // 而不是下一次投票时。
     //
-    //   run_reg   this specific run was asked to stop by
-    //             subagent::shutdown_running(), which then WAITS for it.
-    //             That is what closes the crash window rather than just
-    //             narrowing it: without something that waits, main() can
-    //             unwind while this thread is still inside cfg.stream(),
-    //             which holds the provider objects by reference.
-    //   parent    the user pressed escape, or the app is shutting down —
-    //             whatever the enclosing tool run published.
+    //   run_reg 请求此具体运行
+    //             subagent::shutdown_running (),然后是 WAITS 给它。
+    //             关闭坠机窗口 而不是缩小它: 没有等待的东西,
+    //             main() 可以在此时解风 线程
+    //             还在里面 cfg.stream (),
+    //             它通过引用来持有提供者对象.
+    //   父程序为用户按下逃逸键, 或应用程序正在关闭,
+    //             不论附加工具已发布。
     //
-    // This used to be a jthread polling both every 20 ms. A probe can only be
-    // polled; the tool layer publishes its cancellation as stop_tokens now,
-    // so there is nothing left to poll. If an enclosing caller ever installs
-    // a bare probe with no tokens behind it, that source is simply not
-    // watched mid-stream — the turn loop still checks it between turns.
+    // 这曾经是一次Jthread投票,每20米。
+    // 探测器只能通过投票;工具层发布其 取消 以
+    // stop_tokens 如果一个接线员安装了无任何
+    // 标志的光线探测器,那么这个来源就完全没有被监视在
+    // 中间 -stream 转弯圈仍然在转弯之间检查它
     using StopCb = std::stop_callback<std::function<void()>>;
     std::vector<std::unique_ptr<StopCb>> stop_cbs;
     const auto trip = std::function<void()>{[cancel] { cancel->cancel(); }};
@@ -1576,9 +1576,9 @@ provider::StreamResult run_one_completion(Thread& thread,
     if (ctx.cancelled()
         || (run_reg && run_reg->cancelled())) cancel->cancel();
     if (!route_provider.empty() && cfg.stream_to) {
-        // A role pinned on another endpoint. stream_to resolves that
-        // provider's own credential before dispatching — see the auth block
-        // above for why this path skips the active-provider lookup.
+        // 一个角色被另一个终点所左右。 stream_to 解决
+        // 提供者自己的问题 凭据 发送前 —— 参见上面的认证块,
+        // 以说明为什么此路径跳过活动区 -provider 寻觅.
         result = cfg.stream_to(ctx.capability(), route_provider, std::move(req), sink);
     } else if (cfg.stream) {
         result = cfg.stream(ctx.capability(), std::move(req), sink);
@@ -1586,12 +1586,12 @@ provider::StreamResult run_one_completion(Thread& thread,
         provider::anthropic::AnthropicProvider p;
         result = p.stream(ctx.capability(), std::move(req), sink);
     }
-    // Deregister before anything else runs: the callbacks capture `cancel`,
-    // and a late stop must not trip it once the stream has already settled.
-    // stop_callback's destructor blocks until a callback already in flight on
-    // another thread has returned, so this is race-free by the standard.
+    // 德利格斯特在一切运行前: 回调 抓取 `cancel`
+    // 晚停时不能绊倒它 数据流 已经解决了。
+    // stop_callback 破坏器块直到 回调 已经飞到另
+    // 一个 线程 已经返回,所以这是 竞态-free 标准。
     stop_cbs.clear();
-    pump(/*force=*/true);   // flush the throttled tail
+    pump(/*力=*/true);   // 冲刷节流的 末尾
     text_events.flush();
     if (stats) {
         stats->input_tokens  += req_in;
@@ -1600,27 +1600,27 @@ provider::StreamResult run_one_completion(Thread& thread,
         stats->context_window = req.context_window;
     }
 
-    // A provider that answered 200, streamed some deltas, then emitted
-    // `{"error": …}` instead of a finish_reason leaves `result` OK — the
-    // transport saw a clean 200 and a closed stream. Only the decoded event
-    // knows better, so promote it here, alongside the other post-stream
-    // corrections below.
+    // 一个回答200,流出一些三角洲,然后排放 `{"error": …}`
+    // 而不是一个 finish_reason 叶 `result`
+    // OK - 电话 传输层 看见了干净的200个,一个关闭的 数据流。
+    // 只有解码器 事件 更清楚,所以在这里宣传, 与另一个职位 -stream
+    // 更正如下。
     //
-    // Without this the turn returned its partial text as a successful
-    // answer: the user sees a truncated reply with no indication anything
-    // went wrong, which is the worst possible reading of a failed request.
+    // 如果没有这个结果, 转回其部分文本为成功
+    // 答案 : 用户看到一个短写的答复,
+    // 但没有显示出任何错误, 这是最糟糕的读取失败请求。
     if (result.ok() && !stream_error.empty())
         result = provider::StreamResult::failed(stream_error);
 
-    // An empty successful close is a transient transport failure. A max-token
-    // turn is also incomplete: partial prose/tool JSON is not a final report.
+    // 空的成功接近是短暂的 传输层 失败。最大值 -token 转弯
+    // 也不完整:部分 prose/tool JSON 报告不是最后报告。
     if (result.ok() && asst.text.empty() && asst.tool_calls.empty())
         result = provider::StreamResult::failed(
             "provider returned an empty completion");
     if (result.ok() && (result.stop == StopReason::MaxTokens
                         || stop == StopReason::MaxTokens)) {
-        // Cut off. Either the reply hit max_tokens, or prompt + reply ran
-        // into the context window (llama.cpp reports both as "length").
+        // 切断,要么回复中弹 max_tokens ,或 ,或 提示词 + 回复 运行
+        // 到上下文窗口( Q) llama.cpp 报告均为 "length").
         const long long used = req_in + req_out;
         const bool window_full = req.context_window > 0
             && req_out < req.max_tokens
@@ -1642,8 +1642,8 @@ provider::StreamResult run_one_completion(Thread& thread,
 class AgenttySubagentRunner final : public mt::SubagentRunner {
 public:
     std::vector<std::string> extra_agent_types() const override {
-        // User-authored .agentty/agents/*.md — discoverable in the task
-        // tool's agent_type enum. Names only; bodies load at resolve time.
+        // 用户 -authored .agentty/agents/*.md ——在任务
+        // 工具中可发现. agent_type 枚举。仅列出名称; 正文 加载 以决心时间。
         return user_agent_names();
     }
 
@@ -1654,10 +1654,10 @@ public:
             return "subagent runtime was not installed; restart agentty with the current executable";
         if (cfg.model.empty())
             return "no model is selected for the active provider";
-        // Runtime dispatch is credential-aware itself: ChatGPT resolves its
-        // native OAuth store per request and local providers need no auth at
-        // all. Only the legacy direct-Anthropic fallback requires a non-empty
-        // header here.
+        // 运行时 分派 谓 凭据-aware 本身: ChatGPT
+        // 解决每个请求的本地 OAuth 商店, 而本地提供者则不需要
+        // 任何认证。 -Anthropic 回退 需要非 -empty
+        // 头文件 给
         if (!cfg.stream && auth::is_empty(cfg.auth))
             return "no provider stream or fallback Anthropic credential is configured";
         if (ctx.depth >= subagent::kMaxDepth)
@@ -1676,8 +1676,8 @@ public:
     std::string run_with_stats(const mt::Call& call, const mt::SubagentRequest& sreq,
                                bool& is_error, RunStats* stats) {
         is_error = false;
-        // The enclosing call's context: its progress card, cancel and the
-        // depth/deadline of the subagents around it.
+        // 所附内容 调用 上下文:其进度卡, 取消 编辑
+        // depth/deadline 周围的副剂。
         const CallContext& ctx = context_of(call);
         auto cfg = subagent::current();
         if (!cfg.installed || cfg.model.empty()
@@ -1692,7 +1692,7 @@ public:
         }
 
 
-        // Held for the whole run: a rescan of the agent files can't free it.
+        // 被保存了整个运行:重新扫描代理文件无法解开.
         const ResolvedAgent resolved = resolve_agent_type(sreq.agent_type);
         const AgentType& type = *resolved;
 
@@ -1708,62 +1708,62 @@ public:
         int turns = 0;
         std::string log = "\xe2\x97\x86 " + std::string{type.name} + " agent";
         std::string last_error;
-        // Give this subagent its OWN read-dedup context for the whole run.
+        // 给这副代理 自身 读 -dedup 整个运行的背景。
         //
-        // `read` answers a repeat of the same (path, range) with "refer to
-        // the earlier tool_result" — true only for the context that received
-        // those bytes. Its memory is keyed by reader, so without this scope a
-        // subagent inherits the PARENT's entries and is refused files it has
-        // never seen. That is not theoretical: a coder subagent spent all 23
-        // of its turns re-requesting one file, got the sentinel every time,
-        // and made zero edits. RAII-restored so nesting can't leak the id.
+        // `read` 回答相同的重复(路径、
+        // 范围) "refer to the earlier tool_result"
+        // ——只针对收到这些请求的背景 字节。该主题 内存 由读取器键入,
+        // 所以没有此范围,子代理继承 PARENT 输入和被拒绝的文件,
+        // 它从未见过。 这不是理论的: 一个编码器子代理 花了全部23
+        // 个转折 -requesting 一份,每次都有监控,
+        // 并且没有编辑 RAII-restored 所以筑巢不能泄露身份证明
         //
-        // The id is a PROCESS-WIDE COUNTER, not `&thread`. A stack address
-        // looks unique and is not: subagents run on isolated worker threads,
-        // and sequential runs of the same role reuse the same stack, so
-        // `&thread` came out byte-identical every time (measured: six
-        // sequential threads, one address). Two explorers in a row therefore
-        // shared a context and the second was refused every file the first
-        // had read — reintroducing, for the sequential case, exactly the bug
-        // this scope exists to prevent.
+        // ID是一个 PROCESS-WIDE COUNTER ,
+        // 没有 `&thread`。堆栈地址看起来独特,
+        // 而不是: 被隔离的子代理运行 工作线程 线程 ,
+        // 并连续运行相同角色的重用相同堆栈,所以 `&thread`
+        // 出来 字节-identical 每次都(按先后顺序衡量:6
+        // 次) 线程 因此,两个连续的探险家分享了上下文,
+        // 第二个被拒绝了第一个文件所读的每个文件——对于顺序案例,
+        // 重新提出这个范围存在的准确错误来防止。
         static std::atomic<std::uint64_t> subagent_run_seq{0};
         const std::string run_reader = "subagent:" + std::string{type.name} + ":"
             + std::to_string(subagent_run_seq.fetch_add(1, std::memory_order_relaxed));
-        // Transient stream failures (429/529 brown-out, TLS reset, transport
-        // hiccup) are RETRIED with backoff instead of aborting the whole
-        // subagent — "task fails a lot" was mostly one flaky completion
-        // killing an otherwise healthy loop. Consecutive counter: any
-        // successful completion resets it.
+        // 瞬变 数据流 失败( 4) 429/529 棕色 -out,
+        // TLS 重设, 传输层 ⁇ )是( ⁇ ).
+        // RETRIED 与 退避 而不是中止整个副剂——
+        // "task fails a lot" 循环计数器:
+        // 任何成功的完成都重置它。
         constexpr int kMaxStreamRetries = 3;
         int stream_failures = 0;
-        // Wall-clock ceiling for the WHOLE run, independent of turns.
+        // 墙 -clock 最高比率 整个 运行,不靠转弯。
         //
-        // kMaxTurns bounds how many completions a subagent may take; it
-        // bounds nothing about how long each one takes. The per-stream
-        // budget is 30 min total with a 90 s idle timeout, and idle only
-        // fires on true silence — a gateway that dribbles a keepalive every
-        // 60 s and never finishes is "healthy" to every layer below. Stack
-        // the ladder up and the loop's real ceiling was 80 turns x 3 retries
-        // x 30 min, i.e. days. What the user sees is a `task` card that
-        // never comes back and a parent turn wedged behind it.
+        // kMaxTurns 定义了子剂需要完成多少个;
+        // 它没有定义每个子剂需要多长时间。
+        // 每名 -stream 预算共计30分钟,
+        // 闲置90秒 超时 并且闲置的只是对真实的沉默的火——
+        // 一个每60秒就把守着的通道,而且从未结束 "healthy"
+        // 将梯子堆上,循环圈的真天花板是80转x3 重试 x 30分钟,
+        // i.e 天数。用户看到的是 `task`
+        // 永远不回来的卡片 父母会把牌子插在后面
         //
-        // 15 minutes is chosen against the work, not the transport: the
-        // per-role budgets assume an explorer converges in a handful of
-        // turns and a coder runs several build/fix cycles. A subagent still
-        // going at 15 minutes is not thorough, it is stuck — the same
-        // argument kMaxTurnsReadOnly makes about turn 40. Like the turn cap
-        // this is a CEILING, not a quota: a run that finishes in 20 s costs
-        // nothing, and only runs that would otherwise have hung pay it.
+        // 15分钟是选在工作上,而不是选在 传输层 :
+        // 单 -role 预算假设一个探险家在几个转弯中汇合,
+        // 一个编码员运行几个转弯 build/fix
+        // 15分钟的潜质不是彻底的,而是卡住了-
+        // 同样的参数 kMaxTurnsReadly 仅
+        // 让转弯40。 CEILING 而不是配额:20
+        // 岁时完成的跑步 毫无代价,只有跑步才能支付
         //
-        // On expiry the loop STOPS and reports what it has, exactly as the
-        // turn cap does — partial findings beat a hang, and the is_error
-        // flag below keeps it from rendering as a green success.
+        // 过期时循环 STOPS 并报告它所拥有的,
+        // 正像转弯盖一样——部分发现击败了绞刑,
+        // 以及 is_error 标志 下方别乱动 渲染 以绿色成功为代表
         //
-        // Overridable by AGENTTY_SUBAGENT_MAX_SECONDS so the behaviour is
-        // TESTABLE. A 15-minute constant cannot be exercised by a test
-        // suite, and an untested stop path is one that quietly stops
-        // working — which is how the read-context scope regressed. The env
-        // var is read once per run; unset or unparseable means the default.
+        // 无法逾越 AGENTTY_SUBAGENT_MAX_SECONDS
+        // 所以行为是 TESTABLE. A 15-minute
+        // 无法用测试套件来进行恒定,未经测试的停止路径是静静地
+        // 停止工作的路径——这就是阅读的方式。 -context 范围退缩。
+        // 每运行一次读入内存 var;未设置或无法解析表示默认值。
         const auto max_wall_clock = [stats] {
             if (stats && stats->wall) return *stats->wall;
             if (const char* s = std::getenv("AGENTTY_SUBAGENT_MAX_SECONDS")) {
@@ -1774,33 +1774,33 @@ public:
             }
             return std::chrono::seconds(15 * 60);
         }();
-        // NESTED runs inherit the enclosing deadline rather than starting a
-        // fresh one — see subagent::DeadlineScope for why (kMaxDepth is 2, so
-        // a per-run clock would make the real bound depth x the advertised
-        // one). The thread-local itself lives in subagent.cpp, which is the
-        // TU allowed to hold it.
+        // NESTED 运行继承了后面的最后期限,而不是开始一个新的期限——见
+        // subagent::DeadlineScope 为什么(千马克深度是2,
+        // 所以每秒) -run 时钟可以使真正的约束深度 x 成为广告的深度。
+        // 线程-local 自己生活着 subagent.cpp ,
+        // 这是 TU 允许它保持。
         const auto own_deadline =
             subagent::RunClock::now() + max_wall_clock;
         const auto run_deadline =
             ctx.deadline ? std::min(*ctx.deadline, own_deadline) : own_deadline;
-        // Publish this run so teardown can find it. Without this, shutdown
-        // asks the TOOL thread to stop (run_tool's probe) but nothing waits
-        // for the provider stream to unwind, and main() can return while
-        // this loop is still inside cfg.stream() — which holds the provider
-        // objects by reference off main's stack. The registration's
-        // destructor latches "done", which is what shutdown_running() waits
-        // on. See subagent::RunRegistration.
+        // 发布此运行, 以找到它。 如果没有此操作, 关闭将询问 TOOL
+        // 线程 停止( 编号: run_tool 探测器),但没有什么等待
+        // 提供者 数据流 向风向移动,以及 main() 可以在循环还
+        // 在内部时返回 cfg.stream () —— 将提供者的物体
+        // 通过参考来保存在主堆栈之外。 "done" ,
+        // 这就是什么 shutdown_running (等待)见
+        // subagent::RunRegistration.
         const subagent::RunRegistration run_reg;
-        // The context this run's own tool calls get: one level deeper, its
-        // own reader, the tighter deadline, and cancelled when either the
-        // parent call or this run is.
+        // 此运行自己的工具的背景 调用 得到: 一层深,
+        // 自己的阅读器, 更紧的最后期限, 已取消 当父母中任何
+        // 一个 调用 或这次跑步是。
         CallContext child = ctx;
-        // Copying a context drops its capability on purpose (a copy could
-        // outlive or out-travel the call). `child` does neither: it lives on
-        // this frame, inside the very call that proved the capability, on
-        // the same thread — so carry it over explicitly. Without this every
-        // provider/auth callback below throws "tool callback outside a
-        // dispatched call" and the subagent can never run.
+        // 复制上下文会故意放弃其能力( 复制会超过或超过) -travel
+        // 编号 调用). `child` 也不是,它靠这个生活 帧 ,
+        // 在其中的内侧 调用 证明能力,在相同的 线程 把它直接背过来,
+        // 没有这个 provider/auth 回调 投出时
+        // "tool callback outside a dispatched call"（工具回调发生在已分派调用范围之外。）
+        // 副代理商永远无法运行。
         child.cap.set(ctx.cap.get());
         child.depth    = ctx.depth + 1;
         child.reader   = run_reader;
@@ -1808,78 +1808,78 @@ public:
         child.active_skills.clear();
         child.cancel.push_back(run_reg.token());
         bool deadline_hit = false;
-        // Repeat-failure breaker (same rule as the parent's doom-loop
-        // breaker): the identical tool call failing 3× means the loop is
-        // stuck — stop burning turns and report what we have.
+        // 重复 -failure 断路器( 与父母的末日 相同 )
+        // -loop 断开器: 相同的工具 调用 3×失败意味着循环被
+        // 卡住了——停止燃烧转弯,并报告我们所拥有的情况.
         std::unordered_map<std::string, int> failed_calls;
-        // The mirror of failed_calls: a tool that keeps SUCCEEDING with
-        // byte-identical arguments is looping too, and that case had no cap
-        // at all. Measured against a local model behind a private gateway:
-        // 80 identical successful `read` calls before the turn budget ran
-        // out — on a 22GB resident that is minutes of GPU time spent
-        // re-deriving an answer it already had.
+        // 镜子 failed_calls : 保存的工具
+        // SUCCEEDING 与 字节-identical 参数也循环着,
+        // 而这个案件根本没有上限。用一个私人网关背后的本地模型来衡量:
+        // 80个相同成功 `read` 调用 22GB的
+        // 一位居民, GPU 重新花费的时间
+        // -deriving 已经是答案了
         //
-        // Threshold is higher than the failure one: a repeat that WORKS is
-        // weaker evidence (re-reading a file after an edit is normal), but
-        // six in a row without a text answer is not a strategy.
+        // 阈值高于失败的阈值: 重复 WORKS 较弱的
+        // 证据(关于 -reading 编辑后的文件是正常的,
+        // 但连续六次没有文本答案不是策略。
         std::unordered_map<std::string, int> repeated_ok_calls;
         bool doomed = false;
-        // Set once we've told the model it's out of budget and must write its
-        // final report NOW. Prevents a thorough agent from exploring straight
-        // into the turn cap and never emitting a report (the loop below then
-        // salvages a stale early narration line instead of a real answer).
+        // 等我们告诉模型 预算用完了 就得写最后报告 当前。
+        // 防止一个彻底的代理人直接探索到转弯顶部,
+        // 而永远不报告(下面的环路会拯救一个
+        // 过期 早期的描述线,而不是真实的答案).
         bool wrapup_nudged = false;
 
-        // Turn budget for THIS role. A read-only sweep converges quickly; an
-        // implementation loop (edit → build → read errors → fix → re-run) is
-        // structurally longer, and starving it produces the "ran out of
-        // turns, made zero edits" report rather than the work.
+        // 转预算为 此 角色。读作 -only 扫描迅速汇合;
+        // 执行循环(编辑) 建 ——读错误 ——修正——关于 -run )
+        // 在结构上更长,饥饿产生 "ran out of turns, made zero edits"
+        // 而不是报告工作。
         const int max_turns = (stats && stats->max_turns > 0)
                                   ? stats->max_turns
                                   : subagent::max_turns_for(type.read_only);
 
         while (turns < max_turns && !doomed) {
-            // Wall-clock stop, checked at the top of every turn. Placed here
-            // rather than in the while() condition so `deadline_hit` is set
-            // before the loop exits and the report below can say WHICH
-            // ceiling ended the run — "out of turns" and "out of time" call
-            // for different fixes from whoever reads it.
+            // 墙 -clock 停止,检查每个转弯的顶端。 while()
+            // 条件如此 `deadline_hit` 设置在循环退出前,
+            // 下面的报告可以说明 对应的 天花板结束了运行...
+            // "out of turns" 财务报告和已审计财务报表
+            // "out of time" 调用 与诵读它的人所修的律例,
             if (std::chrono::steady_clock::now() >= run_deadline) {
                 deadline_hit = true;
                 break;
             }
-            // Shutdown asked us to stop. Checked here as well as inside the
-            // stream (via the cancel bridge) so a run between turns — not
-            // holding a stream at all — still leaves promptly instead of
-            // starting one more completion that teardown then waits on.
+            // 关闭要求我们停止。 数据流 (通过
+            // 取消 ——而不是握着 数据流 完全没有,
+            // 仍然迅速离开, 而不是开始
+            // 一个完成 拆卸,然后等待。
             if (run_reg.cancelled()) break;
             ++turns;
             if (stats) {
-                stats->turns = turns - 1;   // completed so far; the next is turns
+                stats->turns = turns - 1;   // 迄今已完成; 下一个是转弯
                 if (stats->events && ctx.depth == 0)
                     emit_event({{"ev", "turn"}, {"turn", turns}});
             }
 
-            // FINAL-TURN NUDGE: when the remaining budget is nearly spent,
-            // inject a synthetic user message ordering the model to stop
-            // running tools and write its report. Without this the agent
-            // spends its last completion on yet another tool call, hits the
-            // cap mid-investigation, and returns no final text at all.
+            // FINAL-TURN NUDGE : 当剩余预算接近使用时,
+            // 注入一个合成用户信息, 命令该模型停止运行工具并
+            // 撰写报告。 如果没有此信息, 代理将最后一次完成
+            // 时间花在另一个工具上 调用 ,
+            // 击中顶端 -investigation ,则完全不返回最后文本。
             //
-            // The lead time scales with the budget: one turn's warning is
-            // enough for a short read sweep, but a write role deep in an
-            // edit→build→fix cycle needs room to land what it started (finish
-            // the current edit, re-run the build) before summarising. Too
-            // early wastes budget; too late produces the very "ran out of
-            // turns with nothing to show" report this exists to prevent.
+            // 预算的准备时间尺度:一个转弯的警告足以进行短读扫荡,
+            // 但编辑-建设-固定周期中一个深层的写角色需要
+            // 空间来登陆它开始的内容(完成当前编辑,
+            // 再修改) -run 废物预算太早;产生废物的太晚。
+            // "ran out of turns with nothing to show"（轮次数已耗尽，却没有可展示的结果。）
+            // 报告此信息是为了防止。
             //
-            // The same nudge also fires on TIME. A subagent can be at turn 6
-            // of 80 and still out of budget — a few slow builds or a
-            // dribbling gateway is all it takes — and without this it hits
-            // the deadline mid-tool-call and returns no report at all, which
-            // is exactly the failure the turn-based nudge prevents. Two
-            // minutes is the same shape of lead: enough to land the current
-            // step and summarise, not enough to start something new.
+            // 同样的一击也点燃了 TIME 副代理商可能处于
+            // 80年的6年,但预算仍未到位——只需要几
+            // 座缓慢的建筑或一个铺设的网关——没有这一点,
+            // 它就会在最后期限的中期达到。 -tool-call
+            // 并且完全不返回报告, 这正是失败的转弯
+            // -based 阻力。两分钟是相同的铅形状:足够
+            // 降落目前的步骤和总结,不足以启动新的东西。
             const bool near_deadline =
                 std::chrono::steady_clock::now() + std::chrono::minutes(2)
                     >= run_deadline;
@@ -1918,8 +1918,8 @@ public:
                     && (empty_completion
                         || error_class == provider::ErrorClass::Transient
                         || error_class == provider::ErrorClass::RateLimit);
-                // A partial assistant message can contain unpaired tool calls
-                // and must never be replayed on retry or reported as complete.
+                // 部分助理消息可以包含未发件的工具 调
+                // 用 永远不能重现 重试 或报告为完整。
                 if (!thread.messages.empty()
                     && thread.messages.back().role == Role::Assistant)
                     thread.messages.pop_back();
@@ -1939,19 +1939,19 @@ public:
                     ctx.emit(log);
                     break;
                 }
-                // A RETRY-AFTER MEASURED IN HOURS IS A QUOTA, NOT A BURST
-                // LIMIT. A burst limit clears in seconds and retrying is
-                // right; a plan quota does not clear until it resets, so
-                // every attempt is guaranteed to fail with the message the
-                // FIRST response already carried.
+                // A RETRY-AFTER MEASURED
+                // IN HOURS IS A QUOTA,
+                // 不 A BURST LIMIT。爆炸极限数以秒计,
+                // 重试 计划配额在重新发布之前是无法明确的,
+                // 首次 答复已经进行。
                 //
-                // Measured: Yolo-Auto's free tier answers
-                // `retry-after: 29410` (8h, to 00:00 UTC) with
-                // type=insufficient_quota. Clamping that to 30s turned "you
-                // are out until midnight" into three pointless waits and 95
-                // seconds of wall clock before giving up with the same text.
-                // Same reasoning as the interactive reducer — see
-                // kRetryAfterTerminalSeconds in provider/error_class.hpp.
+                // 计量: Yolo -Auto 免费的等级答案
+                // `retry-after: 29410` (8小时,
+                // 00:00) UTC ),类型= insufficient_quota
+                // 将它压到30岁 "you are out until midnight"
+                // 进入三个毫无意义的等待和95秒的墙钟,然后放弃同样的文字.
+                // 与互动相同的推理 状态更新函数 —— 见 kRetry After
+                // provider/error_class.hpp 中的终止状态相关说明。
                 if (stream_result.retry_after
                     && stream_result.retry_after->count()
                            > provider::kRetryAfterTerminalSeconds) {
@@ -1959,8 +1959,8 @@ public:
                     ctx.emit(log);
                     break;
                 }
-                // Honor server guidance, but cap it so a hostile/mistaken
-                // Retry-After cannot pin a task worker indefinitely.
+                // 尊重服务器的指引,但封顶它如此 hostile/mistaken
+                // 重试-After 无法定点任务 工作线程 无限期地
                 constexpr auto kMaxRetryAfter = std::chrono::seconds{30};
                 auto wait = stream_result.retry_after
                     ? std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -1998,7 +1998,7 @@ public:
                         doomed = true;
                         break;
                     }
-                    // Already settled by an external agent (StreamObservedToolResult).
+                    // 已经由外部代理人解决(StreamObservedToolResult)。
                     if (tc.is_terminal()) continue;
                     if (tc.args.is_null()) {
                         if (stats) { ++stats->tool_calls; ++stats->tool_errors; }
@@ -2007,15 +2007,15 @@ public:
                             "with complete, valid JSON arguments"};
                         log += "\n    \xe2\x9c\x97 " + tc.name.value + ": bad args";
                         ctx.emit(log);
-                        // A parse failure still counts as a tool ROUND-TRIP:
-                        // the model sees the error tool_result and can
-                        // re-emit. Without this the loop broke out on the
-                        // first bad-args call and the whole task died.
+                        // A 解析 失败仍为工具 ROUND-TRIP:
+                        // 模型查看错误 tool_result 并且
+                        // 可以重新 -emit 没有这个,第一个坏消息
+                        // 就爆发了 -args 调用 整个任务都死了
                         ran_a_tool = true;
                         continue;
                     }
-                    // Only tools this run was offered may run. A model can
-                    // still name one it wasn't given (read-only, --no-network).
+                    // 只有此运行提供的工具才能运行。 一个模型仍然可以命名它没有
+                    // 给它的工具( 读)。 -only, --no-network).
                     if (const auto def = tools::find(tc.name.value);
                         def && !subagent_tool_allowed(*def, type, stats)) {
                         if (stats) { ++stats->tool_calls; ++stats->tool_errors; }
@@ -2030,23 +2030,23 @@ public:
                     }
                     ran_a_tool = true;
                     const auto t_start = std::chrono::steady_clock::now();
-                    // The subagent's own context: deeper, its own reader and
-                    // deadline, the parent's card for live output (as before).
+                    // 子代理自身背景:更深,自己的读者和
+                    // 截止日期,父母的现场输出卡(如前).
                     CallContext tool_ctx = child;
                     tool_ctx.active_skills = skills::active_in(::agentty::visible_text(thread));
                     auto res = tool::DynamicDispatch::execute(child.capability(), tc.name.value, tc.args, tool_ctx);
-                    // Same tool.exec record the main loop emits, so a headless
-                    // `agentty run` and a subagent turn are as diagnosable as
-                    // an interactive one. A failing tool is Warn (and therefore
-                    // in the crash flight recorder) with the args that caused
-                    // it — the evidence that was missing while Copilot's tool
-                    // calls were arriving empty.
+                    // 一样 tool.exec 记录主循环的释放,
+                    // 所以没有头 `agentty run`
+                    // 并且副剂转动与交互转动一样可以诊断。
+                    // 一个失败的工具是警告(因此在坠机记录器中),
+                    // 其原理是导致它——在副驾驶工具中缺失的证据。
+                    // 调用 空空的飞过来了
                     //
-                    // No seq= here, unlike the reducer's copy: exec_seq is
-                    // minted by cmd::next_tool_exec_seq() to let the reducer
-                    // drop results from a superseded turn, and this path has no
-                    // reducer and no turn to supersede — it runs each call to
-                    // completion in order. Matching on name+args is enough.
+                    // 此处没有下下文,与 状态更新函数 副本 :
+                    // exec_seq 由 cmd::next_tool_exec_seq
+                    // () 让 状态更新函数 倒置结果的替换转弯,
+                    // 而此路径没有 状态更新函数 而不转而转而转之,
+                    // 它各奔走, 调用 以顺序完成。匹配名称+args即可。
                     const auto t_ms =
                         std::chrono::duration_cast<std::chrono::milliseconds>(
                             std::chrono::steady_clock::now() - t_start).count();
@@ -2054,23 +2054,23 @@ public:
                         res ? std::string{"-"}
                             : std::string{tools::to_string(res.error().kind)}
                                   + ": " + res.error().detail;
-                    // Args go through logx::body(), which bounds them to a
-                    // 4 KB head unless AGENTTY_LOG_BODIES is set — same
-                    // treatment the wire channel and the reducer's
-                    // tool.dispatch/tool.exec pair give user data. It is a SIZE
-                    // bound, not a redaction: a short args blob still appears in
-                    // full, which is what you want when diagnosing a tool call.
-                    // What it prevents is one edit tool call with a 2 MB payload
-                    // becoming 2 MB of log. This line used to pass the dump
-                    // straight through with no bound at all.
+                    // 弧筁 logx::body (,将它们限制在4)
+                    // KB 头部,除非 AGENTTY_LOG_BODIES
+                    // 设定——与 传输 频道和 状态更新函数's
+                    // tool.dispatch/tool.exec 双向给用户数据。
+                    // 它是 SIZE 绑定,而不是修改: 短的参数blob
+                    // 仍然完整出现, 这是您在诊断工具时想要的 调用.
+                    // 它能防止的是 一个编辑工具 调用 带2
+                    // MB 载荷 成为 2 MB 这条线用来
+                    // 直接穿过垃圾场,完全没有束缚。
                     AGT_LOGL(Tool, res ? ::agentty::logx::Level::Debug
                                        : ::agentty::logx::Level::Warn,
                              "tool.exec", "name={} ms={} ok={} err={} args={}",
                              tc.name.value, t_ms, res ? 1 : 0, err_text,
                              ::agentty::logx::body(tc.args.dump()));
-                    // The same facts as the log line above, but on stderr and
-                    // machine-readable — a sandboxed harness never sees the
-                    // log file. See emit_tool_event for why args are hashed.
+                    // 和上面的对数线一样 但都是在Stderr和机器上
+                    // -readable 沙盒式的绳索从不看日志文件。
+                    // emit_tool_event 为何要用大麻来做
                     emit_tool_event(tc.name.value, t_ms, static_cast<bool>(res),
                                     res ? std::string_view{}
                                         : std::string_view{err_text},
@@ -2080,25 +2080,25 @@ public:
                         if (!res) ++stats->tool_errors;
                     }
                     if (res) {
-                        // ECONOMY: a subagent is a focused, tool-heavy burst
-                        // (read/grep/repo_map outputs run to tens of KiB
-                        // each). Those results accumulate in the subagent's
-                        // OWN thread and replay on EVERY subsequent turn, so
-                        // the cost is quadratic in turns — and write roles now
-                        // get a budget measured in dozens of turns, which is
-                        // exactly when that bites. The parent's 64 KiB
-                        // newest-result budget is tuned for a long interactive
-                        // chat; for a subagent it's the dominant cost.
-                        // Cap each result to a tight head+tail the instant we
-                        // store it, so the working set the model reasons over
-                        // stays lean without losing the WHAT of any result.
-                        // (Transport aging still applies on top for old ones.)
+                        // ECONOMY : 子剂是一个焦点,
+                        // 工具 -heavy 爆炸( 爆炸时)
+                        // read/grep/repo_map 产出
+                        // 为: KiB )这些结果累积在子剂的体内。
+                        // 自身 线程 重放时 每个 之后转弯,
+                        // 所以成本是四倍的转弯——写角色现在得到一个以几十
+                        // 转弯计算的预算,这恰恰是咬伤时。
+                        // KiB 最新数据 -result 预算是用来进行长时间
+                        // 的交互聊天的;对于一个子代理,预算是主导成本.
+                        // 盖上每个头部都有一个紧身的 末尾 我们
+                        // 一储存起来, 工作就设置了模型 理由
+                        // 保持精细,而不失去 内容 任何结果。
+                        // (传输层 老年仍然适用于旧的。 )
                         constexpr std::size_t kSubagentToolBudget = 8u * 1024u;
                         std::string capped = provider::wire::cap_tool_result(
                             res->text, kSubagentToolBudget);
                         tc.status = ToolUse::Done{now, now, std::move(capped)};
                         log += "\n    \xe2\x9c\x93 " + summarize_call(tc);
-                        // Identical SUCCEEDING call 6× → also stuck.
+                        // 同文SUCCEEDING 调用 6××××~也卡住了.
                         std::string ok_key = tc.name.value + '\0'
                             + (tc.args.is_null() ? std::string{} : tc.args.dump());
                         if (++repeated_ok_calls[ok_key] >= 6) {
@@ -2110,7 +2110,7 @@ public:
                         tc.status = ToolUse::Failed{now, now, res.error().render()};
                         log += "\n    \xe2\x9c\x97 " + summarize_call(tc) + "  \xe2\x80\x94 "
                              + res.error().render();
-                        // Identical failing call 3× → the loop is stuck.
+                        // 相同失败的调用 3x = 循环卡住了。
                         std::string key = tc.name.value + '\0'
                             + (tc.args.is_null() ? std::string{} : tc.args.dump());
                         if (++failed_calls[key] >= 3) {
@@ -2122,17 +2122,17 @@ public:
                 }
             }
 
-            if (!ran_a_tool) break;   // final text answer (or nothing left to do)
+            if (!ran_a_tool) break;   // 最后文本答案(或无所作为)
         }
 
-        // Extract the report. The AUTHORITATIVE report is the text of the
-        // FINAL assistant turn — the message the model wrote last, after all
-        // its tool work. We do NOT walk backward to the first non-empty text:
-        // an agent that explored straight into the turn cap has its last few
-        // turns as pure tool calls (empty .text), and a naive reverse-walk
-        // would resurrect its turn-1 narration ("I'll start by mapping...")
-        // and pass it off as a finished report. That was the real bug: a
-        // 24-turn run returning its opening sentence instead of an answer.
+        // 提取报告。 AUTHORITATIVE 报告为
+        // FINAL 助理转身——模型在工具工作完成后最后写下的信息。
+        // 不 向后走到第一个非 -empty 文本( E) :
+        // 一种直接探索到转弯盖的代理器 其最后的几个转弯是纯工具 调
+        // 用 (空的.文本),和天真的反转 -walk 将恢复其轮值
+        // -1的描述(第2段), "I'll start by mapping..."
+        // ) 并把它当作一个完成报告。那是真正的错误:
+        // 24 -turn 运行返回它的开头句而不是答案。
         std::string report;
         bool salvaged_stale = false;
         if (ctx.on_subagent_done) {
@@ -2141,14 +2141,14 @@ public:
         if (!thread.messages.empty()
             && thread.messages.back().role == Role::Assistant
             && !thread.messages.back().text.empty()) {
-            // Clean finish: the model's last act was to write prose.
+            // 清末:模特最后的行为是写作散文.
             report = thread.messages.back().text;
         } else {
-            // No final text (ran out of budget mid-tool, or last turn was
-            // tool-only). Salvage the most recent EARLIER assistant text as a
-            // partial, but mark it stale so the banner below tells the caller
-            // this is not a proper final report. Never reach into resumed
-            // history: that answer belongs to an earlier run.
+            // 没有最后案文(预算未包括) -tool ,
+            // 或者最后一个回合是工具 -only
+            // ) 救护最新 EARLIER 助理文本
+            // 作为部分,但标记它 过期 无法进入
+            // 历史: 答案属于更早的运行。
             const std::size_t first_new = stats ? stats->history.size() : 0;
             for (std::size_t i = thread.messages.size(); i-- > first_new;) {
                 const auto& msg = thread.messages[i];
@@ -2160,14 +2160,14 @@ public:
             }
         }
 
-        // Budget exhaustion is a FAILURE MODE even when the last turn
-        // happened to produce clean prose. The old gate here was
-        // `report.empty() || salvaged_stale`, so an agent that spent every
-        // turn and then wrote a tidy "## OUTCOME — Task NOT completed, I made
-        // zero edits" fell through all of it: no banner, is_error never set,
-        // and the UI rendered a green ✓ DONE over a self-declared failure.
-        // Observed exactly that. Treat hitting the cap as a reportable
-        // condition in its own right.
+        // 预算耗尽是FAILUREXX MODE,即使最后转弯时恰好是生产
+        // 干净的传言。 这里的旧大门是`report.empty() || salvaged_stale`,
+        // 所以一个每转弯就花一圈时间写一个干净的
+        // "## OUTCOME — Task NOT completed, I made zero edits"（任务未完成，没有进行任何修改。）
+        // 的代理商掉到它上:没有横幅,is_error从未设置,
+        // UI在-declared失败时就制造了绿色的DONE。
+        // 完全照着这个,把击球盖当作
+        // 一个可报告的条件
         const bool budget_exhausted = turns >= max_turns || deadline_hit;
         if (stats) {
             const bool clean_finish = !report.empty() && !salvaged_stale;
@@ -2189,10 +2189,10 @@ public:
                 why = "[subagent stopped: the same tool call failed 3\xc3\x97 "
                       "in a row without converging]";
             else if (deadline_hit)
-                // Named separately from the turn cap on purpose: "out of
-                // time" and "out of turns" point at different causes (a slow
-                // or stalling backend vs a task too big for the budget) and
-                // the reader can only act on the difference if we say which.
+                // 与旋转盖分开命名:
+                // "out of time" 财务报告
+                // 和已审计财务报表 "out of turns"
+                // 读者只能按不同的原因行事。
                 why = "[subagent hit its wall-clock limit without producing a "
                       "final report \xe2\x80\x94 the summary below is incomplete]";
             else if (budget_exhausted)
@@ -2201,8 +2201,8 @@ public:
             else
                 why = "[subagent finished without a final text report]";
             if (salvaged_stale) {
-                // We have partial prose from an earlier turn: surface the
-                // banner, then the salvaged text, then the activity log.
+                // 我们从早先的转折中 部分地传播出来: 浮出标志,
+                // 然后是被打碎的文字,然后是活动日志。
                 report = why + "\n\nLast text the subagent produced (may be an "
                              "early, incomplete note):\n" + report
                        + (log.empty() ? std::string{}
@@ -2210,21 +2210,21 @@ public:
             } else {
                 report = log.empty() ? why : (why + "\n\nActivity:\n" + log);
             }
-            // A bare error (no salvageable report) propagates as an error so
-            // the shell tags the tool_result is_error.
+            // 赤裸的错误( 无可修复的报告) 被传播为错误, 所以 shell 标记
+            // tool_result is_error.
             if (!last_error.empty()) is_error = true;
-            // Neither a doom-loop abort nor an exhausted budget produced the
-            // work that was asked for. Both are failures; say so.
+            // 也没有厄运 -loop 中止或预算耗尽都产生了
+            // 要求完成的工作。 两者都是失败的,说吧。
             if (doomed || budget_exhausted) is_error = true;
         } else if (budget_exhausted) {
-            // Ran out of budget but signed off cleanly. The prose is worth
-            // keeping — it is the agent's own account of how far it got — but
-            // it must not be mistaken for success by the caller or the UI.
+            // 预算没有这笔钱,但签了字,这段传言值得保留——
+            // 这是经纪人自己对它取得多大进展的叙述——但是,
+            // 它绝不能被打电话者或传呼者误认为成功。 UI.
             //
-            // Says WHICH budget for the same reason the empty-report branch
-            // above does. A run stopped by the clock while it happened to be
-            // writing prose used to land here and be labelled "turn budget",
-            // pointing whoever read it at the wrong fix.
+            // 上面空的-report分支同样也因此提出WHICH预算。
+            // 当它恰好写了用来降落的传言并贴上
+            // "turn budget"的标签时,
+            // 运行被时钟停止, 指向读错的人。
             report = (deadline_hit
                           ? "[subagent hit its wall-clock limit \xe2\x80\x94 the task "
                             "may be incomplete; verify before relying on it]"
@@ -2234,10 +2234,10 @@ public:
             is_error = true;
         }
 
-        // A subagent that NARRATES its own failure must not be reported as a
-        // success. The model is the authority on whether it did the work, and
-        // when it says it didn't, believing the exit path over the text is how
-        // a "zero edits made" report ends up rendered as ✓ DONE.
+        // 潜质 NARRATES 模型是它是否完成了工作的权威,
+        // 当它说它没有完成时,相信文本的退出路径是怎样的。
+        // "zero edits made" 报告
+        // 最后作为“...”提交 DONE.
         if (!is_error && subagent_self_reported_failure(report)) {
             is_error = true;
         }
@@ -2249,7 +2249,7 @@ public:
     }
 };
 
-} // namespace
+} // 命名空间结束。
 
 void install_host_backends(::mcp::tools::HostServices& svc) {
     svc.memory    = std::make_shared<AgenttyMemoryStore>();
@@ -2257,18 +2257,18 @@ void install_host_backends(::mcp::tools::HostServices& svc) {
     svc.retriever = std::make_shared<AgenttyDocRetriever>();
     svc.code_retriever = std::make_shared<AgenttyCodeRetriever>();
     svc.subagent  = std::make_shared<AgenttySubagentRunner>();
-    // svc.todo intentionally left null: the mcp todo shell renders identical
-    // text to the native tool with no host state needed, and agentty's TUI
-    // parses the rendered text — there is no structured sink to feed.
+    // svc.todo 故意留空: mcp 待办事宜 shell 渲染
+    // 与本地工具完全相同,不需要东道国,以及 agentty's TUI
+    // 解析 文本中已显示的文本 —— 没有结构化的槽可以输入。
 }
 
 bool is_known_agent_type(std::string_view name) {
-    // resolve_agent_type() answers with `general` for anything it doesn't
-    // recognise, so "did it match" has to be asked by IDENTITY, not by
-    // whether a result came back. Comparing the returned name to the
-    // requested one is exactly that question, and it stays correct as
-    // built-ins and user agents come and go because it reuses the same
-    // resolver rather than a second copy of the list.
+    // resolve_agent_type (a) 答复
+    // `general` 任何它不识别,所以,
+    // "did it match" 需要由下列人士提出: IDENTITY ,
+    // 而不是通过结果是否回来。将返回的名称与请求的名称进行比较
+    // 正是这个问题,而且它保持正确如构建的 -ins 用户代理来回
+    // 因为它重用同一解析器 而不是清单的第二副本。
     if (name.empty()) return false;
     return resolve_agent_type(name)->name == name;
 }
@@ -2280,16 +2280,16 @@ std::string known_agent_types() {
         if (!out.empty()) out += ", ";
         out.append(n);
     }
-    // User-defined roles are real answers to --agent, so a user who wrote
-    // one should see it listed rather than be told their own agent is
-    // invalid-looking.
+    // 用户 -defined 角色是真实的答案 --agent ,因此,
+    // 一个写一个的用户应该看到它被列出,而不是被告知自己的代理无效
+    // -looking.
     try {
         for (const auto& ua : user_agents()->types) {
             out += ", ";
             out += ua->name;
         }
     } catch (...) {
-        // Listing user agents is a nicety; never fail an error message.
+        // 列出用户代理是一件好事; 永远不要失败错误消息。
     }
     return out;
 }
@@ -2311,18 +2311,18 @@ std::string_view status_name(OneShotResult::Status s) noexcept {
 }
 
 OneShotResult run_one_shot(const maya::unlocked& cap, const OneShotOptions& opts) {
-    // Same loop as the task tool, driven from main() at depth 0.
+    // 与任务工具相同的环路,驱动自深度0的main().
     using S = OneShotResult::Status;
     const auto t0 = std::chrono::steady_clock::now();
     OneShotResult out;
     out.agent = opts.agent_type.empty() ? "general" : opts.agent_type;
 
     CallContext ctx;
-    // `agentty run` drives the subagent loop straight from main(), not via
-    // DynamicDispatch, so nothing else sets the capability. Without it every
-    // provider/auth callback throws "tool callback outside a dispatched call"
-    // and the process aborts before the first request. `ctx` lives on this
-    // frame, on main's thread, inside the call that proved `cap`.
+    // `agentty run` 驱动子代理环路从 main() ,而不是通过
+    // DynamicDispatch 没有其他能力,没有它 provider/auth 回
+    // 调 掷出 "tool callback outside a dispatched call" ,
+    // 并在第一次请求前中止进程。 `ctx` 活在这 帧 ,主机上,
+    // 请检查date=中的日期值 (帮助) 线程 ,在内部 调用 证明 `cap`.
     ctx.cap.set(std::addressof(cap));
     if (opts.cancel.stop_possible()) ctx.cancel.push_back(opts.cancel);
     mt::Call top{};
@@ -2343,7 +2343,7 @@ OneShotResult run_one_shot(const maya::unlocked& cap, const OneShotOptions& opts
     st.events     = opts.events;
     if (!opts.effort.empty()) st.effort = effort_from_wire(opts.effort);
 
-    // --resume: continue a saved thread. "last" is the newest one.
+    // --resume : 继续a 已保存 线程. "last" 是最新鲜的
     Thread prior;
     if (!opts.resume.empty()) {
         const Io io = IoAccess::grant();
@@ -2373,8 +2373,8 @@ OneShotResult run_one_shot(const maya::unlocked& cap, const OneShotOptions& opts
                 IoAccess::grant(), persistence::threads_dir(), transcripts);
     }
 
-    // One id for the run: the gateway session id (#118) and the id the
-    // thread is saved under. A resumed run keeps its thread's.
+    // 运行时的1 id: 网关会话 id (# 118) 和 id
+    // the 线程 谓 已保存 恢复运行后,将保持 线程's.
     const bool fresh = prior.id.value.empty();
     if (fresh) prior.id = persistence::new_id();
     ctx.conversation = prior.id.value;
@@ -2385,8 +2385,8 @@ OneShotResult run_one_shot(const maya::unlocked& cap, const OneShotOptions& opts
     bool is_error = false;
     std::string report = runner.run_with_stats(top, sreq, is_error, &st);
 
-    // Save what happened so it can be resumed, or opened in the TUI. A run
-    // that never reached the model has nothing new to keep.
+    // 保存 发生什么了,所以可以恢复,或者在 TUI
+    // 从未到达模型的跑步没有新的东西可保留
     if ((opts.save || !opts.resume.empty())
         && st.final_thread.messages.size() > st.history.size()) {
         Thread t = std::move(prior);
@@ -2412,7 +2412,7 @@ OneShotResult run_one_shot(const maya::unlocked& cap, const OneShotOptions& opts
     out.duration_ms   = std::chrono::duration_cast<std::chrono::milliseconds>(
                             std::chrono::steady_clock::now() - t0).count();
 
-    // Most specific cause first: a cancel shows up as an error too.
+    // 最具体的原因首先是:取消也显示为错误.
     if (st.cancelled || opts.cancel.stop_requested()) {
         out.status = S::Cancelled;
         out.error  = "cancelled";
@@ -2449,31 +2449,31 @@ OneShotResult run_one_shot(const maya::unlocked& cap, const OneShotOptions& opts
                    + std::to_string(st.tool_calls) + " tool calls failed); its last "
                      "message is on stdout";
     } else if (out.text.empty()) {
-        // Not an error by the runner's rules, but a script gets nothing.
+        // 跑者的规则不是错误,而是剧本什么也得不到.
         out.status = S::Failed;
         out.error  = "finished without a text answer";
     }
-    // A run that never got into the loop (bad config) only has the report.
+    // 从未进入循环的运行( 坏配置) 仅有报告。
     if (!out.ok() && out.error.empty()) out.error = report;
     return out;
 }
 
-// ── Proactive retrieval (SOTA active-RAG / FLARE / Self-RAG) ────────────
+// ── 主动检索(SOTA 活动-RAG /FLARE / Self-RAG) 互联网档案馆的存檔,存档日期2013-09-02. ────────────
 namespace {
 
-// TRUE when the memory record behind `mem_path` ("memory://<scope>/<id>")
-// is ALREADY rendered in the system prompt's <learned-memory> block —
-// injecting it again via <retrieved-context> would spend context tokens on
-// bytes the model can already see. Mirrors the transport's selection
-// exactly (load_recent_* → select_for_prompt) and caches the id set,
-// invalidated by the same (size,mtime) stat the RAG epoch uses.
+// TRUE 当 内存 记录在后面 `mem_path` ("memory://<scope>/<id>"
+// )是(这是) ALREADY 系统中的 提示词's <learned-memory>
+// 块状——再次通过 <retrieved-context> 将使用上下文符号 字
+// 节 模型已经可以看见。 传输层 '准确的选中( E) load_recent_
+// * → select_for_prompt 和。 和 简 况 缓存 编号集,
+// 由相同的(大小,时间) stat = RAG 时代用法.
 bool memory_fact_in_prompt_(const std::string& mem_path) {
     auto slash = mem_path.rfind('/');
     if (slash == std::string::npos || slash + 1 >= mem_path.size()) return false;
     const std::string id = mem_path.substr(slash + 1);
 
     struct PromptIds { std::uint64_t stamp = ~0ULL; std::unordered_set<std::string> ids; };
-    // Replaced whole when the memory files change: a snapshot, no lock.
+    // 当内存文件更改时替换了整个:一个快照, no 锁.
     static maya::snapshot<PromptIds> cache;
 
     std::uint64_t now_stamp = 1469598103934665603ULL;
@@ -2491,7 +2491,7 @@ bool memory_fact_in_prompt_(const std::string& mem_path) {
                : static_cast<std::uint64_t>(t.time_since_epoch().count()));
     }
 
-    // Fresh: answer from the cache. Stale: reload outside the lock.
+    // 新鲜:来自 缓存. 过期 : 重新装入到 锁.
     if (const auto c = cache.load(); c->stamp == now_stamp) return c->ids.count(id) > 0;
 
     std::unordered_set<std::string> ids;
@@ -2504,32 +2504,32 @@ bool memory_fact_in_prompt_(const std::string& mem_path) {
     return in;
 }
 
-// Cross-turn de-duplication for PROACTIVE injection. Without this, a stable
-// high-confidence corpus re-injects the SAME passages into <retrieved-context>
-// on every single turn of a thread — pure context-window spend for zero new
-// information (the model already saw them last turn). We remember the keys
-// (source:path:line) of recently-injected passages in a bounded FIFO and skip
-// any we've surfaced before, so proactive injection only ever spends tokens on
-// passages the model hasn't been shown yet this session.
+// 十字记 -turn 数据 -duplication 费用 PROACTIVE 注射,
+// 没有这个,稳定高 -confidence 实体 -injects
+// 编号 相同 段落进入 <retrieved-context>
+// 每一转弯 线程 - 纯背景 -window 用于零新信息(模型
+// 已经看到它们最后转弯)。 我们记得最近键( 来源: path:
+// line) -injected 限定的段落 FIFO 跳过我们之前浮出
+// 水面的 主动注射只是 花在了标语上 模型还没有显示
 //
-// Bounded (kMax) so a long thread can't grow this without limit; once a key
-// ages out of the window it MAY be re-injected, which is the correct behaviour
-// (it's relevant again and long-since scrolled out of the model's attention).
+// 被绑了这么久 线程 无法无限制地生长它; 一旦一个关键年龄从
+// 窗口里长出来,它就会变长 MAY 改为 -injected ,
+// 这是正确的行为(它又相关又长 -since 卷出模型的注意力).
 //
-// SPLIT into peek (proactive_seen_) and commit (proactive_mark_injected_):
-// proactive_retrieve builds candidate blocks on a WORKER that the caller may
-// ABANDON when it blows the latency budget. If the funnel both checked AND
-// recorded keys, an abandoned worker would mark passages "injected" that the
-// user never saw — permanently suppressing them. So the funnel only PEEKS,
-// and the caller commits the surviving keys ONLY when it actually returns the
-// hit to the wire. Both share one mutex/FIFO.
+// SPLIT 进入到窥视( E) proactive_seen_ ) 并作出承诺( proactive_mark_injected_):
+// proactive_retrieve 将候选块建在 WORKER
+// 打电话者可以 ABANDON 如果漏斗同时检查 和 已记录的密钥,
+// 已废弃 工作线程 将标志着段落 "injected" 用户
+// 从未看到 —— 永久压制它们。 因此, 漏斗只限 PEEKS ,
+// 而呼叫者 将幸存的钥匙 仅 当它真的返回击球 传输。
+// 双方共享一个 mutex/FIFO.
 namespace {
 struct ProactiveDedup {
     std::unordered_set<std::string> seen;
     std::deque<std::string>         fifo;
 };
-// A snapshot: peeked on every candidate passage, committed a few keys a
-// turn. Lock-free, so the abandoned-worker peek can never block a commit.
+// A 快照 :每一次偷看候选人的通道,一次就按几把钥匙。
+// 锁-free ,所以弃置 -worker 偷看永远挡不住一个承诺
 maya::snapshot<ProactiveDedup>& proactive_dedup_() {
     static maya::snapshot<ProactiveDedup> d;
     return d;
@@ -2537,12 +2537,12 @@ maya::snapshot<ProactiveDedup>& proactive_dedup_() {
 constexpr std::size_t kProactiveDedupMax = 256;
 }
 
-// PEEK: true if `key` was already injected this session. Does NOT record it.
+// PEEK : 真实,如果 `key` 已在此会话中注入。 不 记录下来
 bool proactive_seen_(const std::string& key) {
     return proactive_dedup_().load()->seen.count(key) > 0;
 }
 
-// COMMIT: record `key` as injected (bounded FIFO eviction). Idempotent.
+// COMMIT : 记录 `key` 输入( 输入) FIFO 驱逐)。 幂等.
 void proactive_mark_injected_(const std::string& key) {
     (void)proactive_dedup_().update([](const ProactiveDedup& cur, const std::string& k) {
         if (cur.seen.count(k)) return cur;
@@ -2557,43 +2557,43 @@ void proactive_mark_injected_(const std::string& key) {
     }, key);
 }
 
-} // namespace
+} // 命名空间结束。
 
-// Runs the SAME AgenttyDocRetriever the search_docs tool uses, but out of
-// band — before the model sees the turn — and only surfaces its result when
-// confidence clears a HIGH bar (higher than the tool's LOW floor: we're
-// spending the user's context-window tokens unprompted, so the hit must be
-// Read the confidence bar for UNPROMPTED injection. The tool's LOW floor is
-// 0.25; we inject only well above it. Tunable via AGENTTY_RAG_PROACTIVE_MIN.
+// 运行search_docs工具使用的SAME AgenttyDocRetriever,
+// 但出局时——在模型看到转弯前——只有信心清除HIGH栏时(
+// 高于工具的LOW楼:我们花费用户的上下文-window令牌没有速率,
+// 所以击打必须读出UNPROMPTED注射的置信栏,
+// 工具的LOW楼是0.25;我们只注射远高于它.
+// Tunble通过AGENTTY_RAG_PROACTIVE_MIN.
 namespace {
 double proactive_min_conf_() {
-    // The confidence is now CRAG's CALIBRATED relevance grade (a real
-    // model-free evaluator), not the old raw fusion score. CRAG grades a
-    // genuinely-relevant retrieval in the ~0.3–0.6 band, so the unprompted
-    // injection bar defaults to 0.35 — high enough to skip noise, low enough
-    // that a solidly-relevant hit reaches the model.
+    // 信心已经到来 CRAG's CALIBRATED 相关性
+    // 级别(一个真正的模型) -free 评估员,不是老生化分数。
+    // CRAG 级数为真正的 -relevant 检索到~0.3–0.6带,
+    // 所以未发速的注射棒默认为0.35 — 高度足够跳过噪音,
+    // 低到足够固态 -relevant 击中模型。
     //
-    // Source of truth is the retriever's LIVE config (which folds in the
-    // persisted RAG picker settings). An explicit AGENTTY_RAG_PROACTIVE_MIN
-    // still wins so a shell override is honoured for a one-off run.
+    // 真相来源于寻人者 LIVE 配置( 哪个) 归并 坚持到底 RAG
+    // 选择面板 设置。一个明确 AGENTTY_RAG_PROACTIVE_MIN
+    // 仍然赢,所以贝壳的重置被尊重 -off 运行。
     double min_conf = 0.35;
     try { min_conf = shared_retriever().snapshot_config().proactive_min_conf; }
-    catch (...) { /* keep default */ }
+    catch (...) { /* 保持默认 */ }
     if (const char* mc = std::getenv("AGENTTY_RAG_PROACTIVE_MIN"); mc && mc[0]) {
-        // Any non-negative value is honoured; a bar above 1.0 is a
-        // legitimate "never inject" switch (confidence is clamped to [0,1]).
+        // 任何非 -negative 值被尊重; 超过 1.0 条是
+        // 合法的 "never inject" 切换(信心被夹到[0,1]).
         try { double v = std::stod(mc); if (v >= 0) min_conf = v; }
-        catch (...) { /* keep config/default */ }
+        catch (...) { /* 保留 config/default */ }
     }
     return min_conf;
 }
 
-// The proactive retrieval funnel body: run the retriever, gate on confidence,
-// build the fenced <retrieved-context> block, PEEK the cross-turn dedup and
-// collect surviving keys on the hit. Does NOT commit the dedup keys — the
-// caller commits them only when it actually returns/injects the block, so an
-// abandoned or discarded run never suppresses a passage that was never shown.
-// Never throws (best-effort).
+// 主动检索漏斗 正文 :运行回收机, 门在信心, 建造围栏
+// <retrieved-context> 块, PEEK
+// 十字架 -turn 脱下并收集击球手的遗存钥匙。
+// 不 输入解开的密钥—— 只有在实际发生时才被调用
+// returns/injects 被废弃或丢弃的跑步 永远无法压制从未显示的通道
+// 永远不要扔(最好) -effort).
 std::optional<ProactiveHit>
 run_proactive_funnel_(const std::string& query, int k, double min_conf) {
   try {
@@ -2602,24 +2602,24 @@ run_proactive_funnel_(const std::string& query, int k, double min_conf) {
     q.query = query;
     q.k     = k > 0 ? k : 3;
     std::string mode, err;
-    // Proactive retrieval is explicit opt-in and already runs on an isolated
-    // worker, so use the complete index once. The old cold-index shortcut could
-    // silently search only skills/memory and miss the document that triggered
-    // the knowledge-shaped query.
+    // 主动检索是明确的选择 -in 已经运行在孤立的 工作线程 ,
+    // 所以使用完整索引一次。旧的寒冷 -index 快捷键只能
+    // 默默搜索 skills/memory 并错过引发知识的文档
+    // -shaped 查询。
     auto passages = r.retrieve(q, mode, err);
     if (!err.empty() || passages.empty()) return std::nullopt;
 
-    // Recover the confidence the pipeline computed (mode carries
-    // ", confidence 0.NN"). If we can't parse it, be conservative and
-    // don't inject.
+    // 恢复管道计算出的信心(模式载运)
+    // ", confidence 0.NN" ) 如果我们不能 解析 保守一点,
+    // 别注射
     double conf = -1.0;
     if (auto p = mode.find("confidence "); p != std::string::npos) {
         try { conf = std::stod(mode.substr(p + 11)); } catch (...) {}
     }
     if (conf < min_conf) return std::nullopt;
 
-    // Build the wire block. Fenced + provenance-labelled so the model
-    // treats it as retrieved reference, not the user's words. Bounded.
+    // 构建 传输 栅栏+出处 -labelled
+    // 所以模型把它当作检索到的参考文献,而不是用户的词。
     std::string block =
         "<retrieved-context>\n"
         "The following passages were auto-retrieved from the user's "
@@ -2629,20 +2629,20 @@ run_proactive_funnel_(const std::string& query, int k, double min_conf) {
     int n = 0;
     std::vector<std::string> keys;
     for (const auto& p : passages) {
-        // CONTEXT-ECONOMY: memory facts already rendered in the system
-        // prompt's <learned-memory> block would be pure double-spend —
-        // the model can see them. select_for_prompt() decides that
-        // rendering; mirror it here and drop any memory passage whose
-        // record made the prompt cut. (Docs/skills/MCP passages are
-        // never in the system prompt — always kept.)
+        // CONTEXT-ECONOMY: 内存 系统中已经提供的事实
+        // 提示词's <learned-memory> 块会纯双倍 -spend
+        // - 模型可以看见他们。 select_for_prompt
+        // () 决定 渲染 ; 镜像在这里, 并丢弃任何 内存 记录的
+        // 段落 提示词 切开。 ( Docs/skills/MCP 系统
+        // 里从来没有过段落 提示词 ——始终保留. )
         if (p.source == "memory" && memory_fact_in_prompt_(p.path))
             continue;
 
-        // CROSS-TURN DEDUP: don't re-inject a passage the model was
-        // already shown earlier this session — that's context spend for
-        // zero new signal. Key on source:path:line so distinct chunks of
-        // the same file are treated separately. PEEK only here — the caller
-        // commits the surviving keys once it actually injects the block.
+        // CROSS-TURN DEDUP :
+        // 别重来 -inject 用于零新信号的上下文。
+        // 同一文件的源:path:line的大小
+        // 差异将分别处理。 PEEK 只有这里——
+        // 呼叫者在实际注入区块时,会将幸存的钥匙投入.
         std::string key = (p.source.empty() ? std::string{"docs"} : p.source)
                         + ":" + p.path + ":" + std::to_string(p.line_start);
         if (proactive_seen_(key))
@@ -2661,12 +2661,12 @@ run_proactive_funnel_(const std::string& query, int k, double min_conf) {
     }
     block += "</retrieved-context>";
 
-    if (n == 0) return std::nullopt;   // everything deduped away
+    if (n == 0) return std::nullopt;   // 都脱光了
 
-    // Independent ceiling on UNPROMPTED spend. The user didn't ask for this
-    // block, so it must stay cheap even when the retriever returns rich
-    // passages. Cap the whole assembled block; default ~6KiB (~1.5k tok),
-    // roughly half the on-demand tool budget. Tunable via
+    // 独立上限 UNPROMPTED。用户没有要求此块, 因此即使检索
+    // 器返回丰富的段落, 也必须保持便宜。 将整块块抓上;
+    // 默认为 ~6KiB (~1.5k tok), 大约一半的 -demand
+    // 工具预算。
     // AGENTTY_RAG_PROACTIVE_BYTES.
     {
         std::size_t cap = 6 * 1024;
@@ -2682,7 +2682,7 @@ run_proactive_funnel_(const std::string& query, int k, double min_conf) {
         }
         if (block.size() > cap) {
             std::size_t cut = cap;
-            // Trim to a UTF-8 boundary, then re-close the fence cleanly.
+            // 调整到一个 UTF -8号边界,然后是 -close 围栏干净。
             while (cut > 0 && (static_cast<unsigned char>(block[cut]) & 0xc0) == 0x80)
                 --cut;
             block.resize(cut);
@@ -2691,20 +2691,20 @@ run_proactive_funnel_(const std::string& query, int k, double min_conf) {
     }
     return ProactiveHit{std::move(block), conf, n, std::move(keys)};
   } catch (...) {
-    return std::nullopt;   // proactive retrieval is best-effort, never fatal
+    return std::nullopt;   // 主动检索是最佳的-effort, 绝不致命
   }
 }
-} // namespace
+} // 命名空间结束。
 
-// Compatibility entry point. Proactive retrieval is now opt-in and the submit
-// path always owns an isolated worker, so there is no reason to start a second
-// detached hedge. Execute the funnel exactly once.
+// 兼容性入口。 主动检索现在已选择 -in 提交
+// 路径总是拥有一个孤立的 工作线程 因此没有理由启动
+// 第二个脱落的套期。执行一次漏斗。
 std::optional<ProactiveHit> proactive_retrieve(const std::string& query, int k) {
     return proactive_retrieve_blocking(query, k);
 }
 
-// Full funnel for the isolated worker owned by the app. Commits dedup keys only
-// when a block is actually returned for injection.
+// 应用程序拥有的孤立的 工作线程 的完整漏斗。 只有当块被
+// 实际返回注入时, 才会提交解开键。
 std::optional<ProactiveHit>
 proactive_retrieve_blocking(const std::string& query, int k) {
     auto hit = run_proactive_funnel_(query, k, proactive_min_conf_());
@@ -2715,10 +2715,10 @@ proactive_retrieve_blocking(const std::string& query, int k) {
 }
 
 namespace subagent {
-// Provenance query for the task card (declared in subagent.hpp). Resolves the
-// type through the SAME lookup the runner uses, then maps its origin to a
-// stable label. Unknown → "builtin" (no tag shown). Defined at end-of-TU so
-// it doesn't shadow the subagent::current() calls used earlier in the file.
+// 任务卡的验证查询( 声明于 subagent.hpp。通过 相同 查找
+// 运行器所用的, 然后将其来源映射到一个稳定的标签。 未知 ~
+// "builtin" (没有显示标签)。 定义在结尾 -of-TU 所以它
+// 不会遮蔽 subagent::current() 调用 用于文件的较早部分。
 std::string_view agent_origin(Io, std::string_view name) noexcept {
     const ResolvedAgent r = resolve_agent_type(name);
     switch (r->origin) {

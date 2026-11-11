@@ -1,42 +1,42 @@
 #pragma once
-// agentty::auth::vault — ONE descriptor per credential store, answering
-// EVERY auth question agentty asks about a provider.
+// agentty::auth::vault —每个 凭据 存储的 一个 描述符，
+// 回答 每个 授权问题 agentty 询问的提供商。
 //
-// The multi-provider auth reality: N providers signed in simultaneously,
-// each with its own storage shape, the active Selection just a pointer.
-// Before this header, that reality was implemented as five independent
-// per-provider if-ladders spread over four files:
+// multi-provider认证现实：N个提供者同时登录，
+// 每个提供者都有自己的存储形状，活动选择只是一个指针。
+// 在此 头文件 之前，该现实被实现为五个独立的 per-provider
+// if-ladders 分布在四个文件中：
 //
-//   account_switch.cpp  backend_for()          — where does the blob live?
-//   login.cpp           sign_out()             — how do I clear it?
-//   login.cpp           account_provider_id()  — what's the registry id?
-//   login.cpp           signout_provider_id()  — (a byte-level clone of ^)
-//   auth_state.cpp      provider_is_authed()   — is something saved?
-//   credentials.cpp     resolve()              — what header goes on the wire?
+//   account_switch.cpp backend_for() — 该斑点位于哪里？
+//   login.cpp sign_out() — 如何清除它？
+//   login.cpp account_provider_id() — 注册表 ID 是什么？
+//   login.cpp signout_provider_id() — (^ 的 字节-level 克隆)
+//   auth_state.cpp provider_is_authed() — 是 已保存 吗？
+//   credentials.cpp resolve() —头文件 装在 传输 上是什么？
 //
-// Every new provider (and both times a provider was RENAMED) meant finding
-// all five ladders; missing one produced exactly the class of bug we kept
-// shipping fixes for (sign-out clearing the wrong store, ^D leaving the
-// live header armed, accounts drilling into the wrong provider).
+// 每个新的提供者（并且两次提供者都是RENAMED）意味着
+// 找到所有五个梯子；缺少一个正好产生了我们一直在发布修复程序
+// 的错误类别（sign-out 清除了错误的商店，
+// ^D 留下了实时的 头文件 武装，帐户钻入了错误的提供商）。
 //
-// Now: `vault::of(provider_id)` returns the ONE descriptor — a small value
-// type of function pointers + data, table-driven like provider registry
-// rows — and the five call sites become one-liners. Adding a provider's
-// auth story = adding ONE VaultDesc row. The compiler doesn't let a row be
-// partial (aggregate init with designated initializers, every question
-// answered or explicitly defaulted).
+// 现在：`vault::of(provider_id)`返回ONE
+// 描述符——函数指针+数据的小值类型，像提供者注册表行的表
+// -driven——并且五个调用站点变成一个-liners。
+// 添加提供商的身份验证故事 = 添加 一个 VaultDesc 行。
+// 编译器 不允许一行是部分的（使用指定的初始化器聚合 init，
+// 每个问题都已回答或明确默认）。
 //
-// Design notes (the "modern C++" here is restraint, not cleverness):
-//   • A flat constexpr-friendly table of plain function pointers — no
-//     virtual hierarchy, no std::function allocations, no registration
-//     side effects at static-init time. The descriptor IS the interface.
-//   • Identity is agentty's provider id (capkey RULE 2's namespace);
-//     custom hosts — whose id is their endpoint spec — fall through to a
-//     synthesized SettingsKey descriptor, so `of()` is total: every string
-//     yields a usable vault.
-//   • Questions are separated from POLICY: the vault knows how to clear a
-//     store; whether sign-out should then fall back to another provider
-//     or open the login modal stays in the reducer, where policy belongs.
+// 设计注意事项（这里的"modern C++"是克制，不是聪明）：
+//   ·普通函数指针的平面constexpr-friendly表——无
+//     虚拟层次结构，没有std::function 分配，
+//     在静态-init时间没有注册副作用。接口描述符 IS。
+//   ·身份是agentty的提供者ID（capkey RULE 2的命名空间）；
+//     自定义主机——其ID是它们的端点规范——落入合成的
+//     SettingsKey描述符，因此`of()`是总的：每个字符
+//     串产生一个可用的库。
+//   ·问题与POLICY分开：保险库知道如何清除
+//     商店；然后，sign-out 是否应该回退到另一个提供商
+//     或打开登录 弹出面板 保留在策略所属的 状态更新函数 中。
 
 #include <optional>
 #include <string>
@@ -46,39 +46,39 @@
 
 namespace agentty::auth::vault {
 
-// How a provider's ACTIVE credential is stored.
+// 如何存储提供商的ACTIVE 凭据。
 enum class Kind : std::uint8_t {
-    AnthropicFile,   // credentials.json (OAuth or x-api-key), sealed
-    OAuthFile,       // provider-owned token file (ChatGPT/Copilot/Kimi)
-    SettingsKey,     // Settings.provider_keys[id] — hosted keys + custom hosts
-    None,            // local/no-auth backends (Ollama): nothing to store
+    AnthropicFile,   // credentials.json (OAuth 或 x-api-key)，密封
+    OAuthFile,       // 提供商-owned令牌文件(ChatGPT/Copilot/Kimi)
+    SettingsKey,     // Settings.provider_keys[id] — 托管密钥+自定义主机
+    None,            // local/no-auth后端(Ollama)：没有可存储的内容
 };
 
 struct Desc {
-    std::string_view id;      // agentty provider id ("" ⇒ synthesized)
+    std::string_view id;      // agentty 提供商 ID（"" ⇒ 合成）
     Kind             kind = Kind::SettingsKey;
 
-    // The five questions, answered uniformly. Function pointers (not
-    // std::function): stateless, no allocation, trivially copyable.
-    // `provider` is passed back in so SettingsKey descriptors (shared by
-    // every hosted-key provider AND every custom host) know which slot.
-    // is_signed_in is lock-free (views reach it). clear may rewrite
-    // settings.json (a blocking settings save), so it needs `unlocked`;
-    // after_activate only takes leaf credential-store locks.
+    // 这五个问题，统一回答。函数指针（不是
+    // std::function）：无状态，没有 分配，可简单复制。
+    // `provider`被传回，以便SettingsKey描述符（
+    // 由每个托管-key提供者AND每个定制主机共享）知道哪个槽。
+    // is_signed_in是锁-free（浏览次数到达它）。
+    // clear可能会重写settings.json（一个阻塞设置保存），所以需要`unlocked`；
+    // after_activate 只取叶子 凭据-store 锁。
     bool (*is_signed_in)(Io, const std::string& provider);
-    void (*clear)(Io, const maya::unlocked&, const std::string& provider);  // sign out
+    void (*clear)(Io, const maya::unlocked&, const std::string& provider);  // 退出
     auth::AuthHeader (*resolve)(Io, const std::string& provider);
-    // Display label for the CURRENT credential (account switcher rows).
+    // 当前 凭据（帐户切换器行）的显示标签。
     std::string (*current_label)(Io, const std::string& provider);
-    // Post-activate hook (keystore re-seal / token-cache bust). May be null.
+    // Post-activate钩子(密钥库re-seal/token-cache半身像)。可能为空。
     void (*after_activate)(Io, const maya::below<maya::leaf>&, const std::string& provider);
 };
 
-// The total lookup: registry providers get their row; anything else is a
-// custom host and gets the synthesized SettingsKey descriptor. Never fails.
+// 总查找：注册表提供者获得他们的行；其他都是自定义主机并
+// 获取合成的 SettingsKey 描述符。永远不会失败。
 [[nodiscard]] const Desc& of(std::string_view provider_id);
 
-// Convenience passthroughs — the call-site vocabulary.
+// 便利传递——调用-site词汇。
 [[nodiscard]] inline bool signed_in(Io io, const std::string& p) {
     return of(p).is_signed_in(io, p);
 }

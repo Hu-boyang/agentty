@@ -1,10 +1,10 @@
-// tool_budget_env_test — #98: every MCP tool stays callable, and
-// $AGENTTY_MCP_TOOL_BUDGET caps how many load per request, not which exist.
+// tool_budget_env_test -98号:每 MCP 工具仍可调用,
+// 以及 $AGENTTY_MCP_TOOL_BUDGET 上限( 次数) 加载 请求,不存在。
 //
-// The old budget trimmed the CATALOG, so a tool past it was "unknown" even
-// when the model called it by its exact name. Drives the real producer (the
-// date_server example, 2 tools) and checks both halves: the catalog keeps
-// every tool, and the per-request plan honours the env cap.
+// 旧预算削减了 CATALOG ,所以一个工具过去它 "unknown"
+// 即便模型用它的确切名称称呼它,也驱动真正的制作人(The Final).
+// date_server 例如,2种工具)和检查两者均是: 目录 保存每个工具,
+// 以及每个 -request 计划尊重洞穴的封顶。
 
 #include "agentty/tool/registry.hpp"
 #include "agentty/tool/tool_loading.hpp"
@@ -25,7 +25,7 @@
 namespace fs = std::filesystem;
 using namespace agentty;
 
-namespace {  // fold: TU-local (bundled into agentty_standalone_tests)
+namespace {  // 归并: TU-local (捆绑成 agentty_standalone_tests)
 static int g_fails = 0;
 static void check(bool ok, const std::string& what) {
     std::printf("  [%s] %s\n", ok ? "PASS" : "FAIL", what.c_str());
@@ -39,7 +39,7 @@ static std::size_t demo_in_catalog() {
     return n;
 }
 
-// The request an OpenAI-family turn would carry with "all" loading.
+// 请求 OpenAI-family 转身会带着 "all" 装填。
 static std::pair<tools::plan::Plan, std::size_t> plan_now() {
     const auto cat = tools::wire_tools();
     provider::Selection sel;
@@ -53,7 +53,7 @@ static std::pair<tools::plan::Plan, std::size_t> plan_now() {
     auto p = tools::tool_loading::plan_into(tr, specs);
     return {p, specs.size()};
 }
-}  // namespace (fold)
+}  // 名称空间( 归并)
 
 int main() {
 #ifdef SIGPIPE
@@ -99,14 +99,14 @@ int main() {
     const std::size_t native = tools::native_registry().size();
     check(native > 0, "native registry is non-empty");
 
-    // ── 1. Default: both tools in the catalog and on the wire ────────────
+    // ── 1. 默认:两个工具都载于 目录 和关于 传输 ────────────
     {
         check(demo_in_catalog() == kN, "both demo tools are in the catalog");
         auto [p, wire] = plan_now();
         check(p.on_demand == 0 && !p.search, "default cap: everything loads, no search tool");
     }
 
-    // ── 2. Cap = native + 1: one tool loads, one is on demand, both callable
+    // 2. 上限为原生数量加一：一个工具加载，另一个按需加载，两者均可调用。
     {
         ::setenv("AGENTTY_MCP_TOOL_BUDGET", std::to_string(native + 1).c_str(), 1);
         (void)tools::reload_mcp_plugins();
@@ -122,14 +122,14 @@ int main() {
         check(p.capped_by_provider, "the plan says the cap, not the user, put them there");
     }
 
-    // ── 3. 0 = no cap ───────────────────────────────────────────────────
+    // ── 3.0 = 无上限 ───────────────────────────────────────────────────
     {
         ::setenv("AGENTTY_MCP_TOOL_BUDGET", "0", 1);
         auto [p, wire] = plan_now();
         check(p.on_demand == 0 && !p.search, "0 lifts the cap: everything loads");
     }
 
-    // ── 4. Unparsable keeps the provider default ────────────────────────
+    // ── 4. 无法保存提供者的默认 ────────────────────────
     {
         ::setenv("AGENTTY_MCP_TOOL_BUDGET", "not-a-number", 1);
         auto [p, wire] = plan_now();

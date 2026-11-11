@@ -1,4 +1,4 @@
-// The one TU compiled with -DAGENTTY_VERSION. See agentty/version.hpp.
+// 其中一个 TU 编译为 -DAGENTTY_VERSION。见 agentty/version.hpp.
 
 #include "agentty/version.hpp"
 

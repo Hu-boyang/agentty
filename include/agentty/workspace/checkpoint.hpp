@@ -1,19 +1,19 @@
 #pragma once
-// Git-based workspace checkpoints — the Zed-agent "restore checkpoint"
-// mechanism. Before each user turn the runtime snapshots the ENTIRE
-// worktree state (tracked + untracked, .gitignore respected) as a
-// parentless git commit pinned under refs/agentty/checkpoints/<id>.
-// Restore makes the worktree byte-identical to that snapshot: files are
-// rewritten from the tree AND files created since the snapshot are
-// deleted (ignored files — build dirs etc. — are never touched).
+// Git-based 工作区 检查点 — Zed-agent "restore checkpoint" 机制。
+// 在每个用户将 运行时 快照 和 整个 工作树状态（已跟踪+未跟踪，.
+// gitignore 受到尊重）作为固定在
+// refs/agentty/checkpoints/<id> 下的无父 git 提交之前。
+// 恢复使工作树 字节-identical 变为 快照：从
+// 删除 快照 以来创建的 源码树 和 文件重写文件（
+// 忽略的文件 - 构建目录等 - 永远不会被触及）。
 //
-// The snapshot never moves HEAD, never touches the user's real index,
-// and never creates stash entries: everything runs against a throwaway
-// GIT_INDEX_FILE seeded from a copy of the real index (so `add -A` only
-// re-hashes changed files instead of the whole repo).
+// 快照 永远不会移动 HEAD，永远不会触及用户的真实索引，
+// 也永远不会创建存储条目：一切都针对从真实索引的副本中播种的一次性
+// GIT_INDEX_FILE 运行（因此 `add -A` 仅
+// re-hashes 更改了文件，而不是整个 仓库）。
 //
-// All functions are safe to call outside a git repo — they return
-// false/nullopt and do nothing.
+// 所有函数对于 git 仓库 之外的 调用 都是安全的——它们返回
+// false/nullopt 并且不执行任何操作。
 
 #include <optional>
 #include <stop_token>
@@ -23,54 +23,54 @@
 
 namespace agentty::workspace {
 
-// True iff the workspace root is inside a git repository. Cached after
-// the first call (repo-ness doesn't change mid-session).
+// 当且仅当 工作区 根位于 git 仓库 内时为真。在第一个 调用 之后缓
+// 存（仓库-ness 不会改变 mid-session）。
 [[nodiscard]] bool in_git_repo(Io);
 
-// Non-blocking variant for the UI/reducer thread. Returns the cached answer
-// only if repo discovery has ALREADY been forced (by prewarm_repo_info() or
-// an earlier blocking caller); returns nullopt when the cache is still cold,
-// so the caller can skip git work this turn instead of spawning `git` on the
-// hot path. The very first Enter after launch -- before the startup prewarm
-// lands -- takes this nullopt path, keeping the keystroke instant on Windows.
+// Non-blocking 变体 为 UI/reducer 线程。
+// 仅当 仓库 发现已强制 ALREADY（通过 prewarm_repo_info
+// () 或较早的阻塞调用者）时，才返回缓存的答案；当 缓存 仍然冷时返回
+// nullopt，因此调用者可以跳过本回合的 git 工作，而不是在 高频
+// 路径 上生成 `git`。启动后的第一个 Enter（在启动预热着陆
+// 之前）采用此 nullopt 路径，使 Windows 上的击键保持即时。
 [[nodiscard]] std::optional<bool> in_git_repo_if_ready(Io);
 
-// Warm the cached repo discovery; run it on a background task at launch.
-// The first call to in_git_repo()/create_checkpoint() otherwise
-// spawns two blocking `git rev-parse` subprocesses on the submit path --
-// cheap on POSIX, but process creation is heavy on Windows and lands
-// squarely on the first turn's critical path. Priming it while the user
-// is still typing moves that cost off the hot path. Idempotent; does
-// nothing once `stop` is requested.
+// 预热缓存的 仓库 发现；在启动时在后台任务上运行它。
+// 否则，第一个 调用 到 in_git_repo()/
+// create_checkpoint() 会在提交路径上生成两个阻塞的
+// `git rev-parse` 子进程——在 POSIX 上很便宜，
+// 但进程创建在 Windows 上很重，并且恰好落在第一回合的关键路径上。
+// 当用户仍在输入花费 高频路径 的动作时启动它。 幂等；
+// 一旦请求 `stop`，就不执行任何操作。
 void prewarm_repo_info(std::stop_token stop = {});
 
-// A one-glance summary of what the worktree has changed SINCE a
-// checkpoint was taken — the diff between the pinned snapshot tree and
-// the current working tree (tracked + newly-added; ignored files never
-// counted). Powers the rewind picker's preview so a rewind is never
-// blind. All zero / valid==false when not in a repo, the ref is gone,
-// or nothing changed.
+// 工作树已更改的 one-glance 摘要 SINCE
+// 采取了检查点 - 固定的 快照 源码树 和当前工作 源码树
+// 之间的差异（跟踪 + 新的 -added；忽略的文件从未计数）。
+// 为 选择面板 的预览提供倒带功能，因此倒带永远不会盲目。
+// 当不在 仓库 中时，全部为零/有效==假，引用消失，
+// 或者没有任何改变。
 struct CheckpointDiff {
-    bool valid          = false;   // the summary was computed successfully
+    bool valid          = false;   // 摘要已成功计算
     int  files_changed  = 0;
     int  insertions     = 0;
     int  deletions      = 0;
 };
 [[nodiscard]] CheckpointDiff checkpoint_summary(const std::string& id);
 
-// Snapshot the current worktree and pin it at
-// refs/agentty/checkpoints/<id>. Returns false when not in a repo or
-// any git step fails. Also prunes the oldest checkpoint refs beyond a
-// fixed keep-count so refs don't accumulate forever.
+// 快照 当前工作树并将其固定在
+// refs/agentty/checkpoints/<id>。当不在 仓库
+// 中或任何 git 步骤失败时返回 false。还修剪超出固定 keep
+// -count 的最旧的检查点引用，以便引用不会永远累积。
 bool create_checkpoint(const std::string& id);
 
-// True iff refs/agentty/checkpoints/<id> resolves to a commit.
+// 当且仅当 refs/agentty/checkpoints/<id> 解析为提交时为真。
 [[nodiscard]] bool checkpoint_exists(const std::string& id);
 
-// Make the worktree match the checkpoint exactly: rewrite every file
-// recorded in the snapshot and delete non-ignored files that did not
-// exist when it was taken. On failure returns false and, if `error` is
-// non-null, writes a short human-readable reason into it.
+// 使工作树与检查点完全匹配：重写快照中记录的每个文件，
+// 并删除拍摄时​​不存在的非-ignored文件。失败时返回
+// false，如果 `error` 不是 -null，
+// 则在其中写入一个简短的 human-readable 原因。
 bool restore_checkpoint(const std::string& id, std::string* error = nullptr);
 
 } // namespace agentty::workspace

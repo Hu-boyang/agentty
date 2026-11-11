@@ -1,10 +1,10 @@
-// stats_render_probe — does the stats panel actually draw?
+// stats_render_probe — 数据面板是否真的画出来?
 //
-// The unit tests cover the projection (numbers) and the strip (geometry).
-// Neither renders the PANEL, so a host that wires the two together wrongly —
-// a tab index off by one, an empty body, a strip that never appears — passes
-// both and still shows a broken pane. This drives the real view function and
-// prints what a user would see.
+// 单元测试涵盖投影(数字)和条形(几何).
+// PANEL也不是渲染,所以一个将两者错联在一起的宿主——一个
+// 标签索引一个字的关闭,一个空的正文,一个字条从不出现——通过两者,
+// 仍然显示一个破的面板。这驱动了真实的视图功能,
+// 并打印出一个用户会看到的东西。
 
 #include "agtest.hpp"
 
@@ -63,7 +63,7 @@ bool any_row_has(const std::vector<std::string>& rows, std::string_view n) {
     return false;
 }
 
-}  // namespace
+}  // 命名空间结束。
 
 TEST_CASE("stats panel: renders a real thread") {
     Model m;
@@ -80,10 +80,10 @@ TEST_CASE("stats panel: renders a real thread") {
     std::printf("\n--- stats panel: Session (5 turns) ---\n");
     for (const auto& r : rows) std::printf("|%s\n", r.c_str());
 
-    CHECK(!rows.empty());                       // it drew something
-    CHECK(any_row_has(rows, "Stats"));          // the frame title
-    // The strip carries the AVAILABLE tabs — Session and Models always,
-    // Smart because these turns were routed, and NOT Tools or Cache.
+    CHECK(!rows.empty());                       // 画了些东西
+    CHECK(any_row_has(rows, "Stats"));          // 编号 帧 标题
+    // 带带带带 AVAILABLE 选项卡——会话和模型总是很聪明,
+    // 因为这些转弯经过了路由,以及 不 工具或 缓存.
     CHECK(any_row_has(rows, "Session"));
     CHECK(any_row_has(rows, "Models"));
     CHECK(any_row_has(rows, "Smart"));
@@ -111,7 +111,7 @@ TEST_CASE("stats panel: the Smart tab states its denominator") {
     CHECK(any_row_has(rows, "By role") || any_row_has(rows, "BY ROLE"));
     CHECK(any_row_has(rows, "Strategic"));
     CHECK(any_row_has(rows, "Utility"));
-    // 3 of 5 routed turns ran below Strategic.
+    // 5个路由转弯中3个在战略下方运行.
     CHECK(any_row_has(rows, "60%"));
 }
 
@@ -123,15 +123,15 @@ TEST_CASE("stats panel: the empty state is not a wall of zeroes") {
     for (const auto& r : rows) std::printf("|%s\n", r.c_str());
 
     CHECK(!rows.empty());
-    // Tabs with nothing to say are absent entirely, rather than present
-    // and empty — so there is no tally to read and no zero to explain.
+    // 没有任何可言的标签是完全没有的,
+    // 而不是现在和空的——因此没有读数,也没有解释零。
     CHECK(!any_row_has(rows, "By role"));
     CHECK(!any_row_has(rows, "Smart"));
     CHECK(!any_row_has(rows, "Cache"));
 }
 
 TEST_CASE("stats panel: survives a narrow terminal") {
-    // A panel is a view: it must degrade, never abort.
+    // 面板是一种观点:它必须降解,绝不中止。
     Model m;
     m.d.current.messages = {served("m", smart::ModelRole::Utility)};
     m.ui.panel.descend(pn::Stats{});
